@@ -7,13 +7,16 @@ import pandas as pd
 import xarray as xr
 import zmq
 from matplotlib import rcParams
-from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg as FCanvas
+from matplotlib.backends.backend_qt5agg import (FigureCanvasQTAgg as FCanvas,
+                                                NavigationToolbar2QT as NavBar, )
 from matplotlib.figure import Figure
 from PyQt5.QtCore import QObject, Qt, QThread, pyqtSignal, pyqtSlot
 from PyQt5.QtGui import QIcon
-from PyQt5.QtWidgets import (QApplication, QDialog, QFrame, QHBoxLayout,
+from PyQt5.QtWidgets import (QApplication, QComboBox, QDialog, QFormLayout,
+                             QFrame, QGroupBox, QHBoxLayout, QLabel,
                              QMainWindow, QPlainTextEdit, QSizePolicy,
-                             QTreeWidget, QTreeWidgetItem, QVBoxLayout)
+                             QTreeWidget, QTreeWidgetItem, QVBoxLayout,
+                             QWidget)
 
 APPTITLE = "plottr"
 PORT = 5557
@@ -71,12 +74,12 @@ def dataFrameToXArray(df):
 class MPLPlot(FCanvas):
 
     def __init__(self, parent=None, width=4, height=3, dpi=150):
-        fig = Figure(figsize=(width, height), dpi=dpi)
+        self.fig = Figure(figsize=(width, height), dpi=dpi)
 
         # TODO: option for multiple subplots
-        self.axes = fig.add_subplot(111)
+        self.axes = self.fig.add_subplot(111)
 
-        super().__init__(fig)
+        super().__init__(self.fig)
 
         self.setParent(parent)
 
@@ -88,6 +91,28 @@ class DataStructure(QTreeWidget):
 
         self.setColumnCount(2)
         self.setHeaderLabels(['Array', 'Properties'])
+        self.setSelectionMode(QTreeWidget.SingleSelection)
+
+
+class PlotChoice(QWidget):
+
+    def __init__(self, parent=None):
+
+        super().__init__(parent)
+
+        self.avgSelection = QComboBox()
+        self.xSelection = QComboBox()
+        self.ySelection = QComboBox()
+
+        axisChoiceBox = QGroupBox('Plot axes')
+        axisChoiceLayout = QFormLayout()
+        axisChoiceLayout.addRow(QLabel('Averaging axis'), self.avgSelection)
+        axisChoiceLayout.addRow(QLabel('x axis'), self.xSelection)
+        axisChoiceLayout.addRow(QLabel('y axis'), self.ySelection)
+        axisChoiceBox.setLayout(axisChoiceLayout)
+
+        mainLayout = QVBoxLayout(self)
+        mainLayout.addWidget(axisChoiceBox)
 
 
 class DataWindow(QMainWindow):
@@ -105,13 +130,16 @@ class DataWindow(QMainWindow):
 
         # data chosing widgets
         self.structure = DataStructure()
+        self.plotChoice = PlotChoice()
         chooserLayout = QVBoxLayout()
         chooserLayout.addWidget(self.structure)
+        chooserLayout.addWidget(self.plotChoice)
 
         # plot control widgets
         self.plot = MPLPlot()
         plotLayout = QVBoxLayout()
         plotLayout.addWidget(self.plot)
+        plotLayout.addWidget(NavBar(self.plot, self))
 
         # Main layout
         self.frame = QFrame()
@@ -152,18 +180,32 @@ class DataWindow(QMainWindow):
         self.plot.draw()
 
     def updateDataStructure(self, reset=True):
-        # TODO: keep in mind what we had selected before.
-        # TODO: reset option
-        self.structure.clear()
-        for n, v in self.dataStructure.items():
-            item = QTreeWidgetItem([n, '{} points'.format(v['nValues'])])
-            for m, w in v['axes'].items():
-                childItem = QTreeWidgetItem([m, '{} points'.format(w['nValues'])])
-                childItem.setDisabled(True)
-                item.addChild(childItem)
+        curSelection = self.structure.selectedItems()
+        if len(curSelection) > 0:
+            selName = curSelection[0].text(0)
+        else:
+            selName = None
 
-            self.structure.addTopLevelItem(item)
-            item.setExpanded(True)
+        if reset:
+            self.structure.clear()
+            for n, v in self.dataStructure.items():
+                item = QTreeWidgetItem([n, '{} points'.format(v['nValues'])])
+                for m, w in v['axes'].items():
+                    childItem = QTreeWidgetItem([m, '{} points'.format(w['nValues'])])
+                    childItem.setDisabled(True)
+                    item.addChild(childItem)
+
+                self.structure.addTopLevelItem(item)
+                item.setExpanded(True)
+                if selName and n == selName:
+                    item.setSelected(True)
+
+            if not selName:
+                self.structure.topLevelItem(0).setSelected(True)
+
+        else:
+            raise NotImplementedError
+
 
     @pyqtSlot(dict)
     def addData(self, dataDict):
@@ -188,10 +230,6 @@ class DataWindow(QMainWindow):
                     self.updateDataStructure(reset=True)
             else:
                 raise NotImplementedError
-
-
-
-
 
 
 class DataReceiver(QObject):
