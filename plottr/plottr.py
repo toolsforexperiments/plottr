@@ -1,3 +1,20 @@
+"""
+plottr. A simple server application that can plot data streamed through
+network sockets from other processes.
+
+Author: Wolfgang Pfaff <wolfgangpfff@gmail.com>
+
+TODO: (before releasing into the wild)
+    * all constants should become configurable
+    * launcher .bat or so.
+    * examples
+    * better checking if we can work with data that came in.
+    * some tools for packaging the data correctly.
+    * a qcodes subscriber.
+    * docstrings everywhere public.
+    * make some methods private.
+"""
+
 import sys
 import time
 from collections import OrderedDict
@@ -19,6 +36,7 @@ from PyQt5.QtWidgets import (QApplication, QComboBox, QDialog, QFormLayout,
                              QWidget)
 
 APPTITLE = "plottr"
+AVGAXISNAMES = ['average', 'averages', 'repetition', 'repetitions']
 PORT = 5557
 TIMEFMT = "[%Y/%m/%d %H:%M:%S]"
 
@@ -67,7 +85,16 @@ def combineDataFrames(df1, df2, sortIndex=True):
 
 
 def dataFrameToXArray(df):
+    """
+    Convert pandas DataFrame with MultiIndex to an xarray DataArray.
+    """
+    # conversion with MultiIndex leaves some residue; need to unstack the MI dimension.
     arr = xr.DataArray(df).unstack('dim_0').squeeze()
+
+    # for tidiness, remove also any empty dimensions.
+    for k, v in arr.coords.items():
+        if not isinstance(v.values, np.ndarray):
+            arr = arr.drop(k)
     return arr
 
 
@@ -96,6 +123,8 @@ class DataStructure(QTreeWidget):
 
 class PlotChoice(QWidget):
 
+    choiceUpdated = pyqtSignal()
+
     def __init__(self, parent=None):
 
         super().__init__(parent)
@@ -114,6 +143,75 @@ class PlotChoice(QWidget):
         mainLayout = QVBoxLayout(self)
         mainLayout.addWidget(axisChoiceBox)
 
+        self.avgSelection.currentTextChanged.connect(self.avgSelected)
+        self.xSelection.currentTextChanged.connect(self.xSelected)
+        self.ySelection.currentTextChanged.connect(self.ySelected)
+
+    @pyqtSlot(str)
+    def avgSelected(self, val):
+        self.updateOptions(self.avgSelection, val)
+
+    @pyqtSlot(str)
+    def xSelected(self, val):
+        self.updateOptions(self.xSelection, val)
+
+    @pyqtSlot(str)
+    def ySelected(self, val):
+        self.updateOptions(self.ySelection, val)
+
+    def updateOptions(self, changedOption, newVal):
+        """
+        After changing the role of a data axis manually, we need to make
+        sure this axis isn't used anywhere else.
+        """
+        for opt in self.avgSelection, self.xSelection, self.ySelection:
+            if opt != changedOption and opt.currentText() == newVal:
+                opt.setCurrentIndex(0)
+
+        self.choiceUpdated.emit()
+
+    def setOptions(self, dataStructure):
+        """
+        Populates the data choice widgets initially.
+        """
+        axesNames = [n for n, k in dataStructure['axes'].items() ]
+
+        # Need an option that indicates that the choice is 'empty'
+        self.noSelName = '<None>'
+        while self.noSelName in axesNames:
+            self.noSelName = '<' + self.noSelName + '>'
+        axesNames.insert(0, self.noSelName)
+
+        # check if some axis is obviously meant for averaging
+        self.avgAxisName = None
+        for n in axesNames:
+            if n.lower() in AVGAXISNAMES:
+                self.avgAxisName = n
+
+        # add all options
+        for opt in self.avgSelection, self.xSelection, self.ySelection:
+            opt.clear()
+            opt.addItems(axesNames)
+
+        # select averaging axis automatically
+        if self.avgAxisName:
+            self.avgSelection.setCurrentText(self.avgAxisName)
+        else:
+            self.avgSelection.setCurrentIndex(0)
+
+        # see which options remain for x and y, apply the first that work
+        xopts = axesNames.copy()
+        xopts.pop(0)
+        if self.avgAxisName:
+            xopts.pop(xopts.index(self.avgAxisName))
+
+        if len(xopts) > 0:
+            self.xSelection.setCurrentText(xopts[0])
+        if len(xopts) > 1:
+            self.ySelection.setCurrentText(xopts[1])
+
+        self.choiceUpdated.emit()
+
 
 class DataWindow(QMainWindow):
 
@@ -123,6 +221,7 @@ class DataWindow(QMainWindow):
         self.dataId = dataId
         self.setWindowTitle(getAppTitle() + f" ({dataId})")
         self.data = {}
+        self.plotData = None
 
         # TODO: somewhere here we should implement a choice of backend i feel.
         # plot settings
@@ -149,6 +248,7 @@ class DataWindow(QMainWindow):
 
         # signals/slots for data selection etc.
         self.structure.itemSelectionChanged.connect(self.dataSelected)
+        self.plotChoice.choiceUpdated.connect(self.updatePlotData)
 
         # activate window
         self.frame.setFocus()
@@ -165,19 +265,29 @@ class DataWindow(QMainWindow):
             self.plot.axes.clear()
             self.plot.draw()
 
-
     def activateData(self, name):
         df = self.data[name]
         xarr = dataFrameToXArray(df)
-        vals = xarr.values
 
-        axname = [ n for n, k in self.dataStructure[name]['axes'].items() ][0]
-        xvals = xarr.coords[axname].values
+        self.plotChoice.setOptions(self.dataStructure[name])
 
-        self.plot.axes.plot(xvals, vals, 'o')
-        self.plot.axes.set_xlabel(axname)
-        self.plot.axes.set_ylabel(name)
-        self.plot.draw()
+        # mock plotting
+        # TODO: replace
+        # vals = xarr.values
+
+        # axname = [ n for n, k in self.dataStructure[name]['axes'].items() ][0]
+        # xvals = xarr.coords[axname].values
+
+        # self.plot.axes.plot(xvals, vals, 'o')
+        # self.plot.axes.set_xlabel(axname)
+        # self.plot.axes.set_ylabel(name)
+        # self.plot.draw()
+
+    @pyqtSlot()
+    def updatePlotData(self):
+        pass
+        # TODO: continue here.
+
 
     def updateDataStructure(self, reset=True):
         curSelection = self.structure.selectedItems()
