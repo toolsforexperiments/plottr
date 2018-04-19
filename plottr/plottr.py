@@ -212,6 +212,13 @@ class PlotChoice(QWidget):
 
         self.choiceUpdated.emit()
 
+class PlotData(QObject):
+
+    def __init__(self, parent=None):
+        super().__init__(parent)
+
+        # TODO: this is where operations need to live. plotting maybe also in here?
+
 
 class DataWindow(QMainWindow):
 
