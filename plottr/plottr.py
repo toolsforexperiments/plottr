@@ -168,30 +168,39 @@ class PlotChoice(QWidget):
             if opt != changedOption and opt.currentText() == newVal:
                 opt.setCurrentIndex(0)
 
+        # TODO: axes > y still missing
+        slices = [ slice(None, None, None) for n in self.axesNames[1:] ]
+        self.choiceInfo = {
+            'avgAxis' : self.avgSelection.currentIndex() - 1,
+            'xAxis' : self.xSelection.currentIndex() - 1,
+            'yAxis' : self.ySelection.currentIndex() - 1,
+            'slices' : slices,
+        }
+
         self.choiceUpdated.emit()
 
     def setOptions(self, dataStructure):
         """
         Populates the data choice widgets initially.
         """
-        axesNames = [n for n, k in dataStructure['axes'].items() ]
+        self.axesNames = [n for n, k in dataStructure['axes'].items() ]
 
         # Need an option that indicates that the choice is 'empty'
         self.noSelName = '<None>'
-        while self.noSelName in axesNames:
+        while self.noSelName in self.axesNames:
             self.noSelName = '<' + self.noSelName + '>'
-        axesNames.insert(0, self.noSelName)
+        self.axesNames.insert(0, self.noSelName)
 
         # check if some axis is obviously meant for averaging
         self.avgAxisName = None
-        for n in axesNames:
+        for n in self.axesNames:
             if n.lower() in AVGAXISNAMES:
                 self.avgAxisName = n
 
         # add all options
         for opt in self.avgSelection, self.xSelection, self.ySelection:
             opt.clear()
-            opt.addItems(axesNames)
+            opt.addItems(self.axesNames)
 
         # select averaging axis automatically
         if self.avgAxisName:
@@ -200,7 +209,7 @@ class PlotChoice(QWidget):
             self.avgSelection.setCurrentIndex(0)
 
         # see which options remain for x and y, apply the first that work
-        xopts = axesNames.copy()
+        xopts = self.axesNames.copy()
         xopts.pop(0)
         if self.avgAxisName:
             xopts.pop(xopts.index(self.avgAxisName))
@@ -212,12 +221,17 @@ class PlotChoice(QWidget):
 
         self.choiceUpdated.emit()
 
-class PlotData(QObject):
+class ProcessData(QObject):
 
     def __init__(self, parent=None):
         super().__init__(parent)
 
-        # TODO: this is where operations need to live. plotting maybe also in here?
+    def setDataFrame(self, df):
+        self.df = df
+
+    def process(self, info):
+        print(info)
+        # TODO: continue here.
 
 
 class DataWindow(QMainWindow):
@@ -228,7 +242,6 @@ class DataWindow(QMainWindow):
         self.dataId = dataId
         self.setWindowTitle(getAppTitle() + f" ({dataId})")
         self.data = {}
-        self.plotData = None
 
         # TODO: somewhere here we should implement a choice of backend i feel.
         # plot settings
@@ -253,9 +266,16 @@ class DataWindow(QMainWindow):
         mainLayout.addLayout(chooserLayout)
         mainLayout.addLayout(plotLayout)
 
+        # Data processing thread
+        self.procData = ProcessData()
+        self.dataThread = QThread()
+        self.procData.moveToThread(self.dataThread)
+
         # signals/slots for data selection etc.
         self.structure.itemSelectionChanged.connect(self.dataSelected)
         self.plotChoice.choiceUpdated.connect(self.updatePlotData)
+
+        self.dataThread.start()
 
         # activate window
         self.frame.setFocus()
@@ -273,10 +293,8 @@ class DataWindow(QMainWindow):
             self.plot.draw()
 
     def activateData(self, name):
-        df = self.data[name]
-        xarr = dataFrameToXArray(df)
-
         self.plotChoice.setOptions(self.dataStructure[name])
+        self.procData.setDataFrame(self.data[name])
 
         # mock plotting
         # TODO: replace
@@ -292,8 +310,7 @@ class DataWindow(QMainWindow):
 
     @pyqtSlot()
     def updatePlotData(self):
-        pass
-        # TODO: continue here.
+        self.procData.process(self.plotChoice.choiceInfo)
 
 
     def updateDataStructure(self, reset=True):
