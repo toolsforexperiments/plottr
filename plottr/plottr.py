@@ -50,7 +50,7 @@ def getTimestamp(timeTuple=None):
 def getAppTitle():
     return f"{APPTITLE}"
 
-
+### matplotlib tools
 def setMplDefaults():
     rcParams['axes.grid'] = True
     rcParams['font.family'] = 'Arial'
@@ -60,6 +60,21 @@ def setMplDefaults():
     rcParams['savefig.transparent'] = False
 
 
+def centers2edges(arr):
+    e = (arr[1:] + arr[:-1]) / 2.
+    e = np.concatenate(([arr[0] - (e[0] - arr[0])], e))
+    e = np.concatenate((e, [arr[-1] + (arr[-1] - e[-1])]))
+    return e
+
+
+def pcolorgrid(xaxis, yaxis):
+    xedges = centers2edges(xaxis)
+    yedges = centers2edges(yaxis)
+    xx, yy = np.meshgrid(xedges, yedges)
+    return xx, yy
+
+
+### structure tools
 def dictToDataFrames(dataDict):
     dfs = []
     for n in dataDict:
@@ -98,14 +113,6 @@ def dataFrameToXArray(df):
     return arr
 
 
-# class ProcessData(QObject):
-
-#     plotDataProcessed = pyqtSignal()
-
-#     def __init__(self, parent=None):
-#         super().__init__(parent)
-
-
 class MPLPlot(FCanvas):
 
     plotDataProcessed = pyqtSignal()
@@ -120,12 +127,6 @@ class MPLPlot(FCanvas):
         self.setParent(parent)
 
         self.df = None
-
-        # self.procData = ProcessData()
-        # self.dataThread = QThread()
-        # self.procData.moveToThread(self.dataThread)
-        # self.dataThread.start()
-
         self.plotDataProcessed.connect(self.plot)
 
     def clearFig(self):
@@ -134,11 +135,9 @@ class MPLPlot(FCanvas):
 
     def setDataFrame(self, df):
         self.df = df
-        print('plot got df')
 
     def processData(self, info):
         self.axesInfo = info
-        print(info)
 
         if self.df is None:
             self.clearFig()
@@ -162,9 +161,29 @@ class MPLPlot(FCanvas):
 
         self.plotDataProcessed.emit()
 
+
     @pyqtSlot()
     def plot(self):
-        print(self.xVals, self.yVals, self.axesInfo['avgAxis'])
+        self.axes.clear()
+
+        if self.xVals is not None and self.yVals is None:
+            self.plot1D()
+        elif self.xVals is not None and self.yVals is not None:
+            self.plot2D()
+
+        self.fig.tight_layout()
+        self.draw()
+
+    def plot1D(self):
+        self.axes.plot(self.xVals, self.plotData, 'o')
+        self.axes.set_xlabel(self.axesInfo['xAxis']['name'])
+
+    def plot2D(self):
+        x, y = pcolorgrid(self.xVals, self.yVals)
+        im = self.axes.pcolormesh(x, y, self.plotData)
+        cb = self.fig.colorbar(im)
+        self.axes.set_xlabel(self.axesInfo['xAxis']['name'])
+        self.axes.set_ylabel(self.axesInfo['yAxis']['name'])
 
 
 class DataStructure(QTreeWidget):
@@ -224,7 +243,8 @@ class PlotChoice(QWidget):
             if opt != changedOption and opt.currentText() == newVal:
                 opt.setCurrentIndex(0)
 
-        # TODO: axes > y still missing
+        # TODO: axes > y still missing. need to make sure we return the right shape.
+        # basically, each 'unused' axis needs just a single index.
         slices = [ slice(None, None, None) for n in self.axesNames[1:] ]
         self.choiceInfo = {
             'avgAxis' : {
@@ -337,9 +357,12 @@ class DataWindow(QMainWindow):
         elif len(sel) == 0:
             self.plot.clearFig()
 
+
     def activateData(self, name):
-        self.plot.setDataFrame(self.data[name])
+        self.plot.df = None
         self.plotChoice.setOptions(self.dataStructure[name])
+        self.plot.setDataFrame(self.data[name])
+        self.updatePlotData()
 
 
     @pyqtSlot()
