@@ -12,7 +12,7 @@ TODO: (before releasing into the wild)
     * some tools for packaging the data correctly.
     * a qcodes subscriber.
     * docstrings everywhere public.
-    * make some methods private.
+    * make some methods private?
 """
 
 import sys
@@ -93,12 +93,22 @@ def dataFrameToXArray(df):
 
     # for tidiness, remove also any empty dimensions.
     for k, v in arr.coords.items():
-        if not isinstance(v.values, np.ndarray):
+        if not isinstance(v.values, np.ndarray) or v.values.size <= 1:
             arr = arr.drop(k)
     return arr
 
 
+# class ProcessData(QObject):
+
+#     plotDataProcessed = pyqtSignal()
+
+#     def __init__(self, parent=None):
+#         super().__init__(parent)
+
+
 class MPLPlot(FCanvas):
+
+    plotDataProcessed = pyqtSignal()
 
     def __init__(self, parent=None, width=4, height=3, dpi=150):
         self.fig = Figure(figsize=(width, height), dpi=dpi)
@@ -107,8 +117,54 @@ class MPLPlot(FCanvas):
         self.axes = self.fig.add_subplot(111)
 
         super().__init__(self.fig)
-
         self.setParent(parent)
+
+        self.df = None
+
+        # self.procData = ProcessData()
+        # self.dataThread = QThread()
+        # self.procData.moveToThread(self.dataThread)
+        # self.dataThread.start()
+
+        self.plotDataProcessed.connect(self.plot)
+
+    def clearFig(self):
+        self.axes.clear()
+        self.draw()
+
+    def setDataFrame(self, df):
+        self.df = df
+        print('plot got df')
+
+    def processData(self, info):
+        self.axesInfo = info
+        print(info)
+
+        if self.df is None:
+            self.clearFig()
+            return
+
+        xarr = dataFrameToXArray(self.df)
+        self.plotData = xarr.values[info['slices']]
+        if info['avgAxis']['idx'] > -1:
+            self.plotData = self.plotData.mean(info['avgAxis']['idx'])
+        self.plotData = np.squeeze(self.plotData)
+
+        if info['xAxis']['idx'] > -1:
+            self.xVals = xarr.coords[info['xAxis']['name']].values
+        else:
+            self.xVals = None
+
+        if info['yAxis']['idx'] > -1:
+            self.yVals = xarr.coords[info['yAxis']['name']].values
+        else:
+            self.yVals = None
+
+        self.plotDataProcessed.emit()
+
+    @pyqtSlot()
+    def plot(self):
+        print(self.xVals, self.yVals, self.axesInfo['avgAxis'])
 
 
 class DataStructure(QTreeWidget):
@@ -171,9 +227,18 @@ class PlotChoice(QWidget):
         # TODO: axes > y still missing
         slices = [ slice(None, None, None) for n in self.axesNames[1:] ]
         self.choiceInfo = {
-            'avgAxis' : self.avgSelection.currentIndex() - 1,
-            'xAxis' : self.xSelection.currentIndex() - 1,
-            'yAxis' : self.ySelection.currentIndex() - 1,
+            'avgAxis' : {
+                'idx' : self.avgSelection.currentIndex() - 1,
+                'name' : self.avgSelection.currentText(),
+            },
+            'xAxis' : {
+                'idx' : self.xSelection.currentIndex() - 1,
+                'name' : self.xSelection.currentText(),
+            },
+            'yAxis' : {
+                'idx' : self.ySelection.currentIndex() - 1,
+                'name' : self.ySelection.currentText(),
+            },
             'slices' : slices,
         }
 
@@ -221,18 +286,6 @@ class PlotChoice(QWidget):
 
         self.choiceUpdated.emit()
 
-class ProcessData(QObject):
-
-    def __init__(self, parent=None):
-        super().__init__(parent)
-
-    def setDataFrame(self, df):
-        self.df = df
-
-    def process(self, info):
-        print(info)
-        # TODO: continue here.
-
 
 class DataWindow(QMainWindow):
 
@@ -266,16 +319,9 @@ class DataWindow(QMainWindow):
         mainLayout.addLayout(chooserLayout)
         mainLayout.addLayout(plotLayout)
 
-        # Data processing thread
-        self.procData = ProcessData()
-        self.dataThread = QThread()
-        self.procData.moveToThread(self.dataThread)
-
         # signals/slots for data selection etc.
         self.structure.itemSelectionChanged.connect(self.dataSelected)
         self.plotChoice.choiceUpdated.connect(self.updatePlotData)
-
-        self.dataThread.start()
 
         # activate window
         self.frame.setFocus()
@@ -289,29 +335,16 @@ class DataWindow(QMainWindow):
             self.activateData(sel[0].text(0))
 
         elif len(sel) == 0:
-            self.plot.axes.clear()
-            self.plot.draw()
+            self.plot.clearFig()
 
     def activateData(self, name):
+        self.plot.setDataFrame(self.data[name])
         self.plotChoice.setOptions(self.dataStructure[name])
-        self.procData.setDataFrame(self.data[name])
 
-        # mock plotting
-        # TODO: replace
-        # vals = xarr.values
-
-        # axname = [ n for n, k in self.dataStructure[name]['axes'].items() ][0]
-        # xvals = xarr.coords[axname].values
-
-        # self.plot.axes.plot(xvals, vals, 'o')
-        # self.plot.axes.set_xlabel(axname)
-        # self.plot.axes.set_ylabel(name)
-        # self.plot.draw()
 
     @pyqtSlot()
     def updatePlotData(self):
-        self.procData.process(self.plotChoice.choiceInfo)
-
+        self.plot.processData(self.plotChoice.choiceInfo)
 
     def updateDataStructure(self, reset=True):
         curSelection = self.structure.selectedItems()
@@ -339,7 +372,6 @@ class DataWindow(QMainWindow):
 
         else:
             raise NotImplementedError
-
 
     @pyqtSlot(dict)
     def addData(self, dataDict):
