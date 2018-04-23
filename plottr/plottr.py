@@ -33,7 +33,7 @@ from PyQt5.QtWidgets import (QApplication, QComboBox, QDialog, QFormLayout,
                              QFrame, QGroupBox, QHBoxLayout, QLabel,
                              QMainWindow, QPlainTextEdit, QSizePolicy,
                              QTreeWidget, QTreeWidgetItem, QVBoxLayout,
-                             QWidget)
+                             QWidget, QSlider)
 
 APPTITLE = "plottr"
 AVGAXISNAMES = ['average', 'averages', 'repetition', 'repetitions']
@@ -115,8 +115,6 @@ def dataFrameToXArray(df):
 
 class MPLPlot(FCanvas):
 
-    plotDataProcessed = pyqtSignal()
-
     def __init__(self, parent=None, width=4, height=3, dpi=150):
         self.fig = Figure(figsize=(width, height), dpi=dpi)
 
@@ -126,64 +124,10 @@ class MPLPlot(FCanvas):
         super().__init__(self.fig)
         self.setParent(parent)
 
-        self.df = None
-        self.plotDataProcessed.connect(self.plot)
-
     def clearFig(self):
-        self.axes.clear()
+        self.fig.clear()
+        self.axes = self.fig.add_subplot(111)
         self.draw()
-
-    def setDataFrame(self, df):
-        self.df = df
-
-    def processData(self, info):
-        self.axesInfo = info
-
-        if self.df is None:
-            self.clearFig()
-            return
-
-        xarr = dataFrameToXArray(self.df)
-        self.plotData = xarr.values[info['slices']]
-        if info['avgAxis']['idx'] > -1:
-            self.plotData = self.plotData.mean(info['avgAxis']['idx'])
-        self.plotData = np.squeeze(self.plotData)
-
-        if info['xAxis']['idx'] > -1:
-            self.xVals = xarr.coords[info['xAxis']['name']].values
-        else:
-            self.xVals = None
-
-        if info['yAxis']['idx'] > -1:
-            self.yVals = xarr.coords[info['yAxis']['name']].values
-        else:
-            self.yVals = None
-
-        self.plotDataProcessed.emit()
-
-
-    @pyqtSlot()
-    def plot(self):
-        self.axes.clear()
-
-        if self.xVals is not None and self.yVals is None:
-            self.plot1D()
-        elif self.xVals is not None and self.yVals is not None:
-            self.plot2D()
-
-        self.fig.tight_layout()
-        self.draw()
-
-    def plot1D(self):
-        self.axes.plot(self.xVals, self.plotData, 'o')
-        self.axes.set_xlabel(self.axesInfo['xAxis']['name'])
-
-    def plot2D(self):
-        x, y = pcolorgrid(self.xVals, self.yVals)
-        im = self.axes.pcolormesh(x, y, self.plotData)
-        cb = self.fig.colorbar(im)
-        self.axes.set_xlabel(self.axesInfo['xAxis']['name'])
-        self.axes.set_ylabel(self.axesInfo['yAxis']['name'])
 
 
 class DataStructure(QTreeWidget):
@@ -194,6 +138,39 @@ class DataStructure(QTreeWidget):
         self.setColumnCount(2)
         self.setHeaderLabels(['Array', 'Properties'])
         self.setSelectionMode(QTreeWidget.SingleSelection)
+
+
+class AxisSlider(QWidget):
+
+    def __init__(self, parent=None):
+        super().__init__(parent)
+
+        self.axisVals = None
+
+        self.slider = QSlider(Qt.Horizontal)
+        self.label = QLabel()
+
+        self.layout = QHBoxLayout()
+        self.setLayout(self.layout)
+        self.layout.addWidget(self.slider)
+        self.layout.addWidget(self.label)
+
+        self.slider.valueChanged.connect(self.idxSet)
+
+    def setAxis(self, vals):
+        self.axisVals = vals
+        self.slider.setMinimum(0)
+        self.slider.setMaximum(vals.size-1)
+        self.slider.setSingleStep(1)
+        self.slider.setPageStep(1)
+        self.slider.setValue(0)
+        self.slider.valueChanged.emit(0)
+
+    @pyqtSlot(int)
+    def idxSet(self, idx):
+        if self.axisVals is not None:
+            lbl = "{}/{} ({})".format(idx+1, self.axisVals.size, self.axisVals[idx])
+            self.label.setText(lbl)
 
 
 class PlotChoice(QWidget):
@@ -215,8 +192,14 @@ class PlotChoice(QWidget):
         axisChoiceLayout.addRow(QLabel('y axis'), self.ySelection)
         axisChoiceBox.setLayout(axisChoiceLayout)
 
+        self.idxChoiceBox = QGroupBox('Indices')
+        self.idxChoiceLayout = QFormLayout()
+        self.idxChoiceBox.setLayout(self.idxChoiceLayout)
+        self.idxChoiceSliders = []
+
         mainLayout = QVBoxLayout(self)
         mainLayout.addWidget(axisChoiceBox)
+        mainLayout.addWidget(self.idxChoiceBox)
 
         self.avgSelection.currentTextChanged.connect(self.avgSelected)
         self.xSelection.currentTextChanged.connect(self.xSelected)
@@ -234,6 +217,17 @@ class PlotChoice(QWidget):
     def ySelected(self, val):
         self.updateOptions(self.ySelection, val)
 
+    # TODO: this is not nice. split up a bit.
+    @pyqtSlot(int)
+    def idxSliderUpdated(self, val):
+        self.updateOptions(None, None)
+
+    def _isAxisInUse(self, name):
+        for opt in self.avgSelection, self.xSelection, self.ySelection:
+            if name == opt.currentText():
+                return True
+        return False
+
     def updateOptions(self, changedOption, newVal):
         """
         After changing the role of a data axis manually, we need to make
@@ -243,9 +237,18 @@ class PlotChoice(QWidget):
             if opt != changedOption and opt.currentText() == newVal:
                 opt.setCurrentIndex(0)
 
-        # TODO: axes > y still missing. need to make sure we return the right shape.
-        # basically, each 'unused' axis needs just a single index.
+        for i, n in enumerate(self.axesNames[1:]):
+            if self._isAxisInUse(n):
+                self.idxChoiceSliders[i].setDisabled(True)
+            else:
+                self.idxChoiceSliders[i].setEnabled(True)
+
         slices = [ slice(None, None, None) for n in self.axesNames[1:] ]
+        for i, idxChoice in enumerate(self.idxChoiceSliders):
+            if idxChoice.isEnabled():
+                v = idxChoice.slider.value()
+                slices[i] = slice(v, v+1, None)
+
         self.choiceInfo = {
             'avgAxis' : {
                 'idx' : self.avgSelection.currentIndex() - 1,
@@ -268,7 +271,15 @@ class PlotChoice(QWidget):
         """
         Populates the data choice widgets initially.
         """
-        self.axesNames = [n for n, k in dataStructure['axes'].items() ]
+        self.axesNames = [ n for n, k in dataStructure['axes'].items() ]
+
+        # FIXME: delete old sliders!!!
+        # add sliders for all dimensions
+        for n in self.axesNames:
+            slider = AxisSlider()
+            self.idxChoiceLayout.addRow(f'{n}', slider)
+            self.idxChoiceSliders.append(slider)
+            slider.slider.valueChanged.connect(self.idxSliderUpdated)
 
         # Need an option that indicates that the choice is 'empty'
         self.noSelName = '<None>'
@@ -309,12 +320,16 @@ class PlotChoice(QWidget):
 
 class DataWindow(QMainWindow):
 
+    plotDataProcessed = pyqtSignal()
+
     def __init__(self, dataId=None, parent=None):
         super().__init__(parent)
 
         self.dataId = dataId
         self.setWindowTitle(getAppTitle() + f" ({dataId})")
         self.data = {}
+        self.df = None
+        self.xarr = None
 
         # TODO: somewhere here we should implement a choice of backend i feel.
         # plot settings
@@ -342,6 +357,7 @@ class DataWindow(QMainWindow):
         # signals/slots for data selection etc.
         self.structure.itemSelectionChanged.connect(self.dataSelected)
         self.plotChoice.choiceUpdated.connect(self.updatePlotData)
+        self.plotDataProcessed.connect(self.updatePlot)
 
         # activate window
         self.frame.setFocus()
@@ -357,17 +373,67 @@ class DataWindow(QMainWindow):
         elif len(sel) == 0:
             self.plot.clearFig()
 
-
     def activateData(self, name):
-        self.plot.df = None
+        self.df = None
         self.plotChoice.setOptions(self.dataStructure[name])
-        self.plot.setDataFrame(self.data[name])
-        self.updatePlotData()
+        self.df = self.data[name]
+        self.xarr = dataFrameToXArray(self.df)
+        self.axesNames = self.plotChoice.axesNames
+        for i, n in enumerate(self.axesNames[1:]):
+            self.plotChoice.idxChoiceSliders[i].setAxis(self.xarr.coords[n].values)
 
+        self.updatePlotData()
 
     @pyqtSlot()
     def updatePlotData(self):
-        self.plot.processData(self.plotChoice.choiceInfo)
+        self.processData(self.plotChoice.choiceInfo)
+
+    def processData(self, info):
+        self.axesInfo = info
+
+        if self.df is None:
+            self.plot.clearFig()
+            return
+
+        self.plotData = self.xarr.values[info['slices']]
+        if info['avgAxis']['idx'] > -1:
+            self.plotData = self.plotData.mean(info['avgAxis']['idx'])
+        self.plotData = np.squeeze(self.plotData)
+
+        if info['xAxis']['idx'] > -1:
+            self.xVals = self.xarr.coords[info['xAxis']['name']].values
+        else:
+            self.xVals = None
+
+        if info['yAxis']['idx'] > -1:
+            self.yVals = self.xarr.coords[info['yAxis']['name']].values
+        else:
+            self.yVals = None
+
+        self.plotDataProcessed.emit()
+
+    def _plot1D(self):
+        self.plot.axes.plot(self.xVals, self.plotData, 'o')
+        self.plot.axes.set_xlabel(self.axesInfo['xAxis']['name'])
+
+    def _plot2D(self):
+        x, y = pcolorgrid(self.xVals, self.yVals)
+        im = self.plot.axes.pcolormesh(x, y, self.plotData.T)
+        cb = self.plot.fig.colorbar(im)
+        self.plot.axes.set_xlabel(self.axesInfo['xAxis']['name'])
+        self.plot.axes.set_ylabel(self.axesInfo['yAxis']['name'])
+
+    @pyqtSlot()
+    def updatePlot(self):
+        self.plot.clearFig()
+
+        if self.xVals is not None and self.yVals is None:
+            self._plot1D()
+        elif self.xVals is not None and self.yVals is not None:
+            self._plot2D()
+
+        self.plot.fig.tight_layout()
+        self.plot.draw()
 
     def updateDataStructure(self, reset=True):
         curSelection = self.structure.selectedItems()
