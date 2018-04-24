@@ -5,6 +5,8 @@ network sockets from other processes.
 Author: Wolfgang Pfaff <wolfgangpfff@gmail.com>
 
 FIXME:
+    * ISSUE: xarray doesn't play nice when we have axes with length 1
+      this also comes up when we squeeze the data for plotting.
     * need to include pollers to make sure we don't block forever
       on the client side when the server isn't running.
 
@@ -41,7 +43,7 @@ from PyQt5.QtWidgets import (QApplication, QComboBox, QDialog, QFormLayout,
                              QWidget)
 
 APPTITLE = "plottr"
-AVGAXISNAMES = ['average', 'averages', 'repetition', 'repetitions']
+AVGAXISNAMES = ['average', 'averages', 'repetition', 'repetitions', 'avg', 'avgs', 'rep', 'reps', ]
 PORT = 5557
 TIMEFMT = "[%Y/%m/%d %H:%M:%S]"
 
@@ -384,9 +386,15 @@ class DataWindow(QMainWindow):
         elif len(sel) == 0:
             self.plot.clearFig()
 
-    def activateData(self, name):
-        self.df = None
-        self.plotChoice.setOptions(self.dataStructure[name])
+    def activateData(self, name, resetOptions=True):
+        if resetOptions:
+            self.df = None
+            self.plotChoice.setOptions(self.dataStructure[name])
+        else:
+            sel = self.structure.selectedItems()
+            name = sel[0].text(0)
+
+        self.activeDataSet = name
         self.df = self.data[name]
         self.xarr = dataFrameToXArray(self.df)
         self.axesNames = self.plotChoice.axesNames
@@ -406,7 +414,16 @@ class DataWindow(QMainWindow):
             self.plot.clearFig()
             return
 
+        shape = []
+        for n in self.axesNames[1:]:
+            shape.append(self.dataStructure[self.activeDataSet]['axes'][n]['nValues'])
+        shape = tuple(shape)
+
+        # self.plotData = self.xarr.values.reshape(shape)[info['slices']]
+        # squeezeDims = [i for i in range(len(shape)) if shape[i] == 1]
+        # print(squeezeDims)
         self.plotData = self.xarr.values[info['slices']]
+
         if info['avgAxis']['idx'] > -1:
             self.plotData = self.plotData.mean(info['avgAxis']['idx'])
         self.plotData = np.squeeze(self.plotData)
@@ -474,12 +491,23 @@ class DataWindow(QMainWindow):
                 self.structure.topLevelItem(0).setSelected(True)
 
         else:
-            raise NotImplementedError
+            for n, v in self.dataStructure.items():
+                item = self.structure.findItems(n, Qt.MatchExactly)[0]
+                item.setText(1, '{} points'.format(v['nValues']))
+                for m, w in v['axes'].items():
+                    for k in range(item.childCount()):
+                        if item.child(k).text(0) == m:
+                            item.child(k).setText(1, '{} points'.format(w['nValues']))
+
+                self.activateData(None, resetOptions=False)
+
 
     @pyqtSlot(dict)
     def addData(self, dataDict):
-        doUpdate = dataDict.get('update', False)
+        doUpdate = dataDict.get('update', False) and self.data != {}
         dataDict = dataDict.get('datasets', None)
+
+        print('update: ', doUpdate)
 
         if dataDict:
             newDataFrames = dictToDataFrames(dataDict)
@@ -498,7 +526,19 @@ class DataWindow(QMainWindow):
                     self.data[n] = df
                     self.updateDataStructure(reset=True)
             else:
-                raise NotImplementedError
+                for df1 in newDataFrames:
+                    n = df1.columns.name
+                    if n not in self.data:
+                        # FIXME: we really should be able to plot a warning in the log window here.
+                        continue
+
+                    df = combineDataFrames(self.data[n], df1)
+                    self.dataStructure[n]['nValues'] = df.size
+                    for m, lvls in zip(df.index.names, df.index.levels):
+                        self.dataStructure[n]['axes'][m]['nValues'] = len(lvls)
+
+                    self.data[n] = df
+                    self.updateDataStructure(reset=False)
 
     def closeEvent(self, event):
         self.windowClosed.emit(self.dataId)
