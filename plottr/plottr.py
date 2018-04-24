@@ -4,10 +4,13 @@ network sockets from other processes.
 
 Author: Wolfgang Pfaff <wolfgangpfff@gmail.com>
 
-TODO: (before releasing into the wild)
+FIXME:
+    * need to include pollers to make sure we don't block forever
+      on the client side when the server isn't running.
+
+TODO:
     * all constants should become configurable
     * launcher .bat or so.
-    * examples
     * better checking if we can work with data that came in.
     * some tools for packaging the data correctly.
     * a qcodes subscriber.
@@ -150,15 +153,16 @@ class AxisSlider(QWidget):
         self.slider = QSlider(Qt.Horizontal)
         self.label = QLabel()
 
-        self.layout = QHBoxLayout()
+        self.layout = QVBoxLayout()
         self.setLayout(self.layout)
-        self.layout.addWidget(self.slider)
         self.layout.addWidget(self.label)
+        self.layout.addWidget(self.slider)
 
         self.slider.valueChanged.connect(self.idxSet)
 
-    def setAxis(self, vals):
+    def setAxis(self, name, vals):
         self.axisVals = vals
+        self.axisName = name
         self.slider.setMinimum(0)
         self.slider.setMaximum(vals.size-1)
         self.slider.setSingleStep(1)
@@ -169,7 +173,8 @@ class AxisSlider(QWidget):
     @pyqtSlot(int)
     def idxSet(self, idx):
         if self.axisVals is not None:
-            lbl = "{}/{} ({})".format(idx+1, self.axisVals.size, self.axisVals[idx])
+            lbl = "{} : {}/{} ({})".format(self.axisName,
+                idx+1, self.axisVals.size, self.axisVals[idx])
             self.label.setText(lbl)
 
 
@@ -193,7 +198,7 @@ class PlotChoice(QWidget):
         axisChoiceBox.setLayout(axisChoiceLayout)
 
         self.idxChoiceBox = QGroupBox('Indices')
-        self.idxChoiceLayout = QFormLayout()
+        self.idxChoiceLayout = QVBoxLayout()
         self.idxChoiceBox.setLayout(self.idxChoiceLayout)
         self.idxChoiceSliders = []
 
@@ -273,11 +278,15 @@ class PlotChoice(QWidget):
         """
         self.axesNames = [ n for n, k in dataStructure['axes'].items() ]
 
-        # FIXME: delete old sliders!!!
-        # add sliders for all dimensions
+        # remove old sliders / add sliders for all dimensions
+        for i, slider in enumerate(self.idxChoiceSliders):
+            self.idxChoiceLayout.removeWidget(slider)
+            slider.deleteLater()
+        self.idxChoiceSliders = []
+
         for n in self.axesNames:
             slider = AxisSlider()
-            self.idxChoiceLayout.addRow(f'{n}', slider)
+            self.idxChoiceLayout.addWidget(slider)
             self.idxChoiceSliders.append(slider)
             slider.slider.valueChanged.connect(self.idxSliderUpdated)
 
@@ -321,8 +330,9 @@ class PlotChoice(QWidget):
 class DataWindow(QMainWindow):
 
     plotDataProcessed = pyqtSignal()
+    windowClosed = pyqtSignal(str)
 
-    def __init__(self, dataId=None, parent=None):
+    def __init__(self, dataId, parent=None):
         super().__init__(parent)
 
         self.dataId = dataId
@@ -331,7 +341,6 @@ class DataWindow(QMainWindow):
         self.df = None
         self.xarr = None
 
-        # TODO: somewhere here we should implement a choice of backend i feel.
         # plot settings
         setMplDefaults()
 
@@ -380,7 +389,7 @@ class DataWindow(QMainWindow):
         self.xarr = dataFrameToXArray(self.df)
         self.axesNames = self.plotChoice.axesNames
         for i, n in enumerate(self.axesNames[1:]):
-            self.plotChoice.idxChoiceSliders[i].setAxis(self.xarr.coords[n].values)
+            self.plotChoice.idxChoiceSliders[i].setAxis(n, self.xarr.coords[n].values)
 
         self.updatePlotData()
 
@@ -418,7 +427,10 @@ class DataWindow(QMainWindow):
 
     def _plot2D(self):
         x, y = pcolorgrid(self.xVals, self.yVals)
-        im = self.plot.axes.pcolormesh(x, y, self.plotData.T)
+        if self.axesInfo['xAxis']['idx'] < self.axesInfo['yAxis']['idx']:
+            im = self.plot.axes.pcolormesh(x, y, self.plotData.T)
+        else:
+            im = self.plot.axes.pcolormesh(x, y, self.plotData)
         cb = self.plot.fig.colorbar(im)
         self.plot.axes.set_xlabel(self.axesInfo['xAxis']['name'])
         self.plot.axes.set_ylabel(self.axesInfo['yAxis']['name'])
@@ -485,6 +497,9 @@ class DataWindow(QMainWindow):
                     self.updateDataStructure(reset=True)
             else:
                 raise NotImplementedError
+
+    def closeEvent(self, event):
+        self.windowClosed.emit(self.dataId)
 
 
 class DataReceiver(QObject):
@@ -573,18 +588,24 @@ class PlottrMain(QMainWindow):
             self.dataHandlers[dataId] = DataWindow(dataId=dataId)
             self.dataHandlers[dataId].show()
             self.logger.addMessage(f'Started new data window for {dataId}')
+            self.dataHandlers[dataId].windowClosed.connect(self.dataWindowClosed)
 
         w = self.dataHandlers[dataId]
         w.addData(data)
-
 
     def closeEvent(self, event):
         self.listener.running = False
         self.listeningThread.quit()
         # self.listeningThread.wait()
 
-        for d in self.dataHandlers:
-            self.dataHandlers[d].close()
+        hs = [h for d, h in self.dataHandlers.items()]
+        for h in hs:
+            h.close()
+
+    @pyqtSlot(str)
+    def dataWindowClosed(self, dataId):
+        self.dataHandlers[dataId].close()
+        del self.dataHandlers[dataId]
 
 
 if __name__ == "__main__":
