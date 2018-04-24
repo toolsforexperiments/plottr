@@ -16,6 +16,7 @@ TODO:
     * a qcodes subscriber.
     * docstrings everywhere public.
     * make some methods private?
+    * check what happens when data includes NaN.
 """
 
 import sys
