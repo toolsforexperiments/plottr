@@ -10,6 +10,7 @@ FIXME:
 
 TODO:
     * all constants should become configurable
+      (-> use yaml)
     * launcher .bat or so.
     * better checking if we can work with data that came in.
     * some tools for packaging the data correctly.
@@ -28,16 +29,16 @@ import pandas as pd
 import xarray as xr
 import zmq
 from matplotlib import rcParams
-from matplotlib.backends.backend_qt5agg import (FigureCanvasQTAgg as FCanvas,
-                                                NavigationToolbar2QT as NavBar, )
+from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg as FCanvas
+from matplotlib.backends.backend_qt5agg import NavigationToolbar2QT as NavBar
 from matplotlib.figure import Figure
 from PyQt5.QtCore import QObject, Qt, QThread, pyqtSignal, pyqtSlot
 from PyQt5.QtGui import QIcon
 from PyQt5.QtWidgets import (QApplication, QComboBox, QDialog, QFormLayout,
                              QFrame, QGroupBox, QHBoxLayout, QLabel,
-                             QMainWindow, QPlainTextEdit, QSizePolicy,
+                             QMainWindow, QPlainTextEdit, QSizePolicy, QSlider,
                              QTreeWidget, QTreeWidgetItem, QVBoxLayout,
-                             QWidget, QSlider)
+                             QWidget)
 
 APPTITLE = "plottr"
 AVGAXISNAMES = ['average', 'averages', 'repetition', 'repetitions']
