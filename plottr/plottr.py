@@ -5,8 +5,9 @@ network sockets from other processes.
 Author: Wolfgang Pfaff <wolfgangpfff@gmail.com>
 
 FIXME:
-    * ISSUE: xarray doesn't play nice when we have axes with length 1
-      this also comes up when we squeeze the data for plotting.
+    * ISSUE: if we send data too fast, the whole thing will crash.
+      We need a way to make sure data still makes it there, and that
+      the sender thread stays happy
     * need to include pollers to make sure we don't block forever
       on the client side when the server isn't running.
 
@@ -110,13 +111,17 @@ def dataFrameToXArray(df):
     """
     Convert pandas DataFrame with MultiIndex to an xarray DataArray.
     """
-    # conversion with MultiIndex leaves some residue; need to unstack the MI dimension.
-    arr = xr.DataArray(df).unstack('dim_0').squeeze()
+    arr = xr.DataArray(df)
 
-    # for tidiness, remove also any empty dimensions.
-    for k, v in arr.coords.items():
-        if not isinstance(v.values, np.ndarray) or v.values.size <= 1:
-            arr = arr.drop(k)
+    # remove automatically generated indices.
+    for idxn in arr.indexes:
+        idx = arr.indexes[idxn]
+        if 'dim_' in idxn or idxn == df.columns.name:
+            if isinstance(idx, pd.MultiIndex):
+                arr = arr.unstack(idxn)
+            else:
+                arr = arr.squeeze(idxn).drop(idxn)
+
     return arr
 
 
@@ -414,19 +419,19 @@ class DataWindow(QMainWindow):
             self.plot.clearFig()
             return
 
-        shape = []
-        for n in self.axesNames[1:]:
-            shape.append(self.dataStructure[self.activeDataSet]['axes'][n]['nValues'])
-        shape = tuple(shape)
+        data = self.xarr.values[info['slices']]
+        shp = list(data.shape)
 
-        # self.plotData = self.xarr.values.reshape(shape)[info['slices']]
-        # squeezeDims = [i for i in range(len(shape)) if shape[i] == 1]
-        # print(squeezeDims)
-        self.plotData = self.xarr.values[info['slices']]
+        squeezeExclude = [ info['avgAxis']['idx'],
+                           info['xAxis']['idx'],
+                           info['yAxis']['idx'], ]
+        squeezeDims = tuple([ i for i in range(len(shp)) if ((i not in squeezeExclude) and (shp[i] == 1)) ])
+        newMeanIdx = info['avgAxis']['idx'] - len([i for i in squeezeDims if i < info['avgAxis']['idx']])
+
+        self.plotData = data.squeeze(squeezeDims)
 
         if info['avgAxis']['idx'] > -1:
-            self.plotData = self.plotData.mean(info['avgAxis']['idx'])
-        self.plotData = np.squeeze(self.plotData)
+            self.plotData = self.plotData.mean(newMeanIdx)
 
         if info['xAxis']['idx'] > -1:
             self.xVals = self.xarr.coords[info['xAxis']['name']].values
@@ -460,7 +465,9 @@ class DataWindow(QMainWindow):
 
         if self.xVals is not None and self.yVals is None:
             self._plot1D()
-        elif self.xVals is not None and self.yVals is not None:
+        elif self.yVals.size < 2:
+            self._plot1D()
+        elif self.xVals is not None and self.yVals is not None and self.xVals.size > 1:
             self._plot2D()
 
         self.plot.fig.tight_layout()
@@ -501,13 +508,17 @@ class DataWindow(QMainWindow):
 
                 self.activateData(None, resetOptions=False)
 
+    def _getDataShape(self, name):
+        shape = []
+        s = self.dataStructure[name]
+        for n in self.axesNames[1:]:
+            shape.append(s['axes'][n]['nValues'])
+        return tuple(shape)
 
     @pyqtSlot(dict)
     def addData(self, dataDict):
         doUpdate = dataDict.get('update', False) and self.data != {}
         dataDict = dataDict.get('datasets', None)
-
-        print('update: ', doUpdate)
 
         if dataDict:
             newDataFrames = dictToDataFrames(dataDict)
