@@ -4,23 +4,21 @@ network sockets from other processes.
 
 Author: Wolfgang Pfaff <wolfgangpfff@gmail.com>
 
+This is the main part that contains the server application.
+
 FIXME:
-    * ISSUE: if we send data too fast, the whole thing will crash.
+    * Performance issue: if we send data too fast, the whole thing will crash.
       We need a way to make sure data still makes it there, and that
       the sender thread stays happy
-    * need to include pollers to make sure we don't block forever
-      on the client side when the server isn't running.
 
 TODO:
-    * all constants should become configurable
-      (-> use yaml)
     * launcher .bat or so.
     * better checking if we can work with data that came in.
     * some tools for packaging the data correctly.
     * a qcodes subscriber.
-    * docstrings everywhere public.
-    * make some methods private?
     * check what happens when data includes NaN.
+    * the data adding should probably live in a separate thread.
+      need to make sure that things get pipelined properly.
 """
 
 import sys
@@ -44,10 +42,9 @@ from PyQt5.QtWidgets import (QApplication, QComboBox, QDialog, QFormLayout,
                              QWidget)
 
 APPTITLE = "plottr"
-AVGAXISNAMES = ['average', 'averages', 'repetition', 'repetitions', 'avg', 'avgs', 'rep', 'reps', ]
-PORT = 5557
 TIMEFMT = "[%Y/%m/%d %H:%M:%S]"
 
+from config import config
 
 def getTimestamp(timeTuple=None):
     if not timeTuple:
@@ -306,9 +303,10 @@ class PlotChoice(QWidget):
         self.axesNames.insert(0, self.noSelName)
 
         # check if some axis is obviously meant for averaging
+        avgAxisNames = config['data']['avg_axes_names']
         self.avgAxisName = None
         for n in self.axesNames:
-            if n.lower() in AVGAXISNAMES:
+            if n.lower() in avgAxisNames:
                 self.avgAxisName = n
 
         # add all options
@@ -463,7 +461,9 @@ class DataWindow(QMainWindow):
     def updatePlot(self):
         self.plot.clearFig()
 
-        if self.xVals is not None and self.yVals is None:
+        if self.xVals is None and self.yVals is None:
+            pass
+        elif self.xVals is not None and self.yVals is None:
             self._plot1D()
         elif self.yVals.size < 2:
             self._plot1D()
@@ -564,9 +564,10 @@ class DataReceiver(QObject):
         super().__init__()
 
         context = zmq.Context()
-        port = PORT
+        port = config['network']['port']
+        addr = config['network']['addr']
         self.socket = context.socket(zmq.PULL)
-        self.socket.bind(f"tcp://127.0.0.1:{port}")
+        self.socket.bind(f"tcp://{addr}:{port}")
         self.running = True
 
     @pyqtSlot()
