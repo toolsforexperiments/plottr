@@ -462,7 +462,8 @@ class DataWindow(QMainWindow):
         self.plot.clearFig()
 
         if self.xVals is None and self.yVals is None:
-            pass
+            self.plot.draw()
+            return
         elif self.xVals is not None and self.yVals is None:
             self._plot1D()
         elif self.yVals.size < 2:
@@ -470,6 +471,7 @@ class DataWindow(QMainWindow):
         elif self.xVals is not None and self.yVals is not None and self.xVals.size > 1:
             self._plot2D()
 
+        self.plot.axes.set_title("{} [{}]".format(self.dataId, self.activeDataSet), size='x-small')
         self.plot.fig.tight_layout()
         self.plot.draw()
 
