@@ -44,7 +44,7 @@ from PyQt5.QtWidgets import (QApplication, QComboBox, QDialog, QFormLayout,
 APPTITLE = "plottr"
 TIMEFMT = "[%Y/%m/%d %H:%M:%S]"
 
-from config import config
+
 
 def getTimestamp(timeTuple=None):
     if not timeTuple:
@@ -80,6 +80,15 @@ def pcolorgrid(xaxis, yaxis):
 
 
 ### structure tools
+def combineDicts(dict1, dict2):
+    if dict1 != {}:
+        for k in dict1.keys():
+            dict1[k]['values'] += dict2[k]['values']
+        return dict1
+    else:
+        return dict2
+
+
 def dictToDataFrames(dataDict):
     dfs = []
     for n in dataDict:
@@ -334,6 +343,49 @@ class PlotChoice(QWidget):
         self.choiceUpdated.emit()
 
 
+class DataAdder(QObject):
+
+    dataUpdated = pyqtSignal(object, dict)
+
+    def __init__(self, curData, newDataDict, update=True):
+        super().__init__()
+
+        self.curData = curData
+        self.newDataDict = newDataDict
+        self.update = update
+
+    def _getDataStructure(self, df):
+        ds = {}
+        ds['nValues'] = df.size
+        ds['axes'] = OrderedDict({})
+
+        for m, lvls in zip(df.index.names, df.index.levels):
+            ds['axes'][m] = {}
+            ds['axes'][m]['uniqueValues'] = lvls.values
+            ds['axes'][m]['nValues'] = len(lvls)
+
+        return ds
+
+    def updateData(self):
+        newDataFrames = dictToDataFrames(self.newDataDict)
+        dataStructure = {}
+        data = {}
+
+        self.update = self.update and self.curData != {}
+
+        for df in newDataFrames:
+            n = df.columns.name
+
+            if not self.update:
+                data[n] = df
+                dataStructure[n] = self._getDataStructure(df)
+            elif self.update and n in self.curData:
+                data[n] = combineDataFrames(self.curData[n], df)
+                dataStructure[n] = self._getDataStructure(data[n])
+
+        self.dataUpdated.emit(data, dataStructure)
+
+
 class DataWindow(QMainWindow):
 
     plotDataProcessed = pyqtSignal()
@@ -347,6 +399,9 @@ class DataWindow(QMainWindow):
         self.data = {}
         self.df = None
         self.xarr = None
+
+        self.currentlyAddingData = False
+        self.addingQueue = {}
 
         # plot settings
         setMplDefaults()
@@ -370,10 +425,13 @@ class DataWindow(QMainWindow):
         mainLayout.addLayout(chooserLayout)
         mainLayout.addLayout(plotLayout)
 
+        # data processing threads
+
+
         # signals/slots for data selection etc.
-        self.structure.itemSelectionChanged.connect(self.dataSelected)
-        self.plotChoice.choiceUpdated.connect(self.updatePlotData)
-        self.plotDataProcessed.connect(self.updatePlot)
+        # self.structure.itemSelectionChanged.connect(self.dataSelected)
+        # self.plotChoice.choiceUpdated.connect(self.updatePlotData)
+        # self.plotDataProcessed.connect(self.updatePlot)
 
         # activate window
         self.frame.setFocus()
@@ -390,6 +448,8 @@ class DataWindow(QMainWindow):
             self.plot.clearFig()
 
     def activateData(self, name, resetOptions=True):
+        print('activateData called...')
+
         if resetOptions:
             self.df = None
             self.plotChoice.setOptions(self.dataStructure[name])
@@ -411,6 +471,8 @@ class DataWindow(QMainWindow):
         self.processData(self.plotChoice.choiceInfo)
 
     def processData(self, info):
+        print('processData called...')
+
         self.axesInfo = info
 
         if self.df is None:
@@ -510,6 +572,7 @@ class DataWindow(QMainWindow):
 
                 self.activateData(None, resetOptions=False)
 
+
     def _getDataShape(self, name):
         shape = []
         s = self.dataStructure[name]
@@ -517,41 +580,40 @@ class DataWindow(QMainWindow):
             shape.append(s['axes'][n]['nValues'])
         return tuple(shape)
 
-    @pyqtSlot(dict)
     def addData(self, dataDict):
         doUpdate = dataDict.get('update', False) and self.data != {}
-        dataDict = dataDict.get('datasets', None)
+        dataDict = dataDict.get('datasets', {})
 
-        if dataDict:
-            newDataFrames = dictToDataFrames(dataDict)
-            if not doUpdate:
-                self.dataStructure = {}
-                for df in newDataFrames:
-                    n = df.columns.name
-
-                    self.dataStructure[n] = {}
-                    self.dataStructure[n]['nValues'] = df.size
-                    self.dataStructure[n]['axes'] = OrderedDict({})
-                    for m, lvls in zip(df.index.names, df.index.levels):
-                        self.dataStructure[n]['axes'][m] = {}
-                        self.dataStructure[n]['axes'][m]['nValues'] = len(lvls)
-
-                    self.data[n] = df
-                    self.updateDataStructure(reset=True)
+        if self.currentlyAddingData:
+            if self.addingQueue == {}:
+                self.addingQueue = dataDict
             else:
-                for df1 in newDataFrames:
-                    n = df1.columns.name
-                    if n not in self.data:
-                        # FIXME: we really should be able to plot a warning in the log window here.
-                        continue
+                self.addingQueue = combineDicts(self.addingQueue, dataDict)
+        else:
+            if self.addingQueue != {}:
+                dataDict = combineDicts(self.addingQueue, dataDict)
 
-                    df = combineDataFrames(self.data[n], df1)
-                    self.dataStructure[n]['nValues'] = df.size
-                    for m, lvls in zip(df.index.names, df.index.levels):
-                        self.dataStructure[n]['axes'][m]['nValues'] = len(lvls)
+            if dataDict != {}:
+                self.currentlyAddingData = True
 
-                    self.data[n] = df
-                    self.updateDataStructure(reset=False)
+                self.dataAdder = DataAdder(self.data, dataDict, update=doUpdate)
+                self.dataAdderThread = QThread()
+                self.dataAdder.moveToThread(self.dataAdderThread)
+
+                self.dataAdder.dataUpdated.connect(self.dataFromAdder)
+                self.dataAdder.dataUpdated.connect(self.dataAdderThread.quit)
+                self.dataAdder.dataUpdated.connect(self.dataAdder.deleteLater)
+                self.dataAdderThread.started.connect(self.dataAdder.updateData)
+                self.dataAdderThread.finished.connect(self.dataAdderThread.deleteLater)
+                self.dataAdderThread.start()
+
+                self.addingQueue = {}
+
+    @pyqtSlot(object, dict)
+    def dataFromAdder(self, data, dataStructure):
+        self.data = data
+        self.dataStructure = dataStructure
+        self.currentlyAddingData = False
 
     def closeEvent(self, event):
         self.windowClosed.emit(self.dataId)
@@ -665,6 +727,8 @@ class PlottrMain(QMainWindow):
 
 
 if __name__ == "__main__":
+    from config import config
+
     app = QApplication(sys.argv)
     main = PlottrMain()
     main.show()
