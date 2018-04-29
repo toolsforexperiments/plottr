@@ -581,6 +581,13 @@ class DataWindow(QMainWindow):
         return tuple(shape)
 
     def addData(self, dataDict):
+        """
+        Here we receive new data from the listener.
+        We'll use a separate thread for processing and combining (numerics might be costly).
+        If the thread is already running, we'll put the new data into a queue that will
+        be resolved during the next call of addData (i.e, queue will grow until current
+        adding thread is done.)
+        """
         doUpdate = dataDict.get('update', False) and self.data != {}
         dataDict = dataDict.get('datasets', {})
 
