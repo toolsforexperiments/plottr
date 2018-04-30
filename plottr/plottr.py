@@ -157,6 +157,37 @@ class DataStructure(QTreeWidget):
         self.setHeaderLabels(['Array', 'Properties'])
         self.setSelectionMode(QTreeWidget.SingleSelection)
 
+    @pyqtSlot(dict)
+    def update(self, structure):
+        print('updateDataStructureWidget called...')
+        for n, v in structure.items():
+            items = self.findItems(n, Qt.MatchExactly)
+            if len(items) == 0:
+                item = QTreeWidgetItem([n, '{} points'.format(v['nValues'])])
+                for m, w in v['axes'].items():
+                    childItem = QTreeWidgetItem([m, '{} points'.format(w['nValues'])])
+                    childItem.setDisabled(True)
+                    item.addChild(childItem)
+
+                self.addTopLevelItem(item)
+                item.setExpanded(True)
+
+            else:
+                item = items[0]
+                item.setText(1, '{} points'.format(v['nValues']))
+                for m, w in v['axes'].items():
+                    for k in range(item.childCount()):
+                        if item.child(k).text(0) == m:
+                            item.child(k).setText(1, '{} points'.format(w['nValues']))
+
+        curSelection = self.selectedItems()
+        if len(curSelection) == 0:
+            item = self.topLevelItem(0)
+            if item:
+                item.setSelected(True)
+            else:
+                self.itemSelectionChanged.emit()
+
 
 class AxisSlider(QWidget):
 
@@ -195,7 +226,7 @@ class AxisSlider(QWidget):
 
 class PlotChoice(QWidget):
 
-    choiceUpdated = pyqtSignal()
+    choiceOptionsUpdated = pyqtSignal()
 
     def __init__(self, parent=None):
 
@@ -287,6 +318,7 @@ class PlotChoice(QWidget):
 
         self.choiceUpdated.emit()
 
+    @pyqtSlot(dict)
     def setOptions(self, dataStructure):
         """
         Populates the data choice widgets initially.
@@ -340,7 +372,7 @@ class PlotChoice(QWidget):
         if len(xopts) > 1:
             self.ySelection.setCurrentText(xopts[1])
 
-        self.choiceUpdated.emit()
+        self.choiceOptionsUpdated.emit()
 
 
 class DataAdder(QObject):
@@ -388,6 +420,7 @@ class DataAdder(QObject):
 
 class DataWindow(QMainWindow):
 
+    dataAdded = pyqtSignal(dict)
     plotDataProcessed = pyqtSignal()
     windowClosed = pyqtSignal(str)
 
@@ -407,10 +440,10 @@ class DataWindow(QMainWindow):
         setMplDefaults()
 
         # data chosing widgets
-        self.structure = DataStructure()
+        self.structureWidget = DataStructure()
         self.plotChoice = PlotChoice()
         chooserLayout = QVBoxLayout()
-        chooserLayout.addWidget(self.structure)
+        chooserLayout.addWidget(self.structureWidget)
         chooserLayout.addWidget(self.plotChoice)
 
         # plot control widgets
@@ -432,6 +465,8 @@ class DataWindow(QMainWindow):
         # self.structure.itemSelectionChanged.connect(self.dataSelected)
         # self.plotChoice.choiceUpdated.connect(self.updatePlotData)
         # self.plotDataProcessed.connect(self.updatePlot)
+        self.dataAdded.connect(self.structureWidget.update)
+        self.structureWidget.itemSelectionChanged.connect(self.activateData)
 
         # activate window
         self.frame.setFocus()
@@ -447,24 +482,27 @@ class DataWindow(QMainWindow):
         elif len(sel) == 0:
             self.plot.clearFig()
 
-    def activateData(self, name, resetOptions=True):
+    @pyqtSlot()
+    def activateData(self):
         print('activateData called...')
+        item = self.structureWidget.selectedItems()[0]
+        name = item.text(0)
 
-        if resetOptions:
-            self.df = None
-            self.plotChoice.setOptions(self.dataStructure[name])
-        else:
-            sel = self.structure.selectedItems()
-            name = sel[0].text(0)
+        # if resetOptions:
+        #     self.df = None
+        #     self.plotChoice.setOptions(self.dataStructure[name])
+        # else:
+        #     sel = self.structure.selectedItems()
+        #     name = sel[0].text(0)
 
-        self.activeDataSet = name
-        self.df = self.data[name]
-        self.xarr = dataFrameToXArray(self.df)
-        self.axesNames = self.plotChoice.axesNames
-        for i, n in enumerate(self.axesNames[1:]):
-            self.plotChoice.idxChoiceSliders[i].setAxis(n, self.xarr.coords[n].values)
+        # self.activeDataSet = name
+        # self.df = self.data[name]
+        # self.xarr = dataFrameToXArray(self.df)
+        # self.axesNames = self.plotChoice.axesNames
+        # for i, n in enumerate(self.axesNames[1:]):
+        #     self.plotChoice.idxChoiceSliders[i].setAxis(n, self.xarr.coords[n].values)
 
-        self.updatePlotData()
+        # self.updatePlotData()
 
     @pyqtSlot()
     def updatePlotData(self):
@@ -537,49 +575,9 @@ class DataWindow(QMainWindow):
         self.plot.fig.tight_layout()
         self.plot.draw()
 
-    def updateDataStructure(self, reset=True):
-        curSelection = self.structure.selectedItems()
-        if len(curSelection) > 0:
-            selName = curSelection[0].text(0)
-        else:
-            selName = None
-
-        if reset:
-            self.structure.clear()
-            for n, v in self.dataStructure.items():
-                item = QTreeWidgetItem([n, '{} points'.format(v['nValues'])])
-                for m, w in v['axes'].items():
-                    childItem = QTreeWidgetItem([m, '{} points'.format(w['nValues'])])
-                    childItem.setDisabled(True)
-                    item.addChild(childItem)
-
-                self.structure.addTopLevelItem(item)
-                item.setExpanded(True)
-                if selName and n == selName:
-                    item.setSelected(True)
-
-            if not selName:
-                self.structure.topLevelItem(0).setSelected(True)
-
-        else:
-            for n, v in self.dataStructure.items():
-                item = self.structure.findItems(n, Qt.MatchExactly)[0]
-                item.setText(1, '{} points'.format(v['nValues']))
-                for m, w in v['axes'].items():
-                    for k in range(item.childCount()):
-                        if item.child(k).text(0) == m:
-                            item.child(k).setText(1, '{} points'.format(w['nValues']))
-
-                self.activateData(None, resetOptions=False)
-
-
-    def _getDataShape(self, name):
-        shape = []
-        s = self.dataStructure[name]
-        for n in self.axesNames[1:]:
-            shape.append(s['axes'][n]['nValues'])
-        return tuple(shape)
-
+    #
+    # Data adding
+    #
     def addData(self, dataDict):
         """
         Here we receive new data from the listener.
@@ -621,7 +619,9 @@ class DataWindow(QMainWindow):
         self.data = data
         self.dataStructure = dataStructure
         self.currentlyAddingData = False
+        self.dataAdded.emit(self.dataStructure)
 
+    # clean-up
     def closeEvent(self, event):
         self.windowClosed.emit(self.dataId)
 
