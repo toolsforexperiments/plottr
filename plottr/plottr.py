@@ -6,19 +6,10 @@ Author: Wolfgang Pfaff <wolfgangpfff@gmail.com>
 
 This is the main part that contains the server application.
 
-FIXME:
-    * Performance issue: if we send data too fast, the whole thing will crash.
-      We need a way to make sure data still makes it there, and that
-      the sender thread stays happy
-
 TODO:
     * launcher .bat or so.
     * better checking if we can work with data that came in.
-    * some tools for packaging the data correctly.
-    * a qcodes subscriber.
     * check what happens when data includes NaN.
-    * the data adding should probably live in a separate thread.
-      need to make sure that things get pipelined properly.
 """
 
 import sys
@@ -159,9 +150,15 @@ class DataStructure(QTreeWidget):
         self.setHeaderLabels(['Array', 'Properties'])
         self.setSelectionMode(QTreeWidget.SingleSelection)
 
+    def getSelected(self):
+        curSelection = self.selectedItems()
+        if len(curSelection) == 0:
+            return None
+        else:
+            return curSelection[0].text(0)
+
     @pyqtSlot(dict)
     def update(self, structure):
-        print('updateDataStructureWidget called...')
         for n, v in structure.items():
             items = self.findItems(n, Qt.MatchExactly)
             if len(items) == 0:
@@ -187,9 +184,7 @@ class DataStructure(QTreeWidget):
             item = self.topLevelItem(0)
             if item:
                 item.setSelected(True)
-        else:
-            item = curSelection[0]
-            self.dataUpdated.emit(structure[item.text(0)])
+
 
 
 class AxisSlider(QWidget):
@@ -210,15 +205,18 @@ class AxisSlider(QWidget):
 
         self.slider.valueChanged.connect(self.idxSet)
 
-    def setAxis(self, name, nvals):
+    def setAxis(self, name, nvals, reset=True):
         self.axisName = name
         self.nAxisVals = nvals
-        self.slider.setMinimum(0)
         self.slider.setMaximum(nvals-1)
-        self.slider.setSingleStep(1)
-        self.slider.setPageStep(1)
-        self.slider.setValue(0)
-        self.slider.valueChanged.emit(0)
+        if reset:
+            self.slider.setMinimum(0)
+            self.slider.setSingleStep(1)
+            self.slider.setPageStep(1)
+            self.slider.setValue(0)
+            self.slider.valueChanged.emit(0)
+        else:
+            self.idxSet(self.slider.value())
 
     @pyqtSlot(int)
     def idxSet(self, idx):
@@ -287,15 +285,17 @@ class PlotChoice(QWidget):
     @pyqtSlot(dict)
     def updateData(self, dataStructure):
         for i, n in enumerate(self.axesNames[1:]):
-            slider = self.idxChoiceSliders[i]
-            slider.setAxis(n, dataStructure['axes'][n]['nValues'])
+            try:
+                slider = self.idxChoiceSliders[i]
+                slider.setAxis(n, dataStructure['axes'][n]['nValues'], reset=False)
+            except IndexError:
+                pass
 
     def updateOptions(self, changedOption, newVal):
         """
         After changing the role of a data axis manually, we need to make
         sure this axis isn't used anywhere else.
         """
-        print("updateOptions called...")
 
         for opt in self.avgSelection, self.xSelection, self.ySelection:
             if opt != changedOption and opt.currentText() == newVal:
@@ -337,8 +337,6 @@ class PlotChoice(QWidget):
         """
         Populates the data choice widgets initially.
         """
-
-        print('set options called...')
         self.doEmitChoiceUpdate = False
         self.axesNames = [ n for n, k in dataStructure['axes'].items() ]
 
@@ -405,8 +403,6 @@ class PlotData(QObject):
         self.choiceInfo = choiceInfo
 
     def processData(self):
-        print('processData called...')
-
         xarr = dataFrameToXArray(self.df)
         data = xarr.values[self.choiceInfo['slices']]
         shp = list(data.shape)
@@ -482,7 +478,7 @@ class DataAdder(QObject):
 class DataWindow(QMainWindow):
 
     dataAdded = pyqtSignal(dict)
-    dataActive = pyqtSignal(dict)
+    dataActivated = pyqtSignal(dict)
     windowClosed = pyqtSignal(str)
 
     def __init__(self, dataId, parent=None):
@@ -521,14 +517,17 @@ class DataWindow(QMainWindow):
 
         # signals/slots for data selection etc.
         self.dataAdded.connect(self.structureWidget.update)
+        self.dataAdded.connect(self.updatePlotChoices)
+        self.dataAdded.connect(self.updatePlotData)
+
         self.structureWidget.itemSelectionChanged.connect(self.activateData)
+        self.dataActivated.connect(self.plotChoice.setOptions)
+
+        self.plotChoice.choiceUpdated.connect(self.updatePlotData)
 
         # i have the feeling those two are not required... could do more elegant.
-        self.structureWidget.dataUpdated.connect(self.plotChoice.updateData)
-        self.structureWidget.dataUpdated.connect(self.updatePlotData)
-
-        self.dataActive.connect(self.plotChoice.setOptions)
-        self.plotChoice.choiceUpdated.connect(self.updatePlotData)
+        # self.structureWidget.dataUpdated.connect(self.plotChoice.updateData)
+        # self.structureWidget.dataUpdated.connect(self.updatePlotData)
 
         # activate window
         self.frame.setFocus()
@@ -539,15 +538,17 @@ class DataWindow(QMainWindow):
     def activateData(self):
         item = self.structureWidget.selectedItems()[0]
         self.activeDataSet = item.text(0)
-        self.dataActive.emit(self.dataStructure[self.activeDataSet])
+        self.dataActivated.emit(self.dataStructure[self.activeDataSet])
+
+    def updatePlotChoices(self, dataStructure):
+        n = self.structureWidget.getSelected()
+        if n is not None:
+            self.plotChoice.updateData(dataStructure[n])
 
     @pyqtSlot()
     def updatePlotData(self):
-        print("updatePlotData called...")
-
         if self.currentlyProcessingPlotData:
             self.pendingPlotData = True
-            print('plot data being processed, update set to pending...')
         else:
             self.currentPlotChoiceInfo = self.plotChoice.choiceInfo
             self.currentlyProcessingPlotData = True
@@ -580,8 +581,6 @@ class DataWindow(QMainWindow):
 
     @pyqtSlot(object, object, object)
     def updatePlot(self, data, x, y):
-        print('updatePlot called...')
-
         self.plot.clearFig()
 
         if x is None and y is None:
@@ -597,9 +596,16 @@ class DataWindow(QMainWindow):
         self.plot.fig.tight_layout()
         self.plot.draw()
 
+        # I don't particularly like this, but sometimes the thread is still alive here
+        # (should be killed, but might be delayed), so i do this to avoid the warning
+        # message.
+        try:
+            self.plotDataThread.quit()
+        except:
+            pass
+
         self.currentlyProcessingPlotData = False
         if self.pendingPlotData:
-            print('plot data update pending, trigger now...')
             self.updatePlotData()
 
     #
