@@ -525,10 +525,6 @@ class DataWindow(QMainWindow):
 
         self.plotChoice.choiceUpdated.connect(self.updatePlotData)
 
-        # i have the feeling those two are not required... could do more elegant.
-        # self.structureWidget.dataUpdated.connect(self.plotChoice.updateData)
-        # self.structureWidget.dataUpdated.connect(self.updatePlotData)
-
         # activate window
         self.frame.setFocus()
         self.setCentralWidget(self.frame)
