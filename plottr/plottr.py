@@ -396,9 +396,7 @@ class PlotData(QObject):
 
     dataProcessed = pyqtSignal(object, object, object)
 
-    def __init__(self, df, choiceInfo):
-        super().__init__()
-
+    def setData(self, df, choiceInfo):
         self.df = df
         self.choiceInfo = choiceInfo
 
@@ -436,9 +434,7 @@ class DataAdder(QObject):
 
     dataUpdated = pyqtSignal(object, dict)
 
-    def __init__(self, curData, newDataDict, update=True):
-        super().__init__()
-
+    def setData(self, curData, newDataDict, update=True):
         self.curData = curData
         self.newDataDict = newDataDict
         self.update = update
@@ -455,7 +451,7 @@ class DataAdder(QObject):
 
         return ds
 
-    def updateData(self):
+    def run(self):
         newDataFrames = dictToDataFrames(self.newDataDict)
         dataStructure = {}
         data = {}
@@ -488,7 +484,6 @@ class DataWindow(QMainWindow):
         self.setWindowTitle(getAppTitle() + f" ({dataId})")
         self.data = {}
 
-        self.currentlyAddingData = False
         self.addingQueue = {}
         self.currentlyProcessingPlotData = False
         self.pendingPlotData = False
@@ -514,6 +509,21 @@ class DataWindow(QMainWindow):
         mainLayout = QHBoxLayout(self.frame)
         mainLayout.addLayout(chooserLayout)
         mainLayout.addLayout(plotLayout)
+
+        # data processing threads
+        self.dataAdder = DataAdder()
+        self.dataAdderThread = QThread()
+        self.dataAdder.moveToThread(self.dataAdderThread)
+        self.dataAdder.dataUpdated.connect(self.dataFromAdder)
+        self.dataAdder.dataUpdated.connect(self.dataAdderThread.quit)
+        self.dataAdderThread.started.connect(self.dataAdder.run)
+
+        self.plotData = PlotData()
+        self.plotDataThread = QThread()
+        self.plotData.moveToThread(self.plotDataThread)
+        self.plotData.dataProcessed.connect(self.updatePlot)
+        self.plotData.dataProcessed.connect(self.plotDataThread.quit)
+        self.plotDataThread.started.connect(self.plotData.processData)
 
         # signals/slots for data selection etc.
         self.dataAdded.connect(self.structureWidget.update)
@@ -543,22 +553,12 @@ class DataWindow(QMainWindow):
 
     @pyqtSlot()
     def updatePlotData(self):
-        if self.currentlyProcessingPlotData:
+        if self.plotDataThread.isRunning():
             self.pendingPlotData = True
         else:
             self.currentPlotChoiceInfo = self.plotChoice.choiceInfo
-            self.currentlyProcessingPlotData = True
             self.pendingPlotData = False
-
-            self.plotData = PlotData(self.data[self.activeDataSet], self.currentPlotChoiceInfo)
-            self.plotDataThread = QThread()
-            self.plotData.moveToThread(self.plotDataThread)
-
-            self.plotData.dataProcessed.connect(self.updatePlot)
-            self.plotData.dataProcessed.connect(self.plotDataThread.quit)
-            self.plotData.dataProcessed.connect(self.plotData.deleteLater)
-            self.plotDataThread.started.connect(self.plotData.processData)
-            self.plotDataThread.finished.connect(self.plotDataThread.deleteLater)
+            self.plotData.setData(self.data[self.activeDataSet], self.currentPlotChoiceInfo)
             self.plotDataThread.start()
 
     def _plot1D(self, x, data):
@@ -592,15 +592,6 @@ class DataWindow(QMainWindow):
         self.plot.fig.tight_layout()
         self.plot.draw()
 
-        # I don't particularly like this, but sometimes the thread is still alive here
-        # (should be killed, but might be delayed), so i do this to avoid the warning
-        # message.
-        try:
-            self.plotDataThread.quit()
-        except:
-            pass
-
-        self.currentlyProcessingPlotData = False
         if self.pendingPlotData:
             self.updatePlotData()
 
@@ -618,7 +609,7 @@ class DataWindow(QMainWindow):
         doUpdate = dataDict.get('update', False) and self.data != {}
         dataDict = dataDict.get('datasets', {})
 
-        if self.currentlyAddingData:
+        if self.dataAdderThread.isRunning():
             if self.addingQueue == {}:
                 self.addingQueue = dataDict
             else:
@@ -628,26 +619,14 @@ class DataWindow(QMainWindow):
                 dataDict = combineDicts(self.addingQueue, dataDict)
 
             if dataDict != {}:
-                self.currentlyAddingData = True
-
-                self.dataAdder = DataAdder(self.data, dataDict, update=doUpdate)
-                self.dataAdderThread = QThread()
-                self.dataAdder.moveToThread(self.dataAdderThread)
-
-                self.dataAdder.dataUpdated.connect(self.dataFromAdder)
-                self.dataAdder.dataUpdated.connect(self.dataAdderThread.quit)
-                self.dataAdder.dataUpdated.connect(self.dataAdder.deleteLater)
-                self.dataAdderThread.started.connect(self.dataAdder.updateData)
-                self.dataAdderThread.finished.connect(self.dataAdderThread.deleteLater)
+                self.dataAdder.setData(self.data, dataDict, doUpdate)
                 self.dataAdderThread.start()
-
                 self.addingQueue = {}
 
     @pyqtSlot(object, dict)
     def dataFromAdder(self, data, dataStructure):
         self.data = data
         self.dataStructure = dataStructure
-        self.currentlyAddingData = False
         self.dataAdded.emit(self.dataStructure)
 
     # clean-up
@@ -750,7 +729,6 @@ class PlottrMain(QMainWindow):
     def closeEvent(self, event):
         self.listener.running = False
         self.listeningThread.quit()
-        # self.listeningThread.wait()
 
         hs = [h for d, h in self.dataHandlers.items()]
         for h in hs:
