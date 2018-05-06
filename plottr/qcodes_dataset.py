@@ -3,6 +3,8 @@ import os
 import numpy as np
 import pandas as pd
 import qcodes as qc
+from qcodes.dataset.data_set import DataSet
+from qcodes.dataset.experiment_container import Experiment
 from qcodes.dataset.sqlite_base import (connect, get_dependencies,
                                         get_dependents, get_layout, get_runs)
 
@@ -12,7 +14,9 @@ from .client import DataSender
 # general methods for dealing with qcodes data
 def datasetFromFile(path, runId):
     qc.config['core']['db_location'] = path
-    return qc.load_by_id(runId)
+    ds = DataSet(path)
+    ds.run_id = runId
+    return ds
 
 
 def getDatasetStructure(ds):
@@ -76,8 +80,10 @@ def getRunOverview(dbPath):
     qc.config['core']['db_location'] = dbPath
 
     for runId in dsets['runId']:
-        ds = qc.load_by_id(runId)
-        exp = qc.load_experiment(ds.exp_id)
+        ds = DataSet(dbPath)
+        ds.run_id = runId
+        exp = Experiment(dbPath)
+        exp.exp_id = ds.exp_id
 
         dsets['experimentName'].append(exp.name)
         dsets['sampleName'].append(exp.sample_name)
@@ -129,7 +135,7 @@ class QcodesDatasetSubscriber(object):
     def __call__(self, results, length, state):
         newData = dict(zip(self.params, list(zip(*results))))
         for k, v in newData.items():
-            self.dataStructure[k]['values'] = v
+            self.dataStructure[k]['values'] = list(v)
 
         self.sender.data['datasets'] = self.dataStructure
         self.sender.sendData()

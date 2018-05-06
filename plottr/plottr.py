@@ -403,7 +403,12 @@ class PlotData(QObject):
         self.choiceInfo = choiceInfo
 
     def processData(self):
-        xarr = dataFrameToXArray(self.df)
+        try:
+            xarr = dataFrameToXArray(self.df)
+        except ValueError:
+            print('Yikes. It appears we cannot recognize a good shape for the data :( Is it corrupted?')
+            return
+
         data = xarr.values[self.choiceInfo['slices']]
         shp = list(data.shape)
 
