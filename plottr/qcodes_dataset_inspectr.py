@@ -1,7 +1,8 @@
 import sys
 import os
+import sqlite3
 from PyQt5.QtCore import QObject, Qt, QThread, pyqtSignal, pyqtSlot
-from PyQt5.QtWidgets import (QApplication,
+from PyQt5.QtWidgets import (QApplication, QAction,
                              QFrame, QHBoxLayout, QLabel,
                              QMainWindow,QSizePolicy,
                              QTreeWidget, QTreeWidgetItem, QVBoxLayout,
@@ -75,8 +76,8 @@ class DatabaseTreeView(QTreeWidget):
             event.ignore()
 
     def dropEvent(self, event):
-        url = event.mimeData().urls()[0]
-        print(url.toLocalFile())
+        url = event.mimeData().urls()[0].toLocalFile()
+        self.fileDropped.emit(url)
 
     def mimeTypes(self):
         return ([
@@ -90,6 +91,8 @@ class InspectrMain(QMainWindow):
     def __init__(self, parent=None):
         super().__init__(parent)
 
+        self.filepath = None
+
         self.setWindowTitle('inspectr')
         self.activateWindow()
 
@@ -98,14 +101,33 @@ class InspectrMain(QMainWindow):
         self.setCentralWidget(self.centralWidget)
         self.centralWidget.setFocus()
 
-        self.dataBaseTree.datasetTriggered.connect(self.triggerPlot)
+        reloadAction = QAction('&Reload', self)
+        reloadAction.setShortcut('Ctrl+R')
+        reloadAction.triggered.connect(self.reload)
 
+        menu = self.menuBar()
+        fileMenu = menu.addMenu('&File')
+        fileMenu.addAction(reloadAction)
+
+        self.dataBaseTree.datasetTriggered.connect(self.triggerPlot)
+        self.dataBaseTree.fileDropped.connect(self.setFilePath)
+
+    @pyqtSlot()
+    def reload(self):
+        self.setFilePath(self.filepath)
+
+    @pyqtSlot(str)
     def setFilePath(self, filepath):
         if not filepath:
             return
 
         self.filepath = os.path.abspath(filepath)
-        self.dbOverview = getRunOverviewDataFrame(filepath)
+        try:
+            self.dbOverview = getRunOverviewDataFrame(filepath)
+        except sqlite3.DatabaseError:
+            print('Not a SQLite3 database.')
+            return
+
         self.dataBaseTree.populate(self.dbOverview)
         self.setWindowTitle('inspectr - {}'.format(self.filepath))
 
