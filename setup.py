@@ -7,4 +7,8 @@ setup(
     author='Wolfgang Pfaff',
     author_email='wolfgangpfff@gmail.com',
     url='https://github.com/wpfff',
+    install_requires=[
+        'pandas>=0.22',
+        'xarray',
+    ],
 )

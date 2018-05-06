@@ -1,3 +1,3 @@
 :: launch the main program.
-python plottr.py
+python inspectr.py
 cmd /k

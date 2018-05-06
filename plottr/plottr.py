@@ -32,6 +32,8 @@ from PyQt5.QtWidgets import (QApplication, QComboBox, QDialog, QFormLayout,
                              QTreeWidget, QTreeWidgetItem, QVBoxLayout,
                              QWidget)
 
+from .config import config
+
 APPTITLE = "plottr"
 TIMEFMT = "[%Y/%m/%d %H:%M:%S]"
 
@@ -738,12 +740,3 @@ class PlottrMain(QMainWindow):
     def dataWindowClosed(self, dataId):
         self.dataHandlers[dataId].close()
         del self.dataHandlers[dataId]
-
-
-if __name__ == "__main__":
-    from config import config
-
-    app = QApplication(sys.argv)
-    main = PlottrMain()
-    main.show()
-    sys.exit(app.exec_())
