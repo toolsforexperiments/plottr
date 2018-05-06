@@ -19,6 +19,7 @@ you can use the inspectr tool to get a simple overview over qcodes database file
 
 
 ## requirements:
+* python >= 3.6 (f-strings...)
 * the usual: numpy, mpl, ...
 * pandas >= 0.22
 * xarray
