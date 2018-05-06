@@ -16,3 +16,10 @@ Basic usage:
 you can use the inspectr tool to get a simple overview over qcodes database files. Usage:
 * drag and drop a .db file into the main window after launching
 * if plottr is running, a double click on a dataset row will send the data to plottr where it's visualized.
+
+
+## requirements:
+* the usual: numpy, mpl, ...
+* pandas >= 0.22
+* xarray
+
