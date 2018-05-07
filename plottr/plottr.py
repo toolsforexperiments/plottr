@@ -587,6 +587,7 @@ class DataWindow(QMainWindow):
     def _plot1D(self, x, data):
         self.plot.axes.plot(x, data, 'o')
         self.plot.axes.set_xlabel(self.currentPlotChoiceInfo['xAxis']['name'])
+        self.plot.axes.set_ylabel(self.activeDataSet)
 
     def _plot2D(self, x, y, data):
         xx, yy = pcolorgrid(x, y)
@@ -597,6 +598,7 @@ class DataWindow(QMainWindow):
         cb = self.plot.fig.colorbar(im)
         self.plot.axes.set_xlabel(self.currentPlotChoiceInfo['xAxis']['name'])
         self.plot.axes.set_ylabel(self.currentPlotChoiceInfo['yAxis']['name'])
+        cb.set_label(self.activeDataSet)
 
     @pyqtSlot(object, object, object)
     def updatePlot(self, data, x, y):
