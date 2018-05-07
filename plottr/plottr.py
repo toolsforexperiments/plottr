@@ -35,7 +35,7 @@ from PyQt5.QtWidgets import (QApplication, QComboBox, QDialog, QFormLayout,
 from .config import config
 
 APPTITLE = "plottr"
-TIMEFMT = "[%Y/%m/%d %H:%M:%S]"
+TIMEFMT = "[%Y-%m-%d %H:%M:%S]"
 
 
 
