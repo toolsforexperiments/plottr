@@ -88,11 +88,27 @@ def dictToDataFrames(dataDict):
         if 'axes' not in dataDict[n]:
             continue
         vals = dataDict[n]['values']
-        coords = [ (a, dataDict[a]['values']) for a in dataDict[n]['axes']]
 
-        mi = pd.MultiIndex.from_tuples(list(zip(*[v for n, v in coords])), names=dataDict[n]['axes'])
+        coord_vals = []
+        coord_names = []
+        for a in dataDict[n]['axes']:
+            coord_vals.append(dataDict[a]['values'])
+            m = a
+            unit = dataDict[m].get('unit', '')
+            if unit != '':
+                m += f" ({unit})"
+            coord_names.append(m)
+
+        coords = list(zip(coord_names, coord_vals))
+
+        mi = pd.MultiIndex.from_tuples(list(zip(*[v for n, v in coords])), names=coord_names)
         df = pd.DataFrame(vals, mi)
-        df.columns.name = n
+
+        name = n
+        unit = dataDict[n].get('unit', '')
+        if unit != '':
+            name += f" ({unit})"
+        df.columns.name = name
 
         dfs.append(df)
 
