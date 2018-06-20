@@ -421,7 +421,7 @@ class PlotData(QObject):
     def processData(self):
         try:
             xarr = dataFrameToXArray(self.df)
-        except ValueError:
+        except (ValueError, IndexError):
             print('Yikes. It appears we cannot recognize a good shape for the data :( Is it corrupted?')
             return
 
@@ -436,6 +436,11 @@ class PlotData(QObject):
             len([i for i in squeezeDims if i < self.choiceInfo['avgAxis']['idx']])
 
         plotData = data.squeeze(squeezeDims)
+        plotData = np.ma.masked_where(np.isnan(plotData), plotData)
+        
+        if plotData.size < 1:
+            print('Womp womp. Data has size 0, i cannot plot that.')
+            return
 
         if self.choiceInfo['avgAxis']['idx'] > -1:
             plotData = plotData.mean(newMeanIdx)
