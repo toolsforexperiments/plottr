@@ -48,113 +48,7 @@ def getTimestamp(timeTuple=None):
 def getAppTitle():
     return f"{APPTITLE}"
 
-### matplotlib tools
-def setMplDefaults():
-    rcParams['axes.grid'] = True
-    rcParams['font.family'] = 'Arial'
-    rcParams['font.size'] = 8
-    rcParams['lines.markersize'] = 4
-    rcParams['lines.linestyle'] = '-'
-    rcParams['savefig.transparent'] = False
 
-
-def centers2edges(arr):
-    e = (arr[1:] + arr[:-1]) / 2.
-    e = np.concatenate(([arr[0] - (e[0] - arr[0])], e))
-    e = np.concatenate((e, [arr[-1] + (arr[-1] - e[-1])]))
-    return e
-
-
-def pcolorgrid(xaxis, yaxis):
-    xedges = centers2edges(xaxis)
-    yedges = centers2edges(yaxis)
-    xx, yy = np.meshgrid(xedges, yedges)
-    return xx, yy
-
-
-### structure tools
-def combineDicts(dict1, dict2):
-    if dict1 != {}:
-        for k in dict1.keys():
-            dict1[k]['values'] += dict2[k]['values']
-        return dict1
-    else:
-        return dict2
-
-
-def dictToDataFrames(dataDict):
-    dfs = []
-    for n in dataDict:
-        if 'axes' not in dataDict[n]:
-            continue
-        vals = dataDict[n]['values']
-
-        coord_vals = []
-        coord_names = []
-        for a in dataDict[n]['axes']:
-            coord_vals.append(dataDict[a]['values'])
-            m = a
-            unit = dataDict[m].get('unit', '')
-            if unit != '':
-                m += f" ({unit})"
-            coord_names.append(m)
-
-        coords = list(zip(coord_names, coord_vals))
-
-        mi = pd.MultiIndex.from_tuples(list(zip(*[v for n, v in coords])), names=coord_names)
-        df = pd.DataFrame(vals, mi)
-
-        name = n
-        unit = dataDict[n].get('unit', '')
-        if unit != '':
-            name += f" ({unit})"
-        df.columns.name = name
-
-        dfs.append(df)
-
-    return dfs
-
-
-def combineDataFrames(df1, df2, sortIndex=True):
-    df = df1.append(df2)
-    if sortIndex:
-        df = df.sort_index()
-    return df
-
-
-def dataFrameToXArray(df):
-    """
-    Convert pandas DataFrame with MultiIndex to an xarray DataArray.
-    """
-    arr = xr.DataArray(df)
-
-    # remove automatically generated indices.
-    for idxn in arr.indexes:
-        idx = arr.indexes[idxn]
-        if 'dim_' in idxn or idxn == df.columns.name:
-            if isinstance(idx, pd.MultiIndex):
-                arr = arr.unstack(idxn)
-            else:
-                arr = arr.squeeze(idxn).drop(idxn)
-
-    return arr
-
-
-class MPLPlot(FCanvas):
-
-    def __init__(self, parent=None, width=4, height=3, dpi=150):
-        self.fig = Figure(figsize=(width, height), dpi=dpi)
-
-        # TODO: option for multiple subplots
-        self.axes = self.fig.add_subplot(111)
-
-        super().__init__(self.fig)
-        self.setParent(parent)
-
-    def clearFig(self):
-        self.fig.clear()
-        self.axes = self.fig.add_subplot(111)
-        self.draw()
 
 
 class DataStructure(QTreeWidget):
@@ -437,7 +331,7 @@ class PlotData(QObject):
 
         plotData = data.squeeze(squeezeDims)
         plotData = np.ma.masked_where(np.isnan(plotData), plotData)
-        
+
         if plotData.size < 1:
             print('Womp womp. Data has size 0, i cannot plot that.')
             return
