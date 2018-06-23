@@ -1,7 +1,7 @@
 import sys
 from PyQt5.QtWidgets import QApplication, QDialog, QWidget
 
-from plottr.gui.ui_lineplot import Ui_LinePlot
+from plottr.gui.plots.ui_lineplot import Ui_LinePlot
 
 
 class LinePlot(QWidget):

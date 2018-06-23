@@ -53,4 +53,4 @@ class Ui_LinePlot(object):
         self.xaxis_label.setText(_translate("LinePlot", "X-Axis"))
         self.curvesLabel.setText(_translate("LinePlot", "Curves"))
 
-from .mpl import MPLPlot
+from ..mpl import MPLPlot
