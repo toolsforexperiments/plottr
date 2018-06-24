@@ -11,16 +11,22 @@ from plottr.gui.ui_lineplot import Ui_LinePlot
 class PlotData(QObject):
 
     dataProcessed = pyqtSignal(object)
+    dataSet = pyqtSignal()
+    optionsUpdated = pyqtSignal()
+
+    def __init__(self):
+        super().__init__()
+
+        self.dataSet.connect(self.processData)
+        self.optionsUpdated.connect(self.processData)
 
     def setData(self, data):
         self.srcdata = data
+        self.dataSet.emit()
 
+    @pyqtSlot()
     def processData(self):
-        self.data = self.srcdata
-
-
-class GridPlotData(PlotData):
-    pass
+        return self.srcdata
 
 
 class PlotWidget(QWidget):
@@ -43,26 +49,41 @@ class PlotWidget(QWidget):
 
 class LinePlotData(PlotData):
 
-    def setXaxis(self, name):
-        self.xaxisname = name
+    def __init__(self):
+        super().__init__()
 
-    def setTraces(self, names):
-        self.tracenames = names
+        self._xaxisName = None
+        self._traceNames = []
+
+    @property
+    def xaxisName(self):
+        return self._xaxisName
+
+    @xaxisName.setter
+    def xaxisName(self, val):
+        self._xaxisName = val
+        self.optionsUpdated.emit()
+
+    @property
+    def traceNames(self):
+        return self._traceNames
+
+    @traceNames.setter
+    def traceNames(self, val):
+        self._traceNames = val
+        self.optionsUpdated.emit()
 
     def processData(self):
-        super().processData()
+        _data = super().processData()
 
-        ret = []
-        for dn in self.tracenames:
-            if dn in self.data:
-                if self.xaxisname in self.data[dn]['axes']:
-                    ret.append(self.data[dn]['values'])
-                else:
-                    raise ValueError("Trace '{}' does not depend on '{}'".format(dn, self.xaxisname))
-            else:
-                raise ValueError("Trace '{}' not in dataset.".format(dn))
+        data = DataDict()
+        for k in self.traceNames:
+            data[k] = _data.get(k)
+        if self.xaxisName in _data:
+            data[self.xaxisName] = _data[self.xaxisName]
 
-        return self.data[self.xaxisname]['values'], ret
+        self.dataProcessed.emit(data)
+        return data
 
 
 class LinePlot(PlotWidget):
@@ -72,18 +93,33 @@ class LinePlot(PlotWidget):
         ui = Ui_LinePlot()
         ui.setupUi(self)
 
-    def plot(self, x, ylst):
-        for y in ylst:
-            self.plot.axes.plot(x, y, 'o-')
+        self.plot = ui.plot
 
+        self.plotData = LinePlotData()
+        self.plotData.dataProcessed.connect(self.updatePlot)
+
+
+    @pyqtSlot(object)
+    def updatePlot(self, data):
+        ax = self.plot.axes
+
+        xvals = data.get(self.plotData.xaxisName, {}).get('values', None)
+        for k, v in data.items():
+            if k != self.plotData.xaxisName:
+                yvals = data[k]['values']
+                if xvals is not None:
+                    ax.plot(xvals, yvals, 'o-', label=k)
+
+        ax.legend(loc='best')
+        ax.set_xlabel(self.plotData.xaxisName)
 
 
 def dummyData():
-    x = np.linspace(0, 10, 11)
+    x = np.linspace(0, 10, 101)
     y = np.cos(x)
     d = DataDict(
         x = {'values' : x},
-        y = {'values' : y, axes=['x']},
+        y = {'values' : y, 'axes' : ['x']},
     )
     return d
 
@@ -93,4 +129,9 @@ if __name__ == "__main__":
     window = QDialog()
     plot = LinePlot(window)
     window.show()
+
+    plot.plotData.setData(dummyData())
+    plot.plotData.xaxisName = 'x'
+    plot.plotData.traceNames = ['y']
+
     sys.exit(app.exec_())
