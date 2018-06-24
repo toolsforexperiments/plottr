@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 
-# Form implementation generated from reading ui file 'lineplot.ui'
+# Form implementation generated from reading ui file 'ui\lineplot.ui'
 #
 # Created by: PyQt5 UI code generator 5.6
 #
@@ -53,4 +53,4 @@ class Ui_LinePlot(object):
         self.xaxis_label.setText(_translate("LinePlot", "X-Axis"))
         self.curvesLabel.setText(_translate("LinePlot", "Curves"))
 
-from ..mpl import MPLPlot
+from .mpl import MPLPlot
