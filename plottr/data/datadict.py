@@ -32,7 +32,7 @@ class DataDict(dict):
     * all axes that are specified must exist as data fields.
     """
 
-    # TODO: special class for griddata. get grid should return instance.
+    # TODO: special class for griddata? get grid could return instance.
 
     def __init__(self, *arg, **kw):
         super().__init__(self, *arg, **kw)
