@@ -166,14 +166,21 @@ class DataDict(dict):
     def get_grid(self, name, mask_nan=True):
         arr = self.to_xarray(name)
 
-        ret = []
+        ret = {}
         for idxn in arr.indexes:
-            ret.append((idxn, arr.indexes[idxn].values))
+            ret[idxn] = dict(
+                values=arr.indexes[idxn].values,
+                unit=self[idxn]['unit']
+                )
 
         if mask_nan and len(np.where(np.isnan(arr.values))[0]) > 0:
             v = np.ma.masked_where(np.isnan(arr.values), arr.values)
         else:
             v = arr.values
-        ret.append((name, v))
+        ret[name] = dict(
+            values=v,
+            axes=self[name]['axes'],
+            unit=self[name]['unit'],
+            )
 
-        return ret
+        return

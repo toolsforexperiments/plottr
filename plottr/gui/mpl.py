@@ -6,12 +6,20 @@ from matplotlib.figure import Figure
 
 ### matplotlib tools
 def setMplDefaults():
+    rcParams['figure.dpi'] = 150
+    rcParams['figure.figsize'] = (4.5, 3)
+    rcParams['savefig.dpi'] = 150
     rcParams['axes.grid'] = True
+    rcParams['grid.linewidth'] = 0.5
     rcParams['font.family'] = 'Arial'
-    rcParams['font.size'] = 8
+    rcParams['font.size'] = 6
     rcParams['lines.markersize'] = 4
     rcParams['lines.linestyle'] = '-'
     rcParams['savefig.transparent'] = False
+    rcParams['figure.subplot.bottom'] = 0.15
+    rcParams['figure.subplot.top'] = 0.85
+    rcParams['figure.subplot.left'] = 0.15
+    rcParams['figure.subplot.right'] = 0.9
 
 
 def centers2edges(arr):
