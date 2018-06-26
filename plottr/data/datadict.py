@@ -85,6 +85,7 @@ class DataDict(dict):
                     ret.append(n)
             return ret
 
+
     def validate(self):
         nvals = None
         nvalsrc = None
@@ -177,10 +178,10 @@ class DataDict(dict):
         if isinstance(name, str):
             name = [name]
 
+        ret = {}
         for n in name:
             arr = self.to_xarray(n)
 
-            ret = {}
             for idxn in arr.indexes:
                 vals = arr.indexes[idxn].values
 
@@ -204,4 +205,4 @@ class DataDict(dict):
                 unit=self[n]['unit'],
                 )
 
-        return
+        return ret

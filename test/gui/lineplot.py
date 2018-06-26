@@ -13,12 +13,11 @@ class Node(QObject):
     dataProcessed = pyqtSignal(object)
     optionsUpdated = pyqtSignal()
 
-    def __init__(self, source=None):
+    def __init__(self):
         super().__init__()
         self._inputData = None
         self._outputData = None
 
-        self.setSource(source)
         self.optionsUpdated.connect(self.update)
 
     def setSource(self, source, autorun=True):
@@ -40,6 +39,7 @@ class Node(QObject):
         if self._inputData is not None:
             self._outputData = self.processData(self._inputData)
             self.dataProcessed.emit(self._outputData)
+            print('processed:', self, self._outputData)
 
     def processData(self, data):
         print('process:', self, data)
@@ -49,7 +49,7 @@ class Node(QObject):
 class DataDictSourceNode(Node):
 
     def __init__(self):
-        super().__init__(source=None)
+        super().__init__()
 
     def setData(self, data):
         self._inputData = data
@@ -58,9 +58,8 @@ class DataDictSourceNode(Node):
 
 class DataSelector(Node):
 
-    def __init__(self, source):
-        super().__init__(source)
-
+    def __init__(self):
+        super().__init__()
         self._dataName = None
         self._axesNames = []
         self._slices = {}
@@ -88,6 +87,7 @@ class DataSelector(Node):
     @dataName.setter
     def dataName(self, val):
         self._dataName = val
+        self.optionsUpdated.emit()
 
     @property
     def axesNames(self):
@@ -96,6 +96,7 @@ class DataSelector(Node):
     @axesNames.setter
     def axesNames(self, val):
         self._axesNames = val
+        self.optionsUpdated.emit()
 
     @property
     def slices(self):
@@ -104,6 +105,16 @@ class DataSelector(Node):
     @slices.setter
     def slices(self, val):
         self._slices = val
+        self.optionsUpdated.emit()
+
+    @property
+    def grid(self):
+        return self._grid
+
+    @grid.setter
+    def grid(self, val):
+        self._grid = val
+        self.optionsUpdated.emit()
 
     def validate(self, data):
         return True
@@ -111,14 +122,30 @@ class DataSelector(Node):
     def processData(self, data):
         data = super().processData(data)
         if not self.validate(data):
-            return
+            return {}
 
-        if hasattr(data, 'get_grid'):
-            data = data.get_grid()
+        if self.dataName is None:
+            return {}
 
-        slices = [np.s_[::] for a in data[]]
+        if hasattr(data, 'get_grid') and self._grid:
+            data = data.get_grid(self.dataName)
+        else:
+            _data = {self.dataName : data[self.dataName]}
+            for k, v in data:
+                if k in data[self.dataName].get('axes', []):
+                    _data[k] = v
+            data = _data
 
+        if self.grid:
+            slices = [np.s_[::] for a in data[self.dataName]['axes']]
+            for n, s in self.slices.items():
+                idx = data[self.dataName]['axes'].index(n)
+                slices[idx] = s
+                data[n]['values'] = data[n]['values'][s]
 
+            data[self.dataName]['values'] = data[self.dataName]['values'][slices]
+
+        return data
 
 class PlotWidget(QWidget):
     # TODO: use data adder thread.
