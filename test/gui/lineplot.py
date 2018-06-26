@@ -56,43 +56,67 @@ class DataDictSourceNode(Node):
         self.run(data)
 
 
-### seems uneccessary... put in data class?
-class AxesSelector(Node):
+class DataSelector(Node):
 
     def __init__(self, source):
         super().__init__(source)
-        self._axesNames = None
 
-    def axesList(self, dataName=None):
+        self._dataName = None
+        self._axesNames = []
+        self._slices = {}
+        self._grid = True
+
+    @staticmethod
+    def axesList(data, dataName=None):
         lst = []
-        if self._inputData is not None:
-            if dataName is None:
-                for k, v in self._inputData.items():
-                    if 'axes' in v:
-                        for n in v['axes']:
-                            if n not in lst:
-                                lst.append(n)
-            else:
-                if dataName in self._inputData and 'axes' in self._inputData:
-                    lst = self._inputData['axes']
+        if dataName is None:
+            for k, v in data.items():
+                if 'axes' in v:
+                    for n in v['axes']:
+                        if n not in lst:
+                            lst.append(n)
+        else:
+            if dataName in data and 'axes' in data[dataName]:
+                lst = data[dataName]['axes']
 
         return lst
+
+    @property
+    def dataName(self):
+        return self._dataName
+
+    @dataName.setter
+    def dataName(self, val):
+        self._dataName = val
 
     @property
     def axesNames(self):
         return self._axesNames
 
     @axesNames.setter
-    def axesNames(self, vals):
-        axlst = []
-        for v in vals:
-            if v not in self.axesList():
-                raise ValueError("'{}' is not a valid axis".format(v))
-            if v in axlst:
-                raise ValueError("'{}' specified multiple times.".format(v))
-            axlst.append(v)
-        self._axesNames = axlst
+    def axesNames(self, val):
+        self._axesNames = val
 
+    @property
+    def slices(self):
+        return self._slices
+
+    @slices.setter
+    def slices(self, val):
+        self._slices = val
+
+    def validate(self, data):
+        return True
+
+    def processData(self, data):
+        data = super().processData(data)
+        if not self.validate(data):
+            return
+
+        if hasattr(data, 'get_grid'):
+            data = data.get_grid()
+
+        slices = [np.s_[::] for a in data[]]
 
 
 
@@ -213,7 +237,7 @@ if __name__ == "__main__":
 
     datasrc.setData(dummyData1d(11))
 
-    axsel = AxesSelector(source=datasrc)
-    print(axsel.axesList())
+    # axsel = AxesSelector(source=datasrc)
+    # print(axsel.axesList())
 
     sys.exit(app.exec_())

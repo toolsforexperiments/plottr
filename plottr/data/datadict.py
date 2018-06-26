@@ -77,6 +77,14 @@ class DataDict(dict):
 
             return n
 
+    def dependents(self):
+        if self.validate():
+            ret = []
+            for n, v in self.items():
+                if len(v.get('axes', [])) != 0:
+                    ret.append(n)
+            return ret
+
     def validate(self):
         nvals = None
         nvalsrc = None
@@ -163,24 +171,37 @@ class DataDict(dict):
 
         return arr
 
-    def get_grid(self, name, mask_nan=True):
-        arr = self.to_xarray(name)
+    def get_grid(self, name=None, mask_nan=True):
+        if name is None:
+            name = self.dependents()
+        if isinstance(name, str):
+            name = [name]
 
-        ret = {}
-        for idxn in arr.indexes:
-            ret[idxn] = dict(
-                values=arr.indexes[idxn].values,
-                unit=self[idxn]['unit']
+        for n in name:
+            arr = self.to_xarray(n)
+
+            ret = {}
+            for idxn in arr.indexes:
+                vals = arr.indexes[idxn].values
+
+                if idxn in ret and vals.shape != ret[idxn]['values'].shape:
+                    raise ValueError(
+                        "'{}' used in different shapes. Arrays cannot be used as data and axis in a single grid data set.".format(idxn)
+                    )
+
+                ret[idxn] = dict(
+                    values=vals,
+                    unit=self[idxn]['unit']
+                    )
+
+            if mask_nan and len(np.where(np.isnan(arr.values))[0]) > 0:
+                v = np.ma.masked_where(np.isnan(arr.values), arr.values)
+            else:
+                v = arr.values
+            ret[n] = dict(
+                values=v,
+                axes=self[n]['axes'],
+                unit=self[n]['unit'],
                 )
-
-        if mask_nan and len(np.where(np.isnan(arr.values))[0]) > 0:
-            v = np.ma.masked_where(np.isnan(arr.values), arr.values)
-        else:
-            v = arr.values
-        ret[name] = dict(
-            values=v,
-            axes=self[name]['axes'],
-            unit=self[name]['unit'],
-            )
 
         return
