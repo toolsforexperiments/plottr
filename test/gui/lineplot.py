@@ -1,5 +1,6 @@
 import sys
 import numpy as np
+from pprint import pprint
 
 from PyQt5.QtCore import QObject, Qt, QThread, pyqtSignal, pyqtSlot
 from PyQt5.QtWidgets import QApplication, QDialog, QWidget
@@ -13,19 +14,73 @@ class Node(QObject):
     dataProcessed = pyqtSignal(object)
     optionsUpdated = pyqtSignal()
 
+    _userOptions = {}
+
     def __init__(self):
         super().__init__()
         self._inputData = None
         self._outputData = None
+        self._updateOnSource = True
+        self._updateOnOptionChange = True
+        self._source = None
 
         self.optionsUpdated.connect(self.update)
 
-    def setSource(self, source, autorun=True):
+        for k, v in self._userOptions.items():
+            self._addOption(
+                name=k,
+                initialValue=v.get('initialValue', None),
+                doc=v.get('doc', ''),
+            )
+
+    def _addOption(self, name, initialValue=None, doc='', force=False):
+        varname = '_' + name
+        if hasattr(self, varname) and not force:
+            raise ValueError("attribute name '{}' is in use already".format(varname))
+        setattr(self, varname, initialValue)
+
+        def fget(self):
+            return getattr(self, varname)
+
+        def fset(self, val):
+            setattr(self, varname, val)
+            if self._updateOnOptionChange:
+                self.optionsUpdated.emit()
+
+        opt = property(fget=fget, fset=fset, doc=doc)
+        setattr(self.__class__, name, opt)
+
+    @property
+    def updateOnSource(self):
+        return self._updateOnSource
+
+    @updateOnSource.setter
+    def updateOnSource(self, val):
+        if self._updateOnSource and not val and self._source is not None:
+            self._source.dataProcessed.disconnect(self.run)
+        if not self._updateOnSource and val and self._source is not None:
+            self._source.dataProcessed.connect(self.run)
+        self._updateOnSource = val
+
+    @property
+    def updateOnOptionChange(self):
+        return self._updateOnOptionChange
+
+    @updateOnOptionChange.setter
+    def updateOnOptionChange(self, val):
+        self._updateOnOptionChange = val
+
+    def setSource(self, source, run=True):
         self._source = source
         if isinstance(self._source, Node):
-            self._source.dataProcessed.connect(self.run)
-            if autorun:
-                self.run(self._source._outputData)
+            self._inputData = self._source._outputData
+            if self._updateOnSource:
+                self._source.dataProcessed.connect(self.run)
+            if run:
+                self.update()
+
+    def getInputData(self):
+        self._inputData = self._source._outputData
 
     @pyqtSlot()
     def update(self):
@@ -39,10 +94,14 @@ class Node(QObject):
         if self._inputData is not None:
             self._outputData = self.processData(self._inputData)
             self.dataProcessed.emit(self._outputData)
-            print('processed:', self, self._outputData)
+            print('processed:', self)
+            pprint(self._outputData)
+            print('')
 
     def processData(self, data):
-        print('process:', self, data)
+        print('process:', self)
+        pprint(data)
+        print('')
         return data
 
 
@@ -58,12 +117,31 @@ class DataDictSourceNode(Node):
 
 class DataSelector(Node):
 
+    _userOptions = dict(
+        dataName = dict(
+            initialValue=None,
+            doc='Name of the data field to select',
+            type='str',
+        ),
+        axesOrder = dict(
+            initialValue={},
+        ),
+        slices = dict(
+            initialValue={},
+        ),
+        grid = dict(
+            initialValue=True,
+            type=bool,
+        ),
+        squeeze = dict(
+            initialValue=True,
+            type=bool,
+        ),
+    )
+
     def __init__(self):
         super().__init__()
-        self._dataName = None
-        self._axesNames = []
-        self._slices = {}
-        self._grid = True
+
 
     @staticmethod
     def axesList(data, dataName=None):
@@ -79,42 +157,6 @@ class DataSelector(Node):
                 lst = data[dataName]['axes']
 
         return lst
-
-    @property
-    def dataName(self):
-        return self._dataName
-
-    @dataName.setter
-    def dataName(self, val):
-        self._dataName = val
-        self.optionsUpdated.emit()
-
-    @property
-    def axesNames(self):
-        return self._axesNames
-
-    @axesNames.setter
-    def axesNames(self, val):
-        self._axesNames = val
-        self.optionsUpdated.emit()
-
-    @property
-    def slices(self):
-        return self._slices
-
-    @slices.setter
-    def slices(self, val):
-        self._slices = val
-        self.optionsUpdated.emit()
-
-    @property
-    def grid(self):
-        return self._grid
-
-    @grid.setter
-    def grid(self, val):
-        self._grid = val
-        self.optionsUpdated.emit()
 
     def validate(self, data):
         return True
@@ -137,13 +179,43 @@ class DataSelector(Node):
             data = _data
 
         if self.grid:
-            slices = [np.s_[::] for a in data[self.dataName]['axes']]
+            _datavals = data[self.dataName]['values']
+            _axnames = data[self.dataName]['axes']
+
+            slices = [np.s_[::] for a in _axnames]
             for n, s in self.slices.items():
-                idx = data[self.dataName]['axes'].index(n)
+                idx = _axnames.index(n)
                 slices[idx] = s
                 data[n]['values'] = data[n]['values'][s]
+            data[self.dataName]['values'] = _datavals[slices]
+            _datavals = data[self.dataName]['values']
 
-            data[self.dataName]['values'] = data[self.dataName]['values'][slices]
+            neworder = [None for a in _axnames]
+            oldorder = list(range(len(_axnames)))
+            for n, newidx in self.axesOrder.items():
+                neworder[newidx] = _axnames.index(n)
+
+            for i in neworder:
+                if i in oldorder:
+                    del oldorder[oldorder.index(i)]
+
+            for i in range(len(neworder)):
+                if neworder[i] is None:
+                    neworder[i] = oldorder[0]
+                    del oldorder[0]
+
+            data[self.dataName]['values'] = _datavals.transpose(tuple(neworder))
+            _datavals = data[self.dataName]['values']
+            data[self.dataName]['axes'] = [_axnames[i] for i in neworder]
+            _axnames = data[self.dataName]['axes']
+
+            if self.squeeze:
+                oldshape = _datavals.shape
+                data[self.dataName]['values'] = np.squeeze(_datavals)
+                for i, n in enumerate(_axnames):
+                    if oldshape[i] < 2:
+                        del data[self.dataName]['axes'][i]
+                        del data[n]
 
         return data
 
