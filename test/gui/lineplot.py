@@ -14,24 +14,25 @@ class Node(QObject):
     dataProcessed = pyqtSignal(object)
     optionsUpdated = pyqtSignal()
 
-    _userOptions = {}
+    userOptions = {}
+    sourcePorts = ['source']
 
     def __init__(self):
         super().__init__()
-        self._inputData = None
-        self._outputData = None
+        self._data = None
         self._updateOnSource = True
         self._updateOnOptionChange = True
-        self._source = None
+        self._sources = []
 
-        self.optionsUpdated.connect(self.update)
+        self.optionsUpdated.connect(self.run)
 
-        for k, v in self._userOptions.items():
-            self._addOption(
-                name=k,
-                initialValue=v.get('initialValue', None),
-                doc=v.get('doc', ''),
-            )
+        for k, v in self.userOptions.items():
+            self._addOption(name=k,
+                            initialValue=v.get('initialValue', None),
+                            doc=v.get('doc', ''))
+        for s in self.sourcePorts:
+            self._addSourcePort(s)
+
 
     def _addOption(self, name, initialValue=None, doc='', force=False):
         varname = '_' + name
@@ -50,16 +51,42 @@ class Node(QObject):
         opt = property(fget=fget, fset=fset, doc=doc)
         setattr(self.__class__, name, opt)
 
+
+    def _addSourcePort(self, name):
+        varname = '_' + name
+        if hasattr(self, varname):
+            raise ValueError("attribute name '{}' is in use already".format(varname))
+        setattr(self, varname, None)
+
+        def fget(self):
+            return getattr(self, varname)
+
+        def fset(self, val):
+            setattr(self, varname, val)
+            self._sources.append(getattr(self, varname))
+            if self._updateOnSource:
+                getattr(self, varname).dataProcessed.connect(self.run)
+
+        opt = property(fget=fget, fset=fset)
+        setattr(self.__class__, name, opt)
+
+
     @property
     def updateOnSource(self):
         return self._updateOnSource
 
     @updateOnSource.setter
     def updateOnSource(self, val):
-        if self._updateOnSource and not val and self._source is not None:
-            self._source.dataProcessed.disconnect(self.run)
-        if not self._updateOnSource and val and self._source is not None:
-            self._source.dataProcessed.connect(self.run)
+        if self._updateOnSource and not val:
+            for src in self._sources:
+                if src is not None:
+                    src.dataProcessed.disconnect(self.run)
+
+        elif not self._updateOnSource and val:
+            for src in self._sources:
+                if src is not None:
+                    src.dataProcessed.connect(self.run)
+
         self._updateOnSource = val
 
     @property
@@ -70,54 +97,30 @@ class Node(QObject):
     def updateOnOptionChange(self, val):
         self._updateOnOptionChange = val
 
-    def setSource(self, source, run=True):
-        self._source = source
-        if isinstance(self._source, Node):
-            self._inputData = self._source._outputData
-            if self._updateOnSource:
-                self._source.dataProcessed.connect(self.run)
-            if run:
-                self.update()
+    @property
+    def data(self):
+        return self._data
 
-    def getInputData(self):
-        self._inputData = self._source._outputData
+    @data.setter
+    def data(self, val):
+        self._data = val
+        self.dataProcessed.emit(self._data)
 
     @pyqtSlot()
-    def update(self):
-        print('update:', self)
-        self.run(self._inputData)
-
-    @pyqtSlot(object)
-    def run(self, data):
+    def run(self):
         print('run:', self)
-        self._inputData = data
-        if self._inputData is not None:
-            self._outputData = self.processData(self._inputData)
-            self.dataProcessed.emit(self._outputData)
-            print('processed:', self)
-            pprint(self._outputData)
-            print('')
-
-    def processData(self, data):
-        print('process:', self)
-        pprint(data)
+        self.data = self.processData()
+        print('processed data:', self)
+        pprint(self.data)
         print('')
-        return data
 
-
-class DataDictSourceNode(Node):
-
-    def __init__(self):
-        super().__init__()
-
-    def setData(self, data):
-        self._inputData = data
-        self.run(data)
+    def processData(self):
+        return self.data
 
 
 class DataSelector(Node):
 
-    _userOptions = dict(
+    userOptions = dict(
         dataName = dict(
             initialValue=None,
             doc='Name of the data field to select',
@@ -139,9 +142,6 @@ class DataSelector(Node):
         ),
     )
 
-    def __init__(self):
-        super().__init__()
-
 
     @staticmethod
     def axesList(data, dataName=None):
@@ -161,8 +161,11 @@ class DataSelector(Node):
     def validate(self, data):
         return True
 
-    def processData(self, data):
-        data = super().processData(data)
+    def processData(self):
+        if self.source is None:
+            return {}
+
+        data = self.source.data
         if not self.validate(data):
             return {}
 
@@ -218,6 +221,9 @@ class DataSelector(Node):
                         del data[n]
 
         return data
+
+
+
 
 class PlotWidget(QWidget):
     # TODO: use data adder thread.
