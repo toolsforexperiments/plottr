@@ -9,67 +9,44 @@ from plottr.data.datadict import DataDict
 from plottr.gui.ui_lineplot import Ui_LinePlot
 
 
+
 class Node(QObject):
 
     dataProcessed = pyqtSignal(object)
     optionsUpdated = pyqtSignal()
+    dataRequested = pyqtSignal()
 
-    userOptions = {}
-    sourcePorts = ['source']
+    sources = ['input']
+
+    @staticmethod
+    def updateOption(func):
+        def wrap(self, val):
+            ret = func(self, val)
+            self._uptodate = False
+            self.optionsUpdated.emit()
+            return ret
+        return wrap
+
 
     def __init__(self):
         super().__init__()
+
         self._data = None
         self._updateOnSource = True
         self._updateOnOptionChange = True
-        self._sources = []
+        self._uptodate = False
+        self._running = False
+        self._sources = { s : {'ref' : None, 'data' : None}  for s in self.__class__.sources }
 
         self.optionsUpdated.connect(self.run)
 
-        for k, v in self.userOptions.items():
-            self._addOption(name=k,
-                            initialValue=v.get('initialValue', None),
-                            doc=v.get('doc', ''))
-        for s in self.sourcePorts:
-            self._addSourcePort(s)
-
-
-    def _addOption(self, name, initialValue=None, doc='', force=False):
-        varname = '_' + name
-        if hasattr(self, varname) and not force:
-            raise ValueError("attribute name '{}' is in use already".format(varname))
-        setattr(self, varname, initialValue)
-
-        def fget(self):
-            return getattr(self, varname)
-
-        def fset(self, val):
-            setattr(self, varname, val)
-            if self._updateOnOptionChange:
-                self.optionsUpdated.emit()
-
-        opt = property(fget=fget, fset=fset, doc=doc)
-        setattr(self.__class__, name, opt)
-
-
-    def _addSourcePort(self, name):
-        varname = '_' + name
-        if hasattr(self, varname):
-            raise ValueError("attribute name '{}' is in use already".format(varname))
-        setattr(self, varname, None)
-
-        def fget(self):
-            return getattr(self, varname)
-
-        def fset(self, val):
-            setattr(self, varname, val)
-            self._sources.append(getattr(self, varname))
-            if self._updateOnSource:
-                getattr(self, varname).dataProcessed.connect(self.run)
-
-        opt = property(fget=fget, fset=fset)
-        setattr(self.__class__, name, opt)
-
+        for k, v in self._sources.items():
+            setattr(self, 'set' + k.capitalize(),
+                lambda ref: self.setSource(k, ref))
+            setattr(self, 'set' + k.capitalize() + 'Data',
+                pyqtSlot(object)(lambda data: self.setSourceData(k, data)))
+            setattr(self, 'get' + k.capitalize() + 'Data',
+                lambda: self._sources[k]['data'])
 
     @property
     def updateOnSource(self):
@@ -77,16 +54,6 @@ class Node(QObject):
 
     @updateOnSource.setter
     def updateOnSource(self, val):
-        if self._updateOnSource and not val:
-            for src in self._sources:
-                if src is not None:
-                    src.dataProcessed.disconnect(self.run)
-
-        elif not self._updateOnSource and val:
-            for src in self._sources:
-                if src is not None:
-                    src.dataProcessed.connect(self.run)
-
         self._updateOnSource = val
 
     @property
@@ -104,15 +71,54 @@ class Node(QObject):
     @data.setter
     def data(self, val):
         self._data = val
+        self.broadcastData()
+
+    @pyqtSlot()
+    def broadcastData(self):
         self.dataProcessed.emit(self._data)
+
+    def setSourceData(self, sourceName, value):
+        if sourceName not in self._sources:
+            raise ValueError("'{}' is not a recognized source.")
+
+        self._sources[sourceName]['data'] = value
+        if self.updateOnSource:
+            self.run()
+        else:
+            self._uptodate = False
+
+    def setSource(self, sourceName, ref):
+        if sourceName not in self._sources:
+            raise ValueError("'{}' is not a recognized source." )
+
+        setfunc = getattr(self, 'set' + sourceName.capitalize() + 'Data')
+        src = self._sources[sourceName]['ref']
+        if src is not None:
+            src.dataProcessed.disconnect(setfunc)
+            self.dataRequested.disconnect(src.broadcastData)
+
+        self._sources[sourceName]['ref'] = ref
+        src = self._sources[sourceName]['ref']
+        src.dataProcessed.connect(setfunc)
+        self.dataRequested.connect(src.broadcastData)
+        self.dataRequested.emit()
+
 
     @pyqtSlot()
     def run(self):
-        print('run:', self)
-        self.data = self.processData()
-        print('processed data:', self)
-        pprint(self.data)
-        print('')
+        if not self._running:
+            self._running = True
+            for n, s in self._sources.items():
+                if s['ref'] is not None:
+                    s['ref'].run()
+
+            if not self._uptodate:
+                self.data = self.processData()
+                print('processed data:', self)
+                pprint(self.data)
+                print('')
+                self._uptodate = True
+                self._running = False
 
     def processData(self):
         return self.data
@@ -120,27 +126,59 @@ class Node(QObject):
 
 class DataSelector(Node):
 
-    userOptions = dict(
-        dataName = dict(
-            initialValue=None,
-            doc='Name of the data field to select',
-            type='str',
-        ),
-        axesOrder = dict(
-            initialValue={},
-        ),
-        slices = dict(
-            initialValue={},
-        ),
-        grid = dict(
-            initialValue=True,
-            type=bool,
-        ),
-        squeeze = dict(
-            initialValue=True,
-            type=bool,
-        ),
-    )
+    def __init__(self):
+        super().__init__()
+
+        self._dataName = None
+        self._slices = {}
+        self._grid = True
+        self._axesOrder = {}
+        self._squeeze = True
+
+    @property
+    def dataName(self):
+        return self._dataName
+
+    @dataName.setter
+    @Node.updateOption
+    def dataName(self, val):
+        self._dataName = val
+
+    @property
+    def slices(self):
+        return self._slices
+
+    @slices.setter
+    @Node.updateOption
+    def slices(self, val):
+        self._slices = val
+
+    @property
+    def grid(self):
+        return self._grid
+
+    @grid.setter
+    @Node.updateOption
+    def grid(self, val):
+        self._grid = val
+
+    @property
+    def axesOrder(self):
+        return self._axesOrder
+
+    @axesOrder.setter
+    @Node.updateOption
+    def axesOrder(self, val):
+        self._axesOrder = val
+
+    @property
+    def squeeze(self):
+        return self._squeeze
+
+    @squeeze.setter
+    @Node.updateOption
+    def squeeze(self, val):
+        self._squeeze = val
 
 
     @staticmethod
@@ -162,10 +200,11 @@ class DataSelector(Node):
         return True
 
     def processData(self):
-        if self.source is None:
+        data = self.getInputData()
+
+        if data is None:
             return {}
 
-        data = self.source.data
         if not self.validate(data):
             return {}
 
@@ -223,6 +262,8 @@ class DataSelector(Node):
         return data
 
 
+
+### OLD STUFF BELOW
 
 
 class PlotWidget(QWidget):
