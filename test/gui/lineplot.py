@@ -17,7 +17,9 @@ class NodeBase:
 
     sources = ['input']
 
-    def __init__(self):
+    def __init__(self, *arg, **kw):
+        self.verbose = kw.get('verbose', False)
+
         self._sources = {}
         self._updateOnSource = True
         self._uptodate = False
@@ -46,6 +48,9 @@ class NodeBase:
     def setSourceData(self, sourceName, value):
         if sourceName not in self._sources:
             raise ValueError("'{}' is not a recognized source.")
+
+        if self.verbose:
+            print(self, 'data set from', sourceName)
 
         self._sources[sourceName]['data'] = value
         if self._updateOnSource:
@@ -120,9 +125,10 @@ class Node(QObject, NodeBase):
 
             if not self._uptodate:
                 self.data = self.processData()
-                print('processed data:', self)
-                pprint(self.data)
-                print('')
+                if self.verbose:
+                    print('processed data:', self)
+                    pprint(self.data)
+                    print('')
                 self._uptodate = True
                 self._running = False
 
@@ -272,20 +278,17 @@ class DataSelector(Node):
 
 ### UNTESTED SO FAR
 
-class PlotWidget(NodeBase, QWidget):
+class PlotWidget(QWidget, NodeBase):
     # TODO: use data adder thread.
 
     def __init__(self, parent=None):
-        super().__init__(parent)
+        super().__init__(parent=parent)
 
     def run(self):
-        self.data = data
         self.updatePlot()
 
     def updatePlot(self):
         self.plot.clearFig()
-
-
 
 
 class LinePlotData(Node):
@@ -315,7 +318,7 @@ class LinePlotData(Node):
         self._traceNames = val
 
     def processData(self):
-        _data = super().processData(self.inputData())
+        _data = self.getInputData()
 
         data = DataDict()
         for k in self.traceNames:
@@ -329,7 +332,7 @@ class LinePlotData(Node):
 class LinePlot(PlotWidget):
 
     def __init__(self, parent):
-        super().__init__(parent=parent)
+        super().__init__(parent)
         ui = Ui_LinePlot()
         ui.setupUi(self)
 
@@ -338,20 +341,26 @@ class LinePlot(PlotWidget):
     def updatePlot(self):
         super().updatePlot()
         ax = self.plot.axes
-        data = self.data
-        src = self.source
+        data = self.getInputData()
+        src = self._sources['input']['ref']
 
         xvals = data.get(src.xaxisName, {}).get('values', None)
+        ntraces = 0
         for k, v in data.items():
             if k != src.xaxisName:
                 yvals = data[k]['values']
                 if xvals is not None:
                     ax.plot(xvals, yvals, 'o-', label=k)
+                    ntraces += 1
 
-        ax.legend(loc='best')
+        if ntraces > 0:
+            ax.legend(loc='best')
         ax.set_xlabel(src.xaxisName)
         self.plot.draw()
 
+
+
+### OLD STUFF BELOW
 
 def dummyData1d(nvals):
     x = np.linspace(0, 10, nvals)
@@ -364,7 +373,7 @@ def dummyData1d(nvals):
     )
     return d
 
-### OLD STUFF BELOW
+
 
 
 if __name__ == "__main__":
