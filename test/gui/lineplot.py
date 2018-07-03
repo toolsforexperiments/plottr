@@ -9,8 +9,7 @@ from plottr.data.datadict import DataDict
 from plottr.gui.ui_lineplot import Ui_LinePlot
 
 
-
-class Node(QObject):
+class NodeBase:
 
     dataProcessed = pyqtSignal(object)
     optionsUpdated = pyqtSignal()
@@ -18,24 +17,11 @@ class Node(QObject):
 
     sources = ['input']
 
-    @staticmethod
-    def updateOption(func):
-        def wrap(self, val):
-            ret = func(self, val)
-            self._uptodate = False
-            self.optionsUpdated.emit()
-            return ret
-        return wrap
-
-
     def __init__(self):
-        super().__init__()
-
-        self._data = None
+        self._sources = {}
         self._updateOnSource = True
-        self._updateOnOptionChange = True
         self._uptodate = False
-        self._running = False
+
         self._sources = { s : {'ref' : None, 'data' : None}  for s in self.__class__.sources }
 
         self.optionsUpdated.connect(self.run)
@@ -47,6 +33,53 @@ class Node(QObject):
                 pyqtSlot(object)(lambda data: self.setSourceData(k, data)))
             setattr(self, 'get' + k.capitalize() + 'Data',
                 lambda: self._sources[k]['data'])
+
+    @staticmethod
+    def updateOption(func):
+        def wrap(self, val):
+            ret = func(self, val)
+            self._uptodate = False
+            self.optionsUpdated.emit()
+            return ret
+        return wrap
+
+    def setSourceData(self, sourceName, value):
+        if sourceName not in self._sources:
+            raise ValueError("'{}' is not a recognized source.")
+
+        self._sources[sourceName]['data'] = value
+        if self._updateOnSource:
+            self.run()
+        else:
+            self._uptodate = False
+
+    def setSource(self, sourceName, ref):
+        if sourceName not in self._sources:
+            raise ValueError("'{}' is not a recognized source." )
+
+        setfunc = getattr(self, 'set' + sourceName.capitalize() + 'Data')
+        src = self._sources[sourceName]['ref']
+        if src is not None:
+            src.dataProcessed.disconnect(setfunc)
+            self.dataRequested.disconnect(src.broadcastData)
+
+        self._sources[sourceName]['ref'] = ref
+        src = self._sources[sourceName]['ref']
+        src.dataProcessed.connect(setfunc)
+        self.dataRequested.connect(src.broadcastData)
+        self.dataRequested.emit()
+
+    def run(self):
+        raise NotImplementedError
+
+
+class Node(QObject, NodeBase):
+
+    def __init__(self):
+        super().__init__()
+        self._data = None
+        self._updateOnOptionChange = True
+        self._running = False
 
     @property
     def updateOnSource(self):
@@ -76,33 +109,6 @@ class Node(QObject):
     @pyqtSlot()
     def broadcastData(self):
         self.dataProcessed.emit(self._data)
-
-    def setSourceData(self, sourceName, value):
-        if sourceName not in self._sources:
-            raise ValueError("'{}' is not a recognized source.")
-
-        self._sources[sourceName]['data'] = value
-        if self.updateOnSource:
-            self.run()
-        else:
-            self._uptodate = False
-
-    def setSource(self, sourceName, ref):
-        if sourceName not in self._sources:
-            raise ValueError("'{}' is not a recognized source." )
-
-        setfunc = getattr(self, 'set' + sourceName.capitalize() + 'Data')
-        src = self._sources[sourceName]['ref']
-        if src is not None:
-            src.dataProcessed.disconnect(setfunc)
-            self.dataRequested.disconnect(src.broadcastData)
-
-        self._sources[sourceName]['ref'] = ref
-        src = self._sources[sourceName]['ref']
-        src.dataProcessed.connect(setfunc)
-        self.dataRequested.connect(src.broadcastData)
-        self.dataRequested.emit()
-
 
     @pyqtSlot()
     def run(self):
@@ -263,31 +269,23 @@ class DataSelector(Node):
 
 
 
-### OLD STUFF BELOW
 
+### UNTESTED SO FAR
 
-class PlotWidget(QWidget):
+class PlotWidget(NodeBase, QWidget):
     # TODO: use data adder thread.
 
     def __init__(self, parent=None):
         super().__init__(parent)
-        self.data = None
 
-    def setSource(self, source, autorun=True):
-        self.source = source
-        if isinstance(self.source, Node):
-            self.source.dataProcessed.connect(self.run)
-            if autorun:
-                self.run(self.source._outputData)
-
-
-    def run(self, data):
+    def run(self):
         self.data = data
-        if self.data is not None:
-            self.updatePlot()
+        self.updatePlot()
 
     def updatePlot(self):
         self.plot.clearFig()
+
+
 
 
 class LinePlotData(Node):
@@ -303,21 +301,21 @@ class LinePlotData(Node):
         return self._xaxisName
 
     @xaxisName.setter
+    @Node.updateOption
     def xaxisName(self, val):
         self._xaxisName = val
-        self.optionsUpdated.emit()
 
     @property
     def traceNames(self):
         return self._traceNames
 
     @traceNames.setter
+    @Node.updateOption
     def traceNames(self, val):
         self._traceNames = val
-        self.optionsUpdated.emit()
 
-    def processData(self, data):
-        _data = super().processData(data)
+    def processData(self):
+        _data = super().processData(self.inputData())
 
         data = DataDict()
         for k in self.traceNames:
@@ -336,7 +334,6 @@ class LinePlot(PlotWidget):
         ui.setupUi(self)
 
         self.plot = ui.plot
-        self.setSource(LinePlotData())
 
     def updatePlot(self):
         super().updatePlot()
@@ -366,6 +363,8 @@ def dummyData1d(nvals):
         z = {'values' : z, 'axes' : ['x']},
     )
     return d
+
+### OLD STUFF BELOW
 
 
 if __name__ == "__main__":
