@@ -13,6 +13,8 @@ __author__ = 'Wolfgang Pfaff'
 __license__ = 'MIT'
 
 
+# Base classes
+
 class NodeBase:
     """
     Base class for all nodes. Manages the basic functionality of sources and
@@ -35,7 +37,7 @@ class NodeBase:
         * This will trigger any other Nodes that this Node is a source of to update
           as well (depending on their setting of `updateOnSource`).
 
-    Properties:
+    Properties and public attributes:
         updateOnSource : bool
             If True, `run()` is called when source data is updated through
             `setSourceData`.
@@ -45,6 +47,8 @@ class NodeBase:
             (Signal `optionsUpdated` is only emitted when this is True)
         data : DataDict
             When set, will call `broadcastData`.
+        verbose : bool
+            If set to True, updates will trigger some output.
 
     """
 
@@ -207,16 +211,151 @@ class Node(QObject, NodeBase):
 
 
 class NodeWidget(QWidget, NodeBase):
+    """
+    Base class for a node that's based on a Widget.
+    """
 
-    def __init__(self, parent=None):
-        super().__init__(parent=parent)
+    def __init__(self, parent=None, **kw):
+        super().__init__(parent=parent, **kw)
 
 
-class PlotWidget(NodeWidget):
+# Elementary data processing nodes
+
+class DataSelector(Node):
+    # TODO: it should be possible to select multiple names, as long as they're
+    #       compatible in some way. probably should just mean same dependencies?
+
+    def __init__(self, *arg, **kw):
+        super().__init__(*arg, **kw)
+
+        self._dataName = None
+        self._slices = {}
+        self._grid = True
+        self._axesOrder = {}
+        self._squeeze = True
+
+    @property
+    def dataName(self):
+        return self._dataName
+
+    @dataName.setter
+    @Node.updateOption
+    def dataName(self, val):
+        self._dataName = val
+
+    @property
+    def slices(self):
+        return self._slices
+
+    @slices.setter
+    @Node.updateOption
+    def slices(self, val):
+        self._slices = val
+
+    @property
+    def grid(self):
+        return self._grid
+
+    @grid.setter
+    @Node.updateOption
+    def grid(self, val):
+        self._grid = val
+
+    @property
+    def axesOrder(self):
+        return self._axesOrder
+
+    @axesOrder.setter
+    @Node.updateOption
+    def axesOrder(self, val):
+        self._axesOrder = val
+
+    @property
+    def squeeze(self):
+        return self._squeeze
+
+    @squeeze.setter
+    @Node.updateOption
+    def squeeze(self, val):
+        self._squeeze = val
+
+
+    @staticmethod
+    def axesList(data, dataName=None):
+        lst = []
+        if dataName is None:
+            for k, v in data.items():
+                if 'axes' in v:
+                    for n in v['axes']:
+                        if n not in lst:
+                            lst.append(n)
+        else:
+            if dataName in data and 'axes' in data[dataName]:
+                lst = data[dataName]['axes']
+
+        return lst
+
+    def validate(self, data):
+        return True
 
     def processData(self):
-        self.updatePlot()
-        return None
+        data = self.getInputData()
 
-    def updatePlot(self):
-        self.plot.clearFig()
+        if data is None:
+            return {}
+
+        if not self.validate(data):
+            return {}
+
+        if self.dataName is None:
+            return {}
+
+        if hasattr(data, 'get_grid') and self._grid:
+            data = data.get_grid(self.dataName)
+        else:
+            _data = {self.dataName : data[self.dataName]}
+            for k, v in data:
+                if k in data[self.dataName].get('axes', []):
+                    _data[k] = v
+            data = _data
+
+        if self.grid:
+            _datavals = data[self.dataName]['values']
+            _axnames = data[self.dataName]['axes']
+
+            slices = [np.s_[::] for a in _axnames]
+            for n, s in self.slices.items():
+                idx = _axnames.index(n)
+                slices[idx] = s
+                data[n]['values'] = data[n]['values'][s]
+            data[self.dataName]['values'] = _datavals[slices]
+            _datavals = data[self.dataName]['values']
+
+            neworder = [None for a in _axnames]
+            oldorder = list(range(len(_axnames)))
+            for n, newidx in self.axesOrder.items():
+                neworder[newidx] = _axnames.index(n)
+
+            for i in neworder:
+                if i in oldorder:
+                    del oldorder[oldorder.index(i)]
+
+            for i in range(len(neworder)):
+                if neworder[i] is None:
+                    neworder[i] = oldorder[0]
+                    del oldorder[0]
+
+            data[self.dataName]['values'] = _datavals.transpose(tuple(neworder))
+            _datavals = data[self.dataName]['values']
+            data[self.dataName]['axes'] = [_axnames[i] for i in neworder]
+            _axnames = data[self.dataName]['axes']
+
+            if self.squeeze:
+                oldshape = _datavals.shape
+                data[self.dataName]['values'] = np.squeeze(_datavals)
+                for i, n in enumerate(_axnames):
+                    if oldshape[i] < 2:
+                        del data[self.dataName]['axes'][i]
+                        del data[n]
+
+        return data
