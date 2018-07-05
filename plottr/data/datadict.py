@@ -89,6 +89,24 @@ class DataDictBase(dict):
 
         return True
 
+    def remove_unused_axes(self):
+        dependents = self.dependents()
+        unused = []
+
+        for n, v in self.items():
+            used = False
+            if n not in dependents:
+                for m in dependents:
+                    if n in self[m]['axes']:
+                        used = True
+            else:
+                used = True
+            if not used:
+                unused.append(n)
+
+        for u in unused:
+            del self[u]
+
 
 class DataDict(DataDictBase):
     """

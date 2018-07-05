@@ -3,11 +3,16 @@ node.py
 
 Contains the base class for Nodes, and some basic nodes for data analysis.
 """
+import copy
+from pprint import pprint
 
 import numpy as np
-from pprint import pprint
+
 from PyQt5.QtCore import QObject, Qt, QThread, pyqtSignal, pyqtSlot
 from PyQt5.QtWidgets import QWidget
+
+from .data.datadict import DataDict, GridDataDict
+
 
 __author__ = 'Wolfgang Pfaff'
 __license__ = 'MIT'
@@ -81,6 +86,33 @@ class NodeBase:
                 pyqtSlot(object)(lambda data: self.setSourceData(k, data)))
             setattr(self, 'get' + k.capitalize() + 'Data',
                 lambda: self._sources[k]['data'])
+
+    @staticmethod
+    def asGrid(data, names=None, makeCopy=True):
+        if isinstance(data, GridDataDict):
+            if makeCopy:
+                data = copy.copy(data)
+
+            if names is not None:
+                remove = []
+                for n, v in data.items():
+                    if n not in names and n in data.dependents():
+                        remove.append(n)
+                for r in remove:
+                    del data[r]
+                data.remove_unused_axes()
+                data.validate()
+
+                return data
+
+        elif isinstance(data, DataDict):
+            griddata = data.get_grid(names)
+            griddata.validate()
+            return griddata
+
+        else:
+            raise ValueError("Data has unrecognized type.")
+
 
     @staticmethod
     def updateOption(func):
