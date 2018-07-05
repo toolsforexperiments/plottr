@@ -67,6 +67,7 @@ class NodeBase:
         self._data = None
         self._updateOnOptionChange = True
         self._running = False
+        self._grid = False
 
         self._sources = { s : {'ref' : None, 'data' : None} \
             for s in self.__class__.sources }
@@ -106,6 +107,15 @@ class NodeBase:
     @updateOnOptionChange.setter
     def updateOnOptionChange(self, val):
         self._updateOnOptionChange = val
+
+    @property
+    def grid(self):
+        return self._grid
+
+    @grid.setter
+    @Node.updateOption
+    def grid(self, val):
+        self._grid = val
 
     @property
     def data(self):
@@ -228,9 +238,9 @@ class DataSelector(Node):
     def __init__(self, *arg, **kw):
         super().__init__(*arg, **kw)
 
+        self._grid = True
         self._dataName = None
         self._slices = {}
-        self._grid = True
         self._axesOrder = {}
         self._squeeze = True
 
@@ -251,15 +261,6 @@ class DataSelector(Node):
     @Node.updateOption
     def slices(self, val):
         self._slices = val
-
-    @property
-    def grid(self):
-        return self._grid
-
-    @grid.setter
-    @Node.updateOption
-    def grid(self, val):
-        self._grid = val
 
     @property
     def axesOrder(self):

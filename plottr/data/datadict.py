@@ -1,8 +1,18 @@
+"""
+plots.py
+
+Data classes we use throughout the package.
+"""
+
 import numpy as np
 import pandas as pd
 import xarray as xr
 
-class DataDict(dict):
+__author__ = 'Wolfgang Pfaff'
+__license__ = 'MIT'
+
+
+class DataDictBase(dict):
     """
     Simple data storage class that is based on a regular dictionary.
     The basic structure of data looks like this:
@@ -26,38 +36,11 @@ class DataDict(dict):
         }
     I.e., we define data 'fields', that have unit, values, and we can specify that some data has axes
     (dependencies) specified by other data fields.
-
-    For the data set to be valid:
-    * the values of all fields have to have the same length.
-    * all axes that are specified must exist as data fields.
     """
-
-    # TODO: special class for griddata? get grid could return instance.
 
     def __init__(self, *arg, **kw):
         super().__init__(self, *arg, **kw)
 
-    def __add__(self, newdata):
-        s = self.structure()
-        if s == newdata.structure():
-            for k, v in self.items():
-                val0 = self[k]['values']
-                val1 = newdata[k]['values']
-                if isinstance(val0, list) and isinstance(val1, list):
-                    s[k]['values'] = self[k]['values'] + newdata[k]['values']
-                else:
-                    s[k]['values'] = np.append(np.array(self[k]['values']), np.array(newdata[k]['values']))
-            return s
-        else:
-            raise ValueError('Incompatible data structures.')
-
-    def append(self, newdata):
-        if self.structure() == newdata.structure():
-            for k, v in newdata.items():
-                if isinstance(self[k]['values'], list) and isinstance(v['values'], list):
-                    self[k]['values'] += v['values']
-                else:
-                    self[k]['values'] = np.append(np.array(self[k]['values']), np.array(v['values']))
 
     def structure(self):
         if self.validate():
@@ -85,10 +68,7 @@ class DataDict(dict):
                     ret.append(n)
             return ret
 
-
     def validate(self):
-        nvals = None
-        nvalsrc = None
         msg = '\n'
         for n, v in self.items():
             if 'axes' in v:
@@ -104,15 +84,58 @@ class DataDict(dict):
             if 'values' not in v:
                 v['values'] = []
 
-            if nvals is None:
-                nvals = len(v['values'])
-                nvalsrc = n
-            else:
-                if len(v['values']) != nvals:
-                    msg += " * '{}' has length {}, but have found {} in '{}'\n".format(n, len(v['values']), nvals, nvalsrc)
-
         if msg != '\n':
             raise ValueError(msg)
+
+        return True
+
+
+class DataDict(DataDictBase):
+    """
+    Contains data in 'linear' arrays. I.e., for data field 'z' with axes 'x' and 'y',
+    all of 'x', 'y', 'z' have 1D arrays as values with some lenght.
+    Each element x[i], y[i], z[i] is one datapoint, with x[i], y[i] being the coordinates.
+    """
+
+    def __add__(self, newdata):
+        s = self.structure()
+        if s == newdata.structure():
+            for k, v in self.items():
+                val0 = self[k]['values']
+                val1 = newdata[k]['values']
+                if isinstance(val0, list) and isinstance(val1, list):
+                    s[k]['values'] = self[k]['values'] + newdata[k]['values']
+                else:
+                    s[k]['values'] = np.append(np.array(self[k]['values']), np.array(newdata[k]['values']))
+            return s
+        else:
+            raise ValueError('Incompatible data structures.')
+
+    def append(self, newdata):
+        if self.structure() == newdata.structure():
+            for k, v in newdata.items():
+                if isinstance(self[k]['values'], list) and isinstance(v['values'], list):
+                    self[k]['values'] += v['values']
+                else:
+                    self[k]['values'] = np.append(np.array(self[k]['values']), np.array(v['values']))
+
+
+    def validate(self):
+        if super().validate():
+            nvals = None
+            nvalsrc = None
+            msg = '\n'
+
+            for n, v in self.items():
+                if nvals is None:
+                    nvals = len(v['values'])
+                    nvalsrc = n
+                else:
+                    if len(v['values']) != nvals:
+                        msg += " * '{}' has length {}, but have found {} in '{}'\n".format(n, len(v['values']), nvals, nvalsrc)
+
+            if msg != '\n':
+                raise ValueError(msg)
 
         return True
 
@@ -178,7 +201,8 @@ class DataDict(dict):
         if isinstance(name, str):
             name = [name]
 
-        ret = {}
+        ret = GridDataDict()
+
         for n in name:
             arr = self.to_xarray(n)
 
@@ -206,3 +230,39 @@ class DataDict(dict):
                 )
 
         return ret
+
+
+class GridDataDict(DataDictBase):
+    """
+    Contains data in a grid form.
+    In this case each field that is used as an axis contains only unique values,
+    and the shape of a data field is (nx, ny, ...), where nx, ny, ... are the lengths
+    of its x, y, ... axes.
+    """
+
+    def validate(self):
+        if super().validate():
+            msg = '\n'
+
+            for n, v in self.items():
+                if len(v['axes']) > 0:
+                    shp = v['values'].shape
+                    axlens = []
+                    for ax in v['axes']:
+                        axvals = self[ax]['values']
+
+                        if not isinstance(self[ax]['values'], np.ndarray):
+                            self[ax]['values'] = np.array(self[ax]['values'])
+
+                        if len(self[ax]['values'].shape) > 1:
+                            msg += " * '{}' used as an axis, but does not have 1D data".format(ax)
+
+                        axlens.append(self[ax]['values'].size)
+
+                    if shp != tuple(axlens):
+                        msg += " * '{}' has shape {}, but axes lengths are {}.".format(n, shp, tuple(axlens))
+
+            if msg != '\n':
+                raise ValueError(msg)
+
+        return True
