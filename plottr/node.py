@@ -114,7 +114,6 @@ class NodeBase:
             raise ValueError("Data has unrecognized type.")
 
 
-    @staticmethod
     def updateOption(func):
         def wrap(self, val):
             ret = func(self, val)
@@ -145,7 +144,7 @@ class NodeBase:
         return self._grid
 
     @grid.setter
-    @NodeBase.updateOption
+    @updateOption
     def grid(self, val):
         self._grid = val
 
