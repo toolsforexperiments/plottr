@@ -145,7 +145,7 @@ class NodeBase:
         return self._grid
 
     @grid.setter
-    @Node.updateOption
+    @NodeBase.updateOption
     def grid(self, val):
         self._grid = val
 
