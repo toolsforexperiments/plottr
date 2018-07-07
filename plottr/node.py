@@ -89,29 +89,44 @@ class NodeBase:
 
     @staticmethod
     def asGrid(data, names=None, makeCopy=True):
+        if data in [None, {}]:
+            return {}
+
         if isinstance(data, GridDataDict):
             if makeCopy:
                 data = copy.copy(data)
 
-            if names is not None:
-                remove = []
-                for n, v in data.items():
-                    if n not in names and n in data.dependents():
-                        remove.append(n)
-                for r in remove:
-                    del data[r]
-                data.remove_unused_axes()
-                data.validate()
-
-                return data
-
         elif isinstance(data, DataDict):
-            griddata = data.get_grid(names)
-            griddata.validate()
-            return griddata
+            data = data.get_grid(names)
+            data.validate()
 
         else:
-            raise ValueError("Data has unrecognized type.")
+            raise ValueError("Data has unrecognized type '{}'. Need a form of DataDict.".format(type(data)))
+
+        if names is not None:
+            remove = []
+            for n, v in data.items():
+                if n not in names and n in data.dependents():
+                    remove.append(n)
+            for r in remove:
+                del data[r]
+
+        axes = []
+        n0 = None
+        for n in data.dependents():
+            if len(axes) == 0:
+                axes = data[n]['axes']
+                n0 = n
+            else:
+                if data[n]['axes'] != axes:
+                    err = "Gridding multiple data sets requires compatible axes. "
+                    err += "Found axes '{}' for '{}', but '{}' for '{}'.".format(axes, n0, data[n]['axes'], n)
+                    raise ValueError(err)
+
+        data.remove_unused_axes()
+        data.validate()
+
+        return data
 
 
     def updateOption(func):
@@ -153,6 +168,7 @@ class NodeBase:
         return self._data
 
     @data.setter
+    @updateOption
     def data(self, val):
         if val is None:
             val = {}
@@ -263,8 +279,6 @@ class NodeWidget(QWidget, NodeBase):
 # Elementary data processing nodes
 
 class DataSelector(Node):
-    # TODO: it should be possible to select multiple names, as long as they're
-    #       compatible in some way. probably should just mean same dependencies?
 
     def __init__(self, *arg, **kw):
         super().__init__(*arg, **kw)
@@ -327,67 +341,82 @@ class DataSelector(Node):
 
         return lst
 
-    def validate(self, data):
-        return True
+    def _sliceData(self, data):
+        slices = [np.s_[::] for a in data[self.dataName[0]]['axes']]
+        for n, s in self.slices.items():
+            idx = data[self.dataName[0]]['axes'].index(n)
+            slices[idx] = s
+            data[n]['values'] = data[n]['values'][s]
+
+        for n in self.dataName:
+            data[n]['values'] = data[n]['values'][slices]
+
+        return data
+
+    def _reorderData(self, data):
+        axnames = data[self.dataName[0]]['axes']
+        neworder = [None for a in axnames]
+        oldorder = list(range(len(axnames)))
+        for n, newidx in self.axesOrder.items():
+            neworder[newidx] = axnames.index(n)
+
+        for i in neworder:
+            if i in oldorder:
+                del oldorder[oldorder.index(i)]
+
+        for i in range(len(neworder)):
+            if neworder[i] is None:
+                neworder[i] = oldorder[0]
+                del oldorder[0]
+
+        for n in self.dataName:
+            data[n]['values'] = data[n]['values'].transpose(tuple(neworder))
+            data[n]['axes'] = [axnames[i] for i in neworder]
+
+        return data
+
+    def _squeezeData(self, data):
+        oldshape = data[self.dataName[0]]['values'].shape
+        axnames = data[self.dataName[0]]['axes']
+
+        for m in self.dataName:
+            data[m]['values'] = np.squeeze(data[m]['values'])
+            for i, n in enumerate(axnames):
+                if oldshape[i] < 2:
+                    del data[m]['axes'][i]
+                    del data[n]
+
+        return data
 
     def processData(self):
         data = self.getInputData()
-
-        if data is None:
-            return {}
-
-        if not self.validate(data):
+        if data in [None, {}]:
             return {}
 
         if self.dataName is None:
             return {}
-
-        if hasattr(data, 'get_grid') and self._grid:
-            data = data.get_grid(self.dataName)
+        elif isinstance(self.dataName, str):
+            dnames = [self.dataName]
         else:
-            _data = {self.dataName : data[self.dataName]}
-            for k, v in data:
-                if k in data[self.dataName].get('axes', []):
-                    _data[k] = v
+            dnames = self.dataName
+
+        if self.grid:
+            data = NodeBase.asGrid(data, names=dnames)
+        else:
+            _data = DataDict()
+            for n in dnames:
+                _data[n] = data[n]
+                for k, v in data.items():
+                    if k in data[n].get('axes', []):
+                        _data[k] = v
             data = _data
 
         if self.grid:
-            _datavals = data[self.dataName]['values']
-            _axnames = data[self.dataName]['axes']
-
-            slices = [np.s_[::] for a in _axnames]
-            for n, s in self.slices.items():
-                idx = _axnames.index(n)
-                slices[idx] = s
-                data[n]['values'] = data[n]['values'][s]
-            data[self.dataName]['values'] = _datavals[slices]
-            _datavals = data[self.dataName]['values']
-
-            neworder = [None for a in _axnames]
-            oldorder = list(range(len(_axnames)))
-            for n, newidx in self.axesOrder.items():
-                neworder[newidx] = _axnames.index(n)
-
-            for i in neworder:
-                if i in oldorder:
-                    del oldorder[oldorder.index(i)]
-
-            for i in range(len(neworder)):
-                if neworder[i] is None:
-                    neworder[i] = oldorder[0]
-                    del oldorder[0]
-
-            data[self.dataName]['values'] = _datavals.transpose(tuple(neworder))
-            _datavals = data[self.dataName]['values']
-            data[self.dataName]['axes'] = [_axnames[i] for i in neworder]
-            _axnames = data[self.dataName]['axes']
-
+            if self.slices != {}:
+                data = self._sliceData(data)
+            if self.axesOrder != {}:
+                data = self._reorderData(data)
             if self.squeeze:
-                oldshape = _datavals.shape
-                data[self.dataName]['values'] = np.squeeze(_datavals)
-                for i, n in enumerate(_axnames):
-                    if oldshape[i] < 2:
-                        del data[self.dataName]['axes'][i]
-                        del data[n]
+                data = self._squeezeData(data)
 
         return data
