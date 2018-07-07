@@ -60,6 +60,7 @@ class NodeBase:
     dataProcessed = pyqtSignal(object)
     optionsUpdated = pyqtSignal()
     dataRequested = pyqtSignal()
+    sourceDataUpdated = pyqtSignal(str)
 
     sources = ['input']
 
@@ -86,6 +87,8 @@ class NodeBase:
                 pyqtSlot(object)(lambda data: self.setSourceData(k, data)))
             setattr(self, 'get' + k.capitalize() + 'Data',
                 lambda: self._sources[k]['data'])
+            setattr(self, 'get' + k.capitalize(),
+                lambda: self._sources[k]['ref'])
 
     @staticmethod
     def asGrid(data, names=None, makeCopy=True):
@@ -194,6 +197,7 @@ class NodeBase:
             print(self, 'data set from', sourceName)
 
         self._sources[sourceName]['data'] = value
+        self.sourceDataUpdated.emit(sourceName)
         self._uptodate = False
         if self._updateOnSource:
             self.run()
