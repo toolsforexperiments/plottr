@@ -336,8 +336,12 @@ class DataSelector(Node):
                         if n not in lst:
                             lst.append(n)
         else:
-            if dataName in data and 'axes' in data[dataName]:
-                lst = data[dataName]['axes']
+            for n in dataName:
+                if 'axes' not in data[n]:
+                    continue
+                for m in data[n]['axes']:
+                    if m not in lst:
+                        lst.append(m)
 
         return lst
 
