@@ -4,12 +4,57 @@ plots.py
 Data classes we use throughout the package.
 """
 
+import copy
 import numpy as np
 import pandas as pd
 import xarray as xr
 
+
 __author__ = 'Wolfgang Pfaff'
 __license__ = 'MIT'
+
+
+def togrid(data, names=None, make_copy=True, sanitize=True):
+    if data in [None, {}]:
+        return {}
+
+    if isinstance(data, GridDataDict):
+        if make_copy:
+            data = copy.copy(data)
+
+    elif isinstance(data, DataDict):
+        data = data.get_grid(names)
+        data.validate()
+
+    else:
+        raise ValueError("Data has unrecognized type '{}'. Need a form of DataDict.".format(type(data)))
+
+    if sanitize and names is not None:
+        remove = []
+        for n, v in data.items():
+            if n not in names and n in data.dependents():
+                remove.append(n)
+        for r in remove:
+            del data[r]
+
+    axes = []
+    n0 = None
+    for n in data.dependents():
+        if len(axes) == 0:
+            axes = data[n]['axes']
+            n0 = n
+        else:
+            if data[n]['axes'] != axes:
+                err = "Gridding multiple data sets requires compatible axes. "
+                err += "Found axes '{}' for '{}', but '{}' for '{}'.".format(axes, n0, data[n]['axes'], n)
+                raise ValueError(err)
+
+    if sanitize:
+        data.remove_unused_axes()
+
+    data.validate()
+    return data
+
 
 
 class DataDictBase(dict):
