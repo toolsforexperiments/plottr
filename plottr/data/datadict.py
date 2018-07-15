@@ -105,6 +105,26 @@ class DataDictBase(dict):
 
             return n
 
+    def axes_list(self, selectedData=None):
+        lst = []
+        if selectedData is None:
+            for k, v in self.items():
+                if 'axes' in v:
+                    for n in v['axes']:
+                        if n not in lst:
+                            lst.append(n)
+        else:
+            if isinstance(selectedData, str):
+                selectedData = [selectedData]
+            for n in selectedData:
+                if 'axes' not in self[n]:
+                    continue
+                for m in self[n]['axes']:
+                    if m not in lst:
+                        lst.append(m)
+
+        return lst
+
     def dependents(self):
         if self.validate():
             ret = []
