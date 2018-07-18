@@ -12,4 +12,7 @@ setup(
         'pandas>=0.22',
         'xarray',
     ],
+    entry_points={'console_scripts': ['plottr=plottr.plottr:console_entry',
+                                      'inspectr=plottr.qcodes_dataset_inspectr'
+                                      ':console_entry']}
 )
