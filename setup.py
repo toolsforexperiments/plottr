@@ -1,4 +1,4 @@
-from distutils.core import setup
+from setuptools import setup, find_packages
 
 setup(
     name='plottr',
@@ -7,6 +7,7 @@ setup(
     author='Wolfgang Pfaff',
     author_email='wolfgangpfff@gmail.com',
     url='https://github.com/wpfff',
+    packages=find_packages(),
     install_requires=[
         'pandas>=0.22',
         'xarray',
