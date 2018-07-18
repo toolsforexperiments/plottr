@@ -66,16 +66,19 @@ class DataDictBase(dict):
                 'axes' : ['ax1', 'ax2'],
                 'unit' : 'some unit',
                 'values' : [ ... ],
+                'info' : {...}
             },
             'ax1' : {
                 'axes' : [],
                 'unit' : 'some other unit',
                 'values' : [ ... ],
+                'info' : {...}
             },
             'ax2' : {
                 'axes' : [],
                 'unit' : 'a third unit',
                 'values' : [ ... ],
+                'info' : {...},
             },
             ...
         }
@@ -89,9 +92,11 @@ class DataDictBase(dict):
 
     def structure(self):
         if self.validate():
-            s = {}
+            s = DataDictBase()
             for n, v in self.items():
-                s[n] = dict(axes=v['axes'], unit=v['unit'])
+                s[n] = dict(axes=v['axes'], unit=v['unit'], info={})
+                s[n]['info']['shape'] = np.array(v['values']).shape
+
             return s
 
     def label(self, name):
@@ -148,6 +153,9 @@ class DataDictBase(dict):
 
             if 'values' not in v:
                 v['values'] = []
+
+            if 'info' not in v:
+                v['info'] = {}
 
         if msg != '\n':
             raise ValueError(msg)
