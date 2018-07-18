@@ -137,3 +137,21 @@ class InspectrMain(QMainWindow):
         sender = DataSender("{} # run ID = {}".format(self.filepath, runId))
         sender.data['datasets'] = data
         sender.sendData()
+
+
+def console_entry() -> None:
+    """
+    Entry point for launching a Inspectr app from a console script
+    """
+    nargs = len(sys.argv) - 1
+    if nargs > 0:
+        fp = sys.argv[1]
+    else:
+        fp = None
+
+    app = QApplication(sys.argv)
+    main = InspectrMain()
+    main.show()
+    main.setFilePath(fp)
+
+    sys.exit(app.exec_())
