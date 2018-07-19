@@ -1,9 +1,4 @@
-import sys
-from PyQt5.QtWidgets import QApplication
-from plottr.plottr import PlottrMain
+from plottr.plottr import console_entry
 
 if __name__ == "__main__":
-    app = QApplication(sys.argv)
-    main = PlottrMain()
-    main.show()
-    sys.exit(app.exec_())
+    console_entry()
