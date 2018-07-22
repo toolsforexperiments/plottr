@@ -17,6 +17,9 @@ __license__ = 'MIT'
 # * add possibility for metadata, say for keys in the format __key__
 #   (then should have dataItems() and metaItems() or so)
 # * serialization (json...)
+# * support for data where axes can themselves depend on other
+# * support for automatically creating imaginary data
+
 
 def togrid(data, names=None, make_copy=True, sanitize=True):
     if data in [None, {}]:
