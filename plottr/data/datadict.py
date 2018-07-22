@@ -13,10 +13,14 @@ import xarray as xr
 __author__ = 'Wolfgang Pfaff'
 __license__ = 'MIT'
 
+# TODO:
+# * add possibility for metadata, say for keys in the format __key__
+#   (then should have dataItems() and metaItems() or so)
+# * serialization (json...)
 
 def togrid(data, names=None, make_copy=True, sanitize=True):
     if data in [None, {}]:
-        return {}
+        return DataDict()
 
     if isinstance(data, GridDataDict):
         if make_copy:
