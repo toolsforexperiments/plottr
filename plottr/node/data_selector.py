@@ -17,6 +17,9 @@ from ..data.datadict import togrid, DataDict, GridDataDict
 __author__ = 'Wolfgang Pfaff'
 __license__ = 'MIT'
 
+# FIXME: 
+# * need to split up selector/gridder and slicer.
+#   (it's very slow to re-grid everything when a slice has been changed.)
 
 class DataSelector(Node):
 
@@ -77,8 +80,8 @@ class DataSelector(Node):
         else:
             dnames = self.selectedData
 
-        if self.grid:
-            data = togrid(data, names=dnames)
+        if self.grid or isinstance(data, GridDataDict):
+            _data = togrid(data, names=dnames)
         else:
             _data = DataDict()
             for n in dnames:
@@ -86,8 +89,7 @@ class DataSelector(Node):
                 for k, v in data.items():
                     if k in data[n].get('axes', []):
                         _data[k] = v
-            data = _data
-        return data
+        return _data
 
     def _sliceData(self, data):
         axnames = data[data.dependents()[0]]['axes']
@@ -449,7 +451,7 @@ class XYSelector(DataSelector):
         self.slices = slices
 
     def process(self, **kw):
-        data = kw['dataIn']
+        data = copy.deepcopy(kw['dataIn'])
 
         # notify the widget about all available data
         self.sendDataStructure.emit(data.structure())
@@ -498,6 +500,9 @@ class XYSelector(DataSelector):
 ### Tool GUI elements
 
 class AxisSlider(QtGui.QWidget):
+
+    # TODO:
+    # * need a smart way to format the values
 
     def __init__(self, parent=None):
         super().__init__(parent)
