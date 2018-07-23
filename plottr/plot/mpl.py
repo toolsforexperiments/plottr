@@ -88,7 +88,6 @@ class MPLPlot(FCanvas):
     def __init__(self, parent=None, width=4, height=3,
                  dpi=150, nrows=1, ncols=1):
 
-        setMplDefaults()
         self.fig = Figure(figsize=(width, height), dpi=dpi)
         super().__init__(self.fig)
 
@@ -97,6 +96,7 @@ class MPLPlot(FCanvas):
 
     def clearFig(self, nrows=1, ncols=1, naxes=1):
         self.fig.clear()
+        setMplDefaults()
 
         self.axes = []
         iax = 1
@@ -126,6 +126,8 @@ class MPLPlotWidget(QtGui.QWidget):
 
     def __init__(self, parent=None):
         super().__init__(parent=parent)
+
+        setMplDefaults()
 
         self.plot = MPLPlot()
         layout = QtGui.QVBoxLayout(self)
