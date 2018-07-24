@@ -24,6 +24,49 @@ __license__ = 'MIT'
 class DataSelector(Node):
 
     nodeName = "DataSelector"
+    uiClass = None
+
+    def __init__(self, *arg, **kw):
+        super().__init__(*arg, **kw)
+
+        self._grid = True
+        self._selectedData = []
+
+    @property
+    def selectedData(self):
+        return self._selectedData
+
+    @selectedData.setter
+    @Node.updateOption
+    def selectedData(self, val):
+        self._selectedData = val
+
+    def _reduceData(self, data):
+        if isinstance(self.selectedData, str):
+            dnames = [self.selectedData]
+        else:
+            dnames = self.selectedData
+
+        if self.grid or isinstance(data, GridDataDict):
+            _data = togrid(data, names=dnames)
+        else:
+            _data = DataDict()
+            for n in dnames:
+                _data[n] = data[n]
+                for k, v in data.items():
+                    if k in data[n].get('axes', []):
+                        _data[k] = v
+        return _data
+
+    def process(self, **kw):
+        data = kw['dataIn']
+        data = self._reduceData(data)
+        return dict(dataOut=data)
+
+
+class AllmightyDataSelector(Node):
+
+    nodeName = "AllmightyDataSelector"
     sendDataStructure = QtCore.pyqtSignal(object)
     sendReducedDataStructure = QtCore.pyqtSignal(object)
     uiClass = None
