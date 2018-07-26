@@ -17,27 +17,63 @@ from ..data.datadict import togrid, DataDict, GridDataDict
 __author__ = 'Wolfgang Pfaff'
 __license__ = 'MIT'
 
-# FIXME: 
+# FIXME:
 # * need to split up selector/gridder and slicer.
 #   (it's very slow to re-grid everything when a slice has been changed.)
+
+class DataSelectorWidget(QtGui.QWidget):
+
+    def __init__(self, parent=None, **kw):
+        super().__init__(parent=parent, **kw)
+
+        self._triggerUpdateSelectables = True
+        self._dataOptions = {}
+        self._selectedData = []
+
+        self.dataLayout = QtGui.QFormLayout()
+        dataGroup = QtGui.QGroupBox('Data selection')
+        dataGroup.setLayout(self.dataLayout)
+
+        gridLayout = QtGui.QFormLayout()
+        self.gridchk = QtGui.QCheckBox()
+        gridLayout.addRow('Make grid', self.gridchk)
+
+        layout = QtGui.QVBoxLayout(self)
+        layout.addLayout(gridLayout)
+        layout.addWidget(dataGroup)
+
 
 class DataSelector(Node):
 
     nodeName = "DataSelector"
-    uiClass = None
+    uiClass = DataSelectorWidget
+
+    guiOptions = {
+        'grid' : {
+            'widget' : 'gridchk',
+            'setFunc' : 'setChecked',
+        }
+    }
 
     def __init__(self, *arg, **kw):
         super().__init__(*arg, **kw)
 
-        self._grid = True
+        self.grid = True
         self._selectedData = []
+
+    def setupUi(self):
+        self.ui.gridchk.setChecked(self._grid)
+        self.ui.gridchk.stateChanged.connect(self._setGrid)
+
+    def _setGrid(self, val):
+        self.grid = bool(val)
 
     @property
     def selectedData(self):
         return self._selectedData
 
     @selectedData.setter
-    @Node.updateOption
+    @Node.updateOption('selectedData')
     def selectedData(self, val):
         self._selectedData = val
 
@@ -60,6 +96,11 @@ class DataSelector(Node):
 
     def process(self, **kw):
         data = kw['dataIn']
+        if isinstance(data, GridDataDict) and self.ui is not None:
+            self.ui.gridchk.setDisabled(True)
+        elif not isinstance(data, GridDataDict) and self.ui is not None:
+            self.ui.gridchk.setDisabled(False)
+
         data = self._reduceData(data)
         return dict(dataOut=data)
 

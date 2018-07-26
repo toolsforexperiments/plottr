@@ -22,7 +22,7 @@ __license__ = 'MIT'
 
 class Node(pgNode):
 
-    optionChanged = QtCore.pyqtSignal()
+    optionChanged = QtCore.pyqtSignal(str, object)
 
     raiseExceptions = False
     nodeName = "DataDictNode"
@@ -33,6 +33,8 @@ class Node(pgNode):
     uiClass = None
     useUi = True
     debug = False
+
+    guiOptions = {}
 
     def __init__(self, name):
         super().__init__(name, terminals=self.__class__.terminals)
@@ -54,16 +56,22 @@ class Node(pgNode):
     def ctrlWidget(self):
         return self.ui
 
-    def updateOption(func):
-        def wrap(self, val):
-            ret = func(self, val)
-            self.optionChanged.emit()
-            self.update(self.signalUpdate)
-            return ret
-        return wrap
+    def updateOption(optName):
+        def decorator(func):
+            def wrap(self, val):
+                ret = func(self, val)
+                self.optionChanged.emit(optName, val)
+                self.update(self.signalUpdate)
+                return ret
+            return wrap
+        return decorator
 
-    def processOptionUpdate(self):
-        pass
+    def processOptionUpdate(self, optName, value):
+        if optName in self.guiOptions:
+            if self.ui is not None:
+                w = getattr(self.ui, self.guiOptions[optName]['widget'])
+                func = getattr(w, self.guiOptions[optName]['setFunc'])
+                func(value)
 
     def update(self, signal=True):
         super().update(signal=signal)
@@ -75,7 +83,7 @@ class Node(pgNode):
         return self._grid
 
     @grid.setter
-    @updateOption
+    @updateOption('grid')
     def grid(self, val):
         self._grid = val
 
