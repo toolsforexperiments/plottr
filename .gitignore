@@ -1,6 +1,7 @@
 *.pyc
 .ipynb_checkpoints
 *.db
-plottr.egg-info/
+*.egg-info
 
-
+*.egg-info/
+.idea/

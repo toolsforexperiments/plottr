@@ -95,7 +95,10 @@ class DataDictBase(dict):
 
     def __init__(self, *arg, **kw):
         super().__init__(self, *arg, **kw)
+        
 
+    def data(self, key):
+        return self[key]['values']
 
     def structure(self):
         if self.validate():

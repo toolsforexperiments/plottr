@@ -1,5 +1,7 @@
 import time
 import os
+import json
+import copy
 import numpy as np
 import pandas as pd
 import qcodes as qc
@@ -123,7 +125,7 @@ def getRunOverviewDataFrame(runs):
 
 class QcodesDatasetSubscriber(object):
 
-    def __init__(self, dataset):
+    def __init__(self, dataset, log=False):
         self.ds = dataset
         dbpath = os.path.abspath(qc.config['core']['db_location'])
 
@@ -132,10 +134,28 @@ class QcodesDatasetSubscriber(object):
         self.params = [ p.name for p in self.ds.get_parameters() ]
         self.dataStructure = getDatasetStructure(self.ds)
 
+        self.logId = None
+        if log:
+            self.logId = 0
+            self.logDir = './plottr_logs/run-{}'.format(self.ds.run_id)
+            os.makedirs(self.logDir)
+
     def __call__(self, results, length, state):
         newData = dict(zip(self.params, list(zip(*results))))
+        data = copy.deepcopy(self.dataStructure)
         for k, v in newData.items():
-            self.dataStructure[k]['values'] = list(v)
+            data[k]['values'] = list(v)
 
-        self.sender.data['datasets'] = self.dataStructure
+        self.sender.data['datasets'] = data
         self.sender.sendData()
+
+        if self.logId is not None:
+            fn = os.path.join(self.logDir, 'call-{}.json'.format(self.logId))
+            with open(fn, 'w') as f:
+                json.dump(dict(newData=newData, 
+                               data=data,
+                               dataStructure=self.dataStructure,
+                               senderData=self.sender.data['datasets']),
+                          fp=f, indent=2)
+            self.logId += 1
+        
