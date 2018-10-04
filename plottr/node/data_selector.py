@@ -23,12 +23,15 @@ __license__ = 'MIT'
 
 class DataSelectorWidget(QtGui.QWidget):
 
+    dataSelected = QtCore.pyqtSignal(list)
+
     def __init__(self, parent=None, **kw):
         super().__init__(parent=parent, **kw)
 
         self._triggerUpdateSelectables = True
         self._dataOptions = {}
         self._selectedData = []
+        self._dataStructure = None
 
         self.dataLayout = QtGui.QFormLayout()
         dataGroup = QtGui.QGroupBox('Data selection')
@@ -41,6 +44,53 @@ class DataSelectorWidget(QtGui.QWidget):
         layout = QtGui.QVBoxLayout(self)
         layout.addLayout(gridLayout)
         layout.addWidget(dataGroup)
+
+    
+    def _deleteDataOptions(self, names):
+        for name in names:
+            v = self._dataOptions[name]
+            self.dataLayout.removeWidget(v['widget'])
+            self.dataLayout.removeWidget(v['label'])
+            v['widget'].deleteLater()
+            v['label'].deleteLater()
+            del self._dataOptions[name]
+
+    @QtCore.pyqtSlot(object)
+    def setDataStructure(self, structure):
+        self._dataStructure = structure
+        
+        delete = []
+        for k, v in self._dataOptions.items():
+            delete.append(k)
+        self._deleteDataOptions(delete)
+
+        if structure is not None:
+            for n in structure.dependents():
+                if n not in self._dataOptions:
+                    lbl = QtGui.QLabel(n)
+                    chk = QtGui.QCheckBox()
+                    self._dataOptions[n] = dict(label=lbl, widget=chk)
+                    self.dataLayout.addRow(lbl, chk)
+                    chk.stateChanged.connect(lambda x: self.updateDataSelection())
+
+    @QtCore.pyqtSlot()
+    def updateDataSelection(self):
+        selected = []
+        axes = None
+
+        for k, v in self._dataOptions.items():
+            if v['widget'].isChecked():
+                selected.append(k)
+                if axes is None:
+                    axes = self._dataStructure[k]['axes']
+
+        for k, v in self._dataOptions.items():
+            if axes is not None and self._dataStructure[k]['axes'] != axes:
+                self._dataOptions[k]['widget'].setDisabled(True)
+            else:
+                self._dataOptions[k]['widget'].setDisabled(False)
+
+        self.dataSelected.emit(selected)
 
 
 class DataSelector(Node):
@@ -55,25 +105,36 @@ class DataSelector(Node):
         }
     }
 
+    newDataStructure = QtCore.pyqtSignal(object)
+
     def __init__(self, *arg, **kw):
         super().__init__(*arg, **kw)
 
-        self.grid = True
         self._selectedData = []
+        self._dataStructure = None
+
+        self.grid = True
 
     def setupUi(self):
+        self.newDataStructure.connect(self.ui.setDataStructure)
         self.ui.gridchk.setChecked(self._grid)
         self.ui.gridchk.stateChanged.connect(self._setGrid)
+        self.ui.dataSelected.connect(self._setSelected)
 
+    @QtCore.pyqtSlot(int)
     def _setGrid(self, val):
         self.grid = bool(val)
+
+    @QtCore.pyqtSlot(list)
+    def _setSelected(self, vals):
+        self.selectedData = vals
 
     @property
     def selectedData(self):
         return self._selectedData
 
     @selectedData.setter
-    @Node.updateOption('selectedData')
+    @Node.updateOption()
     def selectedData(self, val):
         self._selectedData = val
 
@@ -96,6 +157,16 @@ class DataSelector(Node):
 
     def process(self, **kw):
         data = kw['dataIn']
+
+        if data is None:
+            struct = None
+        else:
+            struct = data.structure(meta=False)
+        
+        if struct != self._dataStructure:
+            self._dataStructure = struct
+            self.newDataStructure.emit(struct)
+
         if isinstance(data, GridDataDict) and self.ui is not None:
             self.ui.gridchk.setDisabled(True)
         elif not isinstance(data, GridDataDict) and self.ui is not None:
@@ -105,9 +176,9 @@ class DataSelector(Node):
         return dict(dataOut=data)
 
 
-class AllmightyDataSelector(Node):
+class AxesSelector(Node):
 
-    nodeName = "AllmightyDataSelector"
+    nodeName = "AxesSelector"
     sendDataStructure = QtCore.pyqtSignal(object)
     sendReducedDataStructure = QtCore.pyqtSignal(object)
     uiClass = None

@@ -100,13 +100,15 @@ class DataDictBase(dict):
     def data(self, key):
         return self[key]['values']
 
-    def structure(self):
+    def structure(self, meta=True):
         if self.validate():
             s = DataDictBase()
             for n, v in self.items():
                 s[n] = dict(axes=v['axes'], unit=v['unit'], info={})
-                s[n]['info']['shape'] = np.array(v['values']).shape
+                if meta:
+                    s[n]['info']['shape'] = np.array(v['values']).shape
 
+            s.validate()
             return s
 
     def label(self, name):

@@ -56,11 +56,12 @@ class Node(pgNode):
     def ctrlWidget(self):
         return self.ui
 
-    def updateOption(optName):
+    def updateOption(optName=None):
         def decorator(func):
             def wrap(self, val):
                 ret = func(self, val)
-                self.optionChanged.emit(optName, val)
+                if optName is not None:
+                    self.optionChanged.emit(optName, val)
                 self.update(self.signalUpdate)
                 return ret
             return wrap
@@ -93,3 +94,17 @@ class Node(pgNode):
             data = togrid(data)
 
         return dict(dataOut=data)
+
+
+class NodesWidget(QtGui.QWidget):
+
+    def __init__(self, parent=None, node=None):
+        super().__init__(parent=parent)
+        self.layout = QtGui.QVBoxLayout(self)
+
+    def addNodeWidget(self, node, name):
+        group = QtGui.QGroupBox(name)
+        layout = QtGui.QVBoxLayout()
+        group.setLayout(layout)
+        layout.addWidget(node.ctrlWidget())
+        self.layout.addWidget(group)
