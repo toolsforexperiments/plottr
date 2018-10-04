@@ -8,7 +8,8 @@ import qcodes as qc
 from qcodes.dataset.data_set import DataSet
 from qcodes.dataset.experiment_container import Experiment
 from qcodes.dataset.sqlite_base import (connect, get_dependencies,
-                                        get_dependents, get_layout, get_runs)
+                                        get_dependents, get_layout, 
+                                        get_runs, _convert_array)
 
 from .client import DataSender
 
@@ -144,7 +145,17 @@ class QcodesDatasetSubscriber(object):
         newData = dict(zip(self.params, list(zip(*results))))
         data = copy.deepcopy(self.dataStructure)
         for k, v in newData.items():
-            data[k]['values'] = list(v)
+
+            # if the paramtype was array we'll have byte encoding now.
+            # we need to revert that to numeric lists to be able to 
+            # send it via json.
+            if len(v) > 0 and isinstance(v[0], bytes):
+                v2 = []
+                for x in v:
+                    v2 += _convert_array(x).tolist()
+                data[k]['values'] = v2
+            else:
+                data[k]['values'] = list(v)
 
         self.sender.data['datasets'] = data
         self.sender.sendData()
@@ -158,4 +169,3 @@ class QcodesDatasetSubscriber(object):
                                senderData=self.sender.data['datasets']),
                           fp=f, indent=2)
             self.logId += 1
-        
