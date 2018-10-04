@@ -619,7 +619,7 @@ class DataWindow(QMainWindow):
             self._plot2D(x, y, data)
 
         self.plot.axes.set_title("{} [{}]".format(self.dataId, self.activeDataSet), size='x-small')
-        self.plot.fig.tight_layout()
+        # self.plot.fig.tight_layout()
         self.plot.draw()
 
         if self.pendingPlotData:
