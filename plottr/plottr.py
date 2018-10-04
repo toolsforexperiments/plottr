@@ -768,3 +768,13 @@ class PlottrMain(QMainWindow):
     def dataWindowClosed(self, dataId):
         self.dataHandlers[dataId].close()
         del self.dataHandlers[dataId]
+
+
+def console_entry():
+    """
+    Entry point for launching a Plottr app from a console script
+    """
+    app = QApplication(sys.argv)
+    main = PlottrMain()
+    main.show()
+    sys.exit(app.exec_())
