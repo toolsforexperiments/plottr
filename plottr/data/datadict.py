@@ -1,5 +1,5 @@
 """
-plots.py
+datadict.py
 
 Data classes we use throughout the package.
 """
@@ -42,7 +42,7 @@ def togrid(data, names=None, make_copy=True, sanitize=True):
     Returns:
     --------
     GridDataDict with resulting data.
-    
+
     """
     if data in [None, {}]:
         return DataDict()
