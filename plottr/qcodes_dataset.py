@@ -144,18 +144,39 @@ class QcodesDatasetSubscriber(object):
     def __call__(self, results, length, state):
         newData = dict(zip(self.params, list(zip(*results))))
         data = copy.deepcopy(self.dataStructure)
-        for k, v in newData.items():
 
-            # if the paramtype was array we'll have byte encoding now.
-            # we need to revert that to numeric lists to be able to 
-            # send it via json.
+        # if the paramtype was array we'll have byte encoding now.
+        # we need to revert that to numeric lists to be able to 
+        # send it via json.
+        # we also need to expand the numeric values appropriately.
+
+        # the rule here is the following, in agreement with the qcodes dataset:
+        # * we can have either scalar/numeric values in the results, or arrays.
+        # * numerics have size 1, per definition
+        # * arrays can have arbitrary length, but all arrays must have the same length
+        # to extract the data correctly, we must check 1) if arrays are present in the results,
+        # 2) what the length is, and 3) if appropriate, expand the numerics such
+        # that all results have the same length.
+        arrLen = None
+        for k, v in newData.items():
+            if len(v) > 0 and isinstance(v[0], bytes):
+                arrLen = _convert_array(v[0]).size
+
+        for k, v in newData.items():
             if len(v) > 0 and isinstance(v[0], bytes):
                 v2 = []
                 for x in v:
-                    v2 += _convert_array(x).tolist()
+                    arr = _convert_array(x)
+                    v2 += arr.tolist()
                 data[k]['values'] = v2
             else:
-                data[k]['values'] = list(v)
+                if arrLen is not None:
+                    _vals = []
+                    for x in v:
+                        _vals += [x for i in range(arrLen)]
+                    data[k]['values'] = _vals
+                else:
+                    data[k]['values'] = list(v)
 
         self.sender.data['datasets'] = data
         self.sender.sendData()
