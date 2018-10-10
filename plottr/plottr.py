@@ -27,14 +27,14 @@ def get_test_data():
 class DataInfo(pg.TreeWidget):
     def __init__(self, *arg, **kw):
         super().__init__(*arg, **kw)
-        
+
         self.setColumnCount(3)
         self.setHeaderLabels(['data', 'shape', 'dtype'])
 
 
     def validateData(self, data):
         pass
-    
+
     def addData(self, data):
         naxes = len(data.shape)
         shp = str(data.shape)
@@ -83,4 +83,4 @@ def main():
 
 if __name__ == '__main__':
     main()
-    
+
