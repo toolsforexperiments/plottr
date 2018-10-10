@@ -30,7 +30,8 @@ from PyQt5.QtWidgets import (QApplication, QComboBox, QDialog, QFormLayout,
                              QFrame, QGroupBox, QHBoxLayout, QLabel,
                              QMainWindow, QPlainTextEdit, QSizePolicy, QSlider,
                              QTreeWidget, QTreeWidgetItem, QVBoxLayout,
-                             QWidget)
+                             QWidget, QRadioButton, QButtonGroup,
+                             QAbstractButton)
 
 from .config import config
 
@@ -268,14 +269,31 @@ class PlotChoice(QWidget):
         self.idxChoiceBox.setLayout(self.idxChoiceLayout)
         self.idxChoiceSliders = []
 
+        self.subtractAverageBox = QGroupBox('Subtract average')
+        self.subtractAverageButtonGroup = QButtonGroup()
+        self.subtractAverageByColumnButton = QRadioButton('From each column (vertical axis)')
+        self.subtractAverageButtonGroup.addButton(self.subtractAverageByColumnButton, 0)
+        self.subtractAverageByRowButton = QRadioButton('From each row (horizontal axis)')
+        self.subtractAverageButtonGroup.addButton(self.subtractAverageByRowButton, 1)
+        self.subtractAverageNoneButton = QRadioButton('None')
+        self.subtractAverageButtonGroup.addButton(self.subtractAverageNoneButton, 2)
+        self.subtractAverageNoneButton.setChecked(True)
+        self.subtractAverageLayout = QFormLayout()
+        self.subtractAverageLayout.addRow(self.subtractAverageByColumnButton)
+        self.subtractAverageLayout.addRow(self.subtractAverageByRowButton)
+        self.subtractAverageLayout.addRow(self.subtractAverageNoneButton)
+        self.subtractAverageBox.setLayout(self.subtractAverageLayout)
+
         mainLayout = QVBoxLayout(self)
         mainLayout.addWidget(axisChoiceBox)
         mainLayout.addWidget(self.idxChoiceBox)
+        mainLayout.addWidget(self.subtractAverageBox)
 
         self.doEmitChoiceUpdate = False
         self.avgSelection.currentTextChanged.connect(self.avgSelected)
         self.xSelection.currentTextChanged.connect(self.xSelected)
         self.ySelection.currentTextChanged.connect(self.ySelected)
+        self.subtractAverageButtonGroup.buttonClicked.connect(self.subtractAverageChanged)
 
     @pyqtSlot(str)
     def avgSelected(self, val):
@@ -288,6 +306,10 @@ class PlotChoice(QWidget):
     @pyqtSlot(str)
     def ySelected(self, val):
         self.updateOptions(self.ySelection, val)
+
+    @pyqtSlot(QAbstractButton)
+    def subtractAverageChanged(self, button):
+        self.updateOptions(None, None)
 
     # TODO: this is not nice. split up a bit.
     @pyqtSlot(int)
@@ -331,6 +353,12 @@ class PlotChoice(QWidget):
                 v = idxChoice.slider.value()
                 slices[i] = slice(v, v+1, None)
 
+        subtractAverage = None
+        if self.subtractAverageByRowButton.isChecked():
+            subtractAverage = 'byRow'
+        elif self.subtractAverageByColumnButton.isChecked():
+            subtractAverage = 'byColumn'
+
         self.choiceInfo = {
             'avgAxis' : {
                 'idx' : self.avgSelection.currentIndex() - 1,
@@ -345,6 +373,7 @@ class PlotChoice(QWidget):
                 'name' : self.ySelection.currentText(),
             },
             'slices' : slices,
+            'subtractAverage' : subtractAverage,
         }
 
         if self.doEmitChoiceUpdate:
@@ -454,6 +483,22 @@ class PlotData(QObject):
             yVals = xarr.coords[self.choiceInfo['yAxis']['name']].values
         else:
             yVals = None
+
+        if self.choiceInfo['subtractAverage']:
+            # This feature is only for 2D data
+            if xVals is not None and yVals is not None:
+                # x axis, horizontal one - axis 0
+                # y axis, vertical one - axis 1
+                if self.choiceInfo['subtractAverage'] == 'byRow':
+                    # rows / x axis / horizontal axis
+                    rowMeans = plotData.mean(0)
+                    rowMeansMatrix = rowMeans[np.newaxis, :]
+                    plotData = plotData - rowMeansMatrix
+                elif self.choiceInfo['subtractAverage'] == 'byColumn':
+                    # columns / y axis / vertical one
+                    columnMeans = plotData.mean(1)
+                    columnMeansMatrix = columnMeans[:, np.newaxis]
+                    plotData = plotData - columnMeansMatrix
 
         self.dataProcessed.emit(plotData, xVals, yVals)
 
@@ -619,7 +664,7 @@ class DataWindow(QMainWindow):
             self._plot2D(x, y, data)
 
         self.plot.axes.set_title("{} [{}]".format(self.dataId, self.activeDataSet), size='x-small')
-        self.plot.fig.tight_layout()
+        # self.plot.fig.tight_layout()
         self.plot.draw()
 
         if self.pendingPlotData:
