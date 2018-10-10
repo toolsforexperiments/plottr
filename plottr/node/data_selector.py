@@ -45,7 +45,7 @@ class DataSelectorWidget(QtGui.QWidget):
         layout.addLayout(gridLayout)
         layout.addWidget(dataGroup)
 
-    
+
     def _deleteDataOptions(self, names):
         for name in names:
             v = self._dataOptions[name]
@@ -55,10 +55,20 @@ class DataSelectorWidget(QtGui.QWidget):
             v['label'].deleteLater()
             del self._dataOptions[name]
 
+
+    def setSelected(self, names):
+        print(names)
+        for n, v in self._dataOptions.items():
+            if n in names:
+                v['widget'].setChecked(True)
+            else:
+                v['widget'].setChecked(False)
+
+
     @QtCore.pyqtSlot(object)
     def setDataStructure(self, structure):
         self._dataStructure = structure
-        
+
         delete = []
         for k, v in self._dataOptions.items():
             delete.append(k)
@@ -102,7 +112,11 @@ class DataSelector(Node):
         'grid' : {
             'widget' : 'gridchk',
             'setFunc' : 'setChecked',
-        }
+        },
+        'selectedData' : {
+            'widget' : None,
+            'setFunc' : 'setSelected',
+        },
     }
 
     newDataStructure = QtCore.pyqtSignal(object)
@@ -134,7 +148,7 @@ class DataSelector(Node):
         return self._selectedData
 
     @selectedData.setter
-    @Node.updateOption()
+    @Node.updateOption('selectedData')
     def selectedData(self, val):
         self._selectedData = val
 
@@ -162,7 +176,7 @@ class DataSelector(Node):
             struct = None
         else:
             struct = data.structure(meta=False)
-        
+
         if struct != self._dataStructure:
             self._dataStructure = struct
             self.newDataStructure.emit(struct)
@@ -175,6 +189,10 @@ class DataSelector(Node):
         data = self._reduceData(data)
         return dict(dataOut=data)
 
+
+
+
+### UNFINISHED STUFF BELOW
 
 class AxesSelector(Node):
 
