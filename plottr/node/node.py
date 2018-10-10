@@ -70,8 +70,11 @@ class Node(pgNode):
     def processOptionUpdate(self, optName, value):
         if optName in self.guiOptions:
             if self.ui is not None:
-                w = getattr(self.ui, self.guiOptions[optName]['widget'])
-                func = getattr(w, self.guiOptions[optName]['setFunc'])
+                if self.guiOptions[optName]['widget'] is not None:
+                    w = getattr(self.ui, self.guiOptions[optName]['widget'])
+                    func = getattr(w, self.guiOptions[optName]['setFunc'])
+                else:
+                    func = getattr(self.ui, self.guiOptions[optName]['setFunc'])
                 func(value)
 
     def update(self, signal=True):
