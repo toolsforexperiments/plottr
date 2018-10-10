@@ -22,6 +22,28 @@ __license__ = 'MIT'
 
 
 def togrid(data, names=None, make_copy=True, sanitize=True):
+    """
+    Place data onto a grid.
+
+    Parameters:
+    -----------
+    data : DataDict (or child thereof)
+        input data
+
+    names : list of strings or None (None)
+        will be passed on to data.get_grid
+
+    make_copy : bool (True)
+        if true, return a copy of the data.
+
+    sanitize: bool (True)
+        if true, remove unused data fields/axes.
+
+    Returns:
+    --------
+    GridDataDict with resulting data.
+    
+    """
     if data in [None, {}]:
         return DataDict()
 
@@ -91,6 +113,9 @@ class DataDictBase(dict):
         }
     I.e., we define data 'fields', that have unit, values, and we can specify that some data has axes
     (dependencies) specified by other data fields.
+
+    This base class does not make assumptions about the structure of the values. This is implemented in 
+    inheriting classes.
     """
 
     def __init__(self, *arg, **kw):
@@ -196,7 +221,7 @@ class DataDictBase(dict):
 class DataDict(DataDictBase):
     """
     Contains data in 'linear' arrays. I.e., for data field 'z' with axes 'x' and 'y',
-    all of 'x', 'y', 'z' have 1D arrays as values with some lenght.
+    all of 'x', 'y', 'z' have 1D arrays as values with some lenght; the lengths must match.
     Each element x[i], y[i], z[i] is one datapoint, with x[i], y[i] being the coordinates.
     """
 
