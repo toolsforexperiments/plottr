@@ -55,9 +55,14 @@ class DataSelectorWidget(QtGui.QWidget):
             v['label'].deleteLater()
             del self._dataOptions[name]
 
+    def getSelected(self):
+        ret = []
+        for n, v in self._dataOptions.items():
+            if v['widget'].isChecked():
+                ret.append(n)
+        return ret
 
     def setSelected(self, names):
-        print(names)
         for n, v in self._dataOptions.items():
             if n in names:
                 v['widget'].setChecked(True)
@@ -86,17 +91,15 @@ class DataSelectorWidget(QtGui.QWidget):
     @QtCore.pyqtSlot()
     def updateDataSelection(self):
         selected = []
-        axes = None
 
         for k, v in self._dataOptions.items():
             if v['widget'].isChecked():
                 selected.append(k)
-                if axes is None:
-                    axes = self._dataStructure[k]['axes']
 
+        ds = self._dataStructure
         for k, v in self._dataOptions.items():
-            if axes is not None and self._dataStructure[k]['axes'] != axes:
-                self._dataOptions[k]['widget'].setDisabled(True)
+            if selected != [] and ds.axes_list(k) != ds.axes_list(selected[0]):
+                    self._dataOptions[k]['widget'].setDisabled(True)
             else:
                 self._dataOptions[k]['widget'].setDisabled(False)
 
@@ -150,7 +153,27 @@ class DataSelector(Node):
     @selectedData.setter
     @Node.updateOption('selectedData')
     def selectedData(self, val):
-        self._selectedData = val
+        """
+        Set the selected data fields to val, which is a list of names of the fields.
+        Checks if the datafields are compatible in axes and will raise ValueError
+        if not (selection is not possible then).
+        """
+        if isinstance(val, str):
+            val = [val]
+
+        vals = []
+        if len(val) > 0:
+            allowed_axes = self._dataStructure.axes_list(val[0])
+            for v in val:
+                axes = self._dataStructure.axes_list(v)
+                if axes == allowed_axes:
+                    vals.append(v)
+                else:
+                    raise ValueError(f'Datasets {vals[0]}(with axes {allowed_axes})'
+                                     f'and {v}(with axes {axes}) are not compatible'
+                                     f'and cannot be selected simultanously.')
+
+        self._selectedData = vals
 
     def _reduceData(self, data):
         if isinstance(self.selectedData, str):
@@ -192,7 +215,7 @@ class DataSelector(Node):
 
 
 
-### UNFINISHED STUFF BELOW
+### UNFINISHED AND OLD STUFF BELOW
 
 class AxesSelector(Node):
 
