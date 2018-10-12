@@ -214,12 +214,25 @@ class DataSelector(Node):
 
 
 
+class AxesSelector(Node):
+    """
+    A Node that allows the user to select one or two axes (x and/or y); these
+    will be only remaining axes after processing, i.e., the output is either 1d
+    or 2d.
+
+    Any remaining axes can either be sliced (i.e., user can select one value for)
+    """
+
+
+
+
+
 
 ### UNFINISHED AND OLD STUFF BELOW
 
-class AxesSelector(Node):
+class XXXAxesSelector(Node):
 
-    nodeName = "AxesSelector"
+    nodeName = "XXXAxesSelector"
     sendDataStructure = QtCore.pyqtSignal(object)
     sendReducedDataStructure = QtCore.pyqtSignal(object)
     uiClass = None
@@ -353,7 +366,7 @@ class AxesSelector(Node):
         return dict(dataOut=data)
 
 
-class XYSelectorWidget(QtGui.QWidget):
+class XXXXYSelectorWidget(QtGui.QWidget):
 
     # TODO:
     # * make sure that options are updated when setting from cmd line
@@ -603,9 +616,9 @@ class XYSelectorWidget(QtGui.QWidget):
                 w.setAxValue(val)
 
 
-class XYSelector(DataSelector):
+class XXXXYSelector(DataSelector):
 
-    nodeName = "XYSelector"
+    nodeName = "XXXXYSelector"
     uiClass = XYSelectorWidget
 
     slicesSet = QtCore.pyqtSignal(dict)
