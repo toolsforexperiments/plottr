@@ -23,7 +23,10 @@ __license__ = 'MIT'
 
 def togrid(data, names=None, make_copy=True, sanitize=True):
     """
-    Place data onto a grid.
+    Place data onto a grid, i.e., that data has the shape of a meshgrid of its axes.
+    The axes stay 1-d. 
+    If the input data is already on a grid, return existing grid 
+    (potentially copied and/or sanitized).
 
     Parameters:
     -----------
@@ -126,6 +129,11 @@ class DataDictBase(dict):
         return self[key]['values']
 
     def structure(self, meta=True):
+        """
+        Return the datadict without values ('value' ommitted in the dict).
+        if 'meta' is true, we add a key 'shape' in 'info' that contains the
+        shape of each data field.
+        """
         if self.validate():
             s = DataDictBase()
             for n, v in self.items():
@@ -219,6 +227,10 @@ class DataDictBase(dict):
 
 
 class DataDict(DataDictBase):
+    # TODO:
+    # * method to detect/remove duplicate coordinates.
+    # * 
+
     """
     Contains data in 'linear' arrays. I.e., for data field 'z' with axes 'x' and 'y',
     all of 'x', 'y', 'z' have 1D arrays as values with some lenght; the lengths must match.
@@ -226,6 +238,9 @@ class DataDict(DataDictBase):
     """
 
     def __add__(self, newdata):
+        """
+        Adding two datadicts by appending each data array. Returns a new datadict.
+        """
         s = self.structure()
         if s == newdata.structure():
             for k, v in self.items():
@@ -240,12 +255,17 @@ class DataDict(DataDictBase):
             raise ValueError('Incompatible data structures.')
 
     def append(self, newdata):
+        """
+        Append a datadict to this one by appending. This in in-place and doesn't return anything.
+        """
         if self.structure() == newdata.structure():
             for k, v in newdata.items():
                 if isinstance(self[k]['values'], list) and isinstance(v['values'], list):
                     self[k]['values'] += v['values']
                 else:
                     self[k]['values'] = np.append(np.array(self[k]['values']), np.array(v['values']))
+        else:
+            raise ValueError('Incompatible data structures.')
 
 
     def validate(self):
@@ -361,6 +381,8 @@ class DataDict(DataDictBase):
 
 
 class GridDataDict(DataDictBase):
+    # TODO:
+    # * implement append and add. could solve by de-gridding, then re-gridding; but that might be slow.
     """
     Contains data in a grid form.
     In this case each field that is used as an axis contains only unique values,
