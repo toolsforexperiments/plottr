@@ -19,13 +19,16 @@ __license__ = 'MIT'
 # * serialization (json...)
 # * support for data where axes can themselves depend on other
 # * support for automatically creating imaginary data
+# * the notion of compatibility here is too naive i think.
+#   maybe i need to refine that a bit.
 
 
-def togrid(data, names=None, make_copy=True, sanitize=True):
+def togrid(data, names=None, make_copy=True, sanitize=True,
+           allow_incompatible=False):
     """
     Place data onto a grid, i.e., that data has the shape of a meshgrid of its axes.
-    The axes stay 1-d. 
-    If the input data is already on a grid, return existing grid 
+    The axes stay 1-d.
+    If the input data is already on a grid, return existing grid
     (potentially copied and/or sanitized).
 
     Parameters:
@@ -39,8 +42,11 @@ def togrid(data, names=None, make_copy=True, sanitize=True):
     make_copy : bool (True)
         if true, return a copy of the data.
 
-    sanitize: bool (True)
+    sanitize : bool (True)
         if true, remove unused data fields/axes.
+
+    allow_incompatible : bool (False)
+        if False, input data must have compatible axes.
 
     Returns:
     --------
@@ -69,17 +75,18 @@ def togrid(data, names=None, make_copy=True, sanitize=True):
         for r in remove:
             del data[r]
 
-    axes = []
-    n0 = None
-    for n in data.dependents():
-        if len(axes) == 0:
-            axes = data[n]['axes']
-            n0 = n
-        else:
-            if data[n]['axes'] != axes:
-                err = "Gridding multiple data sets requires compatible axes. "
-                err += "Found axes '{}' for '{}', but '{}' for '{}'.".format(axes, n0, data[n]['axes'], n)
-                raise ValueError(err)
+    if not allow_incompatible:
+        axes = []
+        n0 = None
+        for n in data.dependents():
+            if len(axes) == 0:
+                axes = data[n]['axes']
+                n0 = n
+            else:
+                if data[n]['axes'] != axes:
+                    err = "Gridding multiple data sets requires compatible axes. "
+                    err += "Found axes '{}' for '{}', but '{}' for '{}'.".format(axes, n0, data[n]['axes'], n)
+                    raise ValueError(err)
 
     if sanitize:
         data.remove_unused_axes()
@@ -117,13 +124,13 @@ class DataDictBase(dict):
     I.e., we define data 'fields', that have unit, values, and we can specify that some data has axes
     (dependencies) specified by other data fields.
 
-    This base class does not make assumptions about the structure of the values. This is implemented in 
+    This base class does not make assumptions about the structure of the values. This is implemented in
     inheriting classes.
     """
 
     def __init__(self, *arg, **kw):
         super().__init__(self, *arg, **kw)
-        
+
 
     def data(self, key):
         return self[key]['values']
@@ -154,6 +161,21 @@ class DataDictBase(dict):
                 n += ' ({})'.format(self[name]['unit'])
 
             return n
+
+    def compatible_axes(self):
+        """
+        Returns True if all dependent data fields have the same axes, False
+        otherwise.
+        """
+        axes = []
+        for i, d in enumerate(self.dependents()):
+            if i == 0:
+                axes = self.axes_list(d)
+            else:
+                if self.axes_list(d) != axes:
+                    return False
+        return True
+
 
     def axes_list(self, selectedData=None):
         lst = []
@@ -229,7 +251,7 @@ class DataDictBase(dict):
 class DataDict(DataDictBase):
     # TODO:
     # * method to detect/remove duplicate coordinates.
-    # * 
+    # *
 
     """
     Contains data in 'linear' arrays. I.e., for data field 'z' with axes 'x' and 'y',
