@@ -16,8 +16,8 @@ from ..data.datadict import togrid, DataDict, GridDataDict
 __author__ = 'Wolfgang Pfaff'
 __license__ = 'MIT'
 
-# things that I need to look at:
-#
+# TODO:
+# * implement a threaded version of Node
 #
 
 class Node(pgNode):
