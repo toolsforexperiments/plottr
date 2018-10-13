@@ -5,6 +5,7 @@ Contains the base class for Nodes.
 """
 import copy
 from pprint import pprint
+import logging
 
 import numpy as np
 
@@ -69,7 +70,7 @@ class Node(pgNode):
 
     def processOptionUpdate(self, optName, value):
         if optName in self.guiOptions:
-            if self.ui is not None:
+            if self.ui is not None and optName in self.guiOptions:
                 if self.guiOptions[optName]['widget'] is not None:
                     w = getattr(self.ui, self.guiOptions[optName]['widget'])
                     func = getattr(w, self.guiOptions[optName]['setFunc'])
@@ -82,6 +83,10 @@ class Node(pgNode):
         if Node.raiseExceptions and self.exception is not None:
             raise self.exception[1]
 
+    def logger(self):
+        return logging.getLogger(self.__module__ + '.' + self.__class__.__name__)
+
+    # Options and processing
     @property
     def grid(self):
         return self._grid
@@ -91,8 +96,15 @@ class Node(pgNode):
     def grid(self, val):
         self._grid = val
 
+    def validateOptions(self, data):
+        return True
+
     def process(self, **kw):
         data = kw['dataIn']
+
+        if not self.validateOptions(data):
+            return dict(dataOut=DataDict())
+
         if self.grid:
             data = togrid(data)
 
