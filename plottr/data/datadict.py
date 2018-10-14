@@ -247,6 +247,55 @@ class DataDictBase(dict):
         for u in unused:
             del self[u]
 
+    def new_order(self, name, **kw):
+        """
+        return the list of axes indices that can be used
+        to re-order the axes of the dataset given by name.
+
+        kws are in the form {axes_name = new_position}.
+        """
+        # check if the given indices are each unique
+        used = []
+        for n, i in kw.items():
+            if i in used:
+                raise ValueError('Order indices have to be unique.')
+            used.append(i)
+
+        axlist = self[name]['axes']
+        neworder = [None for a in axlist]
+        oldorder = list(range(len(axlist)))
+
+        for n, newidx in kw.items():
+            neworder[newidx] = axlist.index(n)
+
+        for i in neworder:
+            if i in oldorder:
+                del oldorder[oldorder.index(i)]
+
+        for i in range(len(neworder)):
+            if neworder[i] is None:
+                neworder[i] = oldorder[0]
+                del oldorder[0]
+
+        return tuple(neworder), [self[name]['axes'][i] for i in neworder]
+
+
+    def reorder_axes(self, data_names=None, **kw):
+        """
+        Reorder the axes for all data_names. New order is
+        determined by kws in the form {axis_name : new_position}.
+
+        if data_names is None, we try all dependents in the dataset.
+        """
+        if data_names is None:
+            data_names = self.dependents()
+        if isinstance(data_names, str):
+            data_names = [data_names]
+
+        for n in data_names:
+            neworder, newaxes = self.new_order(n, **kw)
+            self[n]['axes'] = newaxes
+
 
 class DataDict(DataDictBase):
     # TODO:
@@ -438,3 +487,23 @@ class GridDataDict(DataDictBase):
                 raise ValueError(msg)
 
         return True
+
+    def reorder_axes(self, data_names=None, **kw):
+        """
+        Reorder the axes for all data_names. New order is
+        determined by kws in the form {axis_name : new_position}.
+
+        if data_names is None, we try all dependents in the dataset.
+
+        Since data is on a grid, we also transpose the data accordingly.
+        """
+
+        if data_names is None:
+            data_names = self.dependents()
+        if isinstance(data_names, str):
+            data_names = [data_names]
+
+        for n in data_names:
+            neworder, newaxes = self.new_order(n, **kw)
+            self[n]['axes'] = newaxes
+            self[n]['values'] = self[n]['values'].transpose(neworder)
