@@ -13,6 +13,7 @@ from pyqtgraph.flowchart import Flowchart, Node as pgNode
 from pyqtgraph.Qt import QtGui, QtCore
 
 from ..data.datadict import togrid, DataDict, GridDataDict
+from .. import log
 
 __author__ = 'Wolfgang Pfaff'
 __license__ = 'MIT'
@@ -84,7 +85,11 @@ class Node(pgNode):
             raise self.exception[1]
 
     def logger(self):
-        return logging.getLogger(self.__module__ + '.' + self.__class__.__name__)
+        logger = logging.getLogger(
+            self.__module__ + '.' + self.__class__.__name__
+            )
+        logger.setLevel(log.LEVEL)
+        return logger
 
     # Options and processing
     @property
@@ -103,10 +108,13 @@ class Node(pgNode):
         data = kw['dataIn']
 
         if not self.validateOptions(data):
-            return dict(dataOut=DataDict())
+            return None
 
         if self.grid:
             data = togrid(data)
+
+        if data is None:
+            return None
 
         return dict(dataOut=data)
 
