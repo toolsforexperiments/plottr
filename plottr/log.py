@@ -20,8 +20,10 @@ COLORS = {
     logging.ERROR : QtGui.QColor('red'),
     logging.WARNING : QtGui.QColor('orange'),
     logging.INFO : QtGui.QColor('green'),
-    logging.DEBUG : QtGui.QColor('blue'),
+    logging.DEBUG : QtGui.QColor('gray'),
     }
+
+LEVEL = logging.INFO
 
 class QLogHandler(logging.Handler):
     def __init__(self, parent):
