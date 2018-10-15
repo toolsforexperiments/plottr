@@ -217,19 +217,18 @@ class XYAxesSelector(DimensionReducer):
             self.logger().warning(f"y-Axis cannot be equal to x-Axis.")
             return False
 
-        if isinstance(data, GridDataDict):
-            delete = []
-            for n, _ in self.reductions.items():
-                if n in self._xyAxes:
-                    self.logger().debug(f"{n} has been selected as axis, cannot be reduced.")
-                    delete.append(n)
-            for n in delete:
-                del self._reductions[n]
+        delete = []
+        for n, _ in self.reductions.items():
+            if n in self._xyAxes:
+                self.logger().debug(f"{n} has been selected as axis, cannot be reduced.")
+                delete.append(n)
+        for n in delete:
+            del self._reductions[n]
 
-            for ax in availableAxes:
-                if ax not in self._xyAxes and ax not in self.reductions:
-                    self.logger().debug(f"{ax} must be reduced. Default to selecting first element.")
-                    self._reductions[ax] = (selectAxisElement, [], dict(index=0))
+        for ax in availableAxes:
+            if ax not in self._xyAxes and ax not in self.reductions:
+                self.logger().debug(f"{ax} must be reduced. Default to selecting first element.")
+                self._reductions[ax] = (selectAxisElement, [], dict(index=0))
 
         return True
 
