@@ -129,19 +129,8 @@ class DataSelector(Node):
 
         self.grid = True
 
-    def setupUi(self):
-        self.newDataStructure.connect(self.ui.setDataStructure)
-        self.ui.gridchk.setChecked(self._grid)
-        self.ui.gridchk.stateChanged.connect(self._setGrid)
-        self.ui.dataSelected.connect(self._setSelected)
 
-    @QtCore.pyqtSlot(int)
-    def _setGrid(self, val):
-        self.grid = bool(val)
-
-    @QtCore.pyqtSlot(list)
-    def _setSelected(self, vals):
-        self.selectedData = vals
+    ### Properties
 
     @property
     def selectedData(self):
@@ -171,6 +160,9 @@ class DataSelector(Node):
                                      f'and cannot be selected simultanously.')
 
         self._selectedData = vals
+
+
+    ### Data processing
 
     def _reduceData(self, data):
         if isinstance(self.selectedData, str):
@@ -208,3 +200,20 @@ class DataSelector(Node):
 
         data = self._reduceData(data)
         return dict(dataOut=data)
+
+
+    ### Methods for GUI interaction
+
+    def setupUi(self):
+        self.newDataStructure.connect(self.ui.setDataStructure)
+        self.ui.gridchk.setChecked(self._grid)
+        self.ui.gridchk.stateChanged.connect(self._setGrid)
+        self.ui.dataSelected.connect(self._setSelected)
+
+    @QtCore.pyqtSlot(int)
+    def _setGrid(self, val):
+        self.grid = bool(val)
+
+    @QtCore.pyqtSlot(list)
+    def _setSelected(self, vals):
+        self.selectedData = vals
