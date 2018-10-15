@@ -5,6 +5,7 @@ Contains the base class for Nodes.
 """
 import copy
 from pprint import pprint
+import logging
 
 import numpy as np
 
@@ -12,12 +13,13 @@ from pyqtgraph.flowchart import Flowchart, Node as pgNode
 from pyqtgraph.Qt import QtGui, QtCore
 
 from ..data.datadict import togrid, DataDict, GridDataDict
+from .. import log
 
 __author__ = 'Wolfgang Pfaff'
 __license__ = 'MIT'
 
-# things that I need to look at:
-#
+# TODO:
+# * implement a threaded version of Node
 #
 
 class Node(pgNode):
@@ -69,7 +71,7 @@ class Node(pgNode):
 
     def processOptionUpdate(self, optName, value):
         if optName in self.guiOptions:
-            if self.ui is not None:
+            if self.ui is not None and optName in self.guiOptions:
                 if self.guiOptions[optName]['widget'] is not None:
                     w = getattr(self.ui, self.guiOptions[optName]['widget'])
                     func = getattr(w, self.guiOptions[optName]['setFunc'])
@@ -82,6 +84,14 @@ class Node(pgNode):
         if Node.raiseExceptions and self.exception is not None:
             raise self.exception[1]
 
+    def logger(self):
+        logger = logging.getLogger(
+            self.__module__ + '.' + self.__class__.__name__
+            )
+        logger.setLevel(log.LEVEL)
+        return logger
+
+    # Options and processing
     @property
     def grid(self):
         return self._grid
@@ -91,10 +101,20 @@ class Node(pgNode):
     def grid(self, val):
         self._grid = val
 
+    def validateOptions(self, data):
+        return True
+
     def process(self, **kw):
         data = kw['dataIn']
+
+        if not self.validateOptions(data):
+            return None
+
         if self.grid:
             data = togrid(data)
+
+        if data is None:
+            return None
 
         return dict(dataOut=data)
 
