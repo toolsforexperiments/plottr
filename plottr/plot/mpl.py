@@ -12,6 +12,7 @@ from mpl_toolkits.axes_grid1 import make_axes_locatable
 
 from pyqtgraph.Qt import QtGui, QtCore
 
+from ..data.datadict import DataDict, GridDataDict
 from ..node.node import Node
 
 # TODO:
@@ -48,6 +49,7 @@ def pcolorgrid(xaxis, yaxis):
     yedges = centers2edges(yaxis)
     xx, yy = np.meshgrid(xedges, yedges)
     return xx, yy
+
 
 def ppcolormesh(ax, x, y, z, cmap=None, make_grid=True, **kw):
     if cmap is None:
@@ -146,40 +148,52 @@ class AutoPlot(MPLPlotWidget):
     def _plot1d(self, data, ax, axName, dNames):
         ylabel = ""
         nylabels = 0
+
+        fmt = 'o'
+        if isinstance(data, GridDataDict):
+            fmt = 'o-'
+
         for n in dNames:
             x = data[axName]['values']
             y = data[n]['values']
-            ax.plot(x, y, 'o-', mfc='None', mew=1, lw=0.5, label=n)
+            ax.plot(x, y, fmt, mfc='None', mew=1, lw=0.5, label=n)
 
             if nylabels < self.MAXYLABELS:
-                ylabel += "{} ({}); ".format(n, data[n]['unit'])
+                ylabel += data.label(n)
+                ylabel += '; '
                 nylabels += 1
 
         ylabel = ylabel[:-2]
         if len(dNames) > self.MAXYLABELS:
             ylabel += '; [...]'
         ax.set_ylabel(ylabel)
-        ax.set_xlabel(axName + " ({})".format(data[axName]['unit']))
+        ax.set_xlabel(data.label(axName))
         ax.legend()
         self.plot.fig.tight_layout()
 
     def _plot2d(self, data, ax, xName, yName, dName):
         x = data[xName]['values']
         y = data[yName]['values']
-        zz = data[dName]['values'].T
+        z = data[dName]['values']
+        if isinstance(data, GridDataDict):
+            z = z.T
+            im = ppcolormesh(ax, x, y, z)
+        else:
+            im = ax.scatter(x, y, c=z)
 
-        im = ppcolormesh(ax, x, y, zz)
         div = make_axes_locatable(ax)
         cax = div.append_axes("right", size="5%", pad=0.05)
         self.plot.fig.colorbar(im, cax=cax)
 
         ax.set_title(dName, size='small')
-        ax.set_ylabel(yName + " ({})".format(data[yName]['unit']))
-        ax.set_xlabel(xName + " ({})".format(data[xName]['unit']))
-        cax.set_ylabel(dName + " ({})".format(data[dName]['unit']))
-    
+        ax.set_ylabel(data.label(yName))
+        ax.set_xlabel(data.label(xName))
+        cax.set_ylabel(data.label(dName))
 
     def setData(self, data):
+        if data is None:
+            return
+
         axesNames = data.axes_list()
         dataNames = data.dependents()
 
@@ -199,7 +213,7 @@ class AutoPlot(MPLPlotWidget):
             for i, dn in enumerate(dataNames):
                 ax = axes[i]
                 self._plot2d(data, ax, axesNames[0], axesNames[1], dn)
-                
+
         elif naxes > 2:
             raise ValueError('Cannot plot more than two axes. (given: {})'.format(axesNames))
 
