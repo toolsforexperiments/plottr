@@ -19,13 +19,16 @@ __license__ = 'MIT'
 # * serialization (json...)
 # * support for data where axes can themselves depend on other
 # * support for automatically creating imaginary data
+# * the notion of compatibility here is too naive i think.
+#   maybe i need to refine that a bit.
 
 
-def togrid(data, names=None, make_copy=True, sanitize=True):
+def togrid(data, names=None, make_copy=True, sanitize=True,
+           allow_incompatible=False):
     """
     Place data onto a grid, i.e., that data has the shape of a meshgrid of its axes.
-    The axes stay 1-d. 
-    If the input data is already on a grid, return existing grid 
+    The axes stay 1-d.
+    If the input data is already on a grid, return existing grid
     (potentially copied and/or sanitized).
 
     Parameters:
@@ -39,8 +42,11 @@ def togrid(data, names=None, make_copy=True, sanitize=True):
     make_copy : bool (True)
         if true, return a copy of the data.
 
-    sanitize: bool (True)
+    sanitize : bool (True)
         if true, remove unused data fields/axes.
+
+    allow_incompatible : bool (False)
+        if False, input data must have compatible axes.
 
     Returns:
     --------
@@ -69,17 +75,18 @@ def togrid(data, names=None, make_copy=True, sanitize=True):
         for r in remove:
             del data[r]
 
-    axes = []
-    n0 = None
-    for n in data.dependents():
-        if len(axes) == 0:
-            axes = data[n]['axes']
-            n0 = n
-        else:
-            if data[n]['axes'] != axes:
-                err = "Gridding multiple data sets requires compatible axes. "
-                err += "Found axes '{}' for '{}', but '{}' for '{}'.".format(axes, n0, data[n]['axes'], n)
-                raise ValueError(err)
+    if not allow_incompatible:
+        axes = []
+        n0 = None
+        for n in data.dependents():
+            if len(axes) == 0:
+                axes = data[n]['axes']
+                n0 = n
+            else:
+                if data[n]['axes'] != axes:
+                    err = "Gridding multiple data sets requires compatible axes. "
+                    err += "Found axes '{}' for '{}', but '{}' for '{}'.".format(axes, n0, data[n]['axes'], n)
+                    raise ValueError(err)
 
     if sanitize:
         data.remove_unused_axes()
@@ -117,13 +124,13 @@ class DataDictBase(dict):
     I.e., we define data 'fields', that have unit, values, and we can specify that some data has axes
     (dependencies) specified by other data fields.
 
-    This base class does not make assumptions about the structure of the values. This is implemented in 
+    This base class does not make assumptions about the structure of the values. This is implemented in
     inheriting classes.
     """
 
     def __init__(self, *arg, **kw):
         super().__init__(self, *arg, **kw)
-        
+
 
     def data(self, key):
         return self[key]['values']
@@ -154,6 +161,21 @@ class DataDictBase(dict):
                 n += ' ({})'.format(self[name]['unit'])
 
             return n
+
+    def compatible_axes(self):
+        """
+        Returns True if all dependent data fields have the same axes, False
+        otherwise.
+        """
+        axes = []
+        for i, d in enumerate(self.dependents()):
+            if i == 0:
+                axes = self.axes_list(d)
+            else:
+                if self.axes_list(d) != axes:
+                    return False
+        return True
+
 
     def axes_list(self, selectedData=None):
         lst = []
@@ -225,11 +247,60 @@ class DataDictBase(dict):
         for u in unused:
             del self[u]
 
+    def new_order(self, name, **kw):
+        """
+        return the list of axes indices that can be used
+        to re-order the axes of the dataset given by name.
+
+        kws are in the form {axes_name = new_position}.
+        """
+        # check if the given indices are each unique
+        used = []
+        for n, i in kw.items():
+            if i in used:
+                raise ValueError('Order indices have to be unique.')
+            used.append(i)
+
+        axlist = self[name]['axes']
+        neworder = [None for a in axlist]
+        oldorder = list(range(len(axlist)))
+
+        for n, newidx in kw.items():
+            neworder[newidx] = axlist.index(n)
+
+        for i in neworder:
+            if i in oldorder:
+                del oldorder[oldorder.index(i)]
+
+        for i in range(len(neworder)):
+            if neworder[i] is None:
+                neworder[i] = oldorder[0]
+                del oldorder[0]
+
+        return tuple(neworder), [self[name]['axes'][i] for i in neworder]
+
+
+    def reorder_axes(self, data_names=None, **kw):
+        """
+        Reorder the axes for all data_names. New order is
+        determined by kws in the form {axis_name : new_position}.
+
+        if data_names is None, we try all dependents in the dataset.
+        """
+        if data_names is None:
+            data_names = self.dependents()
+        if isinstance(data_names, str):
+            data_names = [data_names]
+
+        for n in data_names:
+            neworder, newaxes = self.new_order(n, **kw)
+            self[n]['axes'] = newaxes
+
 
 class DataDict(DataDictBase):
     # TODO:
     # * method to detect/remove duplicate coordinates.
-    # * 
+    # *
 
     """
     Contains data in 'linear' arrays. I.e., for data field 'z' with axes 'x' and 'y',
@@ -416,3 +487,23 @@ class GridDataDict(DataDictBase):
                 raise ValueError(msg)
 
         return True
+
+    def reorder_axes(self, data_names=None, **kw):
+        """
+        Reorder the axes for all data_names. New order is
+        determined by kws in the form {axis_name : new_position}.
+
+        if data_names is None, we try all dependents in the dataset.
+
+        Since data is on a grid, we also transpose the data accordingly.
+        """
+
+        if data_names is None:
+            data_names = self.dependents()
+        if isinstance(data_names, str):
+            data_names = [data_names]
+
+        for n in data_names:
+            neworder, newaxes = self.new_order(n, **kw)
+            self[n]['axes'] = newaxes
+            self[n]['values'] = self[n]['values'].transpose(neworder)
