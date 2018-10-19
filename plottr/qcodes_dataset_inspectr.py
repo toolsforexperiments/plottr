@@ -1,6 +1,8 @@
 import sys
 import os
 import sqlite3
+from pprint import pprint
+
 from PyQt5.QtCore import QObject, Qt, QThread, pyqtSignal, pyqtSlot
 from PyQt5.QtWidgets import (QApplication, QAction,
                              QFrame, QHBoxLayout, QLabel,
@@ -134,6 +136,7 @@ class InspectrMain(QMainWindow):
     @pyqtSlot(int)
     def triggerPlot(self, runId):
         data = datasetDictFromFile(self.filepath, runId)
+        # print(data)
         sender = DataSender("{} # run ID = {}".format(self.filepath, runId))
         sender.data['datasets'] = data
         sender.sendData()
