@@ -7,6 +7,7 @@ import pandas as pd
 import qcodes as qc
 from qcodes.dataset.data_set import DataSet
 from qcodes.dataset.experiment_container import Experiment
+from qcodes.dataset.data_export import get_data_by_id
 from qcodes.dataset.sqlite_base import (connect, get_dependencies,
                                         get_dependents, get_layout, 
                                         get_runs, _convert_array)
@@ -46,8 +47,14 @@ def getDatasetStructure(ds):
 
 def getDatasetAsDict(ds):
     struct = getDatasetStructure(ds)
+    # print(ds)
     for n in struct.keys():
-        struct[n]['values'] = np.array(ds.get_values(n)).reshape(-1).tolist()
+        data = get_data_by_id(ds.run_id)
+        for i, dep in enumerate(data):
+            for j, field in enumerate(dep):
+                # print(i, j, field['name'], field['data'].size)
+                struct[field['name']]['values'] = field['data'].reshape(-1).tolist()
+    
     return struct
 
 
