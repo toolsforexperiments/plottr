@@ -16,10 +16,7 @@ from .client import DataSender
 
 # general methods for dealing with qcodes data
 def datasetFromFile(path, runId):
-    qc.config['core']['db_location'] = path
-    ds = DataSet(path)
-    ds.run_id = runId
-    return ds
+    return DataSet(path=path, run_id=runId)
 
 
 def getDatasetStructure(ds):
