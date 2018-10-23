@@ -6,7 +6,6 @@ import numpy as np
 import pandas as pd
 import qcodes as qc
 from qcodes.dataset.data_set import DataSet
-from qcodes.dataset.experiment_container import Experiment
 from qcodes.dataset.data_export import get_data_by_id
 from qcodes.dataset.sqlite_base import (connect, get_dependencies,
                                         get_dependents, get_layout, 
@@ -17,7 +16,20 @@ from .client import DataSender
 
 # general methods for dealing with qcodes data
 def datasetFromFile(path, runId):
-    return DataSet(path_to_db=path, run_id=runId)
+    """
+    ...
+    
+    Note that `runId` cannot be `None` because in this case `DataSet` call
+    will create a new run in the database which is undesirable.
+    """
+    if runId is None:
+        raise ValueError(f'Cannot load dataset from db file {path} with "None" as run_id.')
+    ds = DataSet(path_to_db=path, run_id=runId)
+    
+    # this is needed for some routines like get_data_by_id to work ...
+    qc.config['core']['db_location'] = path
+    
+    return ds
 
 
 def getDatasetStructure(ds):
@@ -69,6 +81,9 @@ def getRunOverview(dbPath):
     try:
         conn = connect(dbPath)
         runs = get_runs(conn)
+        
+        # this is needed for some routines like get_data_by_id to work ...
+        qc.config['core']['db_location'] = dbPath
     except:
         raise
 
@@ -84,16 +99,11 @@ def getRunOverview(dbPath):
         'dataRecords' : [],
     }
 
-    qc.config['core']['db_location'] = dbPath
-
     for runId in dsets['runId']:
-        ds = DataSet(dbPath)
-        ds.run_id = runId
-        exp = Experiment(dbPath)
-        exp.exp_id = ds.exp_id
-
-        dsets['experimentName'].append(exp.name)
-        dsets['sampleName'].append(exp.sample_name)
+        ds = datasetFromFile(dbPath, runId)
+        
+        dsets['experimentName'].append(ds.exp_name)
+        dsets['sampleName'].append(ds.sample_name)
 
         structure = getDatasetStructure(ds)
         dsInfo = ""
@@ -132,9 +142,8 @@ class QcodesDatasetSubscriber(object):
 
     def __init__(self, dataset, log=False):
         self.ds = dataset
-        dbpath = os.path.abspath(qc.config['core']['db_location'])
 
-        self.dataId = "{} # run ID = {}".format(dbpath, self.ds.run_id)
+        self.dataId = "{} # run ID = {}".format(self.ds.path_to_db, self.ds.run_id)
         self.sender = DataSender(self.dataId)
         self.params = [ p.name for p in self.ds.get_parameters() ]
         self.dataStructure = getDatasetStructure(self.ds)
