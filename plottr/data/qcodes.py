@@ -4,7 +4,7 @@ import time
 import qcodes as qc
 from qcodes.dataset.experiment_container import Experiment
 from qcodes.dataset.data_set import DataSet
-from qcodes.dataset.sqlite_base import (get_dependencies, one, transaction,
+from qcodes.dataset.sqlite_base import (get_dependencies,
                                         get_dependents, get_layout)
 from .datadict import DataDict
 
@@ -12,29 +12,11 @@ class DataSetDict(DataDict):
 
     @staticmethod
     def get_run_timestamp(ds):
-        sql = """
-        SELECT run_timestamp
-        FROM
-        runs
-        WHERE
-        run_id= ?
-        """
-        c = transaction(ds.conn, sql, ds.run_id)
-        run_timestamp = one(c, 'run_timestamp')
-        return run_timestamp
+        return ds.run_timestamp_raw
 
     @staticmethod
     def get_completed_timestamp(ds):
-        sql = """
-        SELECT completed_timestamp
-        FROM
-        runs
-        WHERE
-        run_id= ?
-        """
-        c = transaction(ds.conn, sql, ds.run_id)
-        timestamp = one(c, 'completed_timestamp')
-        return timestamp
+        return ds.completed_timestamp_raw
     
     @staticmethod
     def get_dataset_structure(ds):
@@ -71,16 +53,9 @@ class DataSetDict(DataDict):
                 raise ValueError("Cannot specify both run_id and initial data.")
             super().__init__()
             self.from_dataset()
-    
-    def _exp(self):
-        exp = Experiment(self._filepath)
-        exp.exp_id = self._ds().exp_id
-        return exp
 
     def _ds(self):
-        ds = DataSet(self._filepath)
-        ds.run_id = self._run_id
-        return ds
+        return DataSet(path_to_db=self._filepath, run_id=self._run_id)
 
     def from_dataset(self):
         ds = self._ds()    
@@ -95,19 +70,15 @@ class DataSetDict(DataDict):
 
     def get_snapshot(self):
         ds = self._ds()
-        try:
-            s = ds.get_metadata('snapshot')
-            return json.loads(s)
-        except:
-            return {}
+        return ds.snapshot or {}
 
     def fill_dataset_info(self):
         self.ds_info = {}
 
         self.ds_info['filepath'] = self._filepath
         self.ds_info['run_id'] = self._run_id
-        self.ds_info['exp_name'] = self._exp().name
-        self.ds_info['sample_name'] = self._exp().sample_name
+        self.ds_info['exp_name'] = self._ds().exp_name
+        self.ds_info['sample_name'] = self._ds().sample_name
         self.ds_info['run_timestamp'] = time.strftime(
             "%Y-%m-%d %H:%M:%S",
             time.localtime(self.get_run_timestamp(self._ds())))
