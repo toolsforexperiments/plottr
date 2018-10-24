@@ -20,7 +20,10 @@ __license__ = 'MIT'
 
 # TODO:
 # * implement a threaded version of Node
-#
+# * gridding should probably be its own node (incl UI)
+#   grid = False should then also imply un-gridding
+# * retire NodesWidget
+# * needed: an order widget for filters
 
 class Node(pgNode):
 
@@ -108,6 +111,7 @@ class Node(pgNode):
         data = kw['dataIn']
 
         if not self.validateOptions(data):
+            self.logger().debug("Option validation not passed")
             return None
 
         if self.grid:
