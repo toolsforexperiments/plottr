@@ -32,6 +32,25 @@ def two_compatible_noisy_2d_sets(nx=10, ny=10):
     )
     return d
 
+def three_compatible_3d_sets(nx=3, ny=3, nz=3, rand_factor=1):
+    x = np.linspace(0, 10, nx)
+    y = np.linspace(-5, 5, ny)
+    z = np.arange(nz)
+    xx, yy, zz = np.meshgrid(x, y, z, indexing='ij')
+    dd = np.cos(xx) * np.sin(yy) + rand_factor * np.random.rand(*zz.shape)
+    dd2 = np.sin(xx) * np.cos(yy) + rand_factor * np.random.rand(*zz.shape)
+    dd3 = np.cos(xx)**2 * np.cos(yy)**2 + rand_factor * np.random.rand(*zz.shape)
+
+    d = DataDict(
+        x = dict(values=xx.reshape(-1), unit='mA'),
+        y = dict(values=yy.reshape(-1), unit='uC'),
+        z = dict(values=zz.reshape(-1), unit='nF'),
+        data = dict(values=dd.reshape(-1), axes=['x', 'y', 'z'], unit='kW'),
+        more_data = dict(values=dd2.reshape(-1), axes=['x', 'y', 'z'], unit='MV'),
+        different_data = dict(values=dd3.reshape(-1), axes=['x', 'y', 'z'], unit='TS')
+    )
+    return d
+
 def three_incompatible_3d_sets(nx=3, ny=3, nz=3, rand_factor=1):
     x = np.linspace(0, 10, nx)
     y = np.linspace(-5, 5, ny)
