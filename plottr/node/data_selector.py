@@ -17,96 +17,142 @@ from ..data.datadict import togrid, DataDict, GridDataDict
 __author__ = 'Wolfgang Pfaff'
 __license__ = 'MIT'
 
+# TODO:
+# * should be able to convert gridded to non-gridded data
+# * display output shape when gridding/non-gridding
 
-class DataSelectorWidget(QtGui.QWidget):
+class DataTable(QtGui.QTreeWidget):
 
-    dataSelected = QtCore.pyqtSignal(list)
+    selectionChanged = QtCore.pyqtSignal(list)
 
-    def __init__(self, parent=None, **kw):
-        super().__init__(parent=parent, **kw)
+    def __init__(self, parent=None, readonly=True):
+        super().__init__(parent)
 
-        self._triggerUpdateSelectables = True
-        self._dataOptions = {}
-        self._selectedData = []
-        self._dataStructure = None
+        self.setColumnCount(4)
+        self.setHeaderLabels(['', 'Name', 'Shape', 'Unit'])
+        self.checkBoxes = {}
+        self._emitSelection = True
 
-        self.dataLayout = QtGui.QFormLayout()
-        dataGroup = QtGui.QGroupBox('Data selection')
-        dataGroup.setLayout(self.dataLayout)
+    def setData(self, struct, readonly):
+        for n in struct.dependents():
+            item = self._makeItem(struct, n)
+            axes = struct[n]['axes']
+            for ax in axes:
+                child = self._makeItem(struct, ax)
+                item.addChild(child)
+            self.addTopLevelItem(item)
 
-        gridLayout = QtGui.QFormLayout()
-        self.gridchk = QtGui.QCheckBox()
-        gridLayout.addRow('Make grid', self.gridchk)
+            if not readonly:
+                chk = QtGui.QCheckBox()
+                self.setItemWidget(item, 0, chk)
+                self.checkBoxes[n] = chk
+                chk.stateChanged.connect(self.signalSelection)
 
-        layout = QtGui.QVBoxLayout(self)
-        layout.addLayout(gridLayout)
-        layout.addWidget(dataGroup)
+        for i in range(4):
+            self.resizeColumnToContents(i)
 
+    def _makeItem(self, struct, name):
+        return QtGui.QTreeWidgetItem([
+            '', name, str(struct[name]['info'].get('shape', '')),
+                struct[name]['unit']
+            ])
 
-    def _deleteDataOptions(self, names):
-        for name in names:
-            v = self._dataOptions[name]
-            self.dataLayout.removeWidget(v['widget'])
-            self.dataLayout.removeWidget(v['label'])
-            v['widget'].deleteLater()
-            v['label'].deleteLater()
-            del self._dataOptions[name]
+    def setItemEnabled(self, name, enable=True):
+        item = self.findItems(name, QtCore.Qt.MatchExactly, 1)[0]
+        item.setDisabled(not enable)
+        self.checkBoxes[name].setDisabled(not enable)
 
     def getSelected(self):
         ret = []
-        for n, v in self._dataOptions.items():
-            if v['widget'].isChecked():
+        for n, w in self.checkBoxes.items():
+            if w.isChecked():
                 ret.append(n)
         return ret
 
-    def setSelected(self, names):
-        for n, v in self._dataOptions.items():
-            if n in names:
-                v['widget'].setChecked(True)
-            else:
-                v['widget'].setChecked(False)
+    def clear(self):
+        for n, w in self.checkBoxes.items():
+            w.setChecked(False)
+        super().clear()
 
+    def clearSelected(self, emit=True):
+        if not emit:
+            self._emitSelection = False
+        for n, w in self.checkBoxes.items():
+            w.setChecked(False)
+
+        self._emitSelection = True
+
+    def setSelected(self, names):
+        self._emitSelection = False
+        for n, w in self.checkBoxes.items():
+            if n in names:
+                w.setChecked(True)
+            else:
+                w.setChecked(False)
+        self._emitSelection = True
+
+    def signalSelection(self):
+        if self._emitSelection:
+            selected = self.getSelected()
+            self.selectionChanged.emit(selected)
+
+
+class DataDisplayWidget(QtGui.QWidget):
+
+    dataSelected = QtCore.pyqtSignal(list)
+
+    def __init__(self, parent=None, readonly=False, **kw):
+        super().__init__(parent=parent, **kw)
+
+        self._readonly = readonly
+        self._selectedData = []
+        self._dataStructure = None
+
+        self.tbl = DataTable(self, readonly=readonly)
+        layout = QtGui.QVBoxLayout()
+        layout.addWidget(self.tbl)
+
+        if not readonly:
+            self.gridchk = QtGui.QCheckBox()
+            self.gridlbl = QtGui.QLabel('Data on grid')
+            gridlayout = QtGui.QFormLayout()
+            gridlayout.addRow(self.gridlbl, self.gridchk)
+            layout.addLayout(gridlayout)
+
+        layout.addStretch()
+        self.setLayout(layout)
 
     @QtCore.pyqtSlot(object)
     def setDataStructure(self, structure):
         self._dataStructure = structure
-
-        delete = []
-        for k, v in self._dataOptions.items():
-            delete.append(k)
-        self._deleteDataOptions(delete)
+        self.tbl.clear()
 
         if structure is not None:
-            for n in structure.dependents():
-                if n not in self._dataOptions:
-                    lbl = QtGui.QLabel(n)
-                    chk = QtGui.QCheckBox()
-                    self._dataOptions[n] = dict(label=lbl, widget=chk)
-                    self.dataLayout.addRow(lbl, chk)
-                    chk.stateChanged.connect(lambda x: self.updateDataSelection())
+            self.tbl.setData(structure, self._readonly)
+            self.tbl.selectionChanged.connect(self.emitDataSelection)
 
-    @QtCore.pyqtSlot()
-    def updateDataSelection(self):
-        selected = []
-
-        for k, v in self._dataOptions.items():
-            if v['widget'].isChecked():
-                selected.append(k)
-
-        ds = self._dataStructure
-        for k, v in self._dataOptions.items():
-            if selected != [] and ds.axes_list(k) != ds.axes_list(selected[0]):
-                    self._dataOptions[k]['widget'].setDisabled(True)
-            else:
-                self._dataOptions[k]['widget'].setDisabled(False)
-
+    @QtCore.pyqtSlot(list)
+    def emitDataSelection(self, selected):
         self.dataSelected.emit(selected)
+
+    @QtCore.pyqtSlot(list)
+    def updateOptions(self, selected):
+        ds = self._dataStructure
+        for n, w in self.tbl.checkBoxes.items():
+            if selected != [] and ds[n]['axes'] != ds[selected[0]]['axes']:
+                self.tbl.setItemEnabled(n, False)
+            else:
+                self.tbl.setItemEnabled(n, True)
+
+    def setSelected(self, selected):
+        self.tbl.setSelected(selected)
+        self.updateOptions(selected)
 
 
 class DataSelector(Node):
 
     nodeName = "DataSelector"
-    uiClass = DataSelectorWidget
+    uiClass = DataDisplayWidget
 
     guiOptions = {
         'grid' : {
@@ -129,7 +175,6 @@ class DataSelector(Node):
 
         self.grid = True
 
-
     ### Properties
 
     @property
@@ -149,14 +194,14 @@ class DataSelector(Node):
 
         vals = []
         if len(val) > 0:
-            allowed_axes = self._dataStructure.axes_list(val[0])
+            allowed_axes = self._dataStructure[val[0]]['axes']
             for v in val:
-                axes = self._dataStructure.axes_list(v)
+                axes = self._dataStructure[v]['axes']
                 if axes == allowed_axes:
                     vals.append(v)
                 else:
-                    raise ValueError(f'Datasets {vals[0]}(with axes {allowed_axes})'
-                                     f'and {v}(with axes {axes}) are not compatible'
+                    raise ValueError(f'Datasets {vals[0]}(with axes {allowed_axes}) '
+                                     f'and {v}(with axes {axes}) are not compatible '
                                      f'and cannot be selected simultanously.')
 
         self._selectedData = vals
