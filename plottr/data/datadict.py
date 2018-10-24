@@ -16,11 +16,14 @@ __license__ = 'MIT'
 # TODO:
 # * add possibility for metadata, say for keys in the format __key__
 #   (then should have dataItems() and metaItems() or so)
+#   that would be very nice also for sending instructions/info
+#   to nodes.
 # * serialization (json...)
-# * support for data where axes can themselves depend on other
 # * support for automatically creating imaginary data
 # * the notion of compatibility here is too naive i think.
 #   maybe i need to refine that a bit.
+# * need a class for non-uniform grids (where say x-pts change with y, etc.)
+#   in that case gridding is very easy (namely by manually supplied shape)
 
 
 def togrid(data, names=None, make_copy=True, sanitize=True,
