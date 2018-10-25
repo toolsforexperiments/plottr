@@ -25,10 +25,9 @@ __license__ = 'MIT'
 #   in the node, but is not reflected in the node until we make a change.
 #   it would be ok for the options to either persist when no data is selected,
 #   OR to make the correct selections appear after re-selecting.
-# * ungridded data does not play well with the gui yet. somehow when going from
-#   gridded data to ungridded, the reductions/axes are not set correctly.
-#   in particular, the data selectAxis reduction pops up.
-#   de-selecting an axis also does not default to 'ignore' then.
+# * ungridded data: make sure no sliders appear and reduction info gets set to ''
+# * ATM xy and reduction signals are called separate, resulting in two processing
+#   events when dropdowns have changes. should combine that.
 
 
 # Some helpful reduction functions
@@ -121,14 +120,20 @@ class DimensionReducer(Node):
     @staticmethod
     def encodeReductions(reductions):
         red = {}
-        for k, (f, arg, kw) in reductions.items():
+        for k, val in reductions.items():
+            if val is None:
+                continue
+            f, arg, kw = val
             red[k] = (reductionNameFromFunc(f), arg, kw)
         return red
 
     @staticmethod
     def decodeReductions(reductions):
         red = {}
-        for k, (n, arg, kw) in reductions.items():
+        for k, val in reductions.items():
+            if val is None:
+                continue
+            n, arg, kw = val
             red[k] = (reductionFuncFromName(n), arg, kw)
         return red
 
@@ -145,7 +150,11 @@ class DimensionReducer(Node):
 
         for n in dnames:
             for ax, reduction in self._reductions.items():
-                fun, arg, kw = reduction
+                if reduction is not None:
+                    fun, arg, kw = reduction
+                else:
+                    fun, arg, kw = None, [], {}
+
                 try:
                     idx = data[n]['axes'].index(ax)
                 except IndexError:
@@ -173,7 +182,9 @@ class DimensionReducer(Node):
 
         data.remove_unused_axes()
         data.validate()
+
         return data
+
 
     def validateOptions(self, data):
         """
@@ -181,7 +192,17 @@ class DimensionReducer(Node):
         * each item in reduction must be of the form (fun, [*arg], {**kw}),
           with arg and kw being optional.
         """
+
+        delete = []
         for ax, reduction in self._reductions.items():
+            if reduction is None:
+                if isinstance(data, GridDataDict):
+                    self.logger().warning(f'Reduction for axis {ax} is None. Removing.')
+                    delete.append(ax)
+                else:
+                    pass
+                continue
+
             try:
                 fun = reduction[0]
                 if len(reduction) == 1:
@@ -195,6 +216,9 @@ class DimensionReducer(Node):
                 return False
 
             self._reductions[ax] = (fun, arg, kw)
+
+        for ax in delete:
+            del self._reductions[ax]
 
         return True
 
@@ -319,7 +343,7 @@ class XYAxesSelectionWidget(QtGui.QTreeWidget):
 
             # cannot have multiple axes selected as x or y
             self._setRole(axis, newSelection)
-            if newSelection in ['x-axis', 'y-axis']:
+            if newSelection in ['x-axis', 'y-axis', '']:
                 for ax, opt in self.choices.items():
                     if ax != axis and opt['role'].currentText() == newSelection:
 
@@ -342,6 +366,7 @@ class XYAxesSelectionWidget(QtGui.QTreeWidget):
         When data is gridded, we can use axes reductions.
         When it's not, we want to hide options that aren't applicable.
         """
+
         combo = self.choices[ax]['role']
         for o in self.gridOnlyOptions:
             idx = combo.findText(o)
@@ -358,6 +383,8 @@ class XYAxesSelectionWidget(QtGui.QTreeWidget):
         role selection widgets correctly.
         """
         # TODO: things when data size changes
+
+        self._emitChoiceChange = False
 
         _set = False
         if structure is None or self._dataStructure is None:
@@ -376,6 +403,8 @@ class XYAxesSelectionWidget(QtGui.QTreeWidget):
             self._grid = grid
             for ax in self._dataStructure.axes_list():
                 self._enableGrid(ax, self._grid)
+
+        self._emitChoiceChange = True
 
     # Handling of particular options
 
@@ -428,7 +457,11 @@ class XYAxesSelectionWidget(QtGui.QTreeWidget):
         red = DimensionReducer.encodeReductions(reductions)
 
         # now can set the role by name for each reduction
-        for ax, (name, args, kwargs) in red.items():
+        for ax, val in red.items():
+            if val is None:
+                continue
+
+            name, args, kwargs = val
             if self._getRole(ax) != name:
                 self._setRole(ax, name)
 
@@ -573,7 +606,7 @@ class XYAxesSelector(DimensionReducer):
 
         # Check: an axis marked as x/y cannot be also reduced.
         delete = []
-        for n, _ in self.reductions.items():
+        for n, _ in self._reductions.items():
             if n in self._xyAxes:
                 self.logger().debug(f"{n} has been selected as axis, cannot be reduced.")
                 delete.append(n)
@@ -583,12 +616,29 @@ class XYAxesSelector(DimensionReducer):
 
         # check: axes not marked as x/y should all be reduced.
         for ax in availableAxes:
-            if ax not in self._xyAxes and ax not in self.reductions:
-                self.logger().debug(f"{ax} must be reduced. Default to selecting first element.")
-                self._reductions[ax] = (selectAxisElement, [], dict(index=0))
-                reductionsChanged = True
+            if ax not in self._xyAxes:
+                if ax not in self._reductions:
+                    self.logger().debug(f"{ax} must be reduced. Default to selecting first element.")
+
+                    # reductions are only supported on GridData
+                    if isinstance(data, GridDataDict):
+                        red = (selectAxisElement, [], dict(index=0))
+                    else:
+                        red = None
+
+                    self._reductions[ax] = red
+                    reductionsChanged = True
+
+                # elif self.reductions[ax] in [None, (None, [], {})]:
+                #     if isinstance(data.GridDataDict):
+                #         self._reductions[ax] = (selectAxisElement, [], dict(index=0))
+                #         reductionsChanged = True
+                #     else:
+                #         self._reductions[ax] = (None, [], {})
+                #         reductionsChanged = True
 
         if reductionsChanged:
+            print('emit')
             self.optionChanged.emit('reductions', self._reductions)
 
         # some output infos for the reduction widgets
@@ -598,7 +648,7 @@ class XYAxesSelector(DimensionReducer):
             if item[0] == 'select value':
                 idx = item[2].get('index')
                 infos[ax] = (f"pt. {idx+1}/{len(data[ax]['values'])}"
-                             f" ({data[ax]['values'][idx]} {data[ax]['unit']})")
+                            f" ({data[ax]['values'][idx]} {data[ax]['unit']})")
         self.sendAxisInfo.emit(infos)
 
         return True
@@ -634,10 +684,12 @@ class XYAxesSelector(DimensionReducer):
 
     @QtCore.pyqtSlot(tuple)
     def _setXYAxes(self, xy):
+        print('xy from gui')
         self.xyAxes = xy
 
     @QtCore.pyqtSlot(dict)
     def _setReductions(self, reductionsEncoded):
+        print('reductions from gui')
         reductions = DimensionReducer.decodeReductions(reductionsEncoded)
         self.reductions = reductions
 
