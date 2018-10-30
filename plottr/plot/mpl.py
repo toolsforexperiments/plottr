@@ -70,9 +70,6 @@ def ppcolormesh(ax, x, y, z, cmap=None, make_grid=True, **kw):
 class PlotNode(Node):
 
     nodeName = 'Plot'
-    terminals = {
-        'dataIn' : {'io' : 'in'},
-    }
 
     newPlotData = QtCore.pyqtSignal(object)
 
@@ -83,6 +80,7 @@ class PlotNode(Node):
     def process(self, **kw):
         data = kw['dataIn']
         self.newPlotData.emit(data)
+        return dict(dataOut=data)
 
 
 class MPLPlot(FCanvas):
