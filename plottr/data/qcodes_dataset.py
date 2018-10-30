@@ -35,7 +35,7 @@ class DataSetDict(DataDict):
         c = transaction(ds.conn, sql, ds.run_id)
         timestamp = one(c, 'completed_timestamp')
         return timestamp
-    
+
     @staticmethod
     def get_dataset_structure(ds):
         structure = {}
@@ -57,13 +57,13 @@ class DataSetDict(DataDict):
                 structure[dep_name] = {'values' : [], 'unit' : dep_layout['unit']}
 
         return structure
-    
+
     def __init__(self, filepath=None, run_id=None, *arg, **kw):
         if filepath is None:
             filepath = qc.config['core']['db_location']
         self._filepath = filepath
         self._run_id = run_id
-        
+
         if self._run_id is None:
             super().__init__(*arg, **kw)
         else:
@@ -71,7 +71,7 @@ class DataSetDict(DataDict):
                 raise ValueError("Cannot specify both run_id and initial data.")
             super().__init__()
             self.from_dataset()
-    
+
     def _exp(self):
         exp = Experiment(self._filepath)
         exp.exp_id = self._ds().exp_id
@@ -83,11 +83,11 @@ class DataSetDict(DataDict):
         return ds
 
     def from_dataset(self):
-        ds = self._ds()    
+        ds = self._ds()
         self.clear()
         for k, v in DataSetDict.get_dataset_structure(ds).items():
             self[k] = v
-        
+
         for k in self.keys():
             self[k]['values'] = np.array(ds.get_data(k)).reshape(-1)
 
