@@ -21,6 +21,9 @@ __license__ = 'MIT'
 # * should be able to convert gridded to non-gridded data
 # * display output shape when gridding/non-gridding
 
+# FIXME:
+# * not displaying shape info yet.
+
 class DataTable(QtGui.QTreeWidget):
 
     selectionChanged = QtCore.pyqtSignal(list)
@@ -114,7 +117,7 @@ class DataDisplayWidget(QtGui.QWidget):
 
         if not readonly:
             self.gridchk = QtGui.QCheckBox()
-            self.gridlbl = QtGui.QLabel('Data on grid')
+            self.gridlbl = QtGui.QLabel('Place data on grid')
             gridlayout = QtGui.QFormLayout()
             gridlayout.addRow(self.gridlbl, self.gridchk)
             layout.addLayout(gridlayout)
