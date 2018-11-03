@@ -19,9 +19,9 @@ __author__ = 'Wolfgang Pfaff'
 __license__ = 'MIT'
 
 
-# FIXME:
+# TODO:
 # * ATM xy and reduction signals are called separate, resulting in two processing
-#   events when dropdowns have changes. should combine that.
+#   events when dropdowns have changed. should combine that.
 
 
 # Some helpful reduction functions
@@ -357,10 +357,11 @@ class XYAxesSelectionWidget(QtGui.QTreeWidget):
                         self._setRole(ax, None)
                         self._emitChoiceChange = True
 
-                # this can only happen when newSelection is x/y axis.
-                self.xyAxesChanged.emit(self._getXY())
-
-            # any role change basically results in a change in reductions.
+            # this might be overkill, but for now always emit option change.
+            # TODO: in the long run, probably want to combine this into
+            #       one signal, and have the node itself determine if action
+            #       is necessary.
+            self.xyAxesChanged.emit(self._getXY())
             self.reductionsChanged.emit(self._getReductions())
 
     # Data structure handling
