@@ -660,7 +660,7 @@ class XYAxesSelector(DimensionReducer):
             if isinstance(data, GridDataDict) and item[0] == 'select value':
                 idx = item[2].get('index')
                 infos[ax] = (f"pt. {idx+1}/{len(data[ax]['values'])}"
-                            f" ({data[ax]['values'][idx]} {data[ax]['unit']})")
+                            f" ({data[ax]['values'][idx]:1.3e} {data[ax]['unit']})")
             else:
                 infos[ax] = ''
 
