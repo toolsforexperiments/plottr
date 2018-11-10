@@ -3,7 +3,7 @@ Generation of useful test data.
 """
 
 import numpy as np
-from plottr.data.datadict import togrid, DataDict, GridDataDict
+from plottr.data.datadict import DataDict
 
 def two_1d_traces(nvals=11):
     x = np.linspace(0, 10, nvals)
@@ -14,6 +14,7 @@ def two_1d_traces(nvals=11):
         y = {'values' : y, 'axes' : ['x']},
         z = {'values' : z, 'axes' : ['x']},
     )
+    d.validate()
     return d
 
 def one_2d_set(nx=10, ny=10):
@@ -28,6 +29,7 @@ def one_2d_set(nx=10, ny=10):
         y = dict(values=yy.reshape(-1)),
         cos_data = dict(values=dd.reshape(-1), axes=['x', 'y']),
     )
+    d.validate()
     return d
 
 def two_compatible_noisy_2d_sets(nx=10, ny=10):
@@ -44,6 +46,7 @@ def two_compatible_noisy_2d_sets(nx=10, ny=10):
         cos_data = dict(values=dd.reshape(-1), axes=['x', 'y']),
         sin_data = dict(values=dd2.reshape(-1), axes=['x', 'y']),
     )
+    d.validate()
     return d
 
 def three_compatible_3d_sets(nx=3, ny=3, nz=3, rand_factor=1):
@@ -63,6 +66,7 @@ def three_compatible_3d_sets(nx=3, ny=3, nz=3, rand_factor=1):
         more_data = dict(values=dd2.reshape(-1), axes=['x', 'y', 'z'], unit='MV'),
         different_data = dict(values=dd3.reshape(-1), axes=['x', 'y', 'z'], unit='TS')
     )
+    d.validate()
     return d
 
 def three_incompatible_3d_sets(nx=3, ny=3, nz=3, rand_factor=1):
@@ -81,4 +85,5 @@ def three_incompatible_3d_sets(nx=3, ny=3, nz=3, rand_factor=1):
         more_data = dict(values=dd2.reshape(-1), axes=['x', 'y', 'z'], unit='MV'),
         different_data = dict(values=dd2.T.reshape(-1), axes=['z', 'y', 'x'], unit='TS')
     )
+    d.validate()
     return d
