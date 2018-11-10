@@ -21,8 +21,7 @@ from .plot.mpl import PlotNode, AutoPlot
 __author__ = 'Wolfgang Pfaff'
 __license__ = 'MIT'
 
-# TODO:
-# * separate logging window
+# TODO: * separate logging window
 
 def autoplot(makeUI: bool=True, log: bool=False, loglevel: int=logging.INFO,
              inputData: Union[None, DataDictBase]=None):
