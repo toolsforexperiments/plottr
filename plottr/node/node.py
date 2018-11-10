@@ -12,18 +12,15 @@ import numpy as np
 from pyqtgraph.flowchart import Flowchart, Node as pgNode
 from pyqtgraph.Qt import QtGui, QtCore
 
-from ..data.datadict import togrid, DataDict, GridDataDict
+from ..data import datadict as dd
+from ..data.datadict import DataDict
 from .. import log
 
 __author__ = 'Wolfgang Pfaff'
 __license__ = 'MIT'
 
-# TODO:
-# * implement a threaded version of Node
-# * gridding should probably be its own node (incl UI)
-#   grid = False should then also imply un-gridding
-# * retire NodesWidget
-# * needed: an order widget for filters
+# TODO: implement a threaded version of Node
+# TODO: needed: an order widget for filters
 
 class Node(pgNode):
 
@@ -45,8 +42,6 @@ class Node(pgNode):
         super().__init__(name, terminals=self.__class__.terminals)
 
         self.signalUpdate = True
-        self._grid = False
-        self._selectedData = None
         self.optionChanged.connect(self.processOptionUpdate)
 
         if self.useUi and self.__class__.uiClass is not None:
@@ -95,14 +90,14 @@ class Node(pgNode):
         return logger
 
     # Options and processing
-    @property
-    def grid(self):
-        return self._grid
+    # @property
+    # def grid(self):
+    #     return self._grid
 
-    @grid.setter
-    @updateOption('grid')
-    def grid(self, val):
-        self._grid = val
+    # @grid.setter
+    # @updateOption('grid')
+    # def grid(self, val):
+    #     self._grid = val
 
     def validateOptions(self, data):
         return True
@@ -114,8 +109,8 @@ class Node(pgNode):
             self.logger().debug("Option validation not passed")
             return None
 
-        if self.grid:
-            data = togrid(data)
+        # if self.grid:
+        #     data = togrid(data)
 
         if data is None:
             return None
@@ -123,15 +118,15 @@ class Node(pgNode):
         return dict(dataOut=data)
 
 
-class NodesWidget(QtGui.QWidget):
+# class NodesWidget(QtGui.QWidget):
 
-    def __init__(self, parent=None, node=None):
-        super().__init__(parent=parent)
-        self.layout = QtGui.QVBoxLayout(self)
+#     def __init__(self, parent=None, node=None):
+#         super().__init__(parent=parent)
+#         self.layout = QtGui.QVBoxLayout(self)
 
-    def addNodeWidget(self, node, name):
-        group = QtGui.QGroupBox(name)
-        layout = QtGui.QVBoxLayout()
-        group.setLayout(layout)
-        layout.addWidget(node.ctrlWidget())
-        self.layout.addWidget(group)
+#     def addNodeWidget(self, node, name):
+#         group = QtGui.QGroupBox(name)
+#         layout = QtGui.QVBoxLayout()
+#         group.setLayout(layout)
+#         layout.addWidget(node.ctrlWidget())
+#         self.layout.addWidget(group)
