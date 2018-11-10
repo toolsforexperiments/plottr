@@ -13,7 +13,7 @@ from pyqtgraph import Qt
 from pyqtgraph.Qt import QtGui, QtCore
 
 from .node import Node
-from ..data.datadict import togrid, DataDict, GridDataDict
+from ..data.datadict import DataDict, MeshgridDataDict
 
 __author__ = 'Wolfgang Pfaff'
 __license__ = 'MIT'
@@ -139,7 +139,7 @@ class DimensionReducer(Node):
         else:
             dnames = data.dependents()
 
-        if not isinstance(data, GridDataDict):
+        if not isinstance(data, MeshgridDataDict):
             self.logger().debug(f"Data is not on a grid. Reduction functions are ignored, axes will simply be removed.")
 
         for n in dnames:
@@ -156,7 +156,7 @@ class DimensionReducer(Node):
 
                 kw['axis'] = idx
 
-                if isinstance(data, GridDataDict):
+                if isinstance(data, MeshgridDataDict):
                     # check that the new shape is actually correct
                     # get target shape by removing the right axis
                     targetShape = list(data[n]['values'].shape)
@@ -172,9 +172,15 @@ class DimensionReducer(Node):
                         return None
                     data[n]['values'] = newvals
 
+                    # since we are on a meshgrid, we also need to reduce
+                    # the dimensions of the coordinate meshes
+                    for ax in data[n]['axes']:
+                        if len(data.data_vals(ax).shape) > len(targetShape):
+                            data[ax]['values'] = fun(data[ax]['values'], *arg, **kw)
+
                 del data[n]['axes'][idx]
 
-        data.remove_unused_axes()
+        data.sanitize()
         data.validate()
 
         return data
@@ -190,7 +196,7 @@ class DimensionReducer(Node):
         delete = []
         for ax, reduction in self._reductions.items():
             if reduction is None:
-                if isinstance(data, GridDataDict):
+                if isinstance(data, MeshgridDataDict):
                     self.logger().warning(f'Reduction for axis {ax} is None. Removing.')
                     delete.append(ax)
                 else:
@@ -306,7 +312,10 @@ class XYAxesSelectionWidget(QtGui.QTreeWidget):
 
         if self._grid and role == 'select value': # and w is None:
             # TODO: set slider from current value?
-            w = self._axisSlider(self._dataStructure[ax]['info']['shape'][0])
+            axidx = self._dataStructure.axes().index(ax)
+            axlen = self._dataStructure.data_meta(ax)['shape'][axidx]
+
+            w = self._axisSlider(axlen)
             self.choices[ax]['options'] = w
             self.setItemWidget(item, 2, w)
             w.setMinimumSize(150, 22)
@@ -343,6 +352,7 @@ class XYAxesSelectionWidget(QtGui.QTreeWidget):
         we need to check whether we need to update other roles, and update
         role options.
         """
+
         if self._emitChoiceChange:
 
             # cannot have multiple axes selected as x or y
@@ -358,9 +368,7 @@ class XYAxesSelectionWidget(QtGui.QTreeWidget):
                         self._emitChoiceChange = True
 
             # this might be overkill, but for now always emit option change.
-            # TODO: in the long run, probably want to combine this into
-            #       one signal, and have the node itself determine if action
-            #       is necessary.
+            # FIXME: need to combine this into one signal.
             self.xyAxesChanged.emit(self._getXY())
             self.reductionsChanged.emit(self._getReductions())
 
@@ -374,7 +382,7 @@ class XYAxesSelectionWidget(QtGui.QTreeWidget):
         self._grid = enable
 
         if self._dataStructure is not None:
-            for ax in self._dataStructure.axes_list():
+            for ax in self._dataStructure.axes():
                 combo = self.choices[ax]['role']
                 for o in self.gridOnlyOptions:
                     idx = combo.findText(o)
@@ -397,12 +405,12 @@ class XYAxesSelectionWidget(QtGui.QTreeWidget):
         _set = False
         if structure is None or self._dataStructure is None:
             _set = True
-        elif structure.axes_list() != self._dataStructure.axes_list():
+        elif structure.axes() != self._dataStructure.axes():
             _set = True
         if _set:
             self.clear()
             if structure is not None:
-                for ax in structure.axes_list():
+                for ax in structure.axes():
                     self.addAxis(ax, grid=grid)
 
         self._dataStructure = structure
@@ -523,7 +531,10 @@ class XYAxesSelectionWidget(QtGui.QTreeWidget):
 
     @QtCore.pyqtSlot(str, int)
     def axisValueSelected(self, ax, idx):
-        info = f"{idx+1}/{self._dataStructure[ax]['info']['shape'][0]}"
+        axidx = self._dataStructure.axes().index(ax)
+        axlen = self._dataStructure.data_meta(ax)['shape'][axidx]
+
+        info = f"{idx+1}/{axlen}"
         self.setInfo(ax, info)
         if self._emitChoiceChange:
             self.reductionsChanged.emit(self._getReductions())
@@ -562,7 +573,7 @@ class XYAxesSelector(DimensionReducer):
 
         self._xyAxes = None, None
         self._dataStructure = None
-        self._grid = True
+        # self._grid = True
 
         super().__init__(*arg, **kw)
 
@@ -587,10 +598,11 @@ class XYAxesSelector(DimensionReducer):
         * x/y axes cannot be reduced (will be removed from reductions)
         * all axes that are not x/y must be reduced (defaulting to selection of the first element)
         """
+        # TODO: break this up into smaller pieces.
 
         if not super().validateOptions(data):
             return False
-        availableAxes = data.axes_list()
+        availableAxes = data.axes()
 
         if len(availableAxes) > 0:
             if self._xyAxes[0] is None:
@@ -631,7 +643,7 @@ class XYAxesSelector(DimensionReducer):
                     self.logger().debug(f"{ax} must be reduced. Default to selecting first element.")
 
                     # reductions are only supported on GridData
-                    if isinstance(data, GridDataDict):
+                    if isinstance(data, MeshgridDataDict):
                         red = (selectAxisElement, [], dict(index=0))
                     else:
                         red = None
@@ -639,28 +651,46 @@ class XYAxesSelector(DimensionReducer):
                     self._reductions[ax] = red
                     reductionsChanged = True
 
-                if isinstance(data, GridDataDict) and ax in self._reductions:
-                    uiRed = self.ui._getReductions()
-                    if ax not in uiRed:
-                        reductionsChanged = True
-                    elif uiRed[ax] is None:
-                        reductionsChanged = True
+                # since we have tinkered with the reductions, we might need to
+                # tell the GUI about that.
+                # we simply look for inconsistencies between the GUI state
+                # and what the current state of the reductions here is.
+                if isinstance(data, MeshgridDataDict) and ax in self._reductions:
+                    if self.ui is not None:
+                        uiRed = self.ui._getReductions()
+                        if ax not in uiRed:
+                            reductionsChanged = True
+                        elif uiRed[ax] is None:
+                            reductionsChanged = True
 
         if reductionsChanged:
             self.optionChanged.emit('reductions', self._reductions)
+
 
         # some output infos for the reduction widgets
         infos = {}
         reductionsEncoded = DimensionReducer.encodeReductions(self._reductions)
         for ax, item in reductionsEncoded.items():
-            # the DimReducer currenlty doesn't delete reductions pointing to unused
+            # the DimReducer currently doesn't delete reductions pointing to unused
             # axes (by choice). We just ignore those here.
             if ax not in availableAxes:
                 continue
-            if isinstance(data, GridDataDict) and item[0] == 'select value':
-                idx = item[2].get('index')
-                infos[ax] = (f"pt. {idx+1}/{len(data[ax]['values'])}"
-                            f" ({data[ax]['values'][idx]:1.3e} {data[ax]['unit']})")
+
+            # TODO: need better procedure to extract 'best-guess' axis values.
+            # this procedure is super ghetto -- works fine for regular grids,
+            # but might not give good results anymore in case of very irregular
+            # meshes.
+            if isinstance(data, MeshgridDataDict) and item[0] == 'select value':
+                axidx = data.axes().index(ax)
+                axlen = data.data_vals(ax).shape[axidx]
+
+                validx = item[2].get('index')
+                slices = [slice(None, None, None) for i in data.axes()]
+                slices[axidx] = slice(validx, validx+1, None)
+                val = data[ax]['values'][tuple(slices)].mean()
+
+                infos[ax] = (f"pt. {validx+1}/{axlen}" +\
+                             f" ({val:1.3e} {data[ax]['unit']})")
             else:
                 infos[ax] = ''
 
@@ -691,11 +721,11 @@ class XYAxesSelector(DimensionReducer):
         self.ui.setReductions(self._reductions)
         self.ui.reductionsChanged.connect(self._setReductions)
         self.sendAxisInfo.connect(self.ui.setInfos)
-        self.ui.enableGrid(self.grid)
+        # self.ui.enableGrid(self.grid)
 
     def updateUi(self, data):
-        structure = data.structure()
-        self.dataStructureChanged.emit(structure, isinstance(data, GridDataDict))
+        structure = data.structure(add_shape=True)
+        self.dataStructureChanged.emit(structure, isinstance(data, MeshgridDataDict))
 
     @QtCore.pyqtSlot(tuple)
     def _setXYAxes(self, xy):
