@@ -12,17 +12,13 @@ from pyqtgraph import Qt
 from pyqtgraph.Qt import QtGui, QtCore
 
 from .node import Node
-from ..data.datadict import togrid, DataDict, GridDataDict
+from ..data import datadict as dd
+from ..data.datadict import DataDict
 
 __author__ = 'Wolfgang Pfaff'
 __license__ = 'MIT'
 
-# TODO:
-# * should be able to convert gridded to non-gridded data
-# * display output shape when gridding/non-gridding
-
-# FIXME:
-# * not displaying shape info yet.
+# TODO: only display lenght of respective axis in shape (if data on grid)
 
 class DataTable(QtGui.QTreeWidget):
 
@@ -56,7 +52,7 @@ class DataTable(QtGui.QTreeWidget):
 
     def _makeItem(self, struct, name):
         return QtGui.QTreeWidgetItem([
-            '', name, str(struct[name]['info'].get('shape', '')),
+            '', name, str(struct[name].get('__shape__', '')),
                 struct[name]['unit']
             ])
 
@@ -97,6 +93,7 @@ class DataTable(QtGui.QTreeWidget):
     def signalSelection(self):
         if self._emitSelection:
             selected = self.getSelected()
+            # print('emit', selected)
             self.selectionChanged.emit(selected)
 
 
@@ -115,12 +112,12 @@ class DataDisplayWidget(QtGui.QWidget):
         layout = QtGui.QVBoxLayout()
         layout.addWidget(self.tbl)
 
-        if not readonly:
-            self.gridchk = QtGui.QCheckBox()
-            self.gridlbl = QtGui.QLabel('Place data on grid')
-            gridlayout = QtGui.QFormLayout()
-            gridlayout.addRow(self.gridlbl, self.gridchk)
-            layout.addLayout(gridlayout)
+        # if not readonly:
+        #     self.gridchk = QtGui.QCheckBox()
+        #     self.gridlbl = QtGui.QLabel('Place data on grid')
+        #     gridlayout = QtGui.QFormLayout()
+        #     gridlayout.addRow(self.gridlbl, self.gridchk)
+        #     layout.addLayout(gridlayout)
 
         layout.addStretch()
         self.setLayout(layout)
@@ -158,10 +155,10 @@ class DataSelector(Node):
     uiClass = DataDisplayWidget
 
     guiOptions = {
-        'grid' : {
-            'widget' : 'gridchk',
-            'setFunc' : 'setChecked',
-        },
+        # 'grid' : {
+        #     'widget' : 'gridchk',
+        #     'setFunc' : 'setChecked',
+        # },
         'selectedData' : {
             'widget' : None,
             'setFunc' : 'setSelected',
@@ -175,8 +172,6 @@ class DataSelector(Node):
 
         self._selectedData = []
         self._dataStructure = None
-
-        self.grid = True
 
     ### Properties
 
@@ -209,7 +204,6 @@ class DataSelector(Node):
 
         self._selectedData = vals
 
-
     ### Data processing
 
     def _reduceData(self, data):
@@ -218,16 +212,18 @@ class DataSelector(Node):
         else:
             dnames = self.selectedData
 
-        if self.grid or isinstance(data, GridDataDict):
-            _data = togrid(data, names=dnames)
-        else:
-            _data = DataDict()
-            for n in dnames:
-                _data[n] = data[n]
-                for k, v in data.items():
-                    if k in data[n].get('axes', []):
-                        _data[k] = v
-        return _data
+        # if self.grid or isinstance(data, GridDataDict):
+        #     _data = togrid(data, names=dnames)
+        # else:
+        # _data = DataDict()
+        # for n in dnames:
+        #     _data[n] = data[n]
+        #     for k, v in data.items():
+        #         if k in data[n].get('axes', []):
+        #             _data[k] = v
+        # return _data
+
+        return data.extract(dnames)
 
     def process(self, **kw):
         data = kw['dataIn']
@@ -235,16 +231,16 @@ class DataSelector(Node):
         if data is None:
             struct = None
         else:
-            struct = data.structure(meta=False)
+            struct = data.structure()
 
-        if struct != self._dataStructure:
+        if not DataDict.same_structure(struct, self._dataStructure):
             self._dataStructure = struct
             self.newDataStructure.emit(struct)
 
-        if isinstance(data, GridDataDict) and self.ui is not None:
-            self.ui.gridchk.setDisabled(True)
-        elif not isinstance(data, GridDataDict) and self.ui is not None:
-            self.ui.gridchk.setDisabled(False)
+        # if isinstance(data, GridDataDict) and self.ui is not None:
+        #     self.ui.gridchk.setDisabled(True)
+        # elif not isinstance(data, GridDataDict) and self.ui is not None:
+        #     self.ui.gridchk.setDisabled(False)
 
         data = self._reduceData(data)
         return dict(dataOut=data)
@@ -254,13 +250,13 @@ class DataSelector(Node):
 
     def setupUi(self):
         self.newDataStructure.connect(self.ui.setDataStructure)
-        self.ui.gridchk.setChecked(self._grid)
-        self.ui.gridchk.stateChanged.connect(self._setGrid)
+        # self.ui.gridchk.setChecked(self._grid)
+        # self.ui.gridchk.stateChanged.connect(self._setGrid)
         self.ui.dataSelected.connect(self._setSelected)
 
-    @QtCore.pyqtSlot(int)
-    def _setGrid(self, val):
-        self.grid = bool(val)
+    # @QtCore.pyqtSlot(int)
+    # def _setGrid(self, val):
+    #     self.grid = bool(val)
 
     @QtCore.pyqtSlot(list)
     def _setSelected(self, vals):
