@@ -12,7 +12,7 @@ from mpl_toolkits.axes_grid1 import make_axes_locatable
 
 from pyqtgraph.Qt import QtGui, QtCore
 
-from ..data.datadict import DataDict, GridDataDict
+from ..data.datadict import DataDict, MeshgridDataDict
 from ..node.node import Node
 
 # TODO:
@@ -51,20 +51,25 @@ def pcolorgrid(xaxis, yaxis):
     return xx, yy
 
 
-def ppcolormesh(ax, x, y, z, cmap=None, make_grid=True, **kw):
+def ppcolormesh(ax, x, y, z, cmap=None, **kw):
     if cmap is None:
         cmap = cm.viridis
 
-    if make_grid:
-        _x, _y = pcolorgrid(x, y)
-    else:
-        _x, _y = x, y
-
-    im = ax.pcolormesh(_x, _y, z, cmap=cmap, **kw)
-    ax.set_xlim(_x.min(), _x.max())
-    ax.set_ylim(_y.min(), _y.max())
+    im = ax.pcolormesh(x, y, z, cmap=cmap, **kw)
+    ax.set_xlim(x.min(), x.max())
+    ax.set_ylim(y.min(), y.max())
 
     return im
+
+
+def ppcolormesh_from_axes(ax, x, y, z, **kw):
+    _x, _y = pcolorgrid(x, y)
+    return ppcolormesh(ax, _x, _y, z, **kw)
+
+
+def ppcolormesh_from_meshgrid(ax, x, y, z, **kw):
+    return ppcolormesh(ax, x, y, z, **kw)
+
 
 
 class PlotNode(Node):
@@ -94,6 +99,10 @@ class MPLPlot(FCanvas):
         self.clearFig(nrows, ncols)
         self.setParent(parent)
 
+    def autosize(self):
+        self.fig.subplots_adjust(left=0.125, bottom=0.125, top=0.9, right=0.875,
+                                 wspace=0.35, hspace=0.2)
+
     def clearFig(self, nrows=1, ncols=1, naxes=1):
         self.fig.clear()
         setMplDefaults()
@@ -112,12 +121,14 @@ class MPLPlot(FCanvas):
             self.axes.append(self.fig.add_subplot(nrows, ncols, i))
             iax += 1
 
-        self.fig.tight_layout()
+        # self.fig.tight_layout()
+        self.autosize()
         self.draw()
         return self.axes
 
     def resizeEvent(self, event):
-        self.fig.tight_layout()
+        # self.fig.tight_layout()
+        self.autosize()
         super().resizeEvent(event)
 
 
@@ -148,7 +159,7 @@ class AutoPlot(MPLPlotWidget):
         nylabels = 0
 
         fmt = 'o'
-        if isinstance(data, GridDataDict):
+        if isinstance(data, MeshgridDataDict):
             fmt = 'o-'
 
         for n in dNames:
@@ -167,15 +178,16 @@ class AutoPlot(MPLPlotWidget):
         ax.set_ylabel(ylabel)
         ax.set_xlabel(data.label(axName))
         ax.legend()
-        self.plot.fig.tight_layout()
+        # self.plot.fig.tight_layout()
+        self.plot.autosize()
 
     def _plot2d(self, data, ax, xName, yName, dName):
         x = data[xName]['values']
         y = data[yName]['values']
         z = data[dName]['values']
-        if isinstance(data, GridDataDict):
+        if isinstance(data, MeshgridDataDict):
             z = z.T
-            im = ppcolormesh(ax, x, y, z)
+            im = ppcolormesh_from_meshgrid(ax, x, y, z)
         else:
             im = ax.scatter(x, y, c=z)
 
@@ -192,7 +204,7 @@ class AutoPlot(MPLPlotWidget):
         if data is None:
             return
 
-        axesNames = data.axes_list()
+        axesNames = data.axes()
         dataNames = data.dependents()
 
         naxes = len(axesNames)
@@ -215,5 +227,6 @@ class AutoPlot(MPLPlotWidget):
         elif naxes > 2:
             raise ValueError('Cannot plot more than two axes. (given: {})'.format(axesNames))
 
-        self.plot.fig.tight_layout()
+        # self.plot.fig.tight_layout()
+        self.plot.autosize()
         self.plot.draw()
