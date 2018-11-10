@@ -4,7 +4,10 @@ datadict.py
 Data classes we use throughout the package.
 """
 
-import copy
+from typing import List, Tuple, Dict, Sequence, Union, Optional
+from functools import reduce
+
+import copy as cp
 import numpy as np
 import pandas as pd
 import xarray as xr
@@ -13,91 +16,8 @@ import xarray as xr
 __author__ = 'Wolfgang Pfaff'
 __license__ = 'MIT'
 
-# TODO:
-# * add possibility for metadata, say for keys in the format __key__
-#   (then should have dataItems() and metaItems() or so)
-#   that would be very nice also for sending instructions/info
-#   to nodes.
-# * serialization (json...)
-# * support for automatically creating imaginary data
-# * the notion of compatibility here is too naive i think.
-#   maybe i need to refine that a bit.
-# * need a class for non-uniform grids (where say x-pts change with y, etc.)
-#   in that case gridding is very easy (namely by manually supplied shape)
-
-
-def togrid(data, names=None, make_copy=True, sanitize=True,
-           allow_incompatible=False):
-    """
-    Place data onto a grid, i.e., that data has the shape of a meshgrid of its axes.
-    The axes stay 1-d.
-    If the input data is already on a grid, return existing grid
-    (potentially copied and/or sanitized).
-
-    Parameters:
-    -----------
-    data : DataDict (or child thereof)
-        input data
-
-    names : list of strings or None (None)
-        will be passed on to data.get_grid
-
-    make_copy : bool (True)
-        if true, return a copy of the data.
-
-    sanitize : bool (True)
-        if true, remove unused data fields/axes.
-
-    allow_incompatible : bool (False)
-        if False, input data must have compatible axes.
-
-    Returns:
-    --------
-    GridDataDict with resulting data.
-
-    """
-    if data in [None, {}]:
-        return DataDict()
-
-    if isinstance(data, GridDataDict):
-        if make_copy:
-            data = copy.copy(data)
-
-    elif isinstance(data, DataDict):
-        data = data.get_grid(names)
-        data.validate()
-
-    else:
-        raise ValueError("Data has unrecognized type '{}'. Need a form of DataDict.".format(type(data)))
-
-    if sanitize and names is not None:
-        remove = []
-        for n, v in data.items():
-            if n not in names and n in data.dependents():
-                remove.append(n)
-        for r in remove:
-            del data[r]
-
-    if not allow_incompatible:
-        axes = []
-        n0 = None
-        for n in data.dependents():
-            if len(axes) == 0:
-                axes = data[n]['axes']
-                n0 = n
-            else:
-                if data[n]['axes'] != axes:
-                    err = "Gridding multiple data sets requires compatible axes. "
-                    err += "Found axes '{}' for '{}', but '{}' for '{}'.".format(axes, n0, data[n]['axes'], n)
-                    raise ValueError(err)
-
-    if sanitize:
-        data.remove_unused_axes()
-
-    data.validate()
-    return data
-
-
+# TODO: serialization (json...)
+# TODO: a function that returns axes values given a set of slices or so.
 
 class DataDictBase(dict):
     """
@@ -134,24 +54,118 @@ class DataDictBase(dict):
     def __init__(self, *arg, **kw):
         super().__init__(self, *arg, **kw)
 
+    def data_items(self):
+        for k, v in self.items():
+            if k[:2] != '__' and k[-2:] != '__':
+                yield k, v
 
-    def data(self, key):
+    def meta_items(self):
+        for k, v in self.items():
+            if k[:2] == '__' and k[-2:] == '__':
+                yield k[2:-2], v
+
+    def data_vals(self, key):
         return self[key]['values']
 
-    def structure(self, meta=True):
+    def data_meta(self, key):
+        ret = {}
+        for k, v in self[key].items():
+            if k[:2] == '__' and k[-2:] == '__':
+                ret[k[2:-2]] = v
+        return ret
+
+    def add_meta(self, key, value, data=None):
+        key = '__' + key + '__'
+        if data is None:
+            self[key] = value
+        else:
+            self[data][key] = value
+
+    def extract(self, data: List[str], include_meta: bool = True,
+                copy: bool = True, sanitize: bool = True):
+        """
+        Return a new datadict with all fields specified in `data' included.
+        Will also take any axes fields along that have not been explicitly specified.
+        """
+        if isinstance(data, str):
+            data = [data]
+
+        for d in data:
+            for a in self.axes(d):
+                if a not in data:
+                    data.append(a)
+
+        ret = self.__class__()
+        for d in data:
+            if copy:
+                ret[d] = cp.deepcopy(self[d])
+            else:
+                ret[d] = self[d]
+
+        if include_meta:
+            for k, v in self.meta_items():
+                if copy:
+                    ret.add_meta(k, cp.deepcopy(v))
+                else:
+                    ret.add_meta(k, v)
+
+        if sanitize:
+            ret.sanitize()
+
+        ret.validate()
+        return ret
+
+    # info about structure
+
+    @staticmethod
+    def same_structure(*dicts, check_shape=False):
+        """
+        Check if all supplied datadicts share the same data structure
+        (i.e., dependents and axes).
+        Ignores meta info and values.
+        Checks also for matching shapes if `check_shape' is `True'.
+        """
+        if len(dicts) < 2:
+            return True
+
+        def empty_structure(d):
+            s = d.structure(include_meta=False, add_shape=check_shape)
+            for k, v in s.data_items():
+                if 'values' in v:
+                    del s[k]['values']
+
+        s0 = empty_structure(dicts[0])
+        for d in dicts[1:]:
+            if d is None:
+                return False
+            if s0 != empty_structure(d):
+                return False
+
+        return True
+
+
+    def structure(self, add_shape=True, include_meta=True):
         """
         Return the datadict without values ('value' ommitted in the dict).
-        if 'meta' is true, we add a key 'shape' in 'info' that contains the
+        if 'add_shape' is true, we add a key '__shape__' that contains the
         shape of each data field.
+        if `include_meta' is true, we also take the meta info of the datadict
+        along.
         """
         if self.validate():
             s = DataDictBase()
-            for n, v in self.items():
-                s[n] = dict(axes=v['axes'], unit=v['unit'], info={})
-                if meta:
-                    s[n]['info']['shape'] = np.array(v['values']).shape
+            for n, v in self.data_items():
+                v2 = v.copy()
+                v2.pop('values')
+                s[n] = v2
+                if add_shape:
+                    s.add_meta('shape', np.array(v['values']).shape, data=n)
 
-            s.validate()
+            if include_meta:
+                for n, v in self.meta_items():
+                    s.add_meta(n, v)
+
+            # s.validate()
             return s
 
     def label(self, name):
@@ -173,59 +187,62 @@ class DataDictBase(dict):
         axes = []
         for i, d in enumerate(self.dependents()):
             if i == 0:
-                axes = self.axes_list(d)
+                axes = self.axes(d)
             else:
-                if self.axes_list(d) != axes:
+                if self.axes(d) != axes:
                     return False
         return True
 
 
-    def axes_list(self, selectedData=None):
+    def axes(self, data=None):
         lst = []
-        if selectedData is None:
+        if data is None:
             for k, v in self.items():
                 if 'axes' in v:
                     for n in v['axes']:
-                        if n not in lst:
+                        if n not in lst and self[n].get('axes', []) == []:
                             lst.append(n)
         else:
-            if isinstance(selectedData, str):
-                selectedData = [selectedData]
-            for n in selectedData:
+            if isinstance(data, str):
+                data = [data]
+            for n in data:
                 if 'axes' not in self[n]:
                     continue
                 for m in self[n]['axes']:
-                    if m not in lst:
+                    if m not in lst and self[m].get('axes', []) == []:
                         lst.append(m)
 
         return lst
 
     def dependents(self):
-        if self.validate():
-            ret = []
-            for n, v in self.items():
-                if len(v.get('axes', [])) != 0:
-                    ret.append(n)
-            return ret
+        ret = []
+        for n, v in self.data_items():
+            if len(v.get('axes', [])) != 0:
+                ret.append(n)
+        return ret
+
+    # validation and sanitizing
 
     def validate(self):
         msg = '\n'
-        for n, v in self.items():
+        for n, v in self.data_items():
             if 'axes' in v:
                 for na in v['axes']:
-                    if na not in self:
-                        msg += " * '{}' has axis '{}', but no data with name '{}' registered.\n".format(n, na, na)
+                    if na not in self.axes():
+                        msg += " * '{}' has axis '{}', but no independent with name '{}' registered.\n".format(n, na, na)
             else:
                 v['axes'] = []
 
             if 'unit' not in v:
                 v['unit'] = ''
 
-            if 'values' not in v:
-                v['values'] = []
+            v['values'] = np.array(v.get('values', []))
 
-            if 'info' not in v:
-                v['info'] = {}
+            # if 'info' not in v:
+            #     v['info'] = {}
+
+            if '__shape__' in v and not self.__class__ == DataDictBase:
+                v['__shape__'] = np.array(v['values']).shape
 
         if msg != '\n':
             raise ValueError(msg)
@@ -236,7 +253,7 @@ class DataDictBase(dict):
         dependents = self.dependents()
         unused = []
 
-        for n, v in self.items():
+        for n, v in self.data_items():
             used = False
             if n not in dependents:
                 for m in dependents:
@@ -249,6 +266,11 @@ class DataDictBase(dict):
 
         for u in unused:
             del self[u]
+
+    def sanitize(self):
+        self.remove_unused_axes()
+
+    # axes order tools
 
     def new_order(self, name, **kw):
         """
@@ -299,12 +321,10 @@ class DataDictBase(dict):
             neworder, newaxes = self.new_order(n, **kw)
             self[n]['axes'] = newaxes
 
+        self.validate()
+
 
 class DataDict(DataDictBase):
-    # TODO:
-    # * method to detect/remove duplicate coordinates.
-    # *
-
     """
     Contains data in 'linear' arrays. I.e., for data field 'z' with axes 'x' and 'y',
     all of 'x', 'y', 'z' have 1D arrays as values with some lenght; the lengths must match.
@@ -316,8 +336,8 @@ class DataDict(DataDictBase):
         Adding two datadicts by appending each data array. Returns a new datadict.
         """
         s = self.structure()
-        if s == newdata.structure():
-            for k, v in self.items():
+        if self.structure(include_meta=False) == newdata.structure(include_meta=False):
+            for k, v in self.data_items():
                 val0 = self[k]['values']
                 val1 = newdata[k]['values']
                 if isinstance(val0, list) and isinstance(val1, list):
@@ -332,8 +352,8 @@ class DataDict(DataDictBase):
         """
         Append a datadict to this one by appending. This in in-place and doesn't return anything.
         """
-        if self.structure() == newdata.structure():
-            for k, v in newdata.items():
+        if self.structure(include_meta=False) == newdata.structure(include_meta=False):
+            for k, v in newdata.data_items():
                 if isinstance(self[k]['values'], list) and isinstance(v['values'], list):
                     self[k]['values'] += v['values']
                 else:
@@ -342,13 +362,18 @@ class DataDict(DataDictBase):
             raise ValueError('Incompatible data structures.')
 
 
+    # validation and sanitizing
+
     def validate(self):
         if super().validate():
             nvals = None
             nvalsrc = None
             msg = '\n'
 
-            for n, v in self.items():
+            for n, v in self.data_items():
+                if len(v['values'].shape) > 1:
+                    msg += f" * '{n}' is not a 1D array (has shape {v['values'].shape})"
+
                 if nvals is None:
                     nvals = len(v['values'])
                     nvalsrc = n
@@ -361,152 +386,187 @@ class DataDict(DataDictBase):
 
         return True
 
-    def _value_dict(self, use_units=False):
-        if self.validate():
-            ret = {}
-            for k, v in self.items():
-                name = k
-                if use_units and v['unit'] != '':
-                    name += ' ({})'.format(v['unit'])
-                ret[name] = v['values']
 
-            return ret
-
-    def to_dataframe(self):
-        return pd.DataFrame(self._value_dict())
-
-    def to_multiindex_dataframes(self, use_units=False):
-        if self.validate():
-            dfs = {}
-            for n, v in self.items():
-                if not len(v['axes']):
-                    continue
-
-                vals = v['values']
-                axvals = []
-                axnames = []
-                for axname in v['axes']:
-                    axvals.append(self[axname]['values'])
-                    _axname = axname
-                    if use_units and self[axname]['unit'] != '':
-                        _axname += ' ({})'.format(self[axname]['unit'])
-                    axnames.append(_axname)
-
-                mi = pd.MultiIndex.from_tuples(list(zip(*axvals)), names=axnames)
-
-                _name = n
-                if use_units and self[n]['unit'] != '':
-                    _name += ' ({})'.format(self[n]['unit'])
-                df = pd.DataFrame({_name : v['values']}, mi)
-                dfs[n] = df
-
-            return dfs
-
-    def to_xarray(self, name):
-        df = self.to_multiindex_dataframes()[name]
-        arr = xr.DataArray(df)
-
-        for idxn in arr.indexes:
-            idx = arr.indexes[idxn]
-
-            if idxn not in self:
-                if isinstance(idx, pd.MultiIndex):
-                    arr = arr.unstack(idxn)
-                else:
-                    arr = arr.squeeze(idxn).drop(idxn)
-
-        return arr
-
-    def get_grid(self, name=None, mask_nan=True):
-        if name is None:
-            name = self.dependents()
-        if isinstance(name, str):
-            name = [name]
-
-        ret = GridDataDict()
-
-        for n in name:
-            arr = self.to_xarray(n)
-
-            for idxn in arr.indexes:
-                vals = arr.indexes[idxn].values
-
-                if idxn in ret and vals.shape != ret[idxn]['values'].shape:
-                    raise ValueError(
-                        "'{}' used in different shapes. Arrays cannot be used as data and axis in a single grid data set.".format(idxn)
-                    )
-
-                ret[idxn] = dict(
-                    values=vals,
-                    unit=self[idxn]['unit']
-                    )
-
-            if mask_nan and len(np.where(np.isnan(arr.values))[0]) > 0:
-                v = np.ma.masked_where(np.isnan(arr.values), arr.values)
-            else:
-                v = arr.values
-            ret[n] = dict(
-                values=v,
-                axes=self[n]['axes'],
-                unit=self[n]['unit'],
-                )
-
-        return ret
+    def sanitize(self):
+        super().sanitize()
+        self.remove_invalid_entries()
 
 
-class GridDataDict(DataDictBase):
-    # TODO:
-    # * implement append and add. could solve by de-gridding, then re-gridding; but that might be slow.
-    """
-    Contains data in a grid form.
-    In this case each field that is used as an axis contains only unique values,
-    and the shape of a data field is (nx, ny, ...), where nx, ny, ... are the lengths
-    of its x, y, ... axes.
-    """
+    def remove_invalid_entries(self):
+        """
+        Remove all rows that are `None' or `np.nan' in *all* dependents.
+        """
+        idxs = []
+        for d in self.dependents():
+            _idxs = np.array([])
+            _idxs = np.append(_idxs, np.where(self.data_vals(d) == None)[0])
+            try:
+                _idxs = np.append(_idxs, np.where(np.isnan(self.data_vals(d)))[0])
+            except TypeError:
+                pass
+            idxs.append(_idxs)
+
+        if len(idxs) > 0:
+            remove_idxs = reduce(np.intersect1d, tuple(idxs))
+            for k, v in self.data_items():
+                v['values'] = np.delete(v['values'], remove_idxs)
+
+
+class MeshgridDataDict(DataDictBase):
+
+    def shape(self):
+        for d, _ in self.data_items():
+            return self.data_vals(d).shape
 
     def validate(self):
-        if super().validate():
-            msg = '\n'
+        if not super().validate():
+            return False
 
-            for n, v in self.items():
-                if len(v['axes']) > 0:
-                    shp = v['values'].shape
-                    axlens = []
-                    for ax in v['axes']:
-                        axvals = self[ax]['values']
+        msg = '\n'
 
-                        if not isinstance(self[ax]['values'], np.ndarray):
-                            self[ax]['values'] = np.array(self[ax]['values'])
+        axes = None
+        axessrc = ''
+        for d in self.dependents():
+            if axes is None:
+                axes = self.axes(d)
+            else:
+                if axes != self.axes(d):
+                    msg += f" * All dependents must have the same axes, but "
+                    msg += f"{d} has {self.axes(d)} and {axessrc} has {axes}\n"
 
-                        if len(self[ax]['values'].shape) > 1:
-                            msg += " * '{}' used as an axis, but does not have 1D data".format(ax)
+        shp = None
+        shpsrc = ''
+        for n, v in self.data_items():
+            if shp is None:
+                shp = v['values'].shape
+                shpsrc = n
+            else:
+                if v['values'].shape != shp:
+                    msg += f" * shapes need to match, but '{n}' has {v['values'].shape}, "
+                    msg += f"and '{shpsrc}' has {shp}.\n"
 
-                        axlens.append(self[ax]['values'].size)
-
-                    if shp != tuple(axlens):
-                        msg += " * '{}' has shape {}, but axes lengths are {}.".format(n, shp, tuple(axlens))
-
-            if msg != '\n':
-                raise ValueError(msg)
+        if msg != '\n':
+            raise ValueError(msg)
 
         return True
 
-    def reorder_axes(self, data_names=None, **kw):
+
+    def reorder_axes(self, **kw):
         """
-        Reorder the axes for all data_names. New order is
-        determined by kws in the form {axis_name : new_position}.
-
-        if data_names is None, we try all dependents in the dataset.
-
-        Since data is on a grid, we also transpose the data accordingly.
+        Reorder the axes for all data.
+        This includes transposing the data, since we're on a grid.
         """
-
-        if data_names is None:
-            data_names = self.dependents()
-        if isinstance(data_names, str):
-            data_names = [data_names]
-
-        for n in data_names:
+        transposed = []
+        for n in self.dependents():
             neworder, newaxes = self.new_order(n, **kw)
             self[n]['axes'] = newaxes
             self[n]['values'] = self[n]['values'].transpose(neworder)
+            for ax in self.axes(n):
+                if ax not in transposed:
+                    self[ax]['values'] = self[ax]['values'].transpose(neworder)
+                    transposed.append(ax)
+
+        self.validate()
+
+
+# Tools for converting between different data types
+
+def guess_shape_from_datadict(data: DataDict) -> Dict[str, Tuple[int]]:
+    """
+    Try to guess the shape of the datadict dependents from the unique values of
+    their axes.
+    """
+
+    # TODO: should fail when grid is obviously not very good (too many unique values...)
+
+    shapes = {}
+    for d in data.dependents():
+        shp = []
+        axes = data.axes(d)
+        for a in axes:
+            # need to make sure we remove invalids before determining unique vals.
+            cleaned_data = data.data_vals(a)
+            cleaned_data = cleaned_data[cleaned_data != None]
+            try:
+                cleaned_data = cleaned_data[~np.isnan(cleaned_data)]
+            except TypeError:
+                # means it's not float. that's ok.
+                pass
+
+            shp.append(np.unique(cleaned_data).size)
+
+        shapes[d] = tuple(shp)
+
+    return shapes
+
+def array1d_to_meshgrid(arr: Sequence, target_shape: Tuple[int],
+                        copy: bool = True) -> np.ndarray:
+    """
+    try to reshape `arr' to target shape.
+    If target shape is larger than the array, fill with invalids
+    (`nan' for float and complex dtypes, `None' otherwise).
+    If target shape is smaller than the array, cut off the end.
+    """
+    if not isinstance(arr, np.ndarray):
+        arr = np.array(arr)
+    if copy:
+        arr = arr.copy()
+
+    newsize = np.prod(target_shape)
+    if newsize < arr.size:
+        arr = arr[:newsize]
+    elif newsize > arr.size:
+        if arr.dtype in [np.float, np.complex]:
+            fill = np.zeros(newsize - arr.size) * np.nan
+        else:
+            fill = np.array((newsize - arr.size) * [None])
+        arr = np.append(arr, fill)
+
+    return arr.reshape(target_shape)
+
+
+def datadict_to_meshgrid(data: DataDict, target_shape: Union[Tuple[int], None] = None,
+                         copy: bool = True, sanitize: bool = True) -> MeshgridDataDict:
+    """
+    Try to make a meshgrid from `data'. If no target shape is supplied, we try to guess.
+    """
+    # TODO: support for cues inside the data set about the shape.
+    # TODO: maybe it could make sense to include a method to sort the meshgrid axes.
+
+    # guess what the shape likely is.
+    if not data.compatible_axes():
+        raise ValueError('Non-compatible axes, cannot grid that.')
+
+    if target_shape is None:
+        shps = guess_shape_from_datadict(data)
+        if len(set(shps.values())) > 1:
+            raise RuntimeError('Cannot determine unique shape for all data.')
+
+        target_shape = list(shps.values())[0]
+
+    newdata = MeshgridDataDict(**data.structure(add_shape=False))
+    for k, v in data.data_items():
+        newdata[k]['values'] = array1d_to_meshgrid(v['values'], target_shape, copy=copy)
+
+    if sanitize:
+        newdata.sanitize()
+    newdata.validate()
+    return newdata
+
+
+def meshgrid_to_datadict(data: MeshgridDataDict, copy: bool = True,
+                         sanitize: bool = True) -> DataDict:
+    """
+    Make a DataDict from a MeshgridDataDict by simply reshaping the data.
+    """
+    newdata = DataDict(**data.structure(add_shape=False))
+    for k, v in data.data_items():
+        val = v['values'].reshape(-1)
+        if copy:
+            val = val.copy()
+        newdata[k]['values'] = val
+
+    if sanitize:
+        newdata.sanitize()
+    newdata.validate()
+    return newdata
