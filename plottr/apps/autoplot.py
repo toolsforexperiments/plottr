@@ -1,7 +1,7 @@
 """
-apps.py
+autoplot.py
 
-A collection of pre-compiled analysis and plot tools based on plottr.
+Autoplotting app using plottr nodes.
 """
 
 import logging
@@ -13,6 +13,7 @@ from pyqtgraph.flowchart import library as fclib
 from pyqtgraph.dockarea import Dock, DockArea
 
 from ..data.datadict import DataDictBase, DataDict, MeshgridDataDict
+from ..data.qcodes_dataset import QCodesDSLoader
 from .. import log as plottrlog
 from ..node.data_selector import DataSelector
 from ..node.grid import DataGridder
@@ -26,8 +27,8 @@ __license__ = 'MIT'
 
 # TODO: * separate logging window
 
-def autoplot(makeUI: bool=True, log: bool=False, loglevel: int=logging.INFO,
-             inputData: Union[None, DataDictBase]=None):
+def autoplot(makeUI: bool = True, log: bool = False,
+             inputData: Union[None, DataDictBase] = None):
     """
     Sets up a simple flowchart consisting of a data selector,
     an xy-axes selector, and creates a GUI together with an autoplot
@@ -36,74 +37,142 @@ def autoplot(makeUI: bool=True, log: bool=False, loglevel: int=logging.INFO,
     returns the flowchart object and the dialog widget
     """
 
-    # nodelib = fclib.NodeLibrary()
-    # nodelib.addNodeType(DataSelector, [('Basic')])
-    # nodelib.addNodeType(Gridder, [('Basic')])
-    # nodelib.addNodeType(XYAxesSelector, [('Basic')])
-    # nodelib.addNodeType(PlotNode, [('Plot')])
+    nodelib = fclib.NodeLibrary()
+    nodelib.addNodeType(DataSelector, [('Basic')])
+    nodelib.addNodeType(DataGridder, [('Basic')])
+    nodelib.addNodeType(XYAxesSelector, [('Basic')])
+    nodelib.addNodeType(PlotNode, [('Plot')])
 
-    # fc = Flowchart(terminals={
-    #     'dataIn': {'io': 'in'},
-    #     'dataOut': {'io': 'out'}
-    # })
-    # fc.library = nodelib
+    fc = Flowchart(terminals={
+        'dataIn': {'io': 'in'},
+        'dataOut': {'io': 'out'}
+    })
+    fc.library = nodelib
 
-    # datasel = fc.createNode('DataSelector')
-    # grid = fc.createNode('Gridder')
-    # xysel = fc.createNode('XYAxesSelector')
-    # plot = fc.createNode('Plot')
+    datasel = fc.createNode('DataSelector')
+    grid = fc.createNode('Gridder')
+    xysel = fc.createNode('XYAxesSelector')
+    plot = fc.createNode('Plot')
 
-    # fc.connectTerminals(fc['dataIn'], datasel['dataIn'])
-    # fc.connectTerminals(datasel['dataOut'], xysel['dataIn'])
-    # fc.connectTerminals(xysel['dataOut'], fc['dataOut'])
-    # fc.connectTerminals(xysel['dataOut'], plot['dataIn'])
+    fc.connectTerminals(fc['dataIn'], datasel['dataIn'])
+    fc.connectTerminals(datasel['dataOut'], grid['dataIn'])
+    fc.connectTerminals(grid['dataOut'], xysel['dataIn'])
+    fc.connectTerminals(xysel['dataOut'], fc['dataOut'])
+    fc.connectTerminals(xysel['dataOut'], plot['dataIn'])
 
-    # # Create the plot widget
-    
+    # Setting up the GUI window
+    area = DockArea()
+    layout = QtGui.QVBoxLayout()
+    layout.addWidget(area)
+    win = QtGui.QDialog()
+    win.setLayout(layout)
 
-    # # Setting up the GUI window -- use a dialog here.
-    # win = QtGui.QMainWindow()
-    # area = DockArea()
-    # win.setCentralWidget(area)
+    # data selector
+    dataselDock = Dock('Data Selector', size=(150, 100))
+    dataselDock.addWidget(datasel.ui)
+    area.addDock(dataselDock)
 
-    # # data selector
-    # dataselDock = Dock('Data Selector')
-    # dataselDock.addWidget(datasel.ui)
-    # area.addDock(dataselDock)
+    # grid
+    gridDock = Dock('Grid', size=(100, 100))
+    gridDock.addWidget(grid.ui)
+    area.addDock(gridDock, 'right', dataselDock)
 
-    # # grid
-    # g
+    # xy selector
+    xyselDock = Dock('XY Axes Selector', size=(250, 100))
+    xyselDock.addWidget(xysel.ui)
+    area.addDock(xyselDock, 'bottom')
 
-    # # xy selector
-    # xyselDock = Dock('XY Axes Selector')
-    # xyselDock.addWidget(xysel.ui)
-    # area.addDock(xyselDock, 'bottom', dataselDock)
+    # log
+    if log:
+        logDock = Dock('Log', size=(250, 100))
+        logDock.addWidget(plottrlog.setupLogging(makeDialog=False))
+        area.addDock(logDock, 'bottom', xyselDock)
 
-    # # logger
-    # if log:
-    #     logDock = Dock('Log')
-    #     logDock.addWidget(plottrlog.setupLogging(makeDialog=False))
-    #     area.addDock(logDock, 'bottom', xyselDock)
-
-    nodes, fc, win = make_sequential_flowchart_with_gui(
-        [DataSelector, DataGridder, XYAxesSelector, PlotNode], 
-        inputData=inputData,
-    )
-
-    area = win.centralWidget()
-
-    # plot
+    # plot widget
     plotWidget = AutoPlot()
-
-    plotNode = nodes[3]
-    plotNode.setPlotWidget(plotWidget)
-
-    plotDock = Dock('Plot')
+    plot.setPlotWidget(plotWidget)
+    plotDock = Dock('Plot', size=(500, 300))
     plotDock.addWidget(plotWidget)
-    
     area.addDock(plotDock, 'right')
 
-    # show the whole thing
-    # win.show()
+    win.show()
+
+    if inputData is not None:
+        fc.setInput(dataIn=inputData)
+
+    return fc, win
+
+
+def autoplotQcodesDataset(makeUI: bool = True, log: bool = False):
+    """
+    Sets up a simple flowchart consisting of a data selector,
+    an xy-axes selector, and creates a GUI together with an autoplot
+    widget.
+
+    returns the flowchart object and the dialog widget
+    """
+
+    nodelib = fclib.NodeLibrary()
+    nodelib.addNodeType(QCodesDSLoader, [('Input')])
+    nodelib.addNodeType(DataSelector, [('Basic')])
+    nodelib.addNodeType(DataGridder, [('Basic')])
+    nodelib.addNodeType(XYAxesSelector, [('Basic')])
+    nodelib.addNodeType(PlotNode, [('Plot')])
+
+    fc = Flowchart(terminals={
+        'dataIn': {'io': 'in'},
+        'dataOut': {'io': 'out'}
+    })
+    fc.library = nodelib
+
+    loader = fc.createNode('QCodesDSLoader')
+    datasel = fc.createNode('DataSelector')
+    grid = fc.createNode('Gridder')
+    xysel = fc.createNode('XYAxesSelector')
+    plot = fc.createNode('Plot')
+
+    fc.connectTerminals(fc['dataIn'], loader['dataIn'])
+    fc.connectTerminals(loader['dataOut'], datasel['dataIn'])
+    fc.connectTerminals(datasel['dataOut'], grid['dataIn'])
+    fc.connectTerminals(grid['dataOut'], xysel['dataIn'])
+    fc.connectTerminals(xysel['dataOut'], fc['dataOut'])
+    fc.connectTerminals(xysel['dataOut'], plot['dataIn'])
+
+    # Setting up the GUI window
+    area = DockArea()
+    layout = QtGui.QVBoxLayout()
+    layout.addWidget(area)
+    win = QtGui.QDialog()
+    win.setLayout(layout)
+
+    # data selector
+    dataselDock = Dock('Data Selector', size=(150, 100))
+    dataselDock.addWidget(datasel.ui)
+    area.addDock(dataselDock)
+
+    # grid
+    gridDock = Dock('Grid', size=(100, 100))
+    gridDock.addWidget(grid.ui)
+    area.addDock(gridDock, 'right', dataselDock)
+
+    # xy selector
+    xyselDock = Dock('XY Axes Selector', size=(250, 100))
+    xyselDock.addWidget(xysel.ui)
+    area.addDock(xyselDock, 'bottom')
+
+    # log
+    if log:
+        logDock = Dock('Log', size=(250, 100))
+        logDock.addWidget(plottrlog.setupLogging(makeDialog=False))
+        area.addDock(logDock, 'bottom', xyselDock)
+
+    # plot widget
+    plotWidget = AutoPlot()
+    plot.setPlotWidget(plotWidget)
+    plotDock = Dock('Plot', size=(500, 300))
+    plotDock.addWidget(plotWidget)
+    area.addDock(plotDock, 'right')
+
+    win.show()
 
     return fc, win
