@@ -55,7 +55,7 @@ def ppcolormesh(ax, x, y, z, cmap=None, **kw):
     if cmap is None:
         cmap = cm.viridis
 
-    im = ax.pcolormesh(x, y, z, cmap=cmap, **kw)
+    im = ax.pcolormesh(x, y, z.T, cmap=cmap, **kw)
     ax.set_xlim(x.min(), x.max())
     ax.set_ylim(y.min(), y.max())
 
