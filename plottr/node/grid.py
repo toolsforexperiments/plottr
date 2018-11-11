@@ -34,7 +34,7 @@ class ShapeSpecification(QtGui.QWidget):
         self.layout = QtGui.QFormLayout()
         self.confirm = QtGui.QPushButton('set')
         self.layout.addRow(self.confirm)
-        self.setLayout(self.layout) 
+        self.setLayout(self.layout)
 
     def setAxes(self, axes):
         if axes != self._axes:
@@ -46,6 +46,7 @@ class ShapeSpecification(QtGui.QWidget):
             for i, ax in enumerate(axes):
                 w = QtGui.QSpinBox()
                 w.setMinimum(1)
+                w.setMaximum(999999)
                 self._widgets[ax] = w
                 self.layout.insertRow(i, ax, w)
 
@@ -57,7 +58,7 @@ class ShapeSpecification(QtGui.QWidget):
 
     def getShape(self):
         return tuple(self._widgets[ax].value() for ax in self._axes)
-            
+
     def enableEditing(self, enable):
         for ax, w in self._widgets.items():
             w.setEnabled(enable)
@@ -75,9 +76,9 @@ class DataGridderWidget(QtGui.QWidget):
 
     ## Decorators for GUI/Node communication ##
     # TODO: those should eventually go into the Node base class
-    
+
     def updateGuiFromNode(func):
-        @wraps(func)
+        # @wraps(func)
         def wrap(self, *arg, **kw):
             self._emitGuiChange = False
             ret = func(self, *arg, **kw)
@@ -87,7 +88,7 @@ class DataGridderWidget(QtGui.QWidget):
 
     def emitGuiUpdate(signalName):
         def decorator(func):
-            @wraps(func)
+            # @wraps(func)
             def wrap(self, *arg, **kw):
                 ret = func(self, *arg, **kw)
                 if self._emitGuiChange:
@@ -95,8 +96,8 @@ class DataGridderWidget(QtGui.QWidget):
                     sig.emit(ret)
             return wrap
         return decorator
-    
-    
+
+
     def __init__(self, parent=None):
         super().__init__(parent)
 
@@ -136,7 +137,6 @@ class DataGridderWidget(QtGui.QWidget):
 
         ## Connect signals/slots ##
         self.btnGroup.buttonToggled.connect(self.gridButtonSelected)
-        self.optionSelected.connect(self.printOption)
         self.shapeSpec.confirm.clicked.connect(self.shapeSpecified)
 
     def getGrid(self):
@@ -160,13 +160,10 @@ class DataGridderWidget(QtGui.QWidget):
     def shapeSpecified(self):
         shape = self.shapeSpec.getShape()
         self.signalGridOption(shape)
-            
+
     @emitGuiUpdate('optionSelected')
     def signalGridOption(self, grid):
         return grid
-
-    def printOption(self, val):
-        print('Grid is:', val)
 
     ## methods for setting from the node ##
     @updateGuiFromNode
@@ -177,7 +174,7 @@ class DataGridderWidget(QtGui.QWidget):
             self.buttons[self.SPECIFYSHAPE].setChecked(True)
         else:
             self.shapeSpec.enableEditing(False)
-        
+
         if val == 'guess':
             self.buttons[self.GUESSSHAPE].setChecked(True)
 
@@ -224,14 +221,10 @@ class DataGridder(Node):
 
         super().__init__(*arg, **kw)
 
-        # self.shapeDetermined.connect(self.printShape)
         if self.ui is not None:
             self.axesList.connect(self.ui.setAxes)
             self.shapeDetermined.connect(self.ui.setShape)
 
-    @QtCore.pyqtSlot(tuple)
-    def printShape(self, shape):
-        print('got the shape:', shape)
 
     ### Properties
     @property
@@ -248,6 +241,7 @@ class DataGridder(Node):
             except ValueError:
                 self._invalid = True
                 self.logger().error(f"Invalid grid option {val}")
+                raise
 
         elif val in [None, False, 'guess']:
             self._grid = val
@@ -278,7 +272,7 @@ class DataGridder(Node):
             dout = data
 
         elif self._grid is False and isinstance(data, MeshgridDataDict):
-            dout = dd.meshgrid_to_datadict(data) 
+            dout = dd.meshgrid_to_datadict(data)
 
         elif self._grid == 'guess' and isinstance(data, DataDict):
             dout = dd.datadict_to_meshgrid(data)
@@ -298,6 +292,7 @@ class DataGridder(Node):
 
         if self.ui is not None:
             self.updateUiDataOut(dout)
+
         return dict(dataOut=dout)
 
     ### Setup UI
@@ -305,14 +300,14 @@ class DataGridder(Node):
     def setupUi(self):
         self.ui.setGrid(self._grid)
         self.ui.optionSelected.connect(self._setGrid)
-    
+
     def updateUiDataOut(self, data):
         if isinstance(data, MeshgridDataDict):
             shape = data.shape()
         else:
             shape = tuple()
         self.shapeDetermined.emit(shape)
-    
+
     def updateUiDataIn(self, data):
         axes = data.axes()
         self.axesList.emit(axes)
