@@ -3,7 +3,7 @@ Generation of useful test data.
 """
 
 import numpy as np
-from plottr.data.datadict import togrid, DataDict, GridDataDict
+from plottr.data.datadict import DataDict
 
 def two_1d_traces(nvals=11):
     x = np.linspace(0, 10, nvals)
