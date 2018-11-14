@@ -140,10 +140,12 @@ def autoplotQcodesDataset(makeUI: bool = True, log: bool = False):
 
     # Setting up the GUI window
     area = DockArea()
-    layout = QtGui.QVBoxLayout()
-    layout.addWidget(area)
-    win = QtGui.QDialog()
-    win.setLayout(layout)
+    # layout = QtGui.QVBoxLayout()
+    # layout.addWidget(area)
+    # win = QtGui.QDialog()
+    # win.setLayout(layout)
+    win = QtGui.QMainWindow()
+    win.setCentralWidget(area)
 
     # data selector
     dataselDock = Dock('Data Selector', size=(150, 100))
