@@ -149,7 +149,7 @@ def get_runs_from_db_as_dataframe(path, *arg, **kw):
 
 # Getting data from a dataset
 
-def get_data_from_ds(ds: DataSet, start: Optional[int] = None, 
+def get_data_from_ds(ds: DataSet, start: Optional[int] = None,
                      end: Optional[int] = None) -> Dict[str, List[List]]:
     """
     Returns a dictionary in the format {'name' : data}, where data
@@ -206,13 +206,13 @@ def expand(data: Dict[str, List[List]],
     return data
 
 
-def ds_to_datadict(ds: DataDict, start: Optional[int] = None, 
+def ds_to_datadict(ds: DataDict, start: Optional[int] = None,
                    end: Optional[int] = None) -> DataDict:
     """
     Make a datadict from a qcodes dataset.
     `start` and `end` allow selection of only a subset of rows.
     """
-    data = expand(get_all_data_from_ds(ds))
+    data = expand(get_data_from_ds(ds, start=start, end=end))
     struct = get_ds_structure(ds)
     datadict = DataDict(**struct)
     for k, v in data.items():
@@ -237,6 +237,8 @@ class QCodesDSLoader(Node):
 
     def __init__(self, *arg, **kw):
         self._pathAndId = (None, None)
+        self._nLoadedRecords = None
+
         super().__init__(*arg, **kw)
 
     ### Properties
@@ -248,8 +250,9 @@ class QCodesDSLoader(Node):
     @pathAndId.setter
     @Node.updateOption('pathAndId')
     def pathAndId(self, val):
-        # TODO: some basic checking already here
-        self._pathAndId = val
+        if val != self.pathAndId:
+            self._pathAndId = val
+            self._nLoadedRecords = None
 
     def process(self, **kw):
         if not None in self._pathAndId:
