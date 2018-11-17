@@ -22,6 +22,7 @@ __license__ = 'MIT'
 # TODO: implement a threaded version of Node
 # TODO: needed: an order widget for filters
 # TODO: formalize/abstract updating the gui better.
+# TODO: add a 'fresh' flag that allows to set nice defaults on first data-input
 
 class Node(pgNode):
 
