@@ -237,7 +237,7 @@ class QCodesDSLoader(Node):
 
     def __init__(self, *arg, **kw):
         self._pathAndId = (None, None)
-        self._nLoadedRecords = None
+        self._nLoadedRecords = 0
 
         super().__init__(*arg, **kw)
 
@@ -252,11 +252,16 @@ class QCodesDSLoader(Node):
     def pathAndId(self, val):
         if val != self.pathAndId:
             self._pathAndId = val
-            self._nLoadedRecords = None
+            self._nLoadedRecords = 0
+
+    ### processing
 
     def process(self, **kw):
         if not None in self._pathAndId:
             path, runId = self._pathAndId
-            data = datadict_from_path_and_run_id(path, runId)
-            return dict(dataOut=data)
+            ds = DataSet(path_to_db=path, run_id=runId)
+            if ds.number_of_results > self._nLoadedRecords:
+                data = ds_to_datadict(ds)
+                self._nLoadedRecords = ds.number_of_results
+                return dict(dataOut=data)
 
