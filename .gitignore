@@ -2,6 +2,6 @@
 .ipynb_checkpoints
 *.db
 *.egg-info
-
+__pycache__
 *.egg-info/
 .idea/
