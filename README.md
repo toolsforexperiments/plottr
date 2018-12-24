@@ -15,7 +15,7 @@ files, and plot datasets contained in the database.
 
 ## Usage:
 
-* from within the plottr-directory, run `python apps/inspectr.py --dbpath <path to your `
+* from within the plottr-directory, run `python apps/inspectr.py --dbpath <path to your .db file>`
 
 # Installation
 
