@@ -1,4 +1,5 @@
 import os
+import time
 
 from pyqtgraph.Qt import QtGui, QtCore
 
@@ -39,6 +40,11 @@ class DateList(QtGui.QListWidget):
         for d in dates:
             if len(self.findItems(d, QtCore.Qt.MatchExactly)) == 0:
                 self.insertItem(0, d)
+
+        for i in range(self.count()):
+            if self.item(i).text() not in dates:
+                item = self.takeItem(i)
+                item.deleteLater()
 
         self.sortItems(QtCore.Qt.DescendingOrder)
 
@@ -120,6 +126,9 @@ class RunInfo(QtGui.QTreeWidget):
             self.resizeColumnToContents(i)
 
 class QCodesDBInspector(QtGui.QMainWindow):
+    """
+    Main window of the inspectr tool.
+    """
 
     dbdfUpdated = QtCore.pyqtSignal()
     sendInfo = QtCore.pyqtSignal(dict)
@@ -130,6 +139,7 @@ class QCodesDBInspector(QtGui.QMainWindow):
         self._plotWindows = {}
 
         self.filepath = dbPath
+        self.dbdf = None
 
         # Main Selection widgets
         self.dateList = DateList()
@@ -155,6 +165,16 @@ class QCodesDBInspector(QtGui.QMainWindow):
         # toolbar
         self.toolbar = self.addToolBar('Options')
 
+        # menu bar
+        menu = self.menuBar()
+        fileMenu = menu.addMenu('&File')
+
+        # action: updates from the db file
+        refreshAction = QtGui.QAction('&Refresh', self)
+        refreshAction.setShortcut('R')
+        refreshAction.triggered.connect(self.refreshDB)
+        fileMenu.addAction(refreshAction)
+
         # sizing
         self.resize(640, 640)
 
@@ -175,9 +195,11 @@ class QCodesDBInspector(QtGui.QMainWindow):
 
     @QtCore.pyqtSlot()
     def showDBPath(self):
+        tstamp = time.strftime("%Y-%m-%d %H:%M:%S")
         path = os.path.abspath(self.filepath)
-        self.status.showMessage(path)
+        self.status.showMessage(f"{path} (loaded: {tstamp})")
 
+    ### loading the DB and populating the widgets
     def loadFullDB(self, path=None):
         if path is not None and path != self.filepath:
             self.filepath = path
@@ -190,6 +212,12 @@ class QCodesDBInspector(QtGui.QMainWindow):
         dates = list(self.dbdf.groupby('started date').indices.keys())
         self.dateList.updateDates(dates)
 
+    @QtCore.pyqtSlot()
+    def refreshDB(self):
+        self.loadFullDB()
+        self.dateList.sendSelectedDates()
+
+    ### handling user selections
     @QtCore.pyqtSlot(list)
     def setDateSelection(self, dates):
         selection = self.dbdf.loc[self.dbdf['started date'].isin(dates)].sort_index(ascending=False)

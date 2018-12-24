@@ -103,6 +103,36 @@ def autoplot(makeUI: bool = True, log: bool = False,
     return fc, win
 
 
+
+class QCAutoPlotMainWindow(QtGui.QMainWindow):
+
+    def __init__(self, fc, parent=None):
+        super().__init__(parent)
+
+        self.fc = fc
+
+        # # toolbar
+        # self.toolbar = self.addToolBar('Options')
+
+        # status bar
+        self.status = QtGui.QStatusBar()
+        self.setStatusBar(self.status)
+
+        # menu bar
+        menu = self.menuBar()
+        fileMenu = menu.addMenu('&Data')
+
+        # action: updates from the db file
+        refreshAction = QtGui.QAction('&Refresh', self)
+        refreshAction.setShortcut('R')
+        refreshAction.triggered.connect(self.refreshData)
+        fileMenu.addAction(refreshAction)
+
+    @QtCore.pyqtSlot()
+    def refreshData(self):
+        self.fc.nodes()['QCodesDSLoader.0'].update()
+
+
 def autoplotQcodesDataset(makeUI: bool = True, log: bool = False):
     """
     Sets up a simple flowchart consisting of a data selector,
@@ -138,14 +168,13 @@ def autoplotQcodesDataset(makeUI: bool = True, log: bool = False):
     fc.connectTerminals(xysel['dataOut'], fc['dataOut'])
     fc.connectTerminals(xysel['dataOut'], plot['dataIn'])
 
-    # Setting up the GUI window
+    ### Setting up the GUI window
+
     area = DockArea()
-    # layout = QtGui.QVBoxLayout()
-    # layout.addWidget(area)
-    # win = QtGui.QDialog()
-    # win.setLayout(layout)
-    win = QtGui.QMainWindow()
+    win = QCAutoPlotMainWindow(fc=fc)
     win.setCentralWidget(area)
+
+    ### Docks
 
     # data selector
     dataselDock = Dock('Data Selector', size=(150, 100))
