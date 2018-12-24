@@ -4,7 +4,7 @@ qcodes_dataset.py
 Dealing with qcodes dataset (the database) data in plottr.
 """
 
-from typing import Dict, Tuple, List, Union, Sequence
+from typing import Dict, Tuple, List, Union, Sequence, Optional
 import json
 import time
 import os
@@ -149,14 +149,26 @@ def get_runs_from_db_as_dataframe(path, *arg, **kw):
 
 # Getting data from a dataset
 
+def get_data_from_ds(ds: DataSet, start: Optional[int] = None,
+                     end: Optional[int] = None) -> Dict[str, List[List]]:
+    """
+    Returns a dictionary in the format {'name' : data}, where data
+    is what dataset.get_data('name') returns, i.e., a list of lists, where
+    the inner list is the row as inserted into the DB.
+
+    with `start` and `end` only a subset of rows in the DB can be specified.
+    """
+    names = [n for n, v in ds.paramspecs.items()]
+    return {n : ds.get_data(n, start=start, end=end) for n in names}
+
+
 def get_all_data_from_ds(ds: DataSet) -> Dict[str, List[List]]:
     """
     Returns a dictionary in the format {'name' : data}, where data
     is what dataset.get_data('name') returns, i.e., a list of lists, where
     the inner list is the row as inserted into the DB.
     """
-    names = [n for n, v in ds.paramspecs.items()]
-    return {n : ds.get_data(n) for n in names}
+    return get_data_from_ds(ds)
 
 
 def expand(data: Dict[str, List[List]],
@@ -194,11 +206,13 @@ def expand(data: Dict[str, List[List]],
     return data
 
 
-def ds_to_datadict(ds: DataDict) -> DataDict:
+def ds_to_datadict(ds: DataDict, start: Optional[int] = None,
+                   end: Optional[int] = None) -> DataDict:
     """
-    Make a datadict from a qcodes dataset
+    Make a datadict from a qcodes dataset.
+    `start` and `end` allow selection of only a subset of rows.
     """
-    data = expand(get_all_data_from_ds(ds))
+    data = expand(get_data_from_ds(ds, start=start, end=end))
     struct = get_ds_structure(ds)
     datadict = DataDict(**struct)
     for k, v in data.items():
@@ -208,9 +222,9 @@ def ds_to_datadict(ds: DataDict) -> DataDict:
     return datadict
 
 
-def datadict_from_path_and_run_id(path: str, run_id: int) -> DataDict:
+def datadict_from_path_and_run_id(path: str, run_id: int, **kw) -> DataDict:
     ds = DataSet(path_to_db=path, run_id=run_id)
-    return ds_to_datadict(ds)
+    return ds_to_datadict(ds, **kw)
 
 
 ### qcodes dataset loader node
@@ -223,6 +237,8 @@ class QCodesDSLoader(Node):
 
     def __init__(self, *arg, **kw):
         self._pathAndId = (None, None)
+        self._nLoadedRecords = 0
+
         super().__init__(*arg, **kw)
 
     ### Properties
@@ -234,12 +250,18 @@ class QCodesDSLoader(Node):
     @pathAndId.setter
     @Node.updateOption('pathAndId')
     def pathAndId(self, val):
-        # TODO: some basic checking already here
-        self._pathAndId = val
+        if val != self.pathAndId:
+            self._pathAndId = val
+            self._nLoadedRecords = 0
+
+    ### processing
 
     def process(self, **kw):
         if not None in self._pathAndId:
             path, runId = self._pathAndId
-            data = datadict_from_path_and_run_id(path, runId)
-            return dict(dataOut=data)
+            ds = DataSet(path_to_db=path, run_id=runId)
+            if ds.number_of_results > self._nLoadedRecords:
+                data = ds_to_datadict(ds)
+                self._nLoadedRecords = ds.number_of_results
+                return dict(dataOut=data)
 

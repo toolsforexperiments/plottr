@@ -335,8 +335,8 @@ class DataDict(DataDictBase):
         """
         Adding two datadicts by appending each data array. Returns a new datadict.
         """
-        s = self.structure()
-        if self.structure(include_meta=False) == newdata.structure(include_meta=False):
+        s = self.structure(add_shape=False)
+        if DataDictBase.same_structure(self, newdata):
             for k, v in self.data_items():
                 val0 = self[k]['values']
                 val1 = newdata[k]['values']
@@ -352,7 +352,7 @@ class DataDict(DataDictBase):
         """
         Append a datadict to this one by appending. This in in-place and doesn't return anything.
         """
-        if self.structure(include_meta=False) == newdata.structure(include_meta=False):
+        if DataDictBase.same_structure(self, newdata):
             for k, v in newdata.data_items():
                 if isinstance(self[k]['values'], list) and isinstance(v['values'], list):
                     self[k]['values'] += v['values']
