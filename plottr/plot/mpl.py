@@ -10,6 +10,8 @@ from matplotlib.backends.backend_qt5agg import NavigationToolbar2QT as NavBar
 from matplotlib.figure import Figure
 from mpl_toolkits.axes_grid1 import make_axes_locatable
 
+import pandas as pd
+
 from pyqtgraph.Qt import QtGui, QtCore
 
 from ..data.datadict import DataDict, MeshgridDataDict
@@ -55,6 +57,11 @@ def ppcolormesh(ax, x, y, z, cmap=None, **kw):
     if cmap is None:
         cmap = cm.viridis
 
+    if np.any(np.isnan(x)):
+        x = pd.DataFrame(x.copy()).interpolate(axis=1).values
+    if np.any(np.isnan(y)):
+        y = pd.DataFrame(y.copy()).interpolate(axis=0).values
+
     im = ax.pcolormesh(x, y, z.T, cmap=cmap, **kw)
     ax.set_xlim(x.min(), x.max())
     ax.set_ylim(y.min(), y.max())
@@ -69,7 +76,6 @@ def ppcolormesh_from_axes(ax, x, y, z, **kw):
 
 def ppcolormesh_from_meshgrid(ax, x, y, z, **kw):
     return ppcolormesh(ax, x, y, z, **kw)
-
 
 
 class PlotNode(Node):
