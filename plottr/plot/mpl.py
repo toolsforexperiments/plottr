@@ -16,6 +16,8 @@ from pyqtgraph.Qt import QtGui, QtCore
 
 from ..data.datadict import DataDict, MeshgridDataDict
 from ..node.node import Node
+from ..utils import (centers2edges_1d, interp_meshgrid_2d,
+                     centers2edges_2d)
 
 # TODO:
 # * plot properties should be configurable
@@ -39,16 +41,9 @@ def setMplDefaults():
     rcParams['figure.subplot.right'] = 0.9
 
 
-def centers2edges(arr):
-    e = (arr[1:] + arr[:-1]) / 2.
-    e = np.concatenate(([arr[0] - (e[0] - arr[0])], e))
-    e = np.concatenate((e, [arr[-1] + (arr[-1] - e[-1])]))
-    return e
-
-
 def pcolorgrid(xaxis, yaxis):
-    xedges = centers2edges(xaxis)
-    yedges = centers2edges(yaxis)
+    xedges = centers2edges_1d(xaxis)
+    yedges = centers2edges_1d(yaxis)
     xx, yy = np.meshgrid(xedges, yedges)
     return xx, yy
 
@@ -75,7 +70,13 @@ def ppcolormesh_from_axes(ax, x, y, z, **kw):
 
 
 def ppcolormesh_from_meshgrid(ax, x, y, z, **kw):
-    return ppcolormesh(ax, x, y, z, **kw)
+    if np.any(np.isnan(x)) or np.any(np.isnan(y)):
+        x, y = interp_meshgrid_2d(x, y)
+
+    _x = centers2edges_2d(x)
+    _y = centers2edges_2d(y)
+
+    return ppcolormesh(ax, _x, _y, z, **kw)
 
 
 class PlotNode(Node):
