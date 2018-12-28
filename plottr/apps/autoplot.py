@@ -68,14 +68,14 @@ def autoplot(makeUI: bool = True, log: bool = False,
     win.setLayout(layout)
 
     # data selector
-    dataselDock = Dock('Data Selector', size=(150, 100))
+    dataselDock = Dock('Data Selector', size=(250, 100))
     dataselDock.addWidget(datasel.ui)
     area.addDock(dataselDock)
 
     # grid
-    gridDock = Dock('Grid', size=(100, 100))
+    gridDock = Dock('Grid', size=(250, 80))
     gridDock.addWidget(grid.ui)
-    area.addDock(gridDock, 'right', dataselDock)
+    area.addDock(gridDock, 'bottom')
 
     # xy selector
     xyselDock = Dock('XY Axes Selector', size=(250, 100))
@@ -101,7 +101,6 @@ def autoplot(makeUI: bool = True, log: bool = False,
         fc.setInput(dataIn=inputData)
 
     return fc, win
-
 
 
 class QCAutoPlotMainWindow(QtGui.QMainWindow):
@@ -177,14 +176,14 @@ def autoplotQcodesDataset(makeUI: bool = True, log: bool = False):
     ### Docks
 
     # data selector
-    dataselDock = Dock('Data Selector', size=(150, 100))
+    dataselDock = Dock('Data Selector', size=(250, 100))
     dataselDock.addWidget(datasel.ui)
     area.addDock(dataselDock)
 
     # grid
-    gridDock = Dock('Grid', size=(100, 100))
+    gridDock = Dock('Grid', size=(250, 80))
     gridDock.addWidget(grid.ui)
-    area.addDock(gridDock, 'right', dataselDock)
+    area.addDock(gridDock, 'bottom')
 
     # xy selector
     xyselDock = Dock('XY Axes Selector', size=(250, 100))
