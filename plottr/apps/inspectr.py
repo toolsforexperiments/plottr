@@ -1,5 +1,6 @@
 import os
 import time
+import logging
 
 from pyqtgraph.Qt import QtGui, QtCore
 
@@ -10,6 +11,13 @@ from .autoplot import autoplotQcodesDataset
 
 __author__ = 'Wolfgang Pfaff'
 __license__ = 'MIT'
+
+
+def logger():
+    logger = logging.getLogger('plottr.apps.inspectr')
+    logger.setLevel(plottrlog.LEVEL)
+    return logger
+
 
 ### Database inspector tool
 
@@ -28,9 +36,13 @@ def dictToTreeWidgetItems(d):
 class DateList(QtGui.QListWidget):
 
     datesSelected = QtCore.pyqtSignal(list)
+    fileDropped = QtCore.pyqtSignal(str)
 
     def __init__(self, parent=None):
         super().__init__(parent)
+
+        self.setAcceptDrops(True)
+        self.setDefaultDropAction(QtCore.Qt.CopyAction)
 
         self.setSelectionMode(QtGui.QListView.ExtendedSelection)
         self.itemSelectionChanged.connect(self.sendSelectedDates)
@@ -41,10 +53,16 @@ class DateList(QtGui.QListWidget):
             if len(self.findItems(d, QtCore.Qt.MatchExactly)) == 0:
                 self.insertItem(0, d)
 
-        for i in range(self.count()):
+        i = 0
+        while i < self.count():
             if self.item(i).text() not in dates:
                 item = self.takeItem(i)
-                item.deleteLater()
+                del item
+            else:
+                i += 1
+
+            if i >= self.count():
+                break
 
         self.sortItems(QtCore.Qt.DescendingOrder)
 
@@ -52,6 +70,29 @@ class DateList(QtGui.QListWidget):
     def sendSelectedDates(self):
         selection = [item.text() for item in self.selectedItems()]
         self.datesSelected.emit(selection)
+
+    ### Drag/drop handling
+    def dragEnterEvent(self, event):
+        if event.mimeData().hasUrls():
+            urls = event.mimeData().urls()
+            if len(urls) == 1:
+                url = urls[0]
+                if url.isLocalFile():
+                    event.accept()
+            else:
+                event.ignore()
+        else:
+            event.ignore()
+
+    def dropEvent(self, event):
+        url = event.mimeData().urls()[0].toLocalFile()
+        self.fileDropped.emit(url)
+
+    def mimeTypes(self):
+        return ([
+            'text/uri-list',
+            'application/x-qabstractitemmodeldatalist',
+    ])
 
 
 class RunList(QtGui.QTreeWidget):
@@ -125,6 +166,7 @@ class RunInfo(QtGui.QTreeWidget):
         for i in range(2):
             self.resizeColumnToContents(i)
 
+
 class QCodesDBInspector(QtGui.QMainWindow):
     """
     Main window of the inspectr tool.
@@ -140,6 +182,8 @@ class QCodesDBInspector(QtGui.QMainWindow):
 
         self.filepath = dbPath
         self.dbdf = None
+
+        self.setWindowTitle('inspectr -- browse qcodes datasets')
 
         # Main Selection widgets
         self.dateList = DateList()
@@ -169,6 +213,12 @@ class QCodesDBInspector(QtGui.QMainWindow):
         menu = self.menuBar()
         fileMenu = menu.addMenu('&File')
 
+        # action: load db file
+        loadAction = QtGui.QAction('&Load', self)
+        loadAction.setShortcut('Ctrl+L')
+        loadAction.triggered.connect(self.loadDB)
+        fileMenu.addAction(loadAction)
+
         # action: updates from the db file
         refreshAction = QtGui.QAction('&Refresh', self)
         refreshAction.setShortcut('R')
@@ -183,6 +233,7 @@ class QCodesDBInspector(QtGui.QMainWindow):
         self.dbdfUpdated.connect(self.showDBPath)
 
         self.dateList.datesSelected.connect(self.setDateSelection)
+        self.dateList.fileDropped.connect(self.loadFullDB)
         self.runList.runSelected.connect(self.setRunSelection)
         self.runList.runActivated.connect(self.plotRun)
         self.sendInfo.connect(self.runInfo.setInfo)
@@ -200,6 +251,28 @@ class QCodesDBInspector(QtGui.QMainWindow):
         self.status.showMessage(f"{path} (loaded: {tstamp})")
 
     ### loading the DB and populating the widgets
+    @QtCore.pyqtSlot()
+    def loadDB(self):
+        """
+        Open a file dialog that allows selecting a .db file for loading.
+        If a file is selected, opens the db.
+        """
+        if self.filepath is not None:
+            curdir = os.path.split(self.filepath)[0]
+        else:
+            curdir = os.getcwd()
+
+        path, _fltr = QtGui.QFileDialog.getOpenFileName(
+            self,
+            'Open qcodes .db file',
+            curdir,
+            'qcodes .db files (*.db);;all files (*.*)',
+            )
+
+        if path:
+            logger().debug(f"Opening: {path}")
+            self.loadFullDB(path=path)
+
     def loadFullDB(self, path=None):
         if path is not None and path != self.filepath:
             self.filepath = path
@@ -240,6 +313,7 @@ class QCodesDBInspector(QtGui.QMainWindow):
             'flowchart' : fc,
             'window' : win,
         }
+
 
 def inspectr(dbPath: str = None):
     win = QCodesDBInspector(dbPath=dbPath)
