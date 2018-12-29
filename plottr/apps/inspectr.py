@@ -1,3 +1,9 @@
+"""
+inspectr.py
+
+Inspectr app for browsing qcodes data.
+"""
+
 import os
 import time
 import logging
@@ -7,7 +13,10 @@ from pyqtgraph.Qt import QtGui, QtCore
 from .. import log as plottrlog
 from ..data.qcodes_dataset import (get_runs_from_db_as_dataframe,
                                    get_ds_info_from_path,)
+from ..widgets import MonitorIntervalInput, FormLayoutWrapper
+
 from .autoplot import autoplotQcodesDataset
+
 
 __author__ = 'Wolfgang Pfaff'
 __license__ = 'MIT'
@@ -116,7 +125,7 @@ class RunList(QtGui.QTreeWidget):
         lst.append(vals.get('experiment', ''))
         lst.append(vals.get('sample', ''))
         lst.append(vals.get('started date', '') + ' ' + vals.get('started time', ''))
-        lst.append(vals.get('started date', '') + ' ' + vals.get('completed time', ''))
+        lst.append(vals.get('completed date', '') + ' ' + vals.get('completed time', ''))
         lst.append(str(vals.get('records', '')))
 
         item = QtGui.QTreeWidgetItem(lst)
@@ -182,8 +191,9 @@ class QCodesDBInspector(QtGui.QMainWindow):
 
         self.filepath = dbPath
         self.dbdf = None
+        self.monitor = QtCore.QTimer()
 
-        self.setWindowTitle('inspectr -- browse qcodes datasets')
+        self.setWindowTitle('Plottr | QCoDeS dataset inspectr')
 
         # Main Selection widgets
         self.dateList = DateList()
@@ -207,7 +217,24 @@ class QCodesDBInspector(QtGui.QMainWindow):
         self.setStatusBar(self.status)
 
         # toolbar
-        self.toolbar = self.addToolBar('Options')
+        self.toolbar = self.addToolBar('Data monitoring')
+
+        # toolbar item: monitor interval
+        self.monitorInput = MonitorIntervalInput()
+        self.monitorInput.setToolTip('Set to 0 for disabling')
+        self.monitorInput.intervalChanged.connect(self.setMonitorInterval)
+        self.toolbar.addWidget(self.monitorInput)
+
+        self.toolbar.addSeparator()
+
+        # toolbar item: auto-launch plotting
+        self.autoLaunchPlots = FormLayoutWrapper([
+            ('Auto-plot new', QtGui.QCheckBox())
+        ])
+        tt = "If checked, and automatic refresh is running, "
+        tt += " launch plotting window for new datasets automatically."
+        self.autoLaunchPlots.setToolTip(tt)
+        self.toolbar.addWidget(self.autoLaunchPlots)
 
         # menu bar
         menu = self.menuBar()
@@ -237,12 +264,23 @@ class QCodesDBInspector(QtGui.QMainWindow):
         self.runList.runSelected.connect(self.setRunSelection)
         self.runList.runActivated.connect(self.plotRun)
         self.sendInfo.connect(self.runInfo.setInfo)
+        self.monitor.timeout.connect(self.monitorTriggered)
 
         if self.filepath is not None:
             self.loadFullDB(self.filepath)
 
     def closeEvent(self, event):
-        print('Bye now!')
+        """
+        When closing the inspectr window, do some house keeping:
+        * stop the monitor, if running
+        * close all plot windows
+        """
+
+        if self.monitor.isActive():
+            self.monitor.stop()
+
+        for runId, info in self._plotWindows.items():
+            info['window'].close()
 
     @QtCore.pyqtSlot()
     def showDBPath(self):
@@ -270,7 +308,7 @@ class QCodesDBInspector(QtGui.QMainWindow):
             )
 
         if path:
-            logger().debug(f"Opening: {path}")
+            logger().info(f"Opening: {path}")
             self.loadFullDB(path=path)
 
     def loadFullDB(self, path=None):
@@ -285,10 +323,32 @@ class QCodesDBInspector(QtGui.QMainWindow):
         dates = list(self.dbdf.groupby('started date').indices.keys())
         self.dateList.updateDates(dates)
 
+    ### reloading the db
     @QtCore.pyqtSlot()
     def refreshDB(self):
+        latestRunId = self.dbdf.index.values.max()
         self.loadFullDB()
         self.dateList.sendSelectedDates()
+
+        idxs = self.dbdf.index.values
+        newIdxs = idxs[idxs > latestRunId]
+        if self.monitor.isActive() and self.autoLaunchPlots.elements['Auto-plot new'].isChecked():
+            for idx in newIdxs:
+                self.plotRun(idx)
+                self._plotWindows[idx]['window'].setMonitorInterval(2)
+
+    @QtCore.pyqtSlot(int)
+    def setMonitorInterval(self, val):
+        self.monitor.stop()
+        if val > 0:
+            self.monitor.start(val * 1000)
+
+        self.monitorInput.spin.setValue(val)
+
+    @QtCore.pyqtSlot()
+    def monitorTriggered(self):
+        logger().debug('Refreshing DB')
+        self.refreshDB()
 
     ### handling user selections
     @QtCore.pyqtSlot(list)
@@ -307,12 +367,12 @@ class QCodesDBInspector(QtGui.QMainWindow):
 
     @QtCore.pyqtSlot(int)
     def plotRun(self, runId):
-        fc, win = autoplotQcodesDataset()
-        fc.nodes()['QCodesDSLoader.0'].pathAndId = self.filepath, runId
+        fc, win = autoplotQcodesDataset(pathAndId=(self.filepath, runId))
         self._plotWindows[runId] = {
             'flowchart' : fc,
             'window' : win,
         }
+        win.showTime()
 
 
 def inspectr(dbPath: str = None):
