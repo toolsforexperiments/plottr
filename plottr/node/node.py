@@ -28,7 +28,7 @@ class Node(pgNode):
 
     optionChanged = QtCore.pyqtSignal(str, object)
 
-    raiseExceptions = False
+    raiseExceptions = True
     nodeName = "DataDictNode"
     terminals = {
         'dataIn' : {'io' : 'in'},
@@ -85,21 +85,9 @@ class Node(pgNode):
             raise self.exception[1]
 
     def logger(self):
-        logger = logging.getLogger(
-            self.__module__ + '.' + self.__class__.__name__
-            )
+        logger = log.getLogger(self.__module__ + '.' + self.__class__.__name__)
         logger.setLevel(log.LEVEL)
         return logger
-
-    # Options and processing
-    # @property
-    # def grid(self):
-    #     return self._grid
-
-    # @grid.setter
-    # @updateOption('grid')
-    # def grid(self, val):
-    #     self._grid = val
 
     def validateOptions(self, data):
         return True
@@ -111,24 +99,7 @@ class Node(pgNode):
             self.logger().debug("Option validation not passed")
             return None
 
-        # if self.grid:
-        #     data = togrid(data)
-
         if data is None:
             return None
 
         return dict(dataOut=data)
-
-
-# class NodesWidget(QtGui.QWidget):
-
-#     def __init__(self, parent=None, node=None):
-#         super().__init__(parent=parent)
-#         self.layout = QtGui.QVBoxLayout(self)
-
-#     def addNodeWidget(self, node, name):
-#         group = QtGui.QGroupBox(name)
-#         layout = QtGui.QVBoxLayout()
-#         group.setLayout(layout)
-#         layout.addWidget(node.ctrlWidget())
-#         self.layout.addWidget(group)
