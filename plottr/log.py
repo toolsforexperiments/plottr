@@ -26,6 +26,7 @@ COLORS = {
 LEVEL = logging.INFO
 
 class QLogHandler(logging.Handler):
+
     def __init__(self, parent):
         super().__init__()
         self.widget = QtWidgets.QTextEdit(parent)
@@ -46,10 +47,10 @@ class LogWidget(QtWidgets.QWidget):
     A simple logger widget. Uses QLogHandler as handler.
     Does not do much else.
     """
-
-    def __init__(self, parent=None, level=logging.DEBUG):
+    def __init__(self, parent=None, level=logging.INFO):
         super().__init__(parent)
 
+        ### set up the graphical handler
         fmt = logging.Formatter(
             "%(asctime)s - %(name)s - %(levelname)s\n" +
                 "    %(message)s",
@@ -58,13 +59,22 @@ class LogWidget(QtWidgets.QWidget):
         logTextBox = QLogHandler(self)
         logTextBox.setFormatter(fmt)
 
+        # make the widget
         layout = QtWidgets.QVBoxLayout()
         layout.addWidget(logTextBox.widget)
         self.setLayout(layout)
 
-        self.logger = logging.getLogger('plottr')
+        # configure the logger. delete pre-existing graphical handler.
+        self.logger = getLogger()
+        for h in self.logger.handlers:
+            if isinstance(h, QLogHandler):
+                self.logger.removeHandler(h)
+                h.widget.deleteLater()
+                del h
+
         self.logger.addHandler(logTextBox)
         self.logger.setLevel(level)
+
 
     def setLevel(self, level):
         self.logger.setLevel(level)
@@ -75,7 +85,7 @@ def logDialog(widget):
     d = QtWidgets.QDialog()
     d.setLayout(layout)
     layout.addWidget(widget)
-    d.setWindowTitle('Plottr Log')
+    d.setWindowTitle('Plottr | Log')
     return d
 
 
@@ -92,3 +102,42 @@ def setupLogging(level=logging.INFO, makeDialog=True):
         return d
     else:
         return w
+
+
+def getLogger(module: str = '') -> logging.Logger:
+    """
+    Return the logger we use within the plottr framework.
+    """
+    mod = 'plottr'
+    if module != '':
+        if module.split('.')[0] == 'plottr':
+            mod = module
+        else:
+            mod += f'.{module}'
+    logger = logging.getLogger(mod)
+    return logger
+
+
+def enableStreamHandler(enable: bool = False):
+    """
+    enable/disable output to stderr. Enabling is useful when not
+    using the UI logging window.
+    """
+    logger = getLogger()
+    hasStreamHandler = False
+    for h in logger.handlers:
+        if isinstance(h, logging.StreamHandler):
+            hasStreamHandler = True
+            if not enable:
+                logger.removeHandler(h)
+                del h
+
+    if enable and not hasStreamHandler:
+        streamHandler = logging.StreamHandler(sys.stderr)
+        fmt = logging.Formatter(
+            "%(asctime)s - %(name)s - %(levelname)s\n" +
+                "    %(message)s",
+            datefmt='%Y-%m-%d %H:%M:%S',
+            )
+        streamHandler.setFormatter(fmt)
+        logger.addHandler(streamHandler)
