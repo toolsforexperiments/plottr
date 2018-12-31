@@ -30,6 +30,9 @@ def make_sequential_flowchart(clsList, inputData=None):
         fc.connectTerminals(nodes[i]['dataOut'], nodes[i+1]['dataIn'])
     fc.connectTerminals(nodes[nNodes-1]['dataOut'], fc['dataOut'])
 
+    if inputData is not None:
+        fc.setInput(dataIn=inputData)
+
     return nodes, fc
 
 

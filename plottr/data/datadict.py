@@ -89,6 +89,8 @@ class DataDictBase(dict):
         """
         if isinstance(data, str):
             data = [data]
+        else:
+            data = data.copy()
 
         for d in data:
             for a in self.axes(d):
@@ -133,6 +135,7 @@ class DataDictBase(dict):
             for k, v in s.data_items():
                 if 'values' in v:
                     del s[k]['values']
+            return s
 
         s0 = empty_structure(dicts[0])
         for d in dicts[1:]:
@@ -407,7 +410,7 @@ class DataDict(DataDictBase):
             idxs.append(_idxs)
 
         if len(idxs) > 0:
-            remove_idxs = reduce(np.intersect1d, tuple(idxs))
+            remove_idxs = reduce(np.intersect1d, tuple(np.array(idxs).astype(int)))
             for k, v in self.data_items():
                 v['values'] = np.delete(v['values'], remove_idxs)
 

@@ -81,9 +81,12 @@ def three_incompatible_3d_sets(nx=3, ny=3, nz=3, rand_factor=1):
         x = dict(values=xx.reshape(-1), unit='mA'),
         y = dict(values=yy.reshape(-1), unit='uC'),
         z = dict(values=zz.reshape(-1), unit='nF'),
-        data = dict(values=dd.reshape(-1), axes=['x', 'y', 'z'], unit='kW'),
-        more_data = dict(values=dd2.reshape(-1), axes=['x', 'y', 'z'], unit='MV'),
-        different_data = dict(values=dd2.T.reshape(-1), axes=['z', 'y', 'x'], unit='TS')
+        data = dict(values=dd.reshape(-1),
+                    axes=['x', 'y', 'z'], unit='kW'),
+        more_data = dict(values=dd2.transpose((1,0,2)).reshape(-1),
+                         axes=['y', 'x', 'z'], unit='MV'),
+        different_data = dict(values=dd2.T.reshape(-1),
+                              axes=['z', 'y', 'x'], unit='TS')
     )
     d.validate()
     return d
