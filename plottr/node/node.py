@@ -26,7 +26,7 @@ __license__ = 'MIT'
 
 class Node(pgNode):
     """
-    The node base class used in plottr, derived from pyqtgraph's `Node'.
+    The node base class used in plottr, derived from pyqtgraph's `Node`.
     More thorough documentation is still an outstanding task...
     """
 
