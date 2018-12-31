@@ -25,6 +25,10 @@ __license__ = 'MIT'
 # TODO: add a 'fresh' flag that allows to set nice defaults on first data-input
 
 class Node(pgNode):
+    """
+    The node base class used in plottr, derived from pyqtgraph's `Node'.
+    More thorough documentation is still an outstanding task...
+    """
 
     optionChanged = QtCore.pyqtSignal(str, object)
 
@@ -36,8 +40,6 @@ class Node(pgNode):
     }
     uiClass = None
     useUi = True
-    debug = False
-
     guiOptions = {}
 
     def __init__(self, name):
@@ -53,7 +55,7 @@ class Node(pgNode):
             self.ui = None
 
     def setupUi(self):
-        self.ui.debug = self.debug
+        return
 
     def ctrlWidget(self):
         return self.ui
@@ -103,3 +105,58 @@ class Node(pgNode):
             return None
 
         return dict(dataOut=data)
+
+
+class NodeWidget(QtGui.QWidget):
+    """
+    Base class for Node control widgets.
+
+    Provides convenience tools for interacting with Nodes:
+
+    * `updateGuiFromNode`: Use this decorator on methods that update a GUI property
+      prompted by an option change in the node. It will set an internal flag that can
+      be used to prevent signaling the node in turn that the GUI has changed (which
+      could result in infinite signal/slot loops if we're not careful).
+
+    * `emitGuiUpdate(signalName)`: Functions with this decorator will emit the signal
+      `signalName` with the function return as argument. This can be used to communicate
+      GUI changes to the node. Note: The signal still has to be declared manually,
+      and the connection to the node has to be made as well (typically from the node
+      side).
+      Importantly, this method will **not** emit the signal if the internal flag
+      mentioned above is not True; thus we only send the signal to the Node if the
+      Node is **not** the origin of the change to start with.
+    """
+
+    def updateGuiFromNode(func):
+        """
+        Decorator to set an internal flag to False during execution of the wrapped
+        function.
+        """
+        def wrap(self, *arg, **kw):
+            self._emitGuiChange = False
+            ret = func(self, *arg, **kw)
+            self._emitGuiChange = True
+            return ret
+        return wrap
+
+    def emitGuiUpdate(signalName):
+        """
+        Decorator to emit signalName with the return of the wrapped function after
+        execution. Signal is only emitted if the flag controlled by `updateGuiFromNode`
+        is not True, i.e., if the option change was not caused by a function
+        decorated with `updateGuiFromNode`.
+        """
+        def decorator(func):
+            def wrap(self, *arg, **kw):
+                ret = func(self, *arg, **kw)
+                if self._emitGuiChange:
+                    sig = getattr(self, signalName)
+                    sig.emit(ret)
+            return wrap
+        return decorator
+
+    def __init__(self, parent: QtGui.QWidget = None):
+        super().__init__(parent)
+
+        self._emitGuiChange = True

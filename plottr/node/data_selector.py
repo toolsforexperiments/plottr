@@ -12,44 +12,52 @@ import numpy as np
 from pyqtgraph import Qt
 from pyqtgraph.Qt import QtGui, QtCore
 
-from .node import Node
+from .node import Node, NodeWidget
 from ..data import datadict as dd
 from ..data.datadict import DataDict
 
 __author__ = 'Wolfgang Pfaff'
 __license__ = 'MIT'
 
-# TODO: only display lenght of respective axis in shape (if data on grid)
 
-class DataTable(QtGui.QTreeWidget):
+class DataDisplayWidget(QtGui.QTreeWidget, NodeWidget):
+    """
+    Simple Tree widget to show data and their dependencies in the node data.
+    """
 
+    dataSelected = QtCore.pyqtSignal(list)
     selectionChanged = QtCore.pyqtSignal(list)
 
-    def __init__(self, parent=None, readonly=True):
+    def __init__(self, parent: QtGui.QWidget = None, readonly: bool = False):
         super().__init__(parent)
 
         self.setColumnCount(4)
         self.setHeaderLabels(['', 'Name', 'Shape', 'Unit'])
         self.checkBoxes = {}
         self._emitSelection = True
+        self._readonly = readonly
 
-    def setData(self, struct, readonly):
-        for n in struct.dependents():
-            item = self._makeItem(struct, n)
-            axes = struct[n]['axes']
-            for ax in axes:
-                child = self._makeItem(struct, ax)
-                item.addChild(child)
-            self.addTopLevelItem(item)
+    def setData(self, struct):
+        self._dataStructure = struct
+        self.clear()
 
-            if not readonly:
-                chk = QtGui.QCheckBox()
-                self.setItemWidget(item, 0, chk)
-                self.checkBoxes[n] = chk
-                chk.stateChanged.connect(self.signalSelection)
+        if struct is not None:
+            for n in struct.dependents():
+                item = self._makeItem(struct, n)
+                axes = struct[n]['axes']
+                for ax in axes:
+                    child = self._makeItem(struct, ax)
+                    item.addChild(child)
+                self.addTopLevelItem(item)
 
-        for i in range(4):
-            self.resizeColumnToContents(i)
+                if not self._readonly:
+                    chk = QtGui.QCheckBox()
+                    self.setItemWidget(item, 0, chk)
+                    self.checkBoxes[n] = chk
+                    chk.stateChanged.connect(self.signalSelection)
+
+            for i in range(4):
+                self.resizeColumnToContents(i)
 
     def _makeItem(self, struct, name):
         return QtGui.QTreeWidgetItem([
@@ -74,72 +82,26 @@ class DataTable(QtGui.QTreeWidget):
             w.setChecked(False)
         super().clear()
 
-    def clearSelected(self, emit=True):
-        if not emit:
-            self._emitSelection = False
-        for n, w in self.checkBoxes.items():
-            w.setChecked(False)
+    @NodeWidget.emitGuiUpdate('selectionChanged')
+    def signalSelection(self, _val):
+        return self.getSelected()
 
-        self._emitSelection = True
-
+    @NodeWidget.updateGuiFromNode
     def setSelected(self, names):
-        self._emitSelection = False
         for n, w in self.checkBoxes.items():
             if n in names:
                 w.setChecked(True)
             else:
                 w.setChecked(False)
-        self._emitSelection = True
+        self._updateOptions(names)
 
-    def signalSelection(self):
-        if self._emitSelection:
-            selected = self.getSelected()
-            self.selectionChanged.emit(selected)
-
-
-class DataDisplayWidget(QtGui.QWidget):
-
-    dataSelected = QtCore.pyqtSignal(list)
-
-    def __init__(self, parent=None, readonly=False, **kw):
-        super().__init__(parent=parent, **kw)
-
-        self._readonly = readonly
-        self._selectedData = []
-        self._dataStructure = None
-
-        self.tbl = DataTable(self, readonly=readonly)
-        layout = QtGui.QVBoxLayout()
-        layout.addWidget(self.tbl)
-
-        layout.addStretch()
-        self.setLayout(layout)
-
-    @QtCore.pyqtSlot(object)
-    def setDataStructure(self, structure):
-        self._dataStructure = structure
-        self.tbl.clear()
-
-        if structure is not None:
-            self.tbl.setData(structure, self._readonly)
-            self.tbl.selectionChanged.connect(self.emitDataSelection)
-
-    @QtCore.pyqtSlot(list)
-    def emitDataSelection(self, selected):
-        self.dataSelected.emit(selected)
-
-    @QtCore.pyqtSlot(list)
-    def updateOptions(self, selected):
+    def _updateOptions(self, selected):
         ds = self._dataStructure
-        for n, w in self.tbl.checkBoxes.items():
+        for n, w in self.checkBoxes.items():
             if selected != [] and ds[n]['axes'] != ds[selected[0]]['axes']:
-                self.tbl.setItemEnabled(n, False)
+                self.setItemEnabled(n, False)
             else:
-                self.tbl.setItemEnabled(n, True)
-
-    def setSelected(self, selected):
-        self.tbl.setSelected(selected)
-        self.updateOptions(selected)
+                self.setItemEnabled(n, True)
 
 
 class DataSelector(Node):
@@ -195,6 +157,10 @@ class DataSelector(Node):
     ### Data processing
 
     def validateOptions(self, data):
+        """
+        Validations performed:
+        * only compatible data fields can be selected.
+        """
         if data is None:
             return True
 
@@ -235,8 +201,8 @@ class DataSelector(Node):
     ### Methods for GUI interaction
 
     def setupUi(self):
-        self.newDataStructure.connect(self.ui.setDataStructure)
-        self.ui.dataSelected.connect(self._setSelected)
+        self.newDataStructure.connect(self.ui.setData)
+        self.ui.selectionChanged.connect(self._setSelected)
 
     @QtCore.pyqtSlot(list)
     def _setSelected(self, vals):
