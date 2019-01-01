@@ -84,8 +84,9 @@ class DataDisplayWidget(QtGui.QTreeWidget, NodeWidget):
 
     def setShape(self, shape: Dict[str, Tuple[int, ...]]):
         for n, s in shape.items():
-            item = self.findItems(n, QtCore.Qt.MatchExactly, 1)[0]
-            item.setText(2, str(s))
+            items = self.findItems(n, QtCore.Qt.MatchExactly, 1)
+            if len(items) > 0:
+                items[0].setText(2, str(s))
 
     @NodeWidget.emitGuiUpdate('selectionChanged')
     def signalSelection(self, _val):
