@@ -471,9 +471,13 @@ class DataDict(DataDictBase):
 
 class MeshgridDataDict(DataDictBase):
 
-    # def shape(self):
-    #     for d, _ in self.data_items():
-    #         return self.data_vals(d).shape
+    def shape(self):
+        """
+        Return the shape of the meshgrid.
+        """
+        for d, _ in self.data_items():
+            return self.data_vals(d).shape
+        return None
 
     def validate(self):
         if not super().validate():
