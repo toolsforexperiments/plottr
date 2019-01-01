@@ -18,6 +18,7 @@ __license__ = 'MIT'
 
 # TODO: serialization (json...)
 # TODO: a function that returns axes values given a set of slices or so.
+# TODO: treatment of nested dims: expand or flatten-method; detection of nested dims.
 
 class DataDictBase(dict):
     """
@@ -80,6 +81,40 @@ class DataDictBase(dict):
             self[key] = value
         else:
             self[data][key] = value
+
+    def meta_val(self, key, data=None):
+        key = '__' + key + '__'
+        if data is None:
+            return self[key]
+        else:
+            return self[data][key]
+
+    def delete_meta(self, key, data=None):
+        key = '__' + key + '__'
+        if data is None:
+            del self[key]
+        else:
+            del self[data][key]
+
+    def clear_meta(self, data: Union[str, None] = None):
+        """
+        Delete meta information. If `data` is not None, delete only
+        meta information from data field `data`. Else, delete all
+        top-level meta, as well as meta for all data fields.
+        """
+        if data is None:
+            meta_list = [k for k, _ in self.meta_items()]
+            for m in meta_list:
+                self.delete_meta(m)
+
+            for d, _ in self.data_items():
+                for m, _ in self.data_meta(d).items():
+                    self.delete_meta(m, d)
+
+        else:
+            for m, _ in self.data_meta(data).items():
+                self.delete_meta(m, data)
+
 
     def extract(self, data: List[str], include_meta: bool = True,
                 copy: bool = True, sanitize: bool = True):
@@ -157,18 +192,23 @@ class DataDictBase(dict):
         """
         if self.validate():
             s = DataDictBase()
+            shapes = {}
             for n, v in self.data_items():
                 v2 = v.copy()
                 v2.pop('values')
                 s[n] = v2
                 if add_shape:
-                    s.add_meta('shape', np.array(v['values']).shape, data=n)
+                    shapes[n] = np.array(v['values']).shape
 
             if include_meta:
                 for n, v in self.meta_items():
                     s.add_meta(n, v)
+            else:
+                s.clear_meta()
 
-            # s.validate()
+            for n, shp in shapes.items():
+                s.add_meta('shape', shp, data=n)
+
             return s
 
     def label(self, name):
@@ -200,7 +240,7 @@ class DataDictBase(dict):
     def axes(self, data=None):
         lst = []
         if data is None:
-            for k, v in self.items():
+            for k, v in self.data_items():
                 if 'axes' in v:
                     for n in v['axes']:
                         if n not in lst and self[n].get('axes', []) == []:
@@ -223,6 +263,18 @@ class DataDictBase(dict):
             if len(v.get('axes', [])) != 0:
                 ret.append(n)
         return ret
+
+
+    def shapes(self) -> Dict[str, Tuple[int, ...]]:
+        """
+        Return a dictionary of the form {'key' : shape}, where shape is the
+        np.shape-tuple of the data with name `key`.
+        """
+        shapes = {}
+        for k, v in self.data_items():
+            shapes[k] = np.array(self.data_vals(k)).shape
+
+        return shapes
 
     # validation and sanitizing
 
@@ -374,8 +426,10 @@ class DataDict(DataDictBase):
             msg = '\n'
 
             for n, v in self.data_items():
-                if len(v['values'].shape) > 1:
-                    msg += f" * '{n}' is not a 1D array (has shape {v['values'].shape})"
+
+                # this is probably overly restrictive...
+                # if len(v['values'].shape) > 1:
+                #     msg += f" * '{n}' is not a 1D array (has shape {v['values'].shape})"
 
                 if nvals is None:
                     nvals = len(v['values'])
@@ -417,9 +471,9 @@ class DataDict(DataDictBase):
 
 class MeshgridDataDict(DataDictBase):
 
-    def shape(self):
-        for d, _ in self.data_items():
-            return self.data_vals(d).shape
+    # def shape(self):
+    #     for d, _ in self.data_items():
+    #         return self.data_vals(d).shape
 
     def validate(self):
         if not super().validate():
