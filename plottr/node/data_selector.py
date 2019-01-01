@@ -5,7 +5,7 @@ A node and widget for subselecting from a dataset.
 """
 from pprint import pprint
 import copy
-from typing import Union, List, Tuple
+from typing import Union, List, Tuple, Dict
 
 import numpy as np
 
@@ -82,6 +82,11 @@ class DataDisplayWidget(QtGui.QTreeWidget, NodeWidget):
             w.setChecked(False)
         super().clear()
 
+    def setShape(self, shape: Dict[str, Tuple[int, ...]]):
+        for n, s in shape.items():
+            item = self.findItems(n, QtCore.Qt.MatchExactly, 1)[0]
+            item.setText(2, str(s))
+
     @NodeWidget.emitGuiUpdate('selectionChanged')
     def signalSelection(self, _val):
         return self.getSelected()
@@ -128,6 +133,7 @@ class DataSelector(Node):
     }
 
     newDataStructure = QtCore.pyqtSignal(object)
+    dataShapeChanged = QtCore.pyqtSignal(object)
 
     def __init__(self, *arg, **kw):
         super().__init__(*arg, **kw)
@@ -189,12 +195,15 @@ class DataSelector(Node):
         if data is None:
             return None
         data = data['dataOut']
-        struct = data.structure()
 
+        # this is for the UI
+        struct = data.structure()
         if not DataDict.same_structure(struct, self._dataStructure):
             self._dataStructure = struct
             self.newDataStructure.emit(struct)
+        self.dataShapeChanged.emit(data.shapes())
 
+        # this is the actual operation of the node
         data = self._reduceData(data)
         return dict(dataOut=data)
 
@@ -202,6 +211,7 @@ class DataSelector(Node):
 
     def setupUi(self):
         self.newDataStructure.connect(self.ui.setData)
+        self.dataShapeChanged.connect(self.ui.setShape)
         self.ui.selectionChanged.connect(self._setSelected)
 
     @QtCore.pyqtSlot(list)
