@@ -327,20 +327,21 @@ class QCodesDBInspector(QtGui.QMainWindow):
     ### reloading the db
     @QtCore.pyqtSlot()
     def refreshDB(self):
-        if self.dbdf.size > 0:
-            latestRunId = self.dbdf.index.values.max()
-        else:
-            latestRunId = -1
-        
-        self.loadFullDB()
-        self.dateList.sendSelectedDates()
+        if self.filepath is not None:
+            if self.dbdf.size > 0:
+                latestRunId = self.dbdf.index.values.max()
+            else:
+                latestRunId = -1
 
-        idxs = self.dbdf.index.values
-        newIdxs = idxs[idxs > latestRunId]
-        if self.monitor.isActive() and self.autoLaunchPlots.elements['Auto-plot new'].isChecked():
-            for idx in newIdxs:
-                self.plotRun(idx)
-                self._plotWindows[idx]['window'].setMonitorInterval(2)
+            self.loadFullDB()
+            self.dateList.sendSelectedDates()
+
+            idxs = self.dbdf.index.values
+            newIdxs = idxs[idxs > latestRunId]
+            if self.monitor.isActive() and self.autoLaunchPlots.elements['Auto-plot new'].isChecked():
+                for idx in newIdxs:
+                    self.plotRun(idx)
+                    self._plotWindows[idx]['window'].setMonitorInterval(2)
 
     @QtCore.pyqtSlot(int)
     def setMonitorInterval(self, val):
