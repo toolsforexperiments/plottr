@@ -8,7 +8,7 @@ A particular use case is data filtering and plotting.
 
 For now, check out the Notebook *Interactive data inspection* under `/doc/`.
 
-# inspectr: QCoDeS dataset inspection
+# inspectr: QCoDeS dataset inspection and live plotting
 
 You can use the inspectr tool to get a simple overview over QCoDeS database 
 files, and plot datasets contained in the database.
@@ -17,10 +17,11 @@ files, and plot datasets contained in the database.
 
 * from within the plottr-directory, run `python apps/inspectr.py --dbpath <path to your .db file>`
 
+For more basic instructions, check out the Notebook *Live plotting qcodes data* under `/doc/`.
+
 # Installation
 
-Note: this package is not compatible with the original plottr tool, and this new version does not (yet!) support live plotting of qcodes data. If you want to keep using the old plottr for that, you probably want to create a new environment for this version.
-(But rest assured, live plotting is all the way up on the priority list ;))
+Note: this package is not compatible with the original plottr tool. You might want to install freshly if you still use the old version.
 
 ## Requirements:
 * python >= 3.6 (f-strings...)
