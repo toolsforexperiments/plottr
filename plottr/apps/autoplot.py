@@ -74,6 +74,7 @@ def autoplot(makeUI: bool = True, log: bool = False,
     layout.addWidget(area)
     win = QtGui.QDialog()
     win.setLayout(layout)
+    win.setWindowTitle('Plottr | Autoplot')
 
     # data selector
     dataselDock = Dock('Data Selector', size=(250, 100))
@@ -128,7 +129,12 @@ class QCAutoPlotMainWindow(QtGui.QMainWindow):
         super().__init__(parent)
 
         self.fc = fc
+        self.loaderNode = fc.nodes()['QCodesDSLoader.0']
         self.monitor = QtCore.QTimer()
+
+        # a flag we use to set reasonable defaults when the first data
+        # is processed
+        self._initialized = False
 
         windowTitle = "Plottr | QCoDeS autoplot"
         if pathAndId is not None:
@@ -165,10 +171,13 @@ class QCAutoPlotMainWindow(QtGui.QMainWindow):
         self.monitor.timeout.connect(self.monitorTriggered)
 
         if pathAndId is not None:
-            fc.nodes()['QCodesDSLoader.0'].pathAndId = pathAndId
+            self.loaderNode.pathAndId = pathAndId
             if monitorInterval is not None:
                 self.setMonitorInterval(monitorInterval)
 
+            if self.loaderNode.nLoadedRecords > 0:
+                self.setDefaults()
+                self._initialized = True
 
     def closeEvent(self, event):
         """
@@ -192,8 +201,12 @@ class QCAutoPlotMainWindow(QtGui.QMainWindow):
         """
         Refresh the dataset by calling `update' on the dataset loader node.
         """
-        self.fc.nodes()['QCodesDSLoader.0'].update()
+        self.loaderNode.update()
         self.showTime()
+
+        if not self._initialized and self.loaderNode.nLoadedRecords > 0:
+            self.setDefaults()
+            self._initialized = True
 
 
     @QtCore.pyqtSlot(int)
@@ -216,6 +229,24 @@ class QCAutoPlotMainWindow(QtGui.QMainWindow):
         """
         logger().debug('Refreshing data')
         self.refreshData()
+
+
+    def setDefaults(self):
+        """
+        set some defaults (for convenience).
+        """
+        data = self.loaderNode.outputValues()['dataOut']
+        selected = data.dependents()[0]
+        axes = data.axes(selected)
+        if len(axes) > 2:
+            axes = axes[-2:]
+        if len(axes) == 1:
+            axes = axes[0], None
+
+        self.fc.nodes()['DataSelector.0'].selectedData = selected
+        self.fc.nodes()['Gridder.0'].grid = 'guess'
+        self.fc.nodes()['XYAxesSelector.0'].xyAxes = axes
+
 
 
 def autoplotQcodesDataset(makeUI: bool = True, log: bool = False,

@@ -320,22 +320,28 @@ class QCodesDBInspector(QtGui.QMainWindow):
 
     @QtCore.pyqtSlot()
     def updateDates(self):
-        dates = list(self.dbdf.groupby('started date').indices.keys())
-        self.dateList.updateDates(dates)
+        if self.dbdf.size > 0:
+            dates = list(self.dbdf.groupby('started date').indices.keys())
+            self.dateList.updateDates(dates)
 
     ### reloading the db
     @QtCore.pyqtSlot()
     def refreshDB(self):
-        latestRunId = self.dbdf.index.values.max()
-        self.loadFullDB()
-        self.dateList.sendSelectedDates()
+        if self.filepath is not None:
+            if self.dbdf.size > 0:
+                latestRunId = self.dbdf.index.values.max()
+            else:
+                latestRunId = -1
 
-        idxs = self.dbdf.index.values
-        newIdxs = idxs[idxs > latestRunId]
-        if self.monitor.isActive() and self.autoLaunchPlots.elements['Auto-plot new'].isChecked():
-            for idx in newIdxs:
-                self.plotRun(idx)
-                self._plotWindows[idx]['window'].setMonitorInterval(2)
+            self.loadFullDB()
+            self.dateList.sendSelectedDates()
+
+            idxs = self.dbdf.index.values
+            newIdxs = idxs[idxs > latestRunId]
+            if self.monitor.isActive() and self.autoLaunchPlots.elements['Auto-plot new'].isChecked():
+                for idx in newIdxs:
+                    self.plotRun(idx)
+                    self._plotWindows[idx]['window'].setMonitorInterval(2)
 
     @QtCore.pyqtSlot(int)
     def setMonitorInterval(self, val):
@@ -353,8 +359,11 @@ class QCodesDBInspector(QtGui.QMainWindow):
     ### handling user selections
     @QtCore.pyqtSlot(list)
     def setDateSelection(self, dates):
-        selection = self.dbdf.loc[self.dbdf['started date'].isin(dates)].sort_index(ascending=False)
-        self.runList.setRuns(selection.to_dict(orient='index'))
+        if len(dates) > 0:
+            selection = self.dbdf.loc[self.dbdf['started date'].isin(dates)].sort_index(ascending=False)
+            self.runList.setRuns(selection.to_dict(orient='index'))
+        else:
+            self.runList.clear()
 
     @QtCore.pyqtSlot(int)
     def setRunSelection(self, runId):
