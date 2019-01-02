@@ -251,7 +251,6 @@ class QCAutoPlotMainWindow(QtGui.QMainWindow):
         self.fc.nodes()['XYAxesSelector.0'].xyAxes = axes
 
 
-
 def autoplotQcodesDataset(makeUI: bool = True, log: bool = False,
                           pathAndId: Union[Tuple[str, int], None] = None) -> (Flowchart, QCAutoPlotMainWindow):
     """
@@ -290,11 +289,8 @@ def autoplotQcodesDataset(makeUI: bool = True, log: bool = False,
 
     ### Setting up the GUI window
 
-    area = DockArea()
-    win = QCAutoPlotMainWindow(fc=fc, pathAndId=pathAndId)
-    win.setCentralWidget(area)
-
     ### Docks
+    area = DockArea()
 
     # data selector
     dataselDock = Dock('Data Selector', size=(250, 100))
@@ -324,6 +320,8 @@ def autoplotQcodesDataset(makeUI: bool = True, log: bool = False,
     plotDock.addWidget(plotWidget)
     area.addDock(plotDock, 'right')
 
+    win = QCAutoPlotMainWindow(fc=fc, pathAndId=pathAndId)
+    win.setCentralWidget(area)
     win.show()
 
     return fc, win
