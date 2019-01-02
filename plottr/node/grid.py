@@ -293,6 +293,9 @@ class DataGridder(Node):
         else:
             self.logger().error(f"Unknown grid option {self._grid}. Most likely a bug :/")
             return None
+        
+        if dout is None:
+            return None
 
         if self.ui is not None:
             self.updateUiDataOut(dout)
