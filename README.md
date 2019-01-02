@@ -8,7 +8,7 @@ A particular use case is data filtering and plotting.
 
 For now, check out the Notebook *Interactive data inspection* under `/doc/`.
 
-# inspectr: QCoDeS dataset inspection and live plotting
+## inspectr: QCoDeS dataset inspection and live plotting
 
 You can use the inspectr tool to get a simple overview over QCoDeS database 
 files, and plot datasets contained in the database.
