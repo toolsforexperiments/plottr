@@ -253,7 +253,11 @@ class DataGridder(Node):
 
     ### Processing
     def process(self, **kw):
-        data = kw['dataIn']
+        data = super().process(**kw)
+        if data is None:
+            return None
+        
+        data = data['dataOut']
         if self.ui is not None:
             self.updateUiDataIn(data)
 
@@ -288,6 +292,9 @@ class DataGridder(Node):
 
         else:
             self.logger().error(f"Unknown grid option {self._grid}. Most likely a bug :/")
+            return None
+        
+        if dout is None:
             return None
 
         if self.ui is not None:

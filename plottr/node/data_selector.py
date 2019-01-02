@@ -189,6 +189,9 @@ class DataSelector(Node):
             dnames = [self.selectedData]
         else:
             dnames = self.selectedData
+        if len(self.selectedData) == 0:
+            return None
+
         return data.extract(dnames)
 
     def process(self, **kw):
@@ -206,6 +209,9 @@ class DataSelector(Node):
 
         # this is the actual operation of the node
         data = self._reduceData(data)
+        if data is None:
+            return None
+
         return dict(dataOut=data)
 
     ### Methods for GUI interaction
