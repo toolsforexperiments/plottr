@@ -14,6 +14,5 @@ setup(
         'pyqtgraph>=0.10.0',
         'matplotlib',
         'numpy',
-        'pyqt5>=5.9.0',
     ],
 )
