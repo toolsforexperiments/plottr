@@ -236,7 +236,10 @@ class QCAutoPlotMainWindow(QtGui.QMainWindow):
         set some defaults (for convenience).
         """
         data = self.loaderNode.outputValues()['dataOut']
-        selected = data.dependents()[0]
+        selected = data.dependents()
+        if len(selected) > 0:
+            selected = selected[:1]
+
         axes = data.axes(selected)
         if len(axes) > 2:
             axes = axes[-2:]
