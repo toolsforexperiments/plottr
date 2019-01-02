@@ -210,6 +210,12 @@ class QCodesDBInspector(QtGui.QMainWindow):
         self.filepath = dbPath
         self.dbdf = None
         self.monitor = QtCore.QTimer()
+        
+        # flag for determining what has been loaded so far.
+        # * None: nothing opened yet.
+        # * -1: empty DS open.
+        # * any value > 0: run ID from the most recent loading.
+        self.latestRunId = None
 
         self.setWindowTitle('Plottr | QCoDeS dataset inspectr')
 
@@ -351,10 +357,23 @@ class QCodesDBInspector(QtGui.QMainWindow):
             if not self.loadDBThread.isRunning():
                 self.loadDBProcess.setPath(self.filepath)
 
+    
     def DBLoaded(self, dbdf):
         self.dbdf = dbdf
         self.dbdfUpdated.emit()
+        self.dateList.sendSelectedDates()
         logger().debug('DB reloaded')
+
+        if self.latestRunId is not None:
+            idxs = self.dbdf.index.values
+            newIdxs = idxs[idxs > self.latestRunId]
+            
+            if self.monitor.isActive() and self.autoLaunchPlots.elements['Auto-plot new'].isChecked():
+                for idx in newIdxs:
+                    self.plotRun(idx)
+                    self._plotWindows[idx]['window'].setMonitorInterval(2)
+
+
 
     @QtCore.pyqtSlot()
     def updateDates(self):
@@ -367,19 +386,11 @@ class QCodesDBInspector(QtGui.QMainWindow):
     def refreshDB(self):
         if self.filepath is not None:
             if self.dbdf.size > 0:
-                latestRunId = self.dbdf.index.values.max()
+                self.latestRunId = self.dbdf.index.values.max()
             else:
-                latestRunId = -1
+                self.latestRunId = -1
 
             self.loadFullDB()
-            self.dateList.sendSelectedDates()
-
-            idxs = self.dbdf.index.values
-            newIdxs = idxs[idxs > latestRunId]
-            if self.monitor.isActive() and self.autoLaunchPlots.elements['Auto-plot new'].isChecked():
-                for idx in newIdxs:
-                    self.plotRun(idx)
-                    self._plotWindows[idx]['window'].setMonitorInterval(2)
 
     @QtCore.pyqtSlot(int)
     def setMonitorInterval(self, val):
