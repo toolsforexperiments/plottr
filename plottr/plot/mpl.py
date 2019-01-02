@@ -14,7 +14,7 @@ import pandas as pd
 
 from pyqtgraph.Qt import QtGui, QtCore
 
-from ..data.datadict import DataDict, MeshgridDataDict
+from ..data.datadict import DataDict, MeshgridDataDict, meshgrid_to_datadict
 from ..node.node import Node
 from ..utils import (centers2edges_1d, interp_meshgrid_2d,
                      centers2edges_2d)
@@ -213,13 +213,19 @@ class AutoPlot(MPLPlotWidget):
 
         axesNames = data.axes()
         dataNames = data.dependents()
+        shape = data.shapes()[dataNames[0]]
+        
+        if 0 in shape:
+            return
+        if len(axesNames) == 2 and isinstance(data, MeshgridDataDict):
+            if min(shape) < 2:
+                data = meshgrid_to_datadict(data)               
 
         naxes = len(axesNames)
         ndata = len(dataNames)
 
         if naxes == 0 or ndata == 0:
             self.plot.clearFig(naxes=0)
-
         elif naxes == 1:
             ax = self.plot.clearFig(1, 1, 1)[0]
             self._plot1d(data, ax, axesNames[0], dataNames)
