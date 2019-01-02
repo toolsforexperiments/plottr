@@ -594,6 +594,10 @@ def datadict_to_meshgrid(data: DataDict, target_shape: Union[Tuple[int], None] =
     # TODO: support for cues inside the data set about the shape.
     # TODO: maybe it could make sense to include a method to sort the meshgrid axes.
 
+    # if the data is empty, return empty MeshgridData
+    if len([k for k, _ in data.data_items()]) == 0:
+        return None
+
     # guess what the shape likely is.
     if not data.compatible_axes():
         raise ValueError('Non-compatible axes, cannot grid that.')

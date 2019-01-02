@@ -699,6 +699,9 @@ class XYAxesSelector(DimensionReducer):
 
     def process(self, **kw):
         data = kw['dataIn']
+        if data is None:
+            return None
+
         self.updateUi(data)
 
         data = super().process(dataIn=data)
