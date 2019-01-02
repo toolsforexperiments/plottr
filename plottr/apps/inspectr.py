@@ -8,6 +8,8 @@ import os
 import time
 import logging
 
+import pandas as pd
+
 from pyqtgraph.Qt import QtGui, QtCore
 
 from .. import log as plottrlog
@@ -23,8 +25,7 @@ __license__ = 'MIT'
 
 
 def logger():
-    logger = logging.getLogger('plottr.apps.inspectr')
-    logger.setLevel(plottrlog.LEVEL)
+    logger = plottrlog.getLogger('plottr.apps.inspectr')
     return logger
 
 
@@ -176,6 +177,23 @@ class RunInfo(QtGui.QTreeWidget):
             self.resizeColumnToContents(i)
 
 
+class LoadDBProcess(QtCore.QObject):
+    """
+    Worker object for getting a qcodes db overview as pandas dataframe.
+    It's good to have this in a separate thread because it can be a bit slow
+    for large databases.
+    """
+    dbdfLoaded = QtCore.pyqtSignal(object)
+    pathSet = QtCore.pyqtSignal()
+
+    def setPath(self, path: str):
+        self.path = path
+        self.pathSet.emit()
+
+    def loadDB(self):
+        dbdf = get_runs_from_db_as_dataframe(self.path)
+        self.dbdfLoaded.emit(dbdf)
+
 class QCodesDBInspector(QtGui.QMainWindow):
     """
     Main window of the inspectr tool.
@@ -194,6 +212,8 @@ class QCodesDBInspector(QtGui.QMainWindow):
         self.monitor = QtCore.QTimer()
 
         self.setWindowTitle('Plottr | QCoDeS dataset inspectr')
+
+        ### GUI elements
 
         # Main Selection widgets
         self.dateList = DateList()
@@ -255,7 +275,19 @@ class QCodesDBInspector(QtGui.QMainWindow):
         # sizing
         self.resize(640, 640)
 
-        # connect signals/slots
+        ### Thread workers
+        
+        # DB loading
+        self.loadDBProcess = LoadDBProcess()
+        self.loadDBThread = QtCore.QThread()
+        self.loadDBProcess.moveToThread(self.loadDBThread)
+        self.loadDBProcess.pathSet.connect(self.loadDBThread.start)
+        self.loadDBProcess.dbdfLoaded.connect(self.DBLoaded)
+        self.loadDBProcess.dbdfLoaded.connect(self.loadDBThread.quit)
+        self.loadDBThread.started.connect(self.loadDBProcess.loadDB)
+
+        ### connect signals/slots
+
         self.dbdfUpdated.connect(self.updateDates)
         self.dbdfUpdated.connect(self.showDBPath)
 
@@ -315,8 +347,14 @@ class QCodesDBInspector(QtGui.QMainWindow):
         if path is not None and path != self.filepath:
             self.filepath = path
 
-        self.dbdf = get_runs_from_db_as_dataframe(self.filepath)
+        if self.filepath is not None:
+            if not self.loadDBThread.isRunning():
+                self.loadDBProcess.setPath(self.filepath)
+
+    def DBLoaded(self, dbdf):
+        self.dbdf = dbdf
         self.dbdfUpdated.emit()
+        logger().debug('DB reloaded')
 
     @QtCore.pyqtSlot()
     def updateDates(self):
