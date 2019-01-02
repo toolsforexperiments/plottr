@@ -114,7 +114,9 @@ def getLogger(module: str = '') -> logging.Logger:
             mod = module
         else:
             mod += f'.{module}'
+
     logger = logging.getLogger(mod)
+    logger.setLevel(LEVEL)
     return logger
 
 
