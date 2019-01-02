@@ -253,7 +253,11 @@ class DataGridder(Node):
 
     ### Processing
     def process(self, **kw):
-        data = kw['dataIn']
+        data = super().process(**kw)
+        if data is None:
+            return None
+        
+        data = data['dataOut']
         if self.ui is not None:
             self.updateUiDataIn(data)
 
