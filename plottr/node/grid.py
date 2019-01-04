@@ -28,7 +28,7 @@ class ShapeSpecification(QtGui.QWidget):
     def __init__(self, parent=None):
         super().__init__(parent)
 
-        self._axes = None
+        self._axes = []
         self._widgets = {}
 
         self.layout = QtGui.QFormLayout()
@@ -256,7 +256,7 @@ class DataGridder(Node):
         data = super().process(**kw)
         if data is None:
             return None
-        
+
         data = data['dataOut']
         if self.ui is not None:
             self.updateUiDataIn(data)
@@ -293,7 +293,7 @@ class DataGridder(Node):
         else:
             self.logger().error(f"Unknown grid option {self._grid}. Most likely a bug :/")
             return None
-        
+
         if dout is None:
             return None
 
