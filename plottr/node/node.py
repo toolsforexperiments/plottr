@@ -6,6 +6,7 @@ Contains the base class for Nodes.
 import copy
 from pprint import pprint
 import logging
+import traceback
 
 import numpy as np
 
@@ -32,7 +33,7 @@ class Node(pgNode):
 
     optionChanged = QtCore.pyqtSignal(str, object)
 
-    raiseExceptions = True
+    raiseExceptions = False
     nodeName = "DataDictNode"
     terminals = {
         'dataIn' : {'io' : 'in'},
@@ -85,6 +86,12 @@ class Node(pgNode):
         super().update(signal=signal)
         if Node.raiseExceptions and self.exception is not None:
             raise self.exception[1]
+        elif self.exception is not None:
+            e = self.exception
+            err = f'EXCEPTION RAISED: {e[0]}: {e[1]}\n'
+            for t in traceback.format_tb(e[2]):
+                err += f' -> {t}\n'
+            self.logger().error(err)
 
     def logger(self):
         logger = log.getLogger(self.__module__ + '.' + self.__class__.__name__)

@@ -476,7 +476,7 @@ class MeshgridDataDict(DataDictBase):
         Return the shape of the meshgrid.
         """
         for d, _ in self.data_items():
-            return self.data_vals(d).shape
+            return np.array(self.data_vals(d)).shape
         return None
 
     def validate(self):
