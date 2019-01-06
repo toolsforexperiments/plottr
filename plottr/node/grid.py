@@ -268,8 +268,6 @@ class DataGridder(Node):
             return None
 
         if self._grid is None:
-            if isinstance(data, MeshgridDataDict):
-                shape = data.shape
             dout = data
 
         elif self._grid is False and isinstance(data, DataDict):
@@ -280,14 +278,11 @@ class DataGridder(Node):
 
         elif self._grid == 'guess' and isinstance(data, DataDict):
             dout = dd.datadict_to_meshgrid(data)
-            shape = dout.shape
 
         elif self._grid == 'guess' and isinstance(data, MeshgridDataDict):
-            shape = data.shape
             dout = data
 
         elif isinstance(self._grid, tuple):
-            shape = self._grid
             dout = dd.datadict_to_meshgrid(data, target_shape=self._grid)
 
         else:
