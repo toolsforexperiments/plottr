@@ -1,25 +1,30 @@
-# plottr: modular plotting and processing
+# plottr: modular data plotting and processing
 
-A framework for inspecting data, based on flowcharts from *pyqtgraph*. 
+A framework for inspecting data, based on flowcharts from *pyqtgraph*.
 *plottr*'s main aim is to allow the user to define custom data processing flows and plotting.
 A particular use case is data filtering and plotting.
 
-## Interactive usage: 
+## Quickstart
 
-For now, check out the Notebook *Interactive data inspection* under `/doc/`.
+### Installation
 
-## inspectr: QCoDeS dataset inspection and live plotting
+In brief: clone the repo, and install using `pip install -e`
 
-You can use the inspectr tool to get a simple overview over QCoDeS database 
+### inspectr: QCoDeS dataset inspection and (live) plotting
+
+You can use the inspectr tool to get a simple overview over QCoDeS database
 files, and plot datasets contained in the database.
 
-### Usage:
+To use: from within the plottr-directory, run `python apps/inspectr.py --dbpath <path to your .db file>`
 
-* from within the plottr-directory, run `python apps/inspectr.py --dbpath <path to your .db file>`
+For basic instructions, check out the Notebook *Live plotting qcodes data* under `/doc/examples`.
 
-For more basic instructions, check out the Notebook *Live plotting qcodes data* under `/doc/`.
+### Interactive usage
 
-## Installation
+For now, check out the Notebook *Interactive data inspection* under `/doc/examples/`.
+
+
+## Some notes on installing
 
 Note: this package is not compatible with the original plottr tool. You might want to install freshly if you still use the old version.
 
@@ -32,8 +37,7 @@ Note: this package is not compatible with the original plottr tool. You might wa
 
 ### python package
 
-clone the repo, and install using `pip -e plottr/`. 
-
+clone the repo, and install using `pip install -e plottr/`.
 
 ## If you're looking for the 'original' plottr package...
 
