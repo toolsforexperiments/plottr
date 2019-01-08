@@ -1,23 +1,22 @@
-import numpy as np
 from plottr.data.datadict import DataDict
 
-def test_meta():
 
+def test_meta():
     # creation and retrieval of meta information
     dd = DataDict(
-        x = dict(
-            values=[1,2,3],
+        x=dict(
+            values=[1, 2, 3],
             __meta1__='abc',
             __meta2__='def',
         ),
-        y = dict(
-            values=[1,2,3],
+        y=dict(
+            values=[1, 2, 3],
             axes=['x'],
             __meta3__='123',
             __meta4__=None,
         ),
-        __info__ = lambda x: 0,
-        __more_info__ = object,
+        __info__=lambda x: 0,
+        __more_info__=object,
     )
     dd['__1234!__'] = '```'
     dd.add_meta('###', 3e-12)
@@ -57,16 +56,16 @@ def test_meta():
 
 def test_shapes():
     dd = DataDict(
-        x = dict(
-            values = [1, 2, 3],
+        x=dict(
+            values=[1, 2, 3],
         ),
-        y = dict(
-            values = [1, 2, 3],
-            axes = ['x'],
+        y=dict(
+            values=[1, 2, 3],
+            axes=['x'],
         ),
-        z = dict(
-            values = [[0, 0], [1, 1], [2, 2]],
-            axes = ['x'],
+        z=dict(
+            values=[[0, 0], [1, 1], [2, 2]],
+            axes=['x'],
         ),
     )
 

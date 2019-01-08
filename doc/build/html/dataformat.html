@@ -1,0 +1,311 @@
+
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <head>
+    <meta http-equiv="X-UA-Compatible" content="IE=Edge" />
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    <title>Data formats &#8212; plottr  documentation</title>
+    <link rel="stylesheet" href="_static/alabaster.css" type="text/css" />
+    <link rel="stylesheet" href="_static/pygments.css" type="text/css" />
+    <script type="text/javascript" id="documentation_options" data-url_root="./" src="_static/documentation_options.js"></script>
+    <script type="text/javascript" src="_static/jquery.js"></script>
+    <script type="text/javascript" src="_static/underscore.js"></script>
+    <script type="text/javascript" src="_static/doctools.js"></script>
+    <script async="async" type="text/javascript" src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-AMS-MML_HTMLorMML"></script>
+    <link rel="index" title="Index" href="genindex.html" />
+    <link rel="search" title="Search" href="search.html" />
+    <link rel="prev" title="Welcome to plottr’s documentation!" href="index.html" />
+   
+  <link rel="stylesheet" href="_static/custom.css" type="text/css" />
+  
+  
+  <meta name="viewport" content="width=device-width, initial-scale=0.9, maximum-scale=0.9" />
+
+  </head><body>
+  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          
+
+          <div class="body" role="main">
+            
+  <div class="section" id="data-formats">
+<h1>Data formats<a class="headerlink" href="#data-formats" title="Permalink to this headline">¶</a></h1>
+<p>A DataDict container can contain multiple <cite>data fields</cite> (or variables), that have values and can contain their own meta information. Importantly, we distinct between independent fields (the <cite>axes</cite>) and dependent fields (the <cite>data</cite>).</p>
+<p>Despite the naming, <cite>axes</cite> is not meant to imply that the <cite>data</cite> have to have a certain shape (but the degree to which this is true depends on the class used). A list of classes for different shapes of data can be found below.</p>
+<p>The basic structure of data conceptually looks like this (we inherit from <cite>dict</cite>)</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="p">{</span>
+    <span class="s1">&#39;data_1&#39;</span> <span class="p">:</span> <span class="p">{</span>
+        <span class="s1">&#39;axes&#39;</span> <span class="p">:</span> <span class="p">[</span><span class="s1">&#39;ax1&#39;</span><span class="p">,</span> <span class="s1">&#39;ax2&#39;</span><span class="p">],</span>
+        <span class="s1">&#39;unit&#39;</span> <span class="p">:</span> <span class="s1">&#39;some unit&#39;</span><span class="p">,</span>
+        <span class="s1">&#39;values&#39;</span> <span class="p">:</span> <span class="p">[</span> <span class="o">...</span> <span class="p">],</span>
+        <span class="s1">&#39;__meta__&#39;</span> <span class="p">:</span> <span class="s1">&#39;This is very important data&#39;</span><span class="p">,</span>
+        <span class="o">...</span>
+    <span class="p">},</span>
+    <span class="s1">&#39;ax1&#39;</span> <span class="p">:</span> <span class="p">{</span>
+        <span class="s1">&#39;axes&#39;</span> <span class="p">:</span> <span class="p">[],</span>
+        <span class="s1">&#39;unit&#39;</span> <span class="p">:</span> <span class="s1">&#39;some other unit&#39;</span><span class="p">,</span>
+        <span class="s1">&#39;values&#39;</span> <span class="p">:</span> <span class="p">[</span> <span class="o">...</span> <span class="p">],</span>
+        <span class="o">...</span><span class="p">,</span>
+    <span class="p">},</span>
+    <span class="s1">&#39;ax2&#39;</span> <span class="p">:</span> <span class="p">{</span>
+        <span class="s1">&#39;axes&#39;</span> <span class="p">:</span> <span class="p">[],</span>
+        <span class="s1">&#39;unit&#39;</span> <span class="p">:</span> <span class="s1">&#39;a third unit&#39;</span><span class="p">,</span>
+        <span class="s1">&#39;values&#39;</span> <span class="p">:</span> <span class="p">[</span> <span class="o">...</span> <span class="p">],</span>
+        <span class="o">...</span><span class="p">,</span>
+    <span class="p">},</span>
+    <span class="s1">&#39;__globalmeta__&#39;</span> <span class="p">:</span> <span class="s1">&#39;some information about this data set&#39;</span><span class="p">,</span>
+    <span class="s1">&#39;__moremeta__&#39;</span> <span class="p">:</span> <span class="mi">1234</span><span class="p">,</span>
+    <span class="o">...</span>
+<span class="p">}</span>
+</pre></div>
+</div>
+<p>In this case we have one dependent variable, <code class="docutils literal notranslate"><span class="pre">data_1</span></code>, that depends on two axes, <code class="docutils literal notranslate"><span class="pre">ax1</span></code> and <code class="docutils literal notranslate"><span class="pre">ax2</span></code>. This concept is restricted only in the following way:</p>
+<ul class="simple">
+<li>a dependent can depend on any number of independents</li>
+<li>an independent cannot depend on other fields itself</li>
+<li>any field that does not depend on another, is treated as an axis</li>
+</ul>
+<p>Note that meta information is contained in entries whose keys start and end with double underscores. Both the DataDict itself, as well as each field can contain meta information.</p>
+<p>In the most basic implementation, the only restriction on the data values is that they need to be contained in a sequence (typically as list, or numpy array), and that the length of all values in the data set (the number of <cite>records</cite>) must be equal. Note that this does not preclude nested sequences!</p>
+<div class="section" id="relevant-data-classes">
+<h2>Relevant data classes<a class="headerlink" href="#relevant-data-classes" title="Permalink to this headline">¶</a></h2>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">DataDictBase:</th><td class="field-body">The main base class. Only checks for correct dependencies.</td>
+</tr>
+<tr class="field-even field"><th class="field-name">DataDict:</th><td class="field-body">The only requirement for valid data is that the number of records is the same for all data fields.</td>
+</tr>
+</tbody>
+</table>
+</div>
+<div class="section" id="module-plottr.data.datadict">
+<span id="api-documentation-for-the-datadict-module"></span><h2>API documentation for the datadict module<a class="headerlink" href="#module-plottr.data.datadict" title="Permalink to this headline">¶</a></h2>
+<p>datadict.py :
+Data classes we use throughout the plottr package, and tools to work on them.</p>
+<dl class="class">
+<dt id="plottr.data.datadict.DataDict">
+<em class="property">class </em><code class="descclassname">plottr.data.datadict.</code><code class="descname">DataDict</code><span class="sig-paren">(</span><em>**kw</em><span class="sig-paren">)</span><a class="headerlink" href="#plottr.data.datadict.DataDict" title="Permalink to this definition">¶</a></dt>
+<dd><p>Contains data in ‘linear’ arrays. I.e., for data field ‘z’ with axes ‘x’
+and ‘y’, all of ‘x’, ‘y’, ‘z’ have 1D arrays as values with some lenght;
+the lengths must match. Each element x[i], y[i], z[i] is one datapoint,
+with x[i], y[i] being the coordinates.</p>
+<dl class="method">
+<dt id="plottr.data.datadict.DataDict.append">
+<code class="descname">append</code><span class="sig-paren">(</span><em>newdata</em><span class="sig-paren">)</span><a class="headerlink" href="#plottr.data.datadict.DataDict.append" title="Permalink to this definition">¶</a></dt>
+<dd><p>Append a datadict to this one by appending. This in in-place and
+doesn’t return anything.</p>
+</dd></dl>
+
+<dl class="method">
+<dt id="plottr.data.datadict.DataDict.remove_invalid_entries">
+<code class="descname">remove_invalid_entries</code><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="headerlink" href="#plottr.data.datadict.DataDict.remove_invalid_entries" title="Permalink to this definition">¶</a></dt>
+<dd><p>Remove all rows that are <code class="docutils literal notranslate"><span class="pre">None</span></code> or <code class="docutils literal notranslate"><span class="pre">np.nan</span></code> in <em>all</em> dependents.</p>
+</dd></dl>
+
+</dd></dl>
+
+<dl class="class">
+<dt id="plottr.data.datadict.DataDictBase">
+<em class="property">class </em><code class="descclassname">plottr.data.datadict.</code><code class="descname">DataDictBase</code><span class="sig-paren">(</span><em>**kw</em><span class="sig-paren">)</span><a class="headerlink" href="#plottr.data.datadict.DataDictBase" title="Permalink to this definition">¶</a></dt>
+<dd><p>Simple data storage class that is based on a regular dictionary.</p>
+<p>This base class does not make assumptions about the structure of the
+values. This is implemented in
+inheriting classes.</p>
+<dl class="method">
+<dt id="plottr.data.datadict.DataDictBase.clear_meta">
+<code class="descname">clear_meta</code><span class="sig-paren">(</span><em>data: Optional[str] = None</em><span class="sig-paren">)</span><a class="headerlink" href="#plottr.data.datadict.DataDictBase.clear_meta" title="Permalink to this definition">¶</a></dt>
+<dd><p>Delete meta information. If <cite>data</cite> is not None, delete only
+meta information from data field <cite>data</cite>. Else, delete all
+top-level meta, as well as meta for all data fields.</p>
+</dd></dl>
+
+<dl class="method">
+<dt id="plottr.data.datadict.DataDictBase.compatible_axes">
+<code class="descname">compatible_axes</code><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="headerlink" href="#plottr.data.datadict.DataDictBase.compatible_axes" title="Permalink to this definition">¶</a></dt>
+<dd><p>Returns True if all dependent data fields have the same axes, False
+otherwise.</p>
+</dd></dl>
+
+<dl class="method">
+<dt id="plottr.data.datadict.DataDictBase.extract">
+<code class="descname">extract</code><span class="sig-paren">(</span><em>data: List[str], include_meta: bool = True, copy: bool = True, sanitize: bool = True</em><span class="sig-paren">)</span><a class="headerlink" href="#plottr.data.datadict.DataDictBase.extract" title="Permalink to this definition">¶</a></dt>
+<dd><p>Return a new datadict with all fields specified in <cite>data</cite> included.
+Will also take any axes fields along that have not been explicitly
+specified.</p>
+</dd></dl>
+
+<dl class="method">
+<dt id="plottr.data.datadict.DataDictBase.new_order">
+<code class="descname">new_order</code><span class="sig-paren">(</span><em>name</em>, <em>**kw</em><span class="sig-paren">)</span><a class="headerlink" href="#plottr.data.datadict.DataDictBase.new_order" title="Permalink to this definition">¶</a></dt>
+<dd><p>return the list of axes indices that can be used
+to re-order the axes of the dataset given by name.</p>
+<p>kws are in the form {axes_name = new_position}.</p>
+</dd></dl>
+
+<dl class="method">
+<dt id="plottr.data.datadict.DataDictBase.reorder_axes">
+<code class="descname">reorder_axes</code><span class="sig-paren">(</span><em>data_names=None</em>, <em>**kw</em><span class="sig-paren">)</span><a class="headerlink" href="#plottr.data.datadict.DataDictBase.reorder_axes" title="Permalink to this definition">¶</a></dt>
+<dd><p>Reorder the axes for all data_names. New order is
+determined by kws in the form {axis_name : new_position}.</p>
+<p>if data_names is None, we try all dependents in the dataset.</p>
+</dd></dl>
+
+<dl class="staticmethod">
+<dt id="plottr.data.datadict.DataDictBase.same_structure">
+<em class="property">static </em><code class="descname">same_structure</code><span class="sig-paren">(</span><em>*dicts</em>, <em>check_shape=False</em><span class="sig-paren">)</span><a class="headerlink" href="#plottr.data.datadict.DataDictBase.same_structure" title="Permalink to this definition">¶</a></dt>
+<dd><p>Check if all supplied datadicts share the same data structure
+(i.e., dependents and axes).
+Ignores meta info and values.
+Checks also for matching shapes if <cite>check_shape</cite> is <cite>True</cite>.</p>
+</dd></dl>
+
+<dl class="method">
+<dt id="plottr.data.datadict.DataDictBase.shapes">
+<code class="descname">shapes</code><span class="sig-paren">(</span><span class="sig-paren">)</span> &#x2192; Dict[str, Tuple[int, ...]]<a class="headerlink" href="#plottr.data.datadict.DataDictBase.shapes" title="Permalink to this definition">¶</a></dt>
+<dd><p>Return a dictionary of the form <code class="docutils literal notranslate"><span class="pre">{key</span> <span class="pre">:</span> <span class="pre">shape}</span></code>, where shape is the
+np.shape-tuple of the data with name <code class="docutils literal notranslate"><span class="pre">key</span></code>.</p>
+</dd></dl>
+
+<dl class="method">
+<dt id="plottr.data.datadict.DataDictBase.structure">
+<code class="descname">structure</code><span class="sig-paren">(</span><em>add_shape=True</em>, <em>include_meta=True</em><span class="sig-paren">)</span><a class="headerlink" href="#plottr.data.datadict.DataDictBase.structure" title="Permalink to this definition">¶</a></dt>
+<dd><p>Return the datadict without values (<code class="docutils literal notranslate"><span class="pre">value</span></code> omitted in the dict).
+if <code class="docutils literal notranslate"><span class="pre">add_shape</span></code> is true, we add a key <code class="docutils literal notranslate"><span class="pre">__shape__</span></code> that contains the
+shape of each data field. if <code class="docutils literal notranslate"><span class="pre">include_meta</span></code> is true, we also take
+the meta info of the datadict along.</p>
+</dd></dl>
+
+</dd></dl>
+
+<dl class="class">
+<dt id="plottr.data.datadict.MeshgridDataDict">
+<em class="property">class </em><code class="descclassname">plottr.data.datadict.</code><code class="descname">MeshgridDataDict</code><span class="sig-paren">(</span><em>**kw</em><span class="sig-paren">)</span><a class="headerlink" href="#plottr.data.datadict.MeshgridDataDict" title="Permalink to this definition">¶</a></dt>
+<dd><dl class="method">
+<dt id="plottr.data.datadict.MeshgridDataDict.shape">
+<code class="descname">shape</code><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="headerlink" href="#plottr.data.datadict.MeshgridDataDict.shape" title="Permalink to this definition">¶</a></dt>
+<dd><p>Return the shape of the meshgrid.</p>
+</dd></dl>
+
+</dd></dl>
+
+<dl class="function">
+<dt id="plottr.data.datadict.array1d_to_meshgrid">
+<code class="descclassname">plottr.data.datadict.</code><code class="descname">array1d_to_meshgrid</code><span class="sig-paren">(</span><em>arr: Sequence, target_shape: Tuple[int], copy: bool = True</em><span class="sig-paren">)</span> &#x2192; numpy.ndarray<a class="headerlink" href="#plottr.data.datadict.array1d_to_meshgrid" title="Permalink to this definition">¶</a></dt>
+<dd><p>try to reshape <code class="docutils literal notranslate"><span class="pre">arr</span></code> to target shape.
+If target shape is larger than the array, fill with invalids
+(<code class="docutils literal notranslate"><span class="pre">nan</span></code> for float and complex dtypes, <code class="docutils literal notranslate"><span class="pre">None</span></code> otherwise).
+If target shape is smaller than the array, cut off the end.</p>
+</dd></dl>
+
+<dl class="function">
+<dt id="plottr.data.datadict.datadict_to_meshgrid">
+<code class="descclassname">plottr.data.datadict.</code><code class="descname">datadict_to_meshgrid</code><span class="sig-paren">(</span><em>data: plottr.data.datadict.DataDict</em>, <em>target_shape: Optional[Tuple[int]] = None</em>, <em>copy: bool = True</em>, <em>sanitize: bool = True</em><span class="sig-paren">)</span> &#x2192; plottr.data.datadict.MeshgridDataDict<a class="headerlink" href="#plottr.data.datadict.datadict_to_meshgrid" title="Permalink to this definition">¶</a></dt>
+<dd><p>Try to make a meshgrid from <code class="docutils literal notranslate"><span class="pre">data</span></code>. If no target shape is supplied,
+we try to guess.</p>
+</dd></dl>
+
+<dl class="function">
+<dt id="plottr.data.datadict.guess_shape_from_datadict">
+<code class="descclassname">plottr.data.datadict.</code><code class="descname">guess_shape_from_datadict</code><span class="sig-paren">(</span><em>data: plottr.data.datadict.DataDict</em><span class="sig-paren">)</span> &#x2192; Dict[str, Tuple[int]]<a class="headerlink" href="#plottr.data.datadict.guess_shape_from_datadict" title="Permalink to this definition">¶</a></dt>
+<dd><p>Try to guess the shape of the datadict dependents from the unique values of
+their axes.</p>
+</dd></dl>
+
+<dl class="function">
+<dt id="plottr.data.datadict.meshgrid_to_datadict">
+<code class="descclassname">plottr.data.datadict.</code><code class="descname">meshgrid_to_datadict</code><span class="sig-paren">(</span><em>data: plottr.data.datadict.MeshgridDataDict</em>, <em>copy: bool = True</em>, <em>sanitize: bool = True</em><span class="sig-paren">)</span> &#x2192; plottr.data.datadict.DataDict<a class="headerlink" href="#plottr.data.datadict.meshgrid_to_datadict" title="Permalink to this definition">¶</a></dt>
+<dd><p>Make a DataDict from a MeshgridDataDict by simply reshaping the data.</p>
+</dd></dl>
+
+<dl class="function">
+<dt id="plottr.data.datadict.reorder_axes">
+<code class="descclassname">plottr.data.datadict.</code><code class="descname">reorder_axes</code><span class="sig-paren">(</span><em>self</em>, <em>**kw</em><span class="sig-paren">)</span><a class="headerlink" href="#plottr.data.datadict.reorder_axes" title="Permalink to this definition">¶</a></dt>
+<dd><p>Reorder the axes for all data.
+This includes transposing the data, since we’re on a grid.</p>
+</dd></dl>
+
+</div>
+</div>
+
+
+          </div>
+          
+        </div>
+      </div>
+      <div class="sphinxsidebar" role="navigation" aria-label="main navigation">
+        <div class="sphinxsidebarwrapper">
+<h1 class="logo"><a href="index.html">plottr</a></h1>
+
+
+
+
+
+
+
+
+<h3>Navigation</h3>
+<p class="caption"><span class="caption-text">Contents:</span></p>
+<ul class="current">
+<li class="toctree-l1 current"><a class="current reference internal" href="#">Data formats</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="#relevant-data-classes">Relevant data classes</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#module-plottr.data.datadict">API documentation for the datadict module</a></li>
+</ul>
+</li>
+</ul>
+
+<div class="relations">
+<h3>Related Topics</h3>
+<ul>
+  <li><a href="index.html">Documentation overview</a><ul>
+      <li>Previous: <a href="index.html" title="previous chapter">Welcome to plottr’s documentation!</a></li>
+  </ul></li>
+</ul>
+</div>
+<div id="searchbox" style="display: none" role="search">
+  <h3>Quick search</h3>
+    <div class="searchformwrapper">
+    <form class="search" action="search.html" method="get">
+      <input type="text" name="q" />
+      <input type="submit" value="Go" />
+      <input type="hidden" name="check_keywords" value="yes" />
+      <input type="hidden" name="area" value="default" />
+    </form>
+    </div>
+</div>
+<script type="text/javascript">$('#searchbox').show(0);</script>
+
+
+
+
+
+
+
+
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+    <div class="footer">
+      &copy;2019, Wolfgang Pfaff.
+      
+      |
+      Powered by <a href="http://sphinx-doc.org/">Sphinx 1.8.1</a>
+      &amp; <a href="https://github.com/bitprophet/alabaster">Alabaster 0.7.12</a>
+      
+      |
+      <a href="_sources/dataformat.rst.txt"
+          rel="nofollow">Page source</a>
+    </div>
+
+    
+
+    
+  </body>
+</html>
