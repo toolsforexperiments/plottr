@@ -78,7 +78,7 @@
 <col class="field-name" />
 <col class="field-body" />
 <tbody valign="top">
-<tr class="field-odd field"><th class="field-name">DataDictBase:</th><td class="field-body">The main base class. Only checks for correct dependencies.</td>
+<tr class="field-odd field"><th class="field-name">DataDictBase:</th><td class="field-body">The main base class. Only checks for correct dependencies. Any requirements on data structure is left to the inheriting classes.</td>
 </tr>
 <tr class="field-even field"><th class="field-name">DataDict:</th><td class="field-body">The only requirement for valid data is that the number of records is the same for all data fields.</td>
 </tr>
@@ -87,8 +87,8 @@
 </div>
 <div class="section" id="module-plottr.data.datadict">
 <span id="api-documentation-for-the-datadict-module"></span><h2>API documentation for the datadict module<a class="headerlink" href="#module-plottr.data.datadict" title="Permalink to this headline">¶</a></h2>
-<p>datadict.py :
-Data classes we use throughout the plottr package, and tools to work on them.</p>
+<p>datadict.py :</p>
+<p>Data classes we use throughout the plottr package, and tools to work on them.</p>
 <dl class="class">
 <dt id="plottr.data.datadict.DataDict">
 <em class="property">class </em><code class="descclassname">plottr.data.datadict.</code><code class="descname">DataDict</code><span class="sig-paren">(</span><em>**kw</em><span class="sig-paren">)</span><a class="headerlink" href="#plottr.data.datadict.DataDict" title="Permalink to this definition">¶</a></dt>
@@ -116,14 +116,42 @@ doesn’t return anything.</p>
 <em class="property">class </em><code class="descclassname">plottr.data.datadict.</code><code class="descname">DataDictBase</code><span class="sig-paren">(</span><em>**kw</em><span class="sig-paren">)</span><a class="headerlink" href="#plottr.data.datadict.DataDictBase" title="Permalink to this definition">¶</a></dt>
 <dd><p>Simple data storage class that is based on a regular dictionary.</p>
 <p>This base class does not make assumptions about the structure of the
-values. This is implemented in
-inheriting classes.</p>
+values. This is implemented in inheriting classes.</p>
+<dl class="method">
+<dt id="plottr.data.datadict.DataDictBase.add_meta">
+<code class="descname">add_meta</code><span class="sig-paren">(</span><em>key: str</em>, <em>value: Any</em>, <em>data: Optional[str] = None</em><span class="sig-paren">)</span><a class="headerlink" href="#plottr.data.datadict.DataDictBase.add_meta" title="Permalink to this definition">¶</a></dt>
+<dd><p>Add meta info to the dataset.</p>
+<p>If the key already exists, meta info will be overwritten.</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><ul class="first last simple">
+<li><strong>key</strong> – Name of the meta field</li>
+<li><strong>value</strong> – Value of the meta information</li>
+<li><strong>data</strong> – if <code class="docutils literal notranslate"><span class="pre">None</span></code>, meta will be global; otherwise assigned to
+data field <code class="docutils literal notranslate"><span class="pre">data</span></code>.</li>
+</ul>
+</td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
+
 <dl class="method">
 <dt id="plottr.data.datadict.DataDictBase.clear_meta">
 <code class="descname">clear_meta</code><span class="sig-paren">(</span><em>data: Optional[str] = None</em><span class="sig-paren">)</span><a class="headerlink" href="#plottr.data.datadict.DataDictBase.clear_meta" title="Permalink to this definition">¶</a></dt>
-<dd><p>Delete meta information. If <cite>data</cite> is not None, delete only
-meta information from data field <cite>data</cite>. Else, delete all
-top-level meta, as well as meta for all data fields.</p>
+<dd><p>Delete meta information.</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><strong>data</strong> – if this is not None, delete onlymeta information from data
+field <cite>data</cite>. Else, delete all top-level meta, as well as
+meta for all data fields.</td>
+</tr>
+</tbody>
+</table>
 </dd></dl>
 
 <dl class="method">
@@ -134,11 +162,114 @@ otherwise.</p>
 </dd></dl>
 
 <dl class="method">
+<dt id="plottr.data.datadict.DataDictBase.data_items">
+<code class="descname">data_items</code><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="headerlink" href="#plottr.data.datadict.DataDictBase.data_items" title="Permalink to this definition">¶</a></dt>
+<dd><p>Generator for data field items.</p>
+<p>Like dict.items(), but ignores meta data.</p>
+</dd></dl>
+
+<dl class="method">
+<dt id="plottr.data.datadict.DataDictBase.data_vals">
+<code class="descname">data_vals</code><span class="sig-paren">(</span><em>key: str</em><span class="sig-paren">)</span> &#x2192; Sequence<a class="headerlink" href="#plottr.data.datadict.DataDictBase.data_vals" title="Permalink to this definition">¶</a></dt>
+<dd><p>Return the data values of field <code class="docutils literal notranslate"><span class="pre">key</span></code>.</p>
+<p>Equivalent to <code class="docutils literal notranslate"><span class="pre">DataDict['key'].values</span></code>.</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><strong>key</strong> – name of the data field</td>
+</tr>
+<tr class="field-even field"><th class="field-name">Returns:</th><td class="field-body">values of the data field</td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
+
+<dl class="method">
+<dt id="plottr.data.datadict.DataDictBase.delete_meta">
+<code class="descname">delete_meta</code><span class="sig-paren">(</span><em>key</em>, <em>data=None</em><span class="sig-paren">)</span><a class="headerlink" href="#plottr.data.datadict.DataDictBase.delete_meta" title="Permalink to this definition">¶</a></dt>
+<dd><p>Remove meta data.</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><ul class="first last simple">
+<li><strong>key</strong> – name of the meta field to remove.</li>
+<li><strong>data</strong> – if <code class="docutils literal notranslate"><span class="pre">None</span></code>, this affects global meta; otherwise remove
+from data field <code class="docutils literal notranslate"><span class="pre">data</span></code>.</li>
+</ul>
+</td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
+
+<dl class="method">
 <dt id="plottr.data.datadict.DataDictBase.extract">
-<code class="descname">extract</code><span class="sig-paren">(</span><em>data: List[str], include_meta: bool = True, copy: bool = True, sanitize: bool = True</em><span class="sig-paren">)</span><a class="headerlink" href="#plottr.data.datadict.DataDictBase.extract" title="Permalink to this definition">¶</a></dt>
-<dd><p>Return a new datadict with all fields specified in <cite>data</cite> included.
+<code class="descname">extract</code><span class="sig-paren">(</span><em>data: List[str], include_meta: bool = True, copy: bool = True, sanitize: bool = True</em><span class="sig-paren">)</span> &#x2192; plottr.data.datadict.DataDictBase<a class="headerlink" href="#plottr.data.datadict.DataDictBase.extract" title="Permalink to this definition">¶</a></dt>
+<dd><p>Extract data from a dataset.</p>
+<p>Return a new datadict with all fields specified in <code class="docutils literal notranslate"><span class="pre">data</span></code> included.
 Will also take any axes fields along that have not been explicitly
 specified.</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><ul class="first simple">
+<li><strong>data</strong> – data field or list of data fields to be extracted</li>
+<li><strong>include_meta</strong> – if <code class="docutils literal notranslate"><span class="pre">True</span></code>, include the global meta data.
+data meta will always be included.</li>
+<li><strong>copy</strong> – if <code class="docutils literal notranslate"><span class="pre">True</span></code>, data fields will be deep copies of the
+original.</li>
+<li><strong>sanitize</strong> – if <code class="docutils literal notranslate"><span class="pre">True</span></code>, will run DataDictBase.sanitize before
+returning.</li>
+</ul>
+</td>
+</tr>
+<tr class="field-even field"><th class="field-name">Returns:</th><td class="field-body"><p class="first last">new DataDictBase containing only requested fields.</p>
+</td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
+
+<dl class="method">
+<dt id="plottr.data.datadict.DataDictBase.meta_items">
+<code class="descname">meta_items</code><span class="sig-paren">(</span><em>data: Optional[str] = None</em><span class="sig-paren">)</span><a class="headerlink" href="#plottr.data.datadict.DataDictBase.meta_items" title="Permalink to this definition">¶</a></dt>
+<dd><p>Generator for meta items.</p>
+<p>Like dict.items(), but yields <cite>only</cite> meta entries.
+The keys returned do not contain the underscores used internally.</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><strong>data</strong> – if <code class="docutils literal notranslate"><span class="pre">None</span></code> iterate over global meta data.
+if it’s the name of a data field, iterate over the meta
+information of that field.</td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
+
+<dl class="method">
+<dt id="plottr.data.datadict.DataDictBase.meta_val">
+<code class="descname">meta_val</code><span class="sig-paren">(</span><em>key: str</em>, <em>data: Optional[str] = None</em><span class="sig-paren">)</span> &#x2192; Any<a class="headerlink" href="#plottr.data.datadict.DataDictBase.meta_val" title="Permalink to this definition">¶</a></dt>
+<dd><p>Return the value of meta field <code class="docutils literal notranslate"><span class="pre">key</span></code> (given without underscore).</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><ul class="first simple">
+<li><strong>key</strong> – name of the meta field</li>
+<li><strong>data</strong> – <code class="docutils literal notranslate"><span class="pre">None</span></code> for global meta; name of data field for data meta.</li>
+</ul>
+</td>
+</tr>
+<tr class="field-even field"><th class="field-name">Returns:</th><td class="field-body"><p class="first last">the value of the meta information.</p>
+</td>
+</tr>
+</tbody>
+</table>
 </dd></dl>
 
 <dl class="method">

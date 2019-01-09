@@ -1,11 +1,12 @@
 """
 datadict.py :
+
 Data classes we use throughout the plottr package, and tools to work on them.
 """
 
 import copy as cp
 from functools import reduce
-from typing import List, Tuple, Dict, Sequence, Union
+from typing import List, Tuple, Dict, Sequence, Union, Any
 
 import numpy as np
 
@@ -17,54 +18,106 @@ __license__ = 'MIT'
 # TODO: a function that returns axes values given a set of slices or so.
 # TODO: treatment of nested dims: expand or flatten-method; detection of
 #  nested dims.
+# TODO: an easier way to access data and meta values.
+#  maybe with getattr/setattr?
 
 class DataDictBase(dict):
     """
     Simple data storage class that is based on a regular dictionary.
 
     This base class does not make assumptions about the structure of the
-    values. This is implemented in
-    inheriting classes.
+    values. This is implemented in inheriting classes.
     """
 
     def __init__(self, **kw):
         super().__init__(self, **kw)
 
+    # Assignment and retrieval of data and meta data
+
     def data_items(self):
+        """
+        Generator for data field items.
+
+        Like dict.items(), but ignores meta data.
+        """
         for k, v in self.items():
             if k[:2] != '__' and k[-2:] != '__':
                 yield k, v
 
-    def meta_items(self):
-        for k, v in self.items():
-            if k[:2] == '__' and k[-2:] == '__':
-                yield k[2:-2], v
+    def meta_items(self, data: Union[str, None] = None):
+        """
+        Generator for meta items.
 
-    def data_vals(self, key):
+        Like dict.items(), but yields `only` meta entries.
+        The keys returned do not contain the underscores used internally.
+
+        :param data: if ``None`` iterate over global meta data.
+                     if it's the name of a data field, iterate over the meta
+                     information of that field.
+
+        """
+        if data is None:
+            for k, v in self.items():
+                if k[:2] == '__' and k[-2:] == '__':
+                    yield k[2:-2], v
+
+        else:
+            for k, v in self[data].items():
+                if k[:2] == '__' and k[-2:] == '__':
+                    yield k[2:-2], v
+
+    def data_vals(self, key: str) -> Sequence:
+        """
+        Return the data values of field ``key``.
+
+        Equivalent to ``DataDict['key'].values``.
+
+        :param key: name of the data field
+        :return: values of the data field
+        """
         return self[key]['values']
 
-    def data_meta(self, key):
-        ret = {}
-        for k, v in self[key].items():
-            if k[:2] == '__' and k[-2:] == '__':
-                ret[k[2:-2]] = v
-        return ret
+    def meta_val(self, key: str, data: Union[str, None] = None) -> Any:
+        """
+        Return the value of meta field ``key`` (given without underscore).
 
-    def add_meta(self, key, value, data=None):
+        :param key: name of the meta field
+        :param data: ``None`` for global meta; name of data field for data meta.
+        :return: the value of the meta information.
+        """
+        k = f'__{key}__'
+        if data is None:
+            return self[k]
+        else:
+            return self[data][k]
+
+    def add_meta(self, key: str, value: Any, data: Union[str, None] = None):
+        """
+        Add meta info to the dataset.
+
+        If the key already exists, meta info will be overwritten.
+
+        :param key: Name of the meta field
+        :param value: Value of the meta information
+        :param data: if ``None``, meta will be global; otherwise assigned to
+                     data field ``data``.
+
+        """
         key = '__' + key + '__'
         if data is None:
             self[key] = value
         else:
             self[data][key] = value
 
-    def meta_val(self, key, data=None):
-        key = '__' + key + '__'
-        if data is None:
-            return self[key]
-        else:
-            return self[data][key]
-
     def delete_meta(self, key, data=None):
+        """
+        Remove meta data.
+
+        :param key: name of the meta field to remove.
+        :param data: if ``None``, this affects global meta; otherwise remove
+                     from data field ``data``.
+
+        """
         key = '__' + key + '__'
         if data is None:
             del self[key]
@@ -73,9 +126,12 @@ class DataDictBase(dict):
 
     def clear_meta(self, data: Union[str, None] = None):
         """
-        Delete meta information. If `data` is not None, delete only
-        meta information from data field `data`. Else, delete all
-        top-level meta, as well as meta for all data fields.
+        Delete meta information.
+
+        :param data: if this is not None, delete onlymeta information from data
+                     field `data`. Else, delete all top-level meta, as well as
+                     meta for all data fields.
+
         """
         if data is None:
             meta_list = [k for k, _ in self.meta_items()]
@@ -83,19 +139,31 @@ class DataDictBase(dict):
                 self.delete_meta(m)
 
             for d, _ in self.data_items():
-                for m, _ in self.data_meta(d).items():
+                data_meta_list = [k for k, _ in self.meta_items(d)]
+                for m in data_meta_list:
                     self.delete_meta(m, d)
 
         else:
-            for m, _ in self.data_meta(data).items():
+            for m, _ in self.meta_items(data):
                 self.delete_meta(m, data)
 
     def extract(self, data: List[str], include_meta: bool = True,
-                copy: bool = True, sanitize: bool = True):
+                copy: bool = True, sanitize: bool = True) -> 'DataDictBase':
         """
-        Return a new datadict with all fields specified in `data` included.
+        Extract data from a dataset.
+
+        Return a new datadict with all fields specified in ``data`` included.
         Will also take any axes fields along that have not been explicitly
         specified.
+
+        :param data: data field or list of data fields to be extracted
+        :param include_meta: if ``True``, include the global meta data.
+                             data meta will always be included.
+        :param copy: if ``True``, data fields will be deep copies of the
+                     original.
+        :param sanitize: if ``True``, will run DataDictBase.sanitize before
+                         returning.
+        :return: new DataDictBase containing only requested fields.
         """
         if isinstance(data, str):
             data = [data]

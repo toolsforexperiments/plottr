@@ -2,7 +2,9 @@ from plottr.data.datadict import DataDict
 
 
 def test_meta():
-    # creation and retrieval of meta information
+    """
+    Test accessing meta information.
+    """
     dd = DataDict(
         x=dict(
             values=[1, 2, 3],
@@ -34,8 +36,9 @@ def test_meta():
     assert dd.meta_val('@^&', 'x') == 0
 
     for k in ['meta1', 'meta2', '@^&']:
+        assert dd.meta_val(k, data='x') == dd['x'][f'__{k}__']
         assert f'__{k}__' in dd['x']
-        assert k in dd.data_meta('x')
+        assert k in [n for n, _ in dd.meta_items('x')]
 
     # test stripping of meta information
     dd.clear_meta()

@@ -47,7 +47,7 @@ In the most basic implementation, the only restriction on the data values is tha
 
 Relevant data classes
 ---------------------
-:DataDictBase: The main base class. Only checks for correct dependencies.
+:DataDictBase: The main base class. Only checks for correct dependencies. Any requirements on data structure is left to the inheriting classes.
 :DataDict: The only requirement for valid data is that the number of records is the same for all data fields.
 
 
