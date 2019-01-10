@@ -15,11 +15,12 @@ __license__ = 'MIT'
 
 
 # TODO: serialization (json...)
-# TODO: a function that returns axes values given a set of slices or so.
+# TODO: functionality that returns axes values given a set of slices.
 # TODO: treatment of nested dims: expand or flatten-method; detection of
 #  nested dims.
 # TODO: an easier way to access data and meta values.
 #  maybe with getattr/setattr?
+# TODO: direct slicing of full datasets. implement getitem/setitem?
 
 class DataDictBase(dict):
     """
@@ -34,6 +35,22 @@ class DataDictBase(dict):
 
     # Assignment and retrieval of data and meta data
 
+    @staticmethod
+    def _is_meta_key(key):
+        if key[:2] == '__' and key[-2:] == '__':
+            return True
+
+    @staticmethod
+    def _meta_key_to_name(key):
+        if DataDictBase._is_meta_key(key):
+            return key[2:-2]
+        else:
+            raise ValueError(f'{key} is not a meta key.')
+
+    @staticmethod
+    def _meta_name_to_key(name):
+        return '__' + name + '__'
+
     def data_items(self):
         """
         Generator for data field items.
@@ -41,7 +58,7 @@ class DataDictBase(dict):
         Like dict.items(), but ignores meta data.
         """
         for k, v in self.items():
-            if k[:2] != '__' and k[-2:] != '__':
+            if not self._is_meta_key(k):
                 yield k, v
 
     def meta_items(self, data: Union[str, None] = None):
@@ -58,13 +75,13 @@ class DataDictBase(dict):
         """
         if data is None:
             for k, v in self.items():
-                if k[:2] == '__' and k[-2:] == '__':
-                    yield k[2:-2], v
+                if self._is_meta_key(k):
+                    yield self._meta_key_to_name(k), v
 
         else:
             for k, v in self[data].items():
-                if k[:2] == '__' and k[-2:] == '__':
-                    yield k[2:-2], v
+                if self._is_meta_key(k):
+                    yield self._meta_key_to_name(k), v
 
     def data_vals(self, key: str) -> Sequence:
         """
@@ -75,6 +92,8 @@ class DataDictBase(dict):
         :param key: name of the data field
         :return: values of the data field
         """
+        if self._is_meta_key(key):
+            raise ValueError(f"{key} is a meta key.")
         return self[key]['values']
 
     def meta_val(self, key: str, data: Union[str, None] = None) -> Any:
@@ -85,7 +104,7 @@ class DataDictBase(dict):
         :param data: ``None`` for global meta; name of data field for data meta.
         :return: the value of the meta information.
         """
-        k = f'__{key}__'
+        k = self._meta_name_to_key(key)
         if data is None:
             return self[k]
         else:
@@ -97,13 +116,13 @@ class DataDictBase(dict):
 
         If the key already exists, meta info will be overwritten.
 
-        :param key: Name of the meta field
+        :param key: Name of the meta field (without underscores)
         :param value: Value of the meta information
         :param data: if ``None``, meta will be global; otherwise assigned to
                      data field ``data``.
 
         """
-        key = '__' + key + '__'
+        key = self._meta_name_to_key(key)
         if data is None:
             self[key] = value
         else:
@@ -118,7 +137,7 @@ class DataDictBase(dict):
                      from data field ``data``.
 
         """
-        key = '__' + key + '__'
+        key = self._meta_name_to_key(key)
         if data is None:
             del self[key]
         else:
@@ -198,14 +217,20 @@ class DataDictBase(dict):
     # info about structure
 
     @staticmethod
-    def same_structure(*dicts, check_shape=False):
+    def same_structure(*data: 'DataDictBase',
+                       check_shape: bool = False) -> bool:
         """
-        Check if all supplied datadicts share the same data structure
+        Check if all supplied DataDicts share the same data structure
         (i.e., dependents and axes).
-        Ignores meta info and values.
-        Checks also for matching shapes if `check_shape` is `True`.
+
+        Ignores meta info and values. Checks also for matching shapes if
+        `check_shape` is `True`.
+
+        :param data: the data sets to compare
+        :param check_shape: whether to include a shape check in the comparison
+        :return: ``True`` if the structure matches for all, else ``False``.
         """
-        if len(dicts) < 2:
+        if len(data) < 2:
             return True
 
         def empty_structure(d):
@@ -215,8 +240,8 @@ class DataDictBase(dict):
                     del s[k]['values']
             return s
 
-        s0 = empty_structure(dicts[0])
-        for d in dicts[1:]:
+        s0 = empty_structure(data[0])
+        for d in data[1:]:
             if d is None:
                 return False
             if s0 != empty_structure(d):
@@ -224,12 +249,20 @@ class DataDictBase(dict):
 
         return True
 
-    def structure(self, add_shape=True, include_meta=True):
+    def structure(self, add_shape: bool = True,
+                  include_meta: bool = True) -> 'DataDictBase':
         """
+        Get the structure of the DataDict.
+
         Return the datadict without values (``value`` omitted in the dict).
-        if ``add_shape`` is true, we add a key ``__shape__`` that contains the
-        shape of each data field. if ``include_meta`` is true, we also take
-        the meta info of the datadict along.
+
+        :param add_shape: if ``True`` include a meta field ``shape`` for each
+                          data field that contains the shape of the data values.
+
+        :param include_meta: if ``True``, include the meta information in
+                             the returned dict, else clear it.
+
+        :return: The DataDictBase containing the structure only.
         """
         if self.validate():
             s = DataDictBase()
@@ -252,7 +285,16 @@ class DataDictBase(dict):
 
             return s
 
-    def label(self, name):
+    def label(self, name: str) -> str:
+        """
+        Get a label for a data field.
+
+        If a unit is present, this is the name with the unit appended in
+        brackets: ``name (unit)``; if no unit is present, just the name.
+
+        :param name: name of the data field
+        :return: labelled name
+        """
         if self.validate():
             if name not in self:
                 raise ValueError("No field '{}' present.".format(name))
@@ -263,10 +305,13 @@ class DataDictBase(dict):
 
             return n
 
-    def compatible_axes(self):
+    def axes_are_compatible(self) -> bool:
         """
-        Returns True if all dependent data fields have the same axes, False
-        otherwise.
+        Check if all dependent data fields have the same axes.
+
+        This includes axes order.
+
+        :return: ``True`` or ``False``
         """
         axes = []
         for i, d in enumerate(self.dependents()):
@@ -277,7 +322,14 @@ class DataDictBase(dict):
                     return False
         return True
 
-    def axes(self, data=None):
+    def axes(self, data: Union[str, None] = None) -> List[str]:
+        """
+        Return a list of axes.
+
+        :param data: if ``None``, return all axes present in the dataset,
+                     otherwise only the axes of the dependent ``data``.
+        :return: the list of axes
+        """
         lst = []
         if data is None:
             for k, v in self.data_items():
@@ -297,7 +349,12 @@ class DataDictBase(dict):
 
         return lst
 
-    def dependents(self):
+    def dependents(self) -> List[str]:
+        """
+        Get all dependents in the dataset.
+
+        :return: a list of the names of dependents (data fields that have axes)
+        """
         ret = []
         for n, v in self.data_items():
             if len(v.get('axes', [])) != 0:
@@ -306,8 +363,11 @@ class DataDictBase(dict):
 
     def shapes(self) -> Dict[str, Tuple[int, ...]]:
         """
-        Return a dictionary of the form ``{key : shape}``, where shape is the
-        np.shape-tuple of the data with name ``key``.
+        Get the shapes of all data fields.
+
+        :return: a dictionary of the form ``{key : shape}``, where shape is the
+                 np.shape-tuple of the data with name ``key``.
+
         """
         shapes = {}
         for k, v in self.data_items():
@@ -318,6 +378,20 @@ class DataDictBase(dict):
     # validation and sanitizing
 
     def validate(self):
+        """
+        Check the validity of the dataset.
+
+        Checks performed:
+            * all axes specified with dependents must exist as data fields.
+
+        Other tasks performed:
+            * ``unit`` keys are created if omitted
+            * ``shape`` meta information is updated with the correct values
+              (only if present already).
+
+        :return: ``True`` if valid.
+        :raises: ``ValueError`` if invalid.
+        """
         msg = '\n'
         for n, v in self.data_items():
             if 'axes' in v:
@@ -333,9 +407,6 @@ class DataDictBase(dict):
                 v['unit'] = ''
 
             v['values'] = np.array(v.get('values', []))
-
-            # if 'info' not in v:
-            #     v['info'] = {}
 
             if '__shape__' in v and not self.__class__ == DataDictBase:
                 v['__shape__'] = np.array(v['values']).shape
@@ -551,7 +622,8 @@ class MeshgridDataDict(DataDictBase):
                 shpsrc = n
             else:
                 if v['values'].shape != shp:
-                    msg += f" * shapes need to match, but '{n}' has {v['values'].shape}, "
+                    msg += f" * shapes need to match, but '{n}' has"
+                    msg += f" {v['values'].shape}, "
                     msg += f"and '{shpsrc}' has {shp}.\n"
 
             if msg != '\n':
@@ -654,7 +726,7 @@ def datadict_to_meshgrid(data: DataDict,
         return None
 
     # guess what the shape likely is.
-    if not data.compatible_axes():
+    if not data.axes_are_compatible():
         raise ValueError('Non-compatible axes, cannot grid that.')
 
     if target_shape is None:
