@@ -1,10 +1,24 @@
-from plottr.data.datadict import DataDict
+from plottr.data.datadict import DataDict, DataDictBase
+
+
+def test_get_data():
+    """Test accessing data."""
+
+    dd = DataDictBase(
+        x=dict(values=[1, 2, 3]),
+        y=dict(values=[1, 2, 3], axes=['x']),
+        a=dict(values=[4, 5, 6], axes=[]),
+        b=dict(values=[5, 6, 7], axes=[]),
+        c=dict(values=[6, 7, 8], axes=['b', 'a']),
+    )
+
+    assert set(dd.dependents()) == set(['y', 'c'])
+    assert set(dd.axes()) == set(['a', 'b', 'x'])
 
 
 def test_meta():
-    """
-    Test accessing meta information.
-    """
+    """Test accessing meta information."""
+
     dd = DataDict(
         x=dict(
             values=[1, 2, 3],
@@ -58,6 +72,8 @@ def test_meta():
 
 
 def test_shapes():
+    """Test correct retrieval of shapes."""
+
     dd = DataDict(
         x=dict(
             values=[1, 2, 3],
