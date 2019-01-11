@@ -16,11 +16,12 @@ __license__ = 'MIT'
 
 # TODO: serialization (json...)
 # TODO: functionality that returns axes values given a set of slices.
-# TODO: treatment of nested dims: expand or flatten-method; detection of
-#  nested dims.
+# FIXME: treatment of nested dims: expand or flatten-method; detection of
+#  nested dims. MISSING!
 # TODO: an easier way to access data and meta values.
 #  maybe with getattr/setattr?
 # TODO: direct slicing of full datasets. implement getitem/setitem?
+
 
 class DataDictBase(dict):
     """
@@ -417,6 +418,9 @@ class DataDictBase(dict):
         return True
 
     def remove_unused_axes(self):
+        """
+        Removes axes not associated with dependents.
+        """
         dependents = self.dependents()
         unused = []
 
@@ -435,20 +439,29 @@ class DataDictBase(dict):
             del self[u]
 
     def sanitize(self):
+        """
+        Clean-up tasks:
+        * removes unused axes.
+        """
         self.remove_unused_axes()
 
     # axes order tools
 
-    def new_order(self, name, **kw):
+    def reorder_axes_indices(self, name: str,
+                             **pos: int) -> Tuple[Tuple[int], List[str]]:
         """
-        return the list of axes indices that can be used
-        to re-order the axes of the dataset given by name.
+        Get the indices that can reorder axes in a given way.
 
-        kws are in the form {axes_name = new_position}.
+        :param name: name of the data field of which we want to reorder axes
+        :param pos: new axes position in the form ``axis_name = new_position``.
+                    non-specified axes positions are determined automatically.
+        :return: the tuple of new indices, and the list of axes names in the
+                 new order.
+
         """
         # check if the given indices are each unique
         used = []
-        for n, i in kw.items():
+        for n, i in pos.items():
             if i in used:
                 raise ValueError('Order indices have to be unique.')
             used.append(i)
@@ -457,7 +470,7 @@ class DataDictBase(dict):
         neworder = [None for a in axlist]
         oldorder = list(range(len(axlist)))
 
-        for n, newidx in kw.items():
+        for n, newidx in pos.items():
             neworder[newidx] = axlist.index(n)
 
         for i in neworder:
@@ -484,7 +497,7 @@ class DataDictBase(dict):
             data_names = [data_names]
 
         for n in data_names:
-            neworder, newaxes = self.new_order(n, **kw)
+            neworder, newaxes = self.reorder_axes_indices(n, **kw)
             self[n]['axes'] = newaxes
 
         self.validate()
@@ -632,22 +645,22 @@ class MeshgridDataDict(DataDictBase):
         return True
 
 
-def reorder_axes(self, **kw):
-    """
-    Reorder the axes for all data.
-    This includes transposing the data, since we're on a grid.
-    """
-    transposed = []
-    for n in self.dependents():
-        neworder, newaxes = self.new_order(n, **kw)
-        self[n]['axes'] = newaxes
-        self[n]['values'] = self[n]['values'].transpose(neworder)
-        for ax in self.axes(n):
-            if ax not in transposed:
-                self[ax]['values'] = self[ax]['values'].transpose(neworder)
-                transposed.append(ax)
+    def reorder_axes(self, **kw):
+        """
+        Reorder the axes for all data.
+        This includes transposing the data, since we're on a grid.
+        """
+        transposed = []
+        for n in self.dependents():
+            neworder, newaxes = self.reorder_axes_indices(n, **kw)
+            self[n]['axes'] = newaxes
+            self[n]['values'] = self[n]['values'].transpose(neworder)
+            for ax in self.axes(n):
+                if ax not in transposed:
+                    self[ax]['values'] = self[ax]['values'].transpose(neworder)
+                    transposed.append(ax)
 
-    self.validate()
+        self.validate()
 
 
 # Tools for converting between different data types

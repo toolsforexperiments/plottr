@@ -1,8 +1,9 @@
 from plottr.data.datadict import DataDict, DataDictBase
 
+#TODO: full description of tests.
 
 def test_get_data():
-    """Test accessing data."""
+    """Test basic accessing of data."""
 
     dd = DataDictBase(
         x=dict(values=[1, 2, 3]),
@@ -12,8 +13,10 @@ def test_get_data():
         c=dict(values=[6, 7, 8], axes=['b', 'a']),
     )
 
-    assert set(dd.dependents()) == set(['y', 'c'])
-    assert set(dd.axes()) == set(['a', 'b', 'x'])
+    assert set(dd.dependents()) == {'y', 'c'}
+    assert set(dd.axes()) == {'a', 'b', 'x'}
+    assert dd.axes('c') == ['a', 'b']
+    assert dd.data_vals('c') == [6, 7, 8]
 
 
 def test_meta():
@@ -71,8 +74,28 @@ def test_meta():
         assert nmeta == 0
 
 
+def test_extract():
+    """Test extraction of data fields."""
+
+
+def test_structure():
+    """Test if structure is reported correctly."""
+
+
+def test_validation():
+    """Test if validation is working."""
+
+
+def test_sanitizing():
+    """Test cleaning up of datasets."""
+
+
+def test_reorder():
+    """Test reordering and transposing axes."""
+
+
 def test_shapes():
-    """Test correct retrieval of shapes."""
+    """Test correct retrieval of shapes, incl nested shapes."""
 
     dd = DataDict(
         x=dict(
@@ -94,3 +117,9 @@ def test_shapes():
     assert shapes['x'] == (3,)
     assert shapes['y'] == (3,)
     assert shapes['z'] == (3, 2)
+
+    # TODO: nested dims.
+
+
+def test_expansion():
+    """Test correct expansion of data."""
