@@ -397,7 +397,11 @@ class DataDictBase(dict):
         for n, v in self.data_items():
             if 'axes' in v:
                 for na in v['axes']:
-                    if na not in self.axes():
+                    if na not in self:
+                        msg += " * '{}' has axis '{}', but no field " \
+                               "with name '{}' registered.\n".format(
+                            n, na, na)
+                    elif na not in self.axes():
                         msg += " * '{}' has axis '{}', but no independent " \
                                "with name '{}' registered.\n".format(
                             n, na, na)
@@ -454,7 +458,7 @@ class DataDictBase(dict):
 
         :param name: name of the data field of which we want to reorder axes
         :param pos: new axes position in the form ``axis_name = new_position``.
-                    non-specified axes positions are determined automatically.
+                    non-specified axes positions are adjusted automatically.
         :return: the tuple of new indices, and the list of axes names in the
                  new order.
 
@@ -484,12 +488,16 @@ class DataDictBase(dict):
 
         return tuple(neworder), [self[name]['axes'][i] for i in neworder]
 
-    def reorder_axes(self, data_names=None, **kw):
+    def reorder_axes(self, data_names: Union[str, List[str], None] = None,
+                     **pos: int):
         """
-        Reorder the axes for all data_names. New order is
-        determined by kws in the form {axis_name : new_position}.
+        Reorder data axes.
 
-        if data_names is None, we try all dependents in the dataset.
+        :param data_names: data name(s) for which to reorder the axes
+                           if None, apply to all dependents.
+        :param pos: new axes position in the form ``axis_name = new_position``.
+                    non-specified axes positions are adjusted automatically.
+
         """
         if data_names is None:
             data_names = self.dependents()
@@ -497,7 +505,7 @@ class DataDictBase(dict):
             data_names = [data_names]
 
         for n in data_names:
-            neworder, newaxes = self.reorder_axes_indices(n, **kw)
+            neworder, newaxes = self.reorder_axes_indices(n, **pos)
             self[n]['axes'] = newaxes
 
         self.validate()
@@ -505,16 +513,27 @@ class DataDictBase(dict):
 
 class DataDict(DataDictBase):
     """
-    Contains data in 'linear' arrays. I.e., for data field 'z' with axes 'x'
-    and 'y', all of 'x', 'y', 'z' have 1D arrays as values with some lenght;
-    the lengths must match. Each element x[i], y[i], z[i] is one datapoint,
-    with x[i], y[i] being the coordinates.
+    The most basic implementation of the DataDict class.
+
+    It only enforces that the number of `records` per data field must be
+    equal for all fields. This refers to the most outer dimension in case
+    of nested arrays.
+
+    The class further implements simple appending of datadicts through the
+    ``DataDict.append`` method, as well as allowing addition of DataDict
+    instances.
     """
 
-    def __add__(self, newdata):
+    def __add__(self, newdata: 'DataDict') -> 'DataDict':
         """
-        Adding two datadicts by appending each data array. Returns a new
-        datadict.
+        Adding two datadicts by appending each data array.
+
+        Requires that the datadicts have the same structure.
+        Retains the meta information of the first array.
+
+        :param newdata: DataDict to be added.
+        :returns: combined DataDict.
+        :raises: ``ValueError`` if the structures are incompatible.
         """
         s = self.structure(add_shape=False)
         if DataDictBase.same_structure(self, newdata):
@@ -524,16 +543,21 @@ class DataDict(DataDictBase):
                 if isinstance(val0, list) and isinstance(val1, list):
                     s[k]['values'] = self[k]['values'] + newdata[k]['values']
                 else:
-                    s[k]['values'] = np.append(np.array(self[k]['values']),
-                                               np.array(newdata[k]['values']))
+                    s[k]['values'] = np.append(
+                        np.array(self[k]['values']),
+                        np.array(newdata[k]['values']),
+                        axis=0
+                    )
             return s
         else:
             raise ValueError('Incompatible data structures.')
 
     def append(self, newdata):
         """
-        Append a datadict to this one by appending. This in in-place and
-        doesn't return anything.
+        Append a datadict to this one by appending data values.
+
+        :param newdata: DataDict to append.
+        :raises: ``ValueError``, if the structures are incompatible.
         """
         if DataDictBase.same_structure(self, newdata):
             for k, v in newdata.data_items():
@@ -541,8 +565,11 @@ class DataDict(DataDictBase):
                         v['values'], list):
                     self[k]['values'] += v['values']
                 else:
-                    self[k]['values'] = np.append(np.array(self[k]['values']),
-                                                  np.array(v['values']))
+                    self[k]['values'] = np.append(
+                        np.array(self[k]['values']),
+                        np.array(v['values']),
+                        axis=0
+                    )
         else:
             raise ValueError('Incompatible data structures.')
 
