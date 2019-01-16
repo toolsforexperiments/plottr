@@ -1,4 +1,5 @@
 import pytest
+
 from plottr.data.datadict import DataDict, DataDictBase
 
 
@@ -87,14 +88,14 @@ def test_structure():
         x=dict(values=[1, 2, 3, 1]),
         y=dict(values=[1, 2, 3, 1]),
         z=dict(values=[0, 0, 0, 0], axes=['x', 'y']),
-        __info__ = 'some info',
+        __info__='some info',
     )
 
     dd2 = DataDictBase(
         x=dict(values=[2, 3, 4]),
         y=dict(values=[10, 20, 30]),
         z=dict(values=[-1, -3, -5], axes=['x', 'y']),
-        __otherinfo__ = 0,
+        __otherinfo__=0,
     )
 
     assert dd.structure().dependents() == ['z']
@@ -179,9 +180,3 @@ def test_shapes():
     assert shapes['x'] == (3,)
     assert shapes['y'] == (3,)
     assert shapes['z'] == (3, 2)
-
-    # TODO: nested dims.
-
-
-# def test_expansion():
-#     """Test correct expansion of data."""

@@ -271,6 +271,9 @@ class DataDictBase(dict):
             for n, v in self.data_items():
                 v2 = v.copy()
                 v2.pop('values')
+                if not add_shape and '__shape__' in v2:
+                    v2.pop('__shape__')
+
                 s[n] = v2
                 if add_shape:
                     shapes[n] = np.array(v['values']).shape
@@ -573,6 +576,85 @@ class DataDict(DataDictBase):
         else:
             raise ValueError('Incompatible data structures.')
 
+    # shape information and expansion
+
+    def nrecords(self):
+        """
+        :return: The number of records in the dataset.
+        """
+        self.validate()
+        for _, v in self.data_items():
+            return len(v['values'])
+
+    def _inner_shapes(self):
+        shapes = self.shapes()
+        return {k: v[1:] for k, v in shapes.items()}
+
+    def is_expanded(self):
+        """
+        Determine if the DataDict is expanded.
+
+        :return: ``True`` if expanded. ``False`` if not.
+        """
+        ishp = self._inner_shapes()
+        if set(ishp.values()) == {tuple()}:
+            return True
+        else:
+            return False
+
+    def is_expandable(self):
+        """
+        Determine if the DataDict can be expanded.
+
+        Expansion flattens all nested data values to a 1D array. For doing so,
+        we require that all data fields that have nested/inner dimensions (i.e,
+        inside the `records` level) shape the inner shape.
+        In other words, all data fields must be of shape (N,) or (N, (shape)),
+        where shape is common to all that have a shape not equal to (N,).
+
+        :return: ``True`` if expandable. ``False`` otherwise.
+        """
+        shp = self._inner_shapes()
+        if len(set(shp.values())) == 1:
+            return True
+        elif len(set(shp.values())) == 2 and tuple() in set(shp.values()):
+            return True
+        else:
+            return False
+
+    def expand(self):
+        """
+        Expand nested values in the data fields.
+
+        Flattens all value arrays. If nested dimensions
+        are present, all data with non-nested dims will be repeated
+        accordingly -- each record is repeated to match the size of
+        the nested dims.
+
+        :returns: The flattened dataset.
+        :raises: ``ValueError`` if data is not expandable.
+        """
+        self.validate()
+        if not self.is_expandable():
+            raise ValueError('Data cannot be expanded.')
+        ret = DataDict(**self.structure(add_shape=False))
+
+        ishp = self._inner_shapes()
+        if set(ishp.values()) == {tuple()}:
+            return
+        else:
+            size = max([np.prod(s) for s in ishp.values()])
+
+        for k, v in self.data_items():
+            reps = size // np.prod(ishp[k])
+            if reps > 1:
+                ret[k]['values'] = \
+                    np.array(self[k]['values']).repeat(reps, axis=0).reshape(-1)
+            else:
+                ret[k]['values'] = self[k]['values'].reshape(-1)
+
+        return ret
+
     # validation and sanitizing
 
     def validate(self):
@@ -582,12 +664,6 @@ class DataDict(DataDictBase):
             msg = '\n'
 
             for n, v in self.data_items():
-
-                # this is probably overly restrictive...
-                # if len(v['values'].shape) > 1:
-                #     msg += f" * '{n}' is not a 1D array (has shape {v[
-                #     'values'].shape})"
-
                 if nvals is None:
                     nvals = len(v['values'])
                     nvalsrc = n
@@ -670,7 +746,6 @@ class MeshgridDataDict(DataDictBase):
                 raise ValueError(msg)
 
         return True
-
 
     def reorder_axes(self, **kw):
         """
