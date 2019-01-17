@@ -1,5 +1,6 @@
-import pytest
 import numpy as np
+import pytest
+
 from plottr.data.datadict import DataDict
 
 
@@ -83,13 +84,57 @@ def test_expansion_fail():
     """Test whether expansion fails correctly"""
 
     dd = DataDict(
-        a = dict(values=np.arange(4).reshape(2,2)),
-        b = dict(values=np.arange(4).reshape(2,2), axes=['a']),
-        x = dict(values=np.arange(6).reshape(2,3),),
-        y = dict(values=np.arange(6).reshape(2,3), axes=['x'])
+        a=dict(values=np.arange(4).reshape(2, 2)),
+        b=dict(values=np.arange(4).reshape(2, 2), axes=['a']),
+        x=dict(values=np.arange(6).reshape(2, 3), ),
+        y=dict(values=np.arange(6).reshape(2, 3), axes=['x'])
     )
 
     assert dd.validate()
     assert not dd.is_expandable()
     with pytest.raises(ValueError):
         dd.expand()
+
+
+def test_validation_fail():
+    """Test if invalid data fails the validation,"""
+
+    dd = DataDict(
+        x=dict(values=[1, 2]),
+        y=dict(values=[1, 2], axes=['x']),
+    )
+    assert dd.validate()
+
+    dd = DataDict(
+        x=dict(values=[1, 2, 3]),
+        y=dict(values=[1, 2], axes=['x']),
+    )
+    with pytest.raises(ValueError):
+        dd.validate()
+
+def test_sanitizing_1d():
+    """Test if dataset cleanup gives expected results."""
+
+
+def test_sanitizing_2d():
+    """Test if dataset cleanup gives expected results."""
+
+    a = np.arange(2 * 4).astype(object).reshape(4, 2)
+    a[1, :] = None
+    a[3, :] = None
+    a[2, -1] = None
+
+    b = np.arange(2 * 4).astype(float).reshape(4, 2)
+    b[1, :] = np.nan
+    b[0, 0] = np.nan
+    b[3, 0] = np.nan
+
+    dd = DataDict(
+        a=dict(values=a),
+        b=dict(values=b, axes=['a']),
+    )
+
+    assert dd.validate()
+    dd.remove_invalid_entries()
+    assert dd.validate()
+    assert dd.shapes() == {'a' : (3,2), 'b' : (3,2)}

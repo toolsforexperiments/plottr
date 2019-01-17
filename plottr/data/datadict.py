@@ -578,7 +578,7 @@ class DataDict(DataDictBase):
 
     # shape information and expansion
 
-    def nrecords(self):
+    def nrecords(self) -> int:
         """
         :return: The number of records in the dataset.
         """
@@ -586,11 +586,11 @@ class DataDict(DataDictBase):
         for _, v in self.data_items():
             return len(v['values'])
 
-    def _inner_shapes(self):
+    def _inner_shapes(self) -> Dict[str, Tuple[int]]:
         shapes = self.shapes()
         return {k: v[1:] for k, v in shapes.items()}
 
-    def is_expanded(self):
+    def is_expanded(self) -> bool:
         """
         Determine if the DataDict is expanded.
 
@@ -602,7 +602,7 @@ class DataDict(DataDictBase):
         else:
             return False
 
-    def is_expandable(self):
+    def is_expandable(self) -> bool:
         """
         Determine if the DataDict can be expanded.
 
@@ -622,7 +622,7 @@ class DataDict(DataDictBase):
         else:
             return False
 
-    def expand(self):
+    def expand(self) -> 'DataDict':
         """
         Expand nested values in the data fields.
 
@@ -631,7 +631,7 @@ class DataDict(DataDictBase):
         accordingly -- each record is repeated to match the size of
         the nested dims.
 
-        :returns: The flattened dataset.
+        :return: The flattened dataset.
         :raises: ``ValueError`` if data is not expandable.
         """
         self.validate()
@@ -657,7 +657,16 @@ class DataDict(DataDictBase):
 
     # validation and sanitizing
 
-    def validate(self):
+    def validate(self) -> bool:
+        """
+        Check dataset validity.
+
+        Beyond the checks performed in the base class ``DataDictBase``,
+        check whether the number of records is the same for all data fields.
+
+        :return: ``True`` if valid.
+        :raises: ``ValueError`` if invalid.
+        """
         if super().validate():
             nvals = None
             nvalsrc = None
@@ -679,6 +688,12 @@ class DataDict(DataDictBase):
         return True
 
     def sanitize(self):
+        """
+        Clean-up.
+
+        Beyond the tasks of the base class ``DataDictBase``:
+        * remove invalid entries as far as reasonable.
+        """
         super().sanitize()
         self.remove_invalid_entries()
 
@@ -686,22 +701,45 @@ class DataDict(DataDictBase):
         """
         Remove all rows that are ``None`` or ``np.nan`` in *all* dependents.
         """
+        ishp = self._inner_shapes()
         idxs = []
+
+        # collect rows that are completely invalid
         for d in self.dependents():
+
+            #  need to discriminate whether there are nested dims or not
+            if len(ishp[d]) == 0:
+                rows = self.data_vals(d)
+            else:
+                rows = self.data_vals(d).reshape(-1, np.prod(ishp[d]))
+
             _idxs = np.array([])
-            _idxs = np.append(_idxs, np.where(self.data_vals(d) == None)[0])
+
+            # get indices of all rows that are fully None
+            if len(ishp[d]) == 0:
+                _newidxs = np.where(rows == None)[0]
+            else:
+                _newidxs = np.where(np.all(rows==None, axis=-1))[0]
+            _idxs = np.append(_idxs, _newidxs)
+
+            # get indices for all rows that are fully NaN. works only
+            # for some dtypes, so except TypeErrors.
             try:
-                _idxs = np.append(_idxs,
-                                  np.where(np.isnan(self.data_vals(d)))[0])
+                if len(ishp[d]) == 0:
+                    _newidxs = np.where(np.isnan(rows))[0]
+                else:
+                    _newidxs = np.where(np.all(np.isnan(rows), axis=-1))[0]
+                _idxs = np.append(_idxs, _newidxs)
             except TypeError:
                 pass
+
             idxs.append(_idxs)
 
         if len(idxs) > 0:
             remove_idxs = reduce(np.intersect1d,
                                  tuple(np.array(idxs).astype(int)))
             for k, v in self.data_items():
-                v['values'] = np.delete(v['values'], remove_idxs)
+                v['values'] = np.delete(v['values'], remove_idxs, axis=0)
 
 
 class MeshgridDataDict(DataDictBase):
