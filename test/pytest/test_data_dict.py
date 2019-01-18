@@ -2,6 +2,7 @@ import numpy as np
 import pytest
 
 from plottr.data.datadict import DataDict
+from plottr.utils import num
 
 
 def test_append():
@@ -112,8 +113,27 @@ def test_validation_fail():
     with pytest.raises(ValueError):
         dd.validate()
 
+
 def test_sanitizing_1d():
     """Test if dataset cleanup gives expected results."""
+    a = np.arange(10).astype(object)
+    a[4:6] = None
+    b = np.arange(10).astype(complex)
+    b[4] = np.nan
+
+    a_clean = np.hstack((a[:4], a[5:]))
+    b_clean = np.hstack((b[:4], b[5:]))
+
+    dd = DataDict(
+        a=dict(values=a),
+        b=dict(values=b, axes=['a']),
+    )
+
+    assert dd.validate()
+    dd.remove_invalid_entries()
+    assert dd.validate()
+    assert num.arrays_equal(dd.data_vals('a'), a_clean)
+    assert num.arrays_equal(dd.data_vals('b'), b_clean)
 
 
 def test_sanitizing_2d():
@@ -129,6 +149,9 @@ def test_sanitizing_2d():
     b[0, 0] = np.nan
     b[3, 0] = np.nan
 
+    a_clean = np.vstack((a[0:1, :], a[2:, :]))
+    b_clean = np.vstack((b[0:1, :], b[2:, :]))
+
     dd = DataDict(
         a=dict(values=a),
         b=dict(values=b, axes=['a']),
@@ -137,4 +160,6 @@ def test_sanitizing_2d():
     assert dd.validate()
     dd.remove_invalid_entries()
     assert dd.validate()
-    assert dd.shapes() == {'a' : (3,2), 'b' : (3,2)}
+    assert dd.shapes() == {'a': (3, 2), 'b': (3, 2)}
+    assert num.arrays_equal(dd.data_vals('a'), a_clean)
+    assert num.arrays_equal(dd.data_vals('b'), b_clean)
