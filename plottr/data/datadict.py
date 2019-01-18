@@ -743,6 +743,37 @@ class DataDict(DataDictBase):
 
 
 class MeshgridDataDict(DataDictBase):
+    """
+    A dataset where the axes form a grid on which the dependent values reside.
+
+    This is a more special case than ``DataDict``, but a very common scenario.
+    To support flexible grids, this class requires that all axes specify values
+    for each datapoint, rather than a single row/column/dimension.
+
+    For example, if we want to specify a 3-dimensional grid with axes x, y, z,
+    the values of x, y, z all need to be 3-dimensional arrays; the same goes
+    for all dependents that live on that grid.
+
+    For grids where the axes do not depend on each other, the correct values for
+    the axes can be obtained from np.meshgrid (hence the name of the class).
+
+    Example: a simple uniform 3x2 grid might look like this; x and y are the x/y
+    coordinates of the grid (x[i,j] is the x-coordinate of data point i,j), and
+    z is a function of the two:
+
+    x = [[0, 0],
+         [1, 1],
+         [2, 2]]
+
+    y = [[0, 1],
+         [0, 1],
+         [0, 1]]
+
+    z = x * y =
+        [[0, 0],
+         [0, 1],
+         [0, 2]]
+    """
 
     def shape(self):
         """
