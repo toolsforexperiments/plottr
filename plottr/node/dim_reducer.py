@@ -180,7 +180,7 @@ class DimensionReducer(Node):
 
                 del data[n]['axes'][idx]
 
-        data.sanitize()
+        data = data.sanitize()
         data.validate()
 
         return data
@@ -713,7 +713,7 @@ class XYAxesSelector(DimensionReducer):
         data = data['dataOut']
         if self._xyAxes[0] is not None and self._xyAxes[1] is not None:
             _kw = {self._xyAxes[0]: 0, self._xyAxes[1]: 1}
-            data.reorder_axes(**_kw)
+            data = data.reorder_axes(**_kw)
 
         return dict(dataOut=data)
 

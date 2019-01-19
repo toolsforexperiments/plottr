@@ -210,7 +210,7 @@ class DataDictBase(dict):
                     ret.add_meta(k, v)
 
         if sanitize:
-            ret.sanitize()
+            ret = ret.sanitize()
 
         ret.validate()
         return ret
@@ -424,12 +424,15 @@ class DataDictBase(dict):
 
         return True
 
-    def remove_unused_axes(self):
+    def remove_unused_axes(self) -> 'DataDictBase':
         """
         Removes axes not associated with dependents.
+
+        :return: cleaned dataset.
         """
         dependents = self.dependents()
         unused = []
+        ret = self.copy()
 
         for n, v in self.data_items():
             used = False
@@ -443,14 +446,18 @@ class DataDictBase(dict):
                 unused.append(n)
 
         for u in unused:
-            del self[u]
+            del ret[u]
 
-    def sanitize(self):
+        return ret
+
+    def sanitize(self) -> 'DataDictBase':
         """
         Clean-up tasks:
         * removes unused axes.
+
+        :return: sanitized dataset.
         """
-        self.remove_unused_axes()
+        return self.remove_unused_axes()
 
     # axes order tools
 
@@ -492,7 +499,7 @@ class DataDictBase(dict):
         return tuple(neworder), [self[name]['axes'][i] for i in neworder]
 
     def reorder_axes(self, data_names: Union[str, List[str], None] = None,
-                     **pos: int):
+                     **pos: int) -> 'DataDictBase':
         """
         Reorder data axes.
 
@@ -501,17 +508,28 @@ class DataDictBase(dict):
         :param pos: new axes position in the form ``axis_name = new_position``.
                     non-specified axes positions are adjusted automatically.
 
+        :return: dataset with re-ordered axes.
         """
         if data_names is None:
             data_names = self.dependents()
         if isinstance(data_names, str):
             data_names = [data_names]
 
+        ret = self.copy()
         for n in data_names:
             neworder, newaxes = self.reorder_axes_indices(n, **pos)
-            self[n]['axes'] = newaxes
+            ret[n]['axes'] = newaxes
 
-        self.validate()
+        ret.validate()
+        return ret
+
+    def copy(self) -> 'DataDictBase':
+        """
+        Make a copy of the dataset.
+
+        :return: A copy of the dataset.
+        """
+        return cp.deepcopy(self)
 
 
 class DataDict(DataDictBase):
@@ -639,11 +657,11 @@ class DataDict(DataDictBase):
             raise ValueError('Data cannot be expanded.')
         ret = DataDict(**self.structure(add_shape=False))
 
+        if self.is_expanded():
+            return self.copy()
+
         ishp = self._inner_shapes()
-        if set(ishp.values()) == {tuple()}:
-            return
-        else:
-            size = max([np.prod(s) for s in ishp.values()])
+        size = max([np.prod(s) for s in ishp.values()])
 
         for k, v in self.data_items():
             reps = size // np.prod(ishp[k])
@@ -687,22 +705,28 @@ class DataDict(DataDictBase):
 
         return True
 
-    def sanitize(self):
+    def sanitize(self) -> 'DataDict':
         """
         Clean-up.
 
         Beyond the tasks of the base class ``DataDictBase``:
         * remove invalid entries as far as reasonable.
-        """
-        super().sanitize()
-        self.remove_invalid_entries()
 
-    def remove_invalid_entries(self):
+        :return: sanitized DataDict
+        """
+        ret = super().sanitize()
+        return ret.remove_invalid_entries()
+
+    def remove_invalid_entries(self) -> 'DataDict':
         """
         Remove all rows that are ``None`` or ``np.nan`` in *all* dependents.
+
+        :return: the cleaned DataDict.
         """
         ishp = self._inner_shapes()
         idxs = []
+
+        ret = self.copy()
 
         # collect rows that are completely invalid
         for d in self.dependents():
@@ -719,7 +743,7 @@ class DataDict(DataDictBase):
             if len(ishp[d]) == 0:
                 _newidxs = np.where(rows == None)[0]
             else:
-                _newidxs = np.where(np.all(rows==None, axis=-1))[0]
+                _newidxs = np.where(np.all(rows == None, axis=-1))[0]
             _idxs = np.append(_idxs, _newidxs)
 
             # get indices for all rows that are fully NaN. works only
@@ -738,8 +762,10 @@ class DataDict(DataDictBase):
         if len(idxs) > 0:
             remove_idxs = reduce(np.intersect1d,
                                  tuple(np.array(idxs).astype(int)))
-            for k, v in self.data_items():
+            for k, v in ret.data_items():
                 v['values'] = np.delete(v['values'], remove_idxs, axis=0)
+
+        return ret
 
 
 class MeshgridDataDict(DataDictBase):
@@ -753,13 +779,16 @@ class MeshgridDataDict(DataDictBase):
     For example, if we want to specify a 3-dimensional grid with axes x, y, z,
     the values of x, y, z all need to be 3-dimensional arrays; the same goes
     for all dependents that live on that grid.
+    Then, say, x[i,j,k] is the x-coordinate of point i,j,k of the grid.
+
+    This implies that a ``MeshgridDataDict`` can only have a single shape,
+    i.e., all data values share the exact same nesting structure.
 
     For grids where the axes do not depend on each other, the correct values for
     the axes can be obtained from np.meshgrid (hence the name of the class).
 
-    Example: a simple uniform 3x2 grid might look like this; x and y are the x/y
-    coordinates of the grid (x[i,j] is the x-coordinate of data point i,j), and
-    z is a function of the two:
+    Example: a simple uniform 3x2 grid might look like this; x and y are the
+    coordinates of the grid, and z is a function of the two:
 
     x = [[0, 0],
          [1, 1],
@@ -775,15 +804,27 @@ class MeshgridDataDict(DataDictBase):
          [0, 2]]
     """
 
-    def shape(self):
+    def shape(self) -> Union[None, Tuple[int]]:
         """
         Return the shape of the meshgrid.
+
+        :returns: the shape as tuple. None if no data in the set.
         """
         for d, _ in self.data_items():
             return np.array(self.data_vals(d)).shape
         return None
 
     def validate(self):
+        """
+        Validation of the dataset.
+
+        Performs the following checks:
+        * all dependents must have the same axes
+        * all shapes need to be identical
+
+        :return: ``True`` if valid.
+        :raises: ``ValueError`` if invalid.
+        """
         if not super().validate():
             return False
 
@@ -816,22 +857,31 @@ class MeshgridDataDict(DataDictBase):
 
         return True
 
-    def reorder_axes(self, **kw):
+    def reorder_axes(self, **pos) -> 'MeshgridDataDict':
         """
         Reorder the axes for all data.
+
         This includes transposing the data, since we're on a grid.
+
+        :param pos: new axes position in the form ``axis_name = new_position``.
+                    non-specified axes positions are adjusted automatically.
+
+        :return: Dataset with re-ordered axes.
         """
         transposed = []
+        ret = self.copy()
+
         for n in self.dependents():
-            neworder, newaxes = self.reorder_axes_indices(n, **kw)
-            self[n]['axes'] = newaxes
-            self[n]['values'] = self[n]['values'].transpose(neworder)
+            neworder, newaxes = self.reorder_axes_indices(n, **pos)
+            ret[n]['axes'] = newaxes
+            ret[n]['values'] = self[n]['values'].transpose(neworder)
             for ax in self.axes(n):
                 if ax not in transposed:
-                    self[ax]['values'] = self[ax]['values'].transpose(neworder)
+                    ret[ax]['values'] = self[ax]['values'].transpose(neworder)
                     transposed.append(ax)
 
-        self.validate()
+        ret.validate()
+        return ret
 
 
 # Tools for converting between different data types
@@ -926,7 +976,7 @@ def datadict_to_meshgrid(data: DataDict,
                                                    copy=copy)
 
     if sanitize:
-        newdata.sanitize()
+        newdata = newdata.sanitize()
     newdata.validate()
     return newdata
 
@@ -944,6 +994,6 @@ def meshgrid_to_datadict(data: MeshgridDataDict, copy: bool = True,
         newdata[k]['values'] = val
 
     if sanitize:
-        newdata.sanitize()
+        newdata = newdata.sanitize()
     newdata.validate()
     return newdata

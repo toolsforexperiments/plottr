@@ -1,10 +1,7 @@
 import numpy as np
-import logging
 
-from plottr.node.data_selector import DataSelector
 from plottr.apps.tools import make_sequential_flowchart
-from plottr import log as plottrlog
-
+from plottr.node.data_selector import DataSelector
 from ..common import data as testdata
 
 
@@ -31,6 +28,7 @@ def test_data_extraction(qtbot):
         atol=1e-15
     ))
 
+
 def test_data_extraction2(qtbot):
     """
     Test whether extraction of two dependents gives the right data back.
@@ -38,7 +36,7 @@ def test_data_extraction2(qtbot):
     DataSelector.useUi = False
 
     data = testdata.three_compatible_3d_sets()
-    data_names = [ data.dependents()[0], data.dependents()[1] ]
+    data_names = [data.dependents()[0], data.dependents()[1]]
     field_names = data_names + data.axes(data_names[0])
 
     nodes, fc = make_sequential_flowchart([DataSelector], inputData=data)
@@ -58,6 +56,7 @@ def test_data_extraction2(qtbot):
         data.data_vals(data_names[1]), out.data_vals(data_names[1]),
         atol=1e-15
     ))
+
 
 def test_incompatible_sets(qtbot):
     """

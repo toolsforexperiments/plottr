@@ -133,7 +133,7 @@ def test_sanitizing():
         z=dict(values=[0], axes=['y']),
     )
 
-    dd.sanitize()
+    dd = dd.sanitize()
     assert dd.axes() == ['y']
     assert dd.dependents() == ['z']
     assert dd.validate()
@@ -150,10 +150,10 @@ def test_reorder():
 
     assert dd.axes('d') == ['a', 'b', 'c']
 
-    dd.reorder_axes('d', b=0, a=1, c=2)
+    dd = dd.reorder_axes('d', b=0, a=1, c=2)
     assert dd.axes('d') == ['b', 'a', 'c']
 
-    dd.reorder_axes(c=0)
+    dd = dd.reorder_axes(c=0)
     assert dd.axes('d') == ['c', 'b', 'a']
 
 

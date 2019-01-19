@@ -97,6 +97,32 @@ def test_expansion_fail():
         dd.expand()
 
 
+def test_nontrivial_expansion():
+    """test expansion when different dependents require different
+    expansion of an axis."""
+
+    a = np.arange(4)
+    b = np.arange(4*2).reshape(4,2)
+    x = np.arange(4)
+    y = np.arange(4*2).reshape(4,2)
+
+    dd = DataDict(
+        a=dict(values=a),
+        b=dict(values=b),
+        x=dict(values=x, axes=['a']),
+        y=dict(values=y, axes=['a', 'b'])
+    )
+
+    assert dd.validate()
+    assert dd.is_expandable()
+
+    dd_x = dd.extract('x').expand()
+    assert num.arrays_equal(a, dd_x.data_vals('a'))
+
+    dd_y = dd.extract('y').expand()
+    assert num.arrays_equal(a.repeat(2), dd_y.data_vals('a'))
+
+
 def test_validation_fail():
     """Test if invalid data fails the validation,"""
 
@@ -130,10 +156,10 @@ def test_sanitizing_1d():
     )
 
     assert dd.validate()
-    dd.remove_invalid_entries()
-    assert dd.validate()
-    assert num.arrays_equal(dd.data_vals('a'), a_clean)
-    assert num.arrays_equal(dd.data_vals('b'), b_clean)
+    dd2 = dd.remove_invalid_entries()
+    assert dd2.validate()
+    assert num.arrays_equal(dd2.data_vals('a'), a_clean)
+    assert num.arrays_equal(dd2.data_vals('b'), b_clean)
 
 
 def test_sanitizing_2d():
@@ -158,8 +184,8 @@ def test_sanitizing_2d():
     )
 
     assert dd.validate()
-    dd.remove_invalid_entries()
-    assert dd.validate()
-    assert dd.shapes() == {'a': (3, 2), 'b': (3, 2)}
-    assert num.arrays_equal(dd.data_vals('a'), a_clean)
-    assert num.arrays_equal(dd.data_vals('b'), b_clean)
+    dd2 = dd.remove_invalid_entries()
+    assert dd2.validate()
+    assert dd2.shapes() == {'a': (3, 2), 'b': (3, 2)}
+    assert num.arrays_equal(dd2.data_vals('a'), a_clean)
+    assert num.arrays_equal(dd2.data_vals('b'), b_clean)
