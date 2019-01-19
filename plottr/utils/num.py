@@ -2,6 +2,7 @@
 
 Tools for numerical operations.
 """
+from typing import Sequence, Tuple
 import numpy as np
 
 
@@ -59,3 +60,36 @@ def arrays_equal(a: np.ndarray, b: np.ndarray,
     invalid = _are_invalid(a, b)
 
     return np.all(equal | close | invalid)
+
+
+def array1d_to_meshgrid(arr: Sequence, target_shape: Tuple[int],
+                        copy: bool = True) -> np.ndarray:
+    """
+    reshape an array to a target shape.
+
+    If target shape is larger than the array, fill with invalids
+    (``nan`` for float and complex dtypes, ``None`` otherwise).
+    If target shape is smaller than the array, cut off the end.
+
+    :param arr: input array
+    :param target_shape: desired output shape
+    :param copy: whether to make a copy before the operation.
+    :return: re-shaped array.
+    """
+    if not isinstance(arr, np.ndarray):
+        arr = np.array(arr)
+    if copy:
+        arr = arr.copy()
+    arr = arr.reshape(-1)
+
+    newsize = np.prod(target_shape)
+    if newsize < arr.size:
+        arr = arr[:newsize]
+    elif newsize > arr.size:
+        if arr.dtype in FLOATTYPES:
+            fill = np.zeros(newsize - arr.size) * np.nan
+        else:
+            fill = np.array((newsize - arr.size) * [None])
+        arr = np.append(arr, fill)
+
+    return arr.reshape(target_shape)

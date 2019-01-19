@@ -67,7 +67,7 @@ def test_incompatible_sets(qtbot):
     data = testdata.three_incompatible_3d_sets()
     nodes, fc = make_sequential_flowchart([DataSelector], inputData=data)
     nodes[0].selectedData = data.dependents()[0], data.dependents()[1]
-    assert fc.output()['dataOut'] == {}
+    assert fc.output()['dataOut'] == None
 
     nodes[0].selectedData = data.dependents()[0]
     assert fc.output()['dataOut'].dependents() == [data.dependents()[0]]

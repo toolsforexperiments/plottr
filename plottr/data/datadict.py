@@ -10,6 +10,8 @@ from typing import List, Tuple, Dict, Sequence, Union, Any
 
 import numpy as np
 
+from plottr.utils import num
+
 __author__ = 'Wolfgang Pfaff'
 __license__ = 'MIT'
 
@@ -886,14 +888,16 @@ class MeshgridDataDict(DataDictBase):
 
 # Tools for converting between different data types
 
-def guess_shape_from_datadict(data: DataDict) -> Dict[str, Tuple[int]]:
+def guess_shape_from_datadict(data: DataDict) -> \
+        Dict[str, Union[Tuple[int], None]]:
     """
     Try to guess the shape of the datadict dependents from the unique values of
     their axes.
-    """
 
-    # TODO: should fail when grid is obviously not very good (too many unique
-    #  values...)
+    :param data: dataset to examine.
+    :return: a dictionary with the dependents as keys, and inferred shapes as
+             values. value is None, if the shape could not be inferred.
+    """
 
     shapes = {}
     for d in data.dependents():
@@ -912,44 +916,24 @@ def guess_shape_from_datadict(data: DataDict) -> Dict[str, Tuple[int]]:
 
             shp.append(np.unique(cleaned_data).size)
 
-        shapes[d] = tuple(shp)
+        if np.prod(shp) != data.data_vals(d).size:
+            shapes[d] = None
+        else:
+            shapes[d] = tuple(shp)
 
     return shapes
 
 
-def array1d_to_meshgrid(arr: Sequence, target_shape: Tuple[int],
-                        copy: bool = True) -> np.ndarray:
-    """
-    try to reshape ``arr`` to target shape.
-    If target shape is larger than the array, fill with invalids
-    (``nan`` for float and complex dtypes, ``None`` otherwise).
-    If target shape is smaller than the array, cut off the end.
-    """
-    if not isinstance(arr, np.ndarray):
-        arr = np.array(arr)
-    if copy:
-        arr = arr.copy()
-
-    newsize = np.prod(target_shape)
-    if newsize < arr.size:
-        arr = arr[:newsize]
-    elif newsize > arr.size:
-        if arr.dtype in [np.float, np.complex]:
-            fill = np.zeros(newsize - arr.size) * np.nan
-        else:
-            fill = np.array((newsize - arr.size) * [None])
-        arr = np.append(arr, fill)
-
-    return arr.reshape(target_shape)
-
-
 def datadict_to_meshgrid(data: DataDict,
-                         target_shape: Union[Tuple[int], None] = None,
-                         copy: bool = True,
-                         sanitize: bool = True) -> MeshgridDataDict:
+                         target_shape: Union[Tuple[int, ...], None] = None) \
+        -> MeshgridDataDict:
     """
-    Try to make a meshgrid from ``data``. If no target shape is supplied,
-    we try to guess.
+    Try to make a meshgrid from a dataset.
+
+    :param data: input DataDict.
+    :param target_shape: target shape. if ``None`` we use
+                         ``guess_shape_from_datadict`` to infer.
+    :return: the generated ``MeshgridDataDict``.
     """
     # TODO: support for cues inside the data set about the shape.
     # TODO: maybe it could make sense to include a method to sort the
@@ -957,7 +941,7 @@ def datadict_to_meshgrid(data: DataDict,
 
     # if the data is empty, return empty MeshgridData
     if len([k for k, _ in data.data_items()]) == 0:
-        return None
+        return MeshgridDataDict()
 
     # guess what the shape likely is.
     if not data.axes_are_compatible():
@@ -966,34 +950,34 @@ def datadict_to_meshgrid(data: DataDict,
     if target_shape is None:
         shps = guess_shape_from_datadict(data)
         if len(set(shps.values())) > 1:
-            raise RuntimeError('Cannot determine unique shape for all data.')
+            raise ValueError('Cannot determine unique shape for all data.')
 
         target_shape = list(shps.values())[0]
+        if target_shape is None:
+            raise ValueError('Shape could not be inferred.')
 
     newdata = MeshgridDataDict(**data.structure(add_shape=False))
     for k, v in data.data_items():
-        newdata[k]['values'] = array1d_to_meshgrid(v['values'], target_shape,
-                                                   copy=copy)
-
-    if sanitize:
-        newdata = newdata.sanitize()
+        newdata[k]['values'] = num.array1d_to_meshgrid(v['values'],
+                                                       target_shape,
+                                                       copy=True)
+    newdata = newdata.sanitize()
     newdata.validate()
     return newdata
 
 
-def meshgrid_to_datadict(data: MeshgridDataDict, copy: bool = True,
-                         sanitize: bool = True) -> DataDict:
+def meshgrid_to_datadict(data: MeshgridDataDict) -> DataDict:
     """
-    Make a DataDict from a MeshgridDataDict by simply reshaping the data.
+    Make a DataDict from a MeshgridDataDict by reshaping the data.
+
+    :param data: input ``MeshgridDataDict``
+    :return: flattened ``DataDict``
     """
     newdata = DataDict(**data.structure(add_shape=False))
     for k, v in data.data_items():
-        val = v['values'].reshape(-1)
-        if copy:
-            val = val.copy()
+        val = v['values'].copy().reshape(-1)
         newdata[k]['values'] = val
 
-    if sanitize:
-        newdata = newdata.sanitize()
+    newdata = newdata.sanitize()
     newdata.validate()
     return newdata
