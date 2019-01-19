@@ -180,7 +180,7 @@ class DimensionReducer(Node):
 
                 del data[n]['axes'][idx]
 
-        data.sanitize()
+        data = data.sanitize()
         data.validate()
 
         return data
@@ -313,7 +313,8 @@ class XYAxesSelectionWidget(QtGui.QTreeWidget):
         if self._grid and role == 'select value': # and w is None:
             # TODO: set slider from current value?
             axidx = self._dataStructure.axes().index(ax)
-            axlen = self._dataStructure.data_meta(ax)['shape'][axidx]
+            axlen = self._dataStructure.meta_val('shape', data=ax)[axidx]
+            # data_meta(ax)['shape'][axidx]
 
             w = self._axisSlider(axlen)
             self.choices[ax]['options'] = w
@@ -532,7 +533,8 @@ class XYAxesSelectionWidget(QtGui.QTreeWidget):
     @QtCore.pyqtSlot(str, int)
     def axisValueSelected(self, ax, idx):
         axidx = self._dataStructure.axes().index(ax)
-        axlen = self._dataStructure.data_meta(ax)['shape'][axidx]
+        axlen = self._dataStructure.meta_val('shape', data=ax)[axidx]
+        # data_meta(ax)['shape'][axidx]
 
         info = f"{idx+1}/{axlen}"
         self.setInfo(ax, info)
@@ -711,7 +713,7 @@ class XYAxesSelector(DimensionReducer):
         data = data['dataOut']
         if self._xyAxes[0] is not None and self._xyAxes[1] is not None:
             _kw = {self._xyAxes[0]: 0, self._xyAxes[1]: 1}
-            data.reorder_axes(**_kw)
+            data = data.reorder_axes(**_kw)
 
         return dict(dataOut=data)
 
