@@ -49,8 +49,13 @@ In the most basic implementation, the only restriction on the data values is tha
 
 Relevant data classes
 ---------------------
-:DataDictBase: The main base class. Only checks for correct dependencies. Any requirements on data structure is left to the inheriting classes.
-:DataDict: The only requirement for valid data is that the number of records is the same for all data fields.
+:DataDictBase: The main base class. Only checks for correct dependencies. Any
+               requirements on data structure is left to the inheriting classes. The class contains methods for easy access to data and metadata.
+:DataDict: The only requirement for valid data is that the number of records is the
+           same for all data fields. Contains some tools for expansion of data.
+:MeshgridDataDict: For data that lives on a grid (not necessarily regular).
+
+For more information, see the API documentation.
 
 
 API documentation for the datadict module
