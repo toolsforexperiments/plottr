@@ -14,7 +14,7 @@
 #
 import os
 import sys
-sys.path.insert(0, os.path.abspath('../../../plottr/'))
+sys.path.insert(0, os.path.abspath('../../plottr/'))
 
 
 # -- Project information -----------------------------------------------------
