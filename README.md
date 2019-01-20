@@ -23,7 +23,6 @@ For basic instructions, check out the Notebook *Live plotting qcodes data* under
 
 For now, check out the Notebook *Interactive data inspection* under `/doc/examples/`.
 
-
 ## Some notes on installing
 
 Note: this package is not compatible with the original plottr tool. You might want to install freshly if you still use the old version.
@@ -38,6 +37,11 @@ Note: this package is not compatible with the original plottr tool. You might wa
 ### python package
 
 clone the repo, and install using `pip install -e plottr/`.
+
+## Documentation
+
+Docs are currently work in progress. You can find it here (still sparse, though!):
+https://plottr.readthedocs.io
 
 ## If you're looking for the 'original' plottr package...
 
