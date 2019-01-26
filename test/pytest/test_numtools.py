@@ -36,3 +36,32 @@ def test_array_reshape():
     out = num.array1d_to_meshgrid(a, (3, 3))
     assert out.shape == (3, 3)
     assert num.arrays_equal(out, a[:9].reshape(3, 3))
+
+
+def test_find_direction_period():
+    """Test period finding in the direction"""
+
+    arr = np.concatenate((np.arange(5), np.arange(5))).astype(float)
+    assert num.find_direction_period(arr) == 5
+
+    arr[1] = np.nan
+    arr[6] = None
+    assert num.find_direction_period(arr) == 5
+
+    arr = np.array([1, 2, 3, 1, 2, 1, 2, 3])
+    assert num.find_direction_period(arr) is None
+
+
+def test_find_shape_from_directions():
+    """Test finding the shape of a dataset by analyzing axes values"""
+
+    x = np.arange(5)
+    y = np.arange(7, 3, -1)
+    xx, yy = np.meshgrid(x, y, indexing='ij')
+
+    ret = num.shape_and_order_from_direction_change(
+        x=xx.reshape(-1), y=yy.reshape(-1)
+    )
+    assert ret[0] == ['x', 'y']
+    assert ret[1] == xx.shape
+
