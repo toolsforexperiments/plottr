@@ -10,7 +10,7 @@ from typing import List, Tuple, Dict, Sequence, Union, Any
 
 import numpy as np
 
-from plottr.utils import num
+from plottr.utils import num, misc
 
 __author__ = 'Wolfgang Pfaff'
 __license__ = 'MIT'
@@ -475,30 +475,9 @@ class DataDictBase(dict):
                  new order.
 
         """
-        # check if the given indices are each unique
-        used = []
-        for n, i in pos.items():
-            if i in used:
-                raise ValueError('Order indices have to be unique.')
-            used.append(i)
-
-        axlist = self[name]['axes']
-        neworder = [None for a in axlist]
-        oldorder = list(range(len(axlist)))
-
-        for n, newidx in pos.items():
-            neworder[newidx] = axlist.index(n)
-
-        for i in neworder:
-            if i in oldorder:
-                del oldorder[oldorder.index(i)]
-
-        for i in range(len(neworder)):
-            if neworder[i] is None:
-                neworder[i] = oldorder[0]
-                del oldorder[0]
-
-        return tuple(neworder), [self[name]['axes'][i] for i in neworder]
+        axlist = self.axes(name)
+        order = misc.reorder_indices_from_new_positions(axlist, **pos)
+        return order, [axlist[i] for i in order]
 
     def reorder_axes(self, data_names: Union[str, List[str], None] = None,
                      **pos: int) -> 'DataDictBase':
@@ -790,20 +769,32 @@ class MeshgridDataDict(DataDictBase):
     the axes can be obtained from np.meshgrid (hence the name of the class).
 
     Example: a simple uniform 3x2 grid might look like this; x and y are the
-    coordinates of the grid, and z is a function of the two:
+    coordinates of the grid, and z is a function of the two::
 
-    x = [[0, 0],
-         [1, 1],
-         [2, 2]]
+        x = [[0, 0],
+             [1, 1],
+             [2, 2]]
 
-    y = [[0, 1],
-         [0, 1],
-         [0, 1]]
+        y = [[0, 1],
+             [0, 1],
+             [0, 1]]
 
-    z = x * y =
-        [[0, 0],
-         [0, 1],
-         [0, 2]]
+        z = x * y =
+            [[0, 0],
+             [0, 1],
+             [0, 2]]
+
+    Note: Internally we will typically assume that the nested axes are
+    ordered from slow to fast, i.e., dimension 1 is the most outer axis, and
+    dimension N of an N-dimensional array the most inner (i.e., the fastest
+    changing one). This guarantees, for example, that the default implementation
+    of np.reshape has the expected outcome. If, for some reason, the specified
+    axes are not in that order (e.g., we might have ``z`` with
+    ``axes = ['x', 'y']``, but ``x`` is the fast axis in the data).
+    In such a case, the guideline is that at creation of the meshgrid, the data
+    should be transposed such that it conforms correctly to the order as given
+    in the ``axis = [...]`` specification of the data.
+    The function ``datadict_to_meshgrid`` provides options for that.
     """
 
     def shape(self) -> Union[None, Tuple[int]]:
@@ -889,10 +880,9 @@ class MeshgridDataDict(DataDictBase):
 # Tools for converting between different data types
 
 def guess_shape_from_datadict(data: DataDict) -> \
-        Dict[str, Union[Tuple[int], None]]:
+        Dict[str, Union[None, Tuple[List[str], Tuple[int]]]]:
     """
-    Try to guess the shape of the datadict dependents from the unique values of
-    their axes.
+    Try to guess the shape of the datadict dependents from the axes values.
 
     :param data: dataset to examine.
     :return: a dictionary with the dependents as keys, and inferred shapes as
@@ -901,31 +891,16 @@ def guess_shape_from_datadict(data: DataDict) -> \
 
     shapes = {}
     for d in data.dependents():
-        shp = []
-        axes = data.axes(d)
-        for a in axes:
-            # need to make sure we remove invalids before determining unique
-            # vals.
-            cleaned_data = data.data_vals(a)
-            cleaned_data = cleaned_data[cleaned_data != None]
-            try:
-                cleaned_data = cleaned_data[~np.isnan(cleaned_data)]
-            except TypeError:
-                # means it's not float. that's ok.
-                pass
-
-            shp.append(np.unique(cleaned_data).size)
-
-        if np.prod(shp) != data.data_vals(d).size:
-            shapes[d] = None
-        else:
-            shapes[d] = tuple(shp)
+        axnames = data.axes(d)
+        axes = {a: data.data_vals(a) for a in axnames}
+        shapes[d] = num.guess_grid_from_sweep_direction(**axes)
 
     return shapes
 
 
 def datadict_to_meshgrid(data: DataDict,
-                         target_shape: Union[Tuple[int, ...], None] = None) \
+                         target_shape: Union[Tuple[int, ...], None] = None,
+                         inner_axis_order: Union[None, List[str]] = None) \
         -> MeshgridDataDict:
     """
     Try to make a meshgrid from a dataset.
@@ -933,34 +908,53 @@ def datadict_to_meshgrid(data: DataDict,
     :param data: input DataDict.
     :param target_shape: target shape. if ``None`` we use
                          ``guess_shape_from_datadict`` to infer.
+    :param inner_axis_order: if axes of the datadict are not specified in the
+                             'C' order (1st the slowest, last the fastest axis)
+                             then the 'true' inner order can be specified as
+                             a list of axes names, which has to match the
+                             specified axes in all but order.
+                             The data is then transposed to conform to the
+                             specified order.
     :return: the generated ``MeshgridDataDict``.
     """
-    # TODO: support for cues inside the data set about the shape.
-    # TODO: maybe it could make sense to include a method to sort the
-    #  meshgrid axes.
 
     # if the data is empty, return empty MeshgridData
     if len([k for k, _ in data.data_items()]) == 0:
         return MeshgridDataDict()
 
-    # guess what the shape likely is.
     if not data.axes_are_compatible():
         raise ValueError('Non-compatible axes, cannot grid that.')
 
+    # guess what the shape likely is.
     if target_shape is None:
-        shps = guess_shape_from_datadict(data)
-        if len(set(shps.values())) > 1:
+        shp_specs = guess_shape_from_datadict(data)
+        shps = [shape for (order, shape) in shp_specs.values()]
+        if len(set(shps)) > 1:
             raise ValueError('Cannot determine unique shape for all data.')
 
-        target_shape = list(shps.values())[0]
-        if target_shape is None:
+        ret = list(shp_specs.values())[0]
+        if ret is None:
             raise ValueError('Shape could not be inferred.')
 
+        # the guess-function returns both axis order as well as shape.
+        inner_axis_order, target_shape = ret
+
+    # construct new data
     newdata = MeshgridDataDict(**data.structure(add_shape=False))
+    axlist = data.axes(data.dependents()[0])
+
     for k, v in data.data_items():
-        newdata[k]['values'] = num.array1d_to_meshgrid(v['values'],
-                                                       target_shape,
-                                                       copy=True)
+        vals = num.array1d_to_meshgrid(v['values'], target_shape, copy=True)
+
+        # if an inner axis order is given, we transpose to transform from that
+        # to the specified order.
+        if inner_axis_order is not None:
+            transpose_idxs = misc.reorder_indices(
+                inner_axis_order, axlist)
+            vals = vals.transpose(transpose_idxs)
+
+        newdata[k]['values'] = vals
+
     newdata = newdata.sanitize()
     newdata.validate()
     return newdata
