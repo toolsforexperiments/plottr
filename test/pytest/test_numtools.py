@@ -59,7 +59,7 @@ def test_find_shape_from_directions():
     y = np.arange(7, 3, -1)
     xx, yy = np.meshgrid(x, y, indexing='ij')
 
-    ret = num.shape_and_order_from_direction_change(
+    ret = num.guess_grid_from_sweep_direction(
         x=xx.reshape(-1), y=yy.reshape(-1)
     )
     assert ret[0] == ['x', 'y']

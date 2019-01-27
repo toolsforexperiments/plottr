@@ -139,7 +139,7 @@ def find_direction_period(vals: np.ndarray, ignore_last: bool = False) \
         return int(periods[0])
 
 
-def shape_and_order_from_direction_change(**axes: np.ndarray) \
+def guess_grid_from_sweep_direction(**axes: np.ndarray) \
         -> Union[None, Tuple[List[str], Tuple[int]]]:
     """
     Try to determine order and shape of a set of axes data
