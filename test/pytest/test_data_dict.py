@@ -1,7 +1,10 @@
 import numpy as np
 import pytest
 
-from plottr.data.datadict import DataDict, DataDictBase, guess_shape_from_datadict, meshgrid_to_datadict, datadict_to_meshgrid
+from plottr.data.datadict import (
+    DataDict, DataDictBase,
+    guess_shape_from_datadict, datadict_to_meshgrid
+)
 from plottr.utils import num
 
 
@@ -205,16 +208,21 @@ def test_shape_guessing_simple():
         z=dict(values=zz.reshape(-1), axes=['a', 'b'])
     )
 
-    assert guess_shape_from_datadict(dd) == dict(z=(11, 5))
+    assert guess_shape_from_datadict(dd) == dict(z=(['a', 'b'], (11, 5)))
 
     dd['a']['values'][5] = None
     dd['a']['values'][10] = np.nan
-    assert guess_shape_from_datadict(dd) == dict(z=(11, 5))
+    assert guess_shape_from_datadict(dd) == dict(z=(['a', 'b'], (11, 5)))
 
     # non-uniform
-    # noise on the coordinates should result in the guess failing.
-    dd['a']['values'] = aa.reshape(-1) + np.random.rand(aa.size) * 1e-3
-    assert guess_shape_from_datadict(dd) == dict(z=None)
+    # noise on the coordinates should not result in failing as long as it
+    # keeps monotonicity in the sweep axes
+    dd['a']['values'] = (aa + np.random.rand(a.size).reshape(a.size, 1)
+                         * 1e-3).reshape(-1)
+    assert guess_shape_from_datadict(dd) == dict(z=(['a', 'b'], (11, 5)))
+
+    dd['b']['values'] = bb.reshape(-1) + np.random.rand(bb.size) * 1e-3
+    assert guess_shape_from_datadict(dd) == dict(z=(['a', 'b'], (11, 5)))
 
 
 def test_meshgrid_conversion():
@@ -241,3 +249,25 @@ def test_meshgrid_conversion():
     assert DataDictBase.same_structure(dd, dd2)
     assert num.arrays_equal(dd2.data_vals('a'), aa)
     assert num.arrays_equal(dd2.data_vals('z'), zz)
+
+    # test the case where inner/outer
+    aa, bb = np.meshgrid(a, b, indexing='xy')
+    zz = aa * bb
+
+    dd = DataDict(
+        a=dict(values=aa.reshape(-1)),
+        b=dict(values=bb.reshape(-1)),
+        z=dict(values=zz.reshape(-1), axes=['a', 'b']),
+        __info__='some info',
+    )
+
+    dd2 = datadict_to_meshgrid(dd, target_shape=(5, 11),
+                               inner_axis_order=['b', 'a'])
+    assert DataDictBase.same_structure(dd, dd2)
+    assert num.arrays_equal(dd2.data_vals('a'), np.transpose(aa, (1, 0)))
+    assert num.arrays_equal(dd2.data_vals('z'), np.transpose(zz, (1, 0)))
+
+    dd2 = datadict_to_meshgrid(dd, target_shape=None)
+    assert DataDictBase.same_structure(dd, dd2)
+    assert num.arrays_equal(dd2.data_vals('a'), np.transpose(aa, (1, 0)))
+    assert num.arrays_equal(dd2.data_vals('z'), np.transpose(zz, (1, 0)))

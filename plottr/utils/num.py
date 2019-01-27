@@ -2,7 +2,7 @@
 
 Tools for numerical operations.
 """
-from typing import Sequence, Tuple
+from typing import Sequence, Tuple, Union, List
 import numpy as np
 
 
@@ -93,3 +93,101 @@ def array1d_to_meshgrid(arr: Sequence, target_shape: Tuple[int],
         arr = np.append(arr, fill)
 
     return arr.reshape(target_shape)
+
+
+def find_direction_period(vals: np.ndarray, ignore_last: bool = False) \
+        -> Union[None, int]:
+    """
+    Find the period with which the values in an array change direction.
+
+    :param vals: the axes values (1d array)
+    :param ignore_last: if True, we'll ignore the last value when determining
+                        if the period is unique (useful for incomplete data),
+    :return: None if we could not determine a unique period.
+             The period, i.e., the number of elements after which
+             the more common direction is changed.
+    """
+    direction = np.sign(vals[1:] - vals[:-1])
+    ups = np.where(direction == 1)[0]
+    downs = np.where(direction == -1)[0]
+
+    if len(ups) > len(downs):
+        switches = downs
+    else:
+        switches = ups
+
+    if len(switches) == 0:
+        return vals.size
+    elif len(switches) == 1:
+        if switches[0] >= (vals.size / 2.) - 1:
+            return switches[0] + 1
+        else:
+            return None
+
+    if switches[-1] < vals.size - 1:
+        switches = np.append(switches, vals.size-1)
+    periods = (switches[1:] - switches[:-1])
+
+    if ignore_last and periods[-1] < periods[0]:
+        periods = periods[:-1]
+
+    if len(set(periods)) > 1:
+        return None
+    elif len(periods) == 0:
+        return vals.size
+    else:
+        return int(periods[0])
+
+
+def guess_grid_from_sweep_direction(**axes: np.ndarray) \
+        -> Union[None, Tuple[List[str], Tuple[int]]]:
+    """
+    Try to determine order and shape of a set of axes data
+    (such as flattened meshgrid data).
+
+    Analyzes the periodicity (in sweep direction) of the given set of axes
+    values, and use that information to infer the shape of the dataset,
+    and the order of the axes, given from slowest to fastest.
+
+    :param axes: all axes values as keyword args, given as 1d numpy arrays.
+    :return: None, if we cannot infer a shape that makes sense.
+             Sorted list of axes names, and shape tuple for the dataset.
+    :raises: `ValueError` for incorrect input
+    """
+    periods = []
+    names = []
+    size = None
+
+    if len(axes) < 1:
+        raise ValueError("Empty input.")
+
+    for name, vals in axes.items():
+        if len(np.array(vals).shape) > 1:
+            raise ValueError(
+                f"Expect 1-dimensional axis data, not {np.array(vals).shape}")
+        if size is None:
+            size = np.array(vals).size
+        else:
+            if size != np.array(vals).size:
+                raise ValueError("Non-matching array sizes.")
+
+        period = find_direction_period(vals)
+        if period is not None:
+            periods.append(period)
+            names.append(name)
+        else:
+            return None
+
+    order = np.argsort(periods)
+    periods = np.array(periods)[order]
+    names = np.array(names)[order]
+
+    divisor = 1
+    for i, p in enumerate(periods.copy()):
+        periods[i] //= divisor
+        divisor *= int(periods[i])
+
+    if np.prod(periods) != size or divisor != size:
+        return None
+
+    return names[::-1].tolist(), tuple(periods[::-1])
