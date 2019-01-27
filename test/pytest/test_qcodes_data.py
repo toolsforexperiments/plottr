@@ -86,8 +86,9 @@ def test_update_qcloader(qtbot):
 
         z_in = zz.reshape(-1)[:nresults]
         z_out = ddict.data_vals('z')
-        assert z_in.size == z_out.size
-        assert np.allclose(z_in, z_out, atol=1e-15)
+        if z_out is not None:
+            assert z_in.size == z_out.size
+            assert np.allclose(z_in, z_out, atol=1e-15)
 
     # insert data in small chunks, and check
     while True:
