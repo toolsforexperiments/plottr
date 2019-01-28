@@ -19,6 +19,11 @@ To use: from within the plottr-directory, run `python apps/inspectr.py --dbpath 
 
 For basic instructions, check out the Notebook *Live plotting qcodes data* under `/doc/examples`.
 
+### Live plotting using qcodes subscribers
+
+You might have read this in the qcodes documentation: http://qcodes.github.io/Qcodes/examples/plotting/live_plotting.html
+In the most recent version of plottr, this way of live plotting does not actually work anymore; see the example notebook for how it does work :). Using subscribers will soon be re-enabled, but for it is recommended to use the new way.
+
 ### Interactive usage
 
 For now, check out the Notebook *Interactive data inspection* under `/doc/examples/`.
