@@ -512,6 +512,19 @@ class DataDictBase(dict):
         """
         return cp.deepcopy(self)
 
+    def astype(self, dtype) -> 'DataDictBase':
+        """
+        Convert all data values to given dtype.
+
+        :param dtype: np dtype.
+        :return: copy of the dataset, with values as given type.
+        """
+        ret = self.copy()
+        for k, v in ret.data_items():
+            ret[k]['values'] = np.array(ret[k]['values']).astype(dtype)
+
+        return ret
+
 
 class DataDict(DataDictBase):
     """

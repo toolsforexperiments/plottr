@@ -5,9 +5,29 @@ Tools for numerical operations.
 from typing import Sequence, Tuple, Union, List
 import numpy as np
 
-
+INTTYPES = [int, np.int, np.int16, np.int32, np.int64]
 FLOATTYPES = [float, np.float, np.float16, np.float32, np.float64,
               complex, np.complex, np.complex64, np.complex128]
+NUMTYPES = INTTYPES + FLOATTYPES
+
+
+def largest_numtype(arr: np.ndarray) -> Union[None, type]:
+    """
+    Get the largest numerical type present in an array.
+    :param arr: input array
+    :return: type if possible. None if no numeric data in array.
+    """
+    types = {type(a) for a in np.array(arr).flatten()}
+    curidx = -1
+    for t in types:
+        if t in NUMTYPES:
+            idx = NUMTYPES.index(t)
+            if idx > curidx:
+                curidx = idx
+    if curidx > -1:
+        return NUMTYPES[curidx]
+    else:
+        return None
 
 
 def _are_close(a, b, rtol=1e-8):
@@ -171,7 +191,7 @@ def guess_grid_from_sweep_direction(**axes: np.ndarray) \
             if size != np.array(vals).size:
                 raise ValueError("Non-matching array sizes.")
 
-        period = find_direction_period(vals)
+        period = find_direction_period(vals, ignore_last=True)
         if period is not None:
             periods.append(period)
             names.append(name)
@@ -184,10 +204,19 @@ def guess_grid_from_sweep_direction(**axes: np.ndarray) \
 
     divisor = 1
     for i, p in enumerate(periods.copy()):
-        periods[i] //= divisor
+
+        # need to make sure that incomplete grids work.
+        # for incomplete grids, the period of the outermost (here: last) axis
+        # is by definition not yet complete --> compensate for that.
+        if i + 1 == periods.size and periods[i] % divisor > 0:
+            periods[i] = periods[i] // divisor + 1
+        else:
+            periods[i] //= divisor
         divisor *= int(periods[i])
 
-    if np.prod(periods) != size or divisor != size:
+    # incomplete grids can lack at most <slowest period - 1> elements.
+    if (divisor < size) or (divisor > (size + divisor//periods[-1] - 1)):
         return None
 
+    # in returning, we go back to standard order, i.e., slow->fast.
     return names[::-1].tolist(), tuple(periods[::-1])

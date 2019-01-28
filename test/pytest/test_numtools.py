@@ -52,7 +52,7 @@ def test_find_direction_period():
     assert num.find_direction_period(arr) is None
 
 
-def test_find_shape_from_directions():
+def test_find_grid_from_directions():
     """Test finding the shape of a dataset by analyzing axes values"""
 
     x = np.arange(5)
@@ -61,6 +61,13 @@ def test_find_shape_from_directions():
 
     ret = num.guess_grid_from_sweep_direction(
         x=xx.reshape(-1), y=yy.reshape(-1)
+    )
+    assert ret[0] == ['x', 'y']
+    assert ret[1] == xx.shape
+
+    # also test incomplete grids
+    ret = num.guess_grid_from_sweep_direction(
+        x=xx.reshape(-1)[:-3], y=yy.reshape(-1)[:-3]
     )
     assert ret[0] == ['x', 'y']
     assert ret[1] == xx.shape
