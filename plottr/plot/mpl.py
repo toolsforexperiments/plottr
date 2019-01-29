@@ -1,5 +1,4 @@
 import numpy as np
-import pandas as pd
 from matplotlib import rcParams, cm
 from matplotlib.backends.backend_qt5agg import (
     FigureCanvasQTAgg as FCanvas,
@@ -8,20 +7,21 @@ from matplotlib.backends.backend_qt5agg import (
 from matplotlib.figure import Figure
 from mpl_toolkits.axes_grid1 import make_axes_locatable
 
+from plottr.utils.num import (
+    interp_meshgrid_2d, centers2edges_1d,
+    centers2edges_2d
+)
 from pyqtgraph.Qt import QtGui, QtCore
 from ..data.datadict import MeshgridDataDict, meshgrid_to_datadict
 from ..node.node import Node
 from ..utils import (
-    centers2edges_1d, interp_meshgrid_2d,
-    centers2edges_2d, num
+    num
 )
 
-from ..log import getLogger
 
 # TODO:
 # * plot properties should be configurable
 
-### matplotlib tools
 def setMplDefaults():
     rcParams['figure.dpi'] = 300
     rcParams['figure.figsize'] = (4.5, 3)
@@ -47,53 +47,9 @@ def pcolorgrid(xaxis, yaxis):
     return xx, yy
 
 
-def ppcolormesh(ax, x, y, z, cmap=None, **kw):
-    if cmap is None:
-        cmap = cm.viridis
-
-    # first, make sure we have plottable data types
-    # x = x.astype(float)
-    # y = y.astype(float)
-    # z = z.astype(float)
-    #
-    # # if we have a masked array here, we should fill with nan, rather than
-    # # anything else
-    # if np.ma.is_masked(x):
-    #     x = x.filled(np.nan)
-    # if np.ma.is_masked(y):
-    #     y = y.filled(np.nan)
-    # if np.ma.is_masked(z):
-    #     z = z.filled(np.nan)
-
-    # if there's nan, try to interpolate the coordinates
-    # if np.any(np.isnan(x)):
-    #     x = pd.DataFrame(x.copy()).interpolate(axis=1).values
-    # if np.any(np.isnan(y)):
-    #     y = pd.DataFrame(y.copy()).interpolate(axis=0).values
-
-    # if there's still very unplotable data, try to crop it.
-
-
-    for g in x, y, z:
-        if g.size == 0:
-            return
-        elif len(g.shape) < 2:
-            return
-        elif max(g.shape) < 2:
-            return
-
-    im = ax.pcolormesh(x, y, z.T, cmap=cmap, **kw)
-    ax.set_xlim(x.min(), x.max())
-    ax.set_ylim(y.min(), y.max())
-    return im
-
-
-# def ppcolormesh_from_axes(ax, x, y, z, **kw):
-#     _x, _y = pcolorgrid(x, y)
-#     return ppcolormesh(ax, _x, _y, z, **kw)
-
-
 def ppcolormesh_from_meshgrid(ax, x, y, z, **kw):
+    cmap = kw.get('cmap', cm.viridis)
+
     x = x.astype(float)
     y = y.astype(float)
     z = z.astype(float)
@@ -116,15 +72,20 @@ def ppcolormesh_from_meshgrid(ax, x, y, z, **kw):
             return
         elif len(g.shape) < 2:
             return
+        elif min(g.shape) < 2:
+            im = ax.scatter(x, y, c=z)
+            return im
 
-    # TODO: can do better -- 1xN or Nx1 data can still be done.
     try:
-        _x = centers2edges_2d(x)
-        _y = centers2edges_2d(y)
+        x = centers2edges_2d(x)
+        y = centers2edges_2d(y)
     except:
         return
 
-    return ppcolormesh(ax, _x, _y, z, **kw)
+    im = ax.pcolormesh(x, y, z, cmap=cmap, **kw)
+    ax.set_xlim(x.min(), x.max())
+    ax.set_ylim(y.min(), y.max())
+    return im
 
 
 class PlotNode(Node):
@@ -241,7 +202,6 @@ class AutoPlot(MPLPlotWidget):
         y = data[yName]['values']
         z = data[dName]['values']
         if isinstance(data, MeshgridDataDict):
-            z = z.T
             im = ppcolormesh_from_meshgrid(ax, x, y, z)
         else:
             im = ax.scatter(x, y, c=z)
