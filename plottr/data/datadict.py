@@ -18,8 +18,6 @@ __license__ = 'MIT'
 
 # TODO: serialization (json...)
 # TODO: functionality that returns axes values given a set of slices.
-# FIXME: treatment of nested dims: expand or flatten-method; detection of
-#  nested dims. MISSING!
 # TODO: an easier way to access data and meta values.
 #  maybe with getattr/setattr?
 # TODO: direct slicing of full datasets. implement getitem/setitem?
