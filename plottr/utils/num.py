@@ -3,6 +3,7 @@
 Tools for numerical operations.
 """
 from typing import Sequence, Tuple, Union, List
+
 import numpy as np
 
 INTTYPES = [int, np.int, np.int16, np.int32, np.int64]
@@ -11,21 +12,33 @@ FLOATTYPES = [float, np.float, np.float16, np.float32, np.float64,
 NUMTYPES = INTTYPES + FLOATTYPES
 
 
-def largest_numtype(arr: np.ndarray) -> Union[None, type]:
+def largest_numtype(arr: np.ndarray, include_integers=True) \
+        -> Union[None, type]:
     """
     Get the largest numerical type present in an array.
     :param arr: input array
+    :param include_integers: whether to include int as possible return.
+                             if ``False``, return will be float, if there's
+                             only integers in the the data.
     :return: type if possible. None if no numeric data in array.
     """
     types = {type(a) for a in np.array(arr).flatten()}
     curidx = -1
+    if include_integers:
+        ok_types = NUMTYPES
+    else:
+        ok_types = FLOATTYPES
+
     for t in types:
-        if t in NUMTYPES:
-            idx = NUMTYPES.index(t)
+        if t in ok_types:
+            idx = ok_types.index(t)
             if idx > curidx:
                 curidx = idx
+
     if curidx > -1:
-        return NUMTYPES[curidx]
+        return ok_types[curidx]
+    elif not include_integers and len(set(types).intersection(INTTYPES)) > 0:
+        return float
     else:
         return None
 
@@ -38,7 +51,7 @@ def _are_equal(a, b):
     return a == b
 
 
-def _is_invalid(a):
+def is_invalid(a):
     isnone = a == None
     if a.dtype in FLOATTYPES:
         isnan = np.isnan(a)
@@ -48,7 +61,7 @@ def _is_invalid(a):
 
 
 def _are_invalid(a, b):
-    return _is_invalid(a) & _is_invalid(b)
+    return is_invalid(a) & is_invalid(b)
 
 
 def arrays_equal(a: np.ndarray, b: np.ndarray,
