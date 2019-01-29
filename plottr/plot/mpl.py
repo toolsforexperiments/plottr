@@ -19,8 +19,8 @@ from ..utils import (
 )
 
 
-# TODO:
-# * plot properties should be configurable
+# TODO: configurable plot options
+# TODO: refactor into small plot methods, plot widgets/canvases/data checkers
 
 def setMplDefaults():
     rcParams['figure.dpi'] = 300
@@ -60,6 +60,9 @@ def ppcolormesh_from_meshgrid(ax, x, y, z, **kw):
         y = y.filled(np.nan)
     if np.ma.is_masked(z):
         z = z.filled(np.nan)
+
+    if np.all(num.is_invalid(x)) or np.all(num.is_invalid(y)):
+        return
 
     if np.any(np.isnan(x)) or np.any(np.isnan(y)):
         x, y = interp_meshgrid_2d(x, y)
