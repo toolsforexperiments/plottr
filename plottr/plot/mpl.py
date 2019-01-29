@@ -7,13 +7,13 @@ from matplotlib.backends.backend_qt5agg import (
 )
 from matplotlib.figure import Figure
 from mpl_toolkits.axes_grid1 import make_axes_locatable
-from pyqtgraph.Qt import QtGui, QtCore
 
+from pyqtgraph.Qt import QtGui, QtCore
 from ..data.datadict import MeshgridDataDict, meshgrid_to_datadict
 from ..node.node import Node
 from ..utils import (
     centers2edges_1d, interp_meshgrid_2d,
-    centers2edges_2d, num,
+    centers2edges_2d,
 )
 
 
@@ -52,6 +52,15 @@ def ppcolormesh(ax, x, y, z, cmap=None, **kw):
 
     x = x.astype(float)
     y = y.astype(float)
+    z = z.astype(float)
+
+    if np.ma.is_masked(x):
+        x = x.filled(np.nan)
+    if np.ma.is_masked(y):
+        y = y.filled(np.nan)
+    if np.ma.is_masked(z):
+        z = z.filled(np.nan)
+
     if np.any(np.isnan(x)):
         x = pd.DataFrame(x.copy()).interpolate(axis=1).values
     if np.any(np.isnan(y)):
@@ -73,6 +82,14 @@ def ppcolormesh_from_meshgrid(ax, x, y, z, **kw):
     x = x.astype(float)
     y = y.astype(float)
     z = z.astype(float)
+
+    if np.ma.is_masked(x):
+        x = x.filled(np.nan)
+    if np.ma.is_masked(y):
+        y = y.filled(np.nan)
+    if np.ma.is_masked(z):
+        z = z.filled(np.nan)
+
     if np.any(np.isnan(x)) or np.any(np.isnan(y)):
         x, y = interp_meshgrid_2d(x, y)
 
