@@ -20,7 +20,6 @@ from ..utils import num
 __author__ = 'Wolfgang Pfaff'
 __license__ = 'MIT'
 
-
 class DataDisplayWidget(QtGui.QTreeWidget, NodeWidget):
     """
     Simple Tree widget to show data and their dependencies in the node data.
@@ -124,6 +123,8 @@ class DataSelector(Node):
         * selectedData : a list/tuple of data field names
     """
 
+    # TODO: allow the user to control dtypes.
+
     nodeName = "DataSelector"
     uiClass = DataDisplayWidget
 
@@ -197,11 +198,13 @@ class DataSelector(Node):
         ret = data.extract(dnames)
         if self.force_numerical_data:
             for d, _ in ret.data_items():
-                dt = num.largest_numtype(ret.data_vals(d))
+                dt = num.largest_numtype(ret.data_vals(d),
+                                         include_integers=False)
                 if dt is not None:
-                    ret[d]['values'] = np.array(ret[d]['values']).astype(dt)
+                    ret[d]['values'] = ret[d]['values'].astype(dt)
                 else:
                     return None
+
         return ret
 
     def process(self, **kw):
