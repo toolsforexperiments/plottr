@@ -52,7 +52,7 @@ def test_find_direction_period():
     assert num.find_direction_period(arr) is None
 
 
-def test_find_shape_from_directions():
+def test_find_grid_from_directions():
     """Test finding the shape of a dataset by analyzing axes values"""
 
     x = np.arange(5)
@@ -65,3 +65,21 @@ def test_find_shape_from_directions():
     assert ret[0] == ['x', 'y']
     assert ret[1] == xx.shape
 
+    # also test incomplete grids
+    ret = num.guess_grid_from_sweep_direction(
+        x=xx.reshape(-1)[:-3], y=yy.reshape(-1)[:-3]
+    )
+    assert ret[0] == ['x', 'y']
+    assert ret[1] == xx.shape
+
+
+def test_cropping2d():
+    """Test basic data cropping of 2d grids"""
+    arr = np.arange(16.).reshape(4, 4)
+    arr[2:] = np.nan
+    data = np.random.rand(4, 4)
+
+    x, y, z = num.crop2d(arr, arr.T, data)
+    assert num.arrays_equal(x, arr[:2, :2])
+    assert num.arrays_equal(y, arr.T[:2, :2])
+    assert num.arrays_equal(z, data[:2, :2])
