@@ -78,6 +78,7 @@ def arrays_equal(a: np.ndarray, b: np.ndarray,
 
     :param a: 1st numpy array
     :param b: 2nd numpy array
+    :param rtol: relative uncertainty tolerance. see ``numpy.isclose``.
     :return: ``True``, if all element-wise checks are ``True``. ``False``
              otherwise.
     :raises: ``ValueError`` if shapes of ``a`` and ``b`` don't match.
@@ -95,7 +96,7 @@ def arrays_equal(a: np.ndarray, b: np.ndarray,
     return np.all(equal | close | invalid)
 
 
-def array1d_to_meshgrid(arr: Sequence, target_shape: Tuple[int],
+def array1d_to_meshgrid(arr: Sequence, target_shape: Tuple[int, ...],
                         copy: bool = True) -> np.ndarray:
     """
     reshape an array to a target shape.
@@ -233,3 +234,79 @@ def guess_grid_from_sweep_direction(**axes: np.ndarray) \
 
     # in returning, we go back to standard order, i.e., slow->fast.
     return names[::-1].tolist(), tuple(periods[::-1])
+
+
+def crop2d_rows_cols(arr: np.ndarray) -> Tuple[np.ndarray, np.ndarray]:
+    """
+    Get row and col idxs that are completely invalid in a 2d array.
+
+    :param arr: input array
+    :return: the x (outer) and y (inner) indices at which the
+             data ontains only invalid entries.
+    :raises: ``ValueError`` if input is not a 2d ndarray.
+    """
+    if len(arr.shape) != 2:
+        raise ValueError('input is not a 2d array.')
+
+    invalids = is_invalid(arr)
+    ys = np.where(np.all(invalids, axis=0))[0]
+    xs = np.where(np.all(invalids, axis=1))[0]
+    return xs, ys
+
+
+def joint_crop2d_rows_cols(*arr: np.ndarray) -> Tuple[np.ndarray, np.ndarray]:
+    """
+    Get idxs where full rows/cols are invalid in any of the input arrays.
+    Uses ``crop2d_rows_cols`` for each, then joins indices.
+
+    :param arr: input 2d arrays.
+    :return: x/y indices with invalid rows/cols.
+    """
+    xs = []
+    ys = []
+
+    for a in arr:
+        _x, _y = crop2d_rows_cols(a)
+        xs += _x.tolist()
+        ys += _y.tolist()
+
+    return np.array(list(set(xs))), np.array(list(set(ys)))
+
+
+def crop2d_from_xy(arr: np.ndarray, xs: np.ndarray,
+                   ys: np.ndarray) -> np.ndarray:
+    """
+    Remove rows/cols from a 2d array.
+
+    :param arr: input array.
+    :param xs: list of 1st-dimension indices to remove.
+    :param ys: list of 2nd-dimension indices to remove.
+    :return: remaining array.
+    :raises: ``ValueError`` if input is not a 2d ndarray.
+    """
+    if len(arr.shape) != 2:
+        raise ValueError('input is not a 2d array.')
+
+    a = arr.copy()
+    a = np.delete(a, xs, axis=0)
+    a = np.delete(a, ys, axis=1)
+    return a
+
+
+def crop2d(x: np.ndarray, y: np.ndarray, *arr: np.ndarray) \
+        -> Tuple[np.ndarray, ...]:
+    """
+    Remove invalid rows and columns from 2d data.
+
+    Determine invalid areas from the x and y coordinates,
+    and then crop the invalid rows/columns from all input data.
+
+    :param x: 1st dim coordinates (2d meshgrid-like)
+    :param y: 2nd dim coordinates (2d meshgrid-like)
+    :param arr: other arrays to crop.
+    :return: all arrays (incl. x and y), cropped.
+    """
+    xs, ys = joint_crop2d_rows_cols(x, y)
+    allarrs = [] + [x, y] + [a for a in arr]
+    ret = [crop2d_from_xy(a, xs, ys) for a in allarrs]
+    return tuple(ret)
