@@ -52,38 +52,41 @@ def centers2edges_2d(centers):
     o   o   o   o
     """
     shp = centers.shape
-    edges = np.zeros((shp[0]+1, shp[1]+1))
+    edges = np.zeros((shp[0] + 1, shp[1] + 1))
 
-    # the central vertices are easy -- follow just from the means of the neighboring centers
-    center = (centers[1:,1:] + centers[:-1,:-1] + centers[:-1,1:] + centers[1:,:-1])/4.
+    # the central vertices are easy -- follow just from the means of the
+    # neighboring centers
+    center = (centers[1:, 1:] + centers[:-1, :-1]
+              + centers[:-1, 1:] + centers[1:, :-1]) / 4.
     edges[1:-1, 1:-1] = center
 
-    # for the outer edges we just make the vertices such that the points are pretty much in the center
+    # for the outer edges we just make the vertices such that the points are
+    # pretty much in the center
     # first average over neighbor centers to get the 'vertical' right
-    _left = (centers[0,1:] + centers[0,:-1])/2.
+    _left = (centers[0, 1:] + centers[0, :-1]) / 2.
     # then extrapolate to the left of the centers
-    left = 2 * _left - center[0,:]
+    left = 2 * _left - center[0, :]
     edges[0, 1:-1] = left
 
     # and same for the other three sides
-    _right = (centers[-1,1:] + centers[-1,:-1])/2.
-    right = 2 * _right - center[-1,:]
+    _right = (centers[-1, 1:] + centers[-1, :-1]) / 2.
+    right = 2 * _right - center[-1, :]
     edges[-1, 1:-1] = right
 
-    _top = (centers[1:,0] + centers[:-1,0])/2.
-    top = 2 * _top - center[:,0]
+    _top = (centers[1:, 0] + centers[:-1, 0]) / 2.
+    top = 2 * _top - center[:, 0]
     edges[1:-1, 0] = top
 
-    _bottom = (centers[1:,-1] + centers[:-1,-1])/2.
-    bottom = 2 * _bottom - center[:,-1]
+    _bottom = (centers[1:, -1] + centers[:-1, -1]) / 2.
+    bottom = 2 * _bottom - center[:, -1]
     edges[1:-1, -1] = bottom
 
     # only thing remaining now is the corners of the grid.
     # this is a bit simplistic, but will be fine for now.
     # (mirror the vertex (1,1) of the diagonal at the outermost center)
-    edges[0,0] = 2 * centers[0,0] - edges[1,1]
-    edges[0,-1] = 2 * centers[0,-1] - edges[1,-2]
-    edges[-1,0] = 2 * centers[-1,0] - edges[-2,1]
-    edges[-1,-1] = 2 * centers[-1,-1] - edges[-2,-2]
+    edges[0, 0] = 2 * centers[0, 0] - edges[1, 1]
+    edges[0, -1] = 2 * centers[0, -1] - edges[1, -2]
+    edges[-1, 0] = 2 * centers[-1, 0] - edges[-2, 1]
+    edges[-1, -1] = 2 * centers[-1, -1] - edges[-2, -2]
 
     return edges
