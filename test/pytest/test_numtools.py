@@ -72,3 +72,14 @@ def test_find_grid_from_directions():
     assert ret[0] == ['x', 'y']
     assert ret[1] == xx.shape
 
+
+def test_cropping2d():
+    """Test basic data cropping of 2d grids"""
+    arr = np.arange(16.).reshape(4, 4)
+    arr[2:] = np.nan
+    data = np.random.rand(4, 4)
+
+    x, y, z = num.crop2d(arr, arr.T, data)
+    assert num.arrays_equal(x, arr[:2, :2])
+    assert num.arrays_equal(y, arr.T[:2, :2])
+    assert num.arrays_equal(z, data[:2, :2])
