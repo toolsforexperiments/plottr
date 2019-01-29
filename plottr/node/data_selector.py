@@ -15,10 +15,10 @@ from pyqtgraph.Qt import QtGui, QtCore
 from .node import Node, NodeWidget
 from ..data import datadict as dd
 from ..data.datadict import DataDict
+from ..utils import num
 
 __author__ = 'Wolfgang Pfaff'
 __license__ = 'MIT'
-
 
 class DataDisplayWidget(QtGui.QTreeWidget, NodeWidget):
     """
@@ -123,6 +123,8 @@ class DataSelector(Node):
         * selectedData : a list/tuple of data field names
     """
 
+    # TODO: allow the user to control dtypes.
+
     nodeName = "DataSelector"
     uiClass = DataDisplayWidget
 
@@ -135,6 +137,8 @@ class DataSelector(Node):
 
     newDataStructure = QtCore.pyqtSignal(object)
     dataShapeChanged = QtCore.pyqtSignal(object)
+
+    force_numerical_data = True
 
     def __init__(self, *arg, **kw):
         super().__init__(*arg, **kw)
@@ -178,11 +182,10 @@ class DataSelector(Node):
                     self.logger().error(
                         f'Datasets {self.selectedData[0]} (with axes {allowed_axes}) '
                         f'and {d}(with axes {data.axes(d)}) are not compatible '
-                        f'and cannot be selected simultanously.'
+                        f'and cannot be selected simultaneously.'
                         )
                     return False
         return True
-
 
     def _reduceData(self, data):
         if isinstance(self.selectedData, str):
@@ -192,7 +195,17 @@ class DataSelector(Node):
         if len(self.selectedData) == 0:
             return None
 
-        return data.extract(dnames)
+        ret = data.extract(dnames)
+        if self.force_numerical_data:
+            for d, _ in ret.data_items():
+                dt = num.largest_numtype(ret.data_vals(d),
+                                         include_integers=False)
+                if dt is not None:
+                    ret[d]['values'] = ret[d]['values'].astype(dt)
+                else:
+                    return None
+
+        return ret
 
     def process(self, **kw):
         data = super().process(**kw)

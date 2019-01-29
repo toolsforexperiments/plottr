@@ -3,17 +3,12 @@ xy_axes_selector.py
 
 A node and widget for reducing data to 1d/2d data.
 """
-import copy
-from pprint import pprint
-import enum
 
 import numpy as np
 
-from pyqtgraph import Qt
 from pyqtgraph.Qt import QtGui, QtCore
-
 from .node import Node
-from ..data.datadict import DataDict, MeshgridDataDict
+from ..data.datadict import MeshgridDataDict
 
 __author__ = 'Wolfgang Pfaff'
 __license__ = 'MIT'
@@ -140,7 +135,9 @@ class DimensionReducer(Node):
             dnames = data.dependents()
 
         if not isinstance(data, MeshgridDataDict):
-            self.logger().debug(f"Data is not on a grid. Reduction functions are ignored, axes will simply be removed.")
+            self.logger().debug(f"Data is not on a grid. "
+                                f"Reduction functions are ignored, "
+                                f"axes will simply be removed.")
 
         for n in dnames:
             for ax, reduction in self._reductions.items():
@@ -152,7 +149,8 @@ class DimensionReducer(Node):
                 try:
                     idx = data[n]['axes'].index(ax)
                 except IndexError:
-                    self.logger().info(f'{ax} specified for reduction, but not present in data; ignore.')
+                    self.logger().info(f'{ax} specified for reduction, '
+                                       f'but not present in data; ignore.')
 
                 kw['axis'] = idx
 
@@ -166,7 +164,8 @@ class DimensionReducer(Node):
                     newvals = fun(data[n]['values'], *arg, **kw)
                     if newvals.shape != targetShape:
                         self.logger().error(
-                            f'Reduction on axis {ax} did not result in the right data shape. ' +
+                            f'Reduction on axis {ax} did not result in the '
+                            f'right data shape. ' +
                             f'Expected {targetShape} but got {newvals.shape}.'
                             )
                         return None
@@ -176,13 +175,13 @@ class DimensionReducer(Node):
                     # the dimensions of the coordinate meshes
                     for ax in data[n]['axes']:
                         if len(data.data_vals(ax).shape) > len(targetShape):
-                            data[ax]['values'] = fun(data[ax]['values'], *arg, **kw)
+                            newaxvals = fun(data[ax]['values'], *arg, **kw)
+                            data[ax]['values'] = newaxvals
 
                 del data[n]['axes'][idx]
 
         data = data.sanitize()
         data.validate()
-
         return data
 
 
@@ -212,7 +211,9 @@ class DimensionReducer(Node):
                 else:
                     arg = reduction[1]; kw = reduction[2]
             except:
-                self.logger().warning(f'Reduction for axis {ax} not in the right format.')
+                self.logger().warning(
+                    f'Reduction for axis {ax} not in the right format.'
+                )
                 return False
 
             self._reductions[ax] = (fun, arg, kw)
@@ -226,8 +227,8 @@ class DimensionReducer(Node):
         data = super().process(**kw)
         if data is None:
             return None
-
-        data = self._applyDimReductions(copy.deepcopy(data['dataOut']))
+        data = data['dataOut'].mask_invalid()
+        data = self._applyDimReductions(data)
 
         if data is None:
             return None
@@ -705,12 +706,11 @@ class XYAxesSelector(DimensionReducer):
             return None
 
         self.updateUi(data)
-
         data = super().process(dataIn=data)
         if data is None:
             return None
+        data = data['dataOut'].copy()
 
-        data = data['dataOut']
         if self._xyAxes[0] is not None and self._xyAxes[1] is not None:
             _kw = {self._xyAxes[0]: 0, self._xyAxes[1]: 1}
             data = data.reorder_axes(**_kw)

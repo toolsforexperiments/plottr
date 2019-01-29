@@ -18,8 +18,6 @@ __license__ = 'MIT'
 
 # TODO: serialization (json...)
 # TODO: functionality that returns axes values given a set of slices.
-# FIXME: treatment of nested dims: expand or flatten-method; detection of
-#  nested dims. MISSING!
 # TODO: an easier way to access data and meta values.
 #  maybe with getattr/setattr?
 # TODO: direct slicing of full datasets. implement getitem/setitem?
@@ -400,6 +398,7 @@ class DataDictBase(dict):
         """
         msg = '\n'
         for n, v in self.data_items():
+
             if 'axes' in v:
                 for na in v['axes']:
                     if na not in self:
@@ -416,7 +415,10 @@ class DataDictBase(dict):
             if 'unit' not in v:
                 v['unit'] = ''
 
-            v['values'] = np.array(v.get('values', []))
+            vals = v.get('values', [])
+            if type(vals) not in [np.ndarray, np.ma.core.MaskedArray]:
+                vals = np.array(vals)
+            v['values'] = vals
 
             if '__shape__' in v and not self.__class__ == DataDictBase:
                 v['__shape__'] = np.array(v['values']).shape
@@ -512,6 +514,36 @@ class DataDictBase(dict):
         """
         return cp.deepcopy(self)
 
+    def astype(self, dtype) -> 'DataDictBase':
+        """
+        Convert all data values to given dtype.
+
+        :param dtype: np dtype.
+        :return: copy of the dataset, with values as given type.
+        """
+        ret = self.copy()
+        for k, v in ret.data_items():
+            vals = v['values']
+            if type(v['values']) not in [np.ndarray, np.ma.core.MaskedArray]:
+                vals = np.array(v['values'])
+            ret[k]['values'] = vals.astype(dtype)
+
+        return ret
+
+    def mask_invalid(self) -> 'DataDictBase':
+        """
+        Mask all invalid data in all values.
+        :return: copy of the dataset with invalid entries (nan/None) masked.
+        """
+        ret = self.copy()
+        for d, _ in self.data_items():
+            arr = self.data_vals(d)
+            vals = np.ma.masked_where(num.is_invalid(arr), arr, copy=True)
+            vals.fill_value = np.nan
+            ret[d]['values'] = vals
+
+        return ret
+
 
 class DataDict(DataDictBase):
     """
@@ -542,14 +574,11 @@ class DataDict(DataDictBase):
             for k, v in self.data_items():
                 val0 = self[k]['values']
                 val1 = newdata[k]['values']
-                if isinstance(val0, list) and isinstance(val1, list):
-                    s[k]['values'] = self[k]['values'] + newdata[k]['values']
-                else:
-                    s[k]['values'] = np.append(
-                        np.array(self[k]['values']),
-                        np.array(newdata[k]['values']),
-                        axis=0
-                    )
+                s[k]['values'] = np.append(
+                    self[k]['values'],
+                    newdata[k]['values'],
+                    axis=0
+                )
             return s
         else:
             raise ValueError('Incompatible data structures.')
@@ -568,8 +597,8 @@ class DataDict(DataDictBase):
                     self[k]['values'] += v['values']
                 else:
                     self[k]['values'] = np.append(
-                        np.array(self[k]['values']),
-                        np.array(v['values']),
+                        self[k]['values'],
+                        v['values'],
                         axis=0
                     )
         else:
@@ -648,7 +677,7 @@ class DataDict(DataDictBase):
             reps = size // np.prod(ishp[k])
             if reps > 1:
                 ret[k]['values'] = \
-                    np.array(self[k]['values']).repeat(reps, axis=0).reshape(-1)
+                    self[k]['values'].repeat(reps, axis=0).reshape(-1)
             else:
                 ret[k]['values'] = self[k]['values'].reshape(-1)
 
@@ -672,6 +701,10 @@ class DataDict(DataDictBase):
             msg = '\n'
 
             for n, v in self.data_items():
+                if type(v['values']) not in [np.ndarray,
+                                             np.ma.core.MaskedArray]:
+                    self[n]['values'] = np.array(v['values'])
+
                 if nvals is None:
                     nvals = len(v['values'])
                     nvalsrc = n
@@ -836,6 +869,9 @@ class MeshgridDataDict(DataDictBase):
         shp = None
         shpsrc = ''
         for n, v in self.data_items():
+            if type(v['values']) not in [np.ndarray, np.ma.core.MaskedArray]:
+                self[n]['values'] = np.array(v['values'])
+
             if shp is None:
                 shp = v['values'].shape
                 shpsrc = n
