@@ -1,28 +1,27 @@
-from pprint import pprint
-
 import numpy as np
-
-from matplotlib import rcParams
-from matplotlib import cm
-from matplotlib import pyplot as plt
-from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg as FCanvas
-from matplotlib.backends.backend_qt5agg import NavigationToolbar2QT as NavBar
+from matplotlib import rcParams, cm
+from matplotlib.backends.backend_qt5agg import (
+    FigureCanvasQTAgg as FCanvas,
+    NavigationToolbar2QT as NavBar,
+)
 from matplotlib.figure import Figure
 from mpl_toolkits.axes_grid1 import make_axes_locatable
 
-import pandas as pd
-
+from plottr.utils.num import (
+    interp_meshgrid_2d, centers2edges_1d,
+    centers2edges_2d
+)
 from pyqtgraph.Qt import QtGui, QtCore
-
-from ..data.datadict import DataDict, MeshgridDataDict, meshgrid_to_datadict
+from ..data.datadict import MeshgridDataDict, meshgrid_to_datadict
 from ..node.node import Node
-from ..utils import (centers2edges_1d, interp_meshgrid_2d,
-                     centers2edges_2d)
+from ..utils import (
+    num
+)
 
-# TODO:
-# * plot properties should be configurable
 
-### matplotlib tools
+# TODO: configurable plot options
+# TODO: refactor into small plot methods, plot widgets/canvases/data checkers
+
 def setMplDefaults():
     rcParams['figure.dpi'] = 300
     rcParams['figure.figsize'] = (4.5, 3)
@@ -48,39 +47,51 @@ def pcolorgrid(xaxis, yaxis):
     return xx, yy
 
 
-def ppcolormesh(ax, x, y, z, cmap=None, **kw):
-    if cmap is None:
-        cmap = cm.viridis
-
-    if np.any(np.isnan(x)):
-        x = pd.DataFrame(x.copy()).interpolate(axis=1).values
-    if np.any(np.isnan(y)):
-        y = pd.DataFrame(y.copy()).interpolate(axis=0).values
-
-    im = ax.pcolormesh(x, y, z.T, cmap=cmap, **kw)
-    ax.set_xlim(x.min(), x.max())
-    ax.set_ylim(y.min(), y.max())
-
-    return im
-
-
-def ppcolormesh_from_axes(ax, x, y, z, **kw):
-    _x, _y = pcolorgrid(x, y)
-    return ppcolormesh(ax, _x, _y, z, **kw)
-
-
 def ppcolormesh_from_meshgrid(ax, x, y, z, **kw):
+    cmap = kw.get('cmap', cm.viridis)
+
+    x = x.astype(float)
+    y = y.astype(float)
+    z = z.astype(float)
+
+    if np.ma.is_masked(x):
+        x = x.filled(np.nan)
+    if np.ma.is_masked(y):
+        y = y.filled(np.nan)
+    if np.ma.is_masked(z):
+        z = z.filled(np.nan)
+
+    if np.all(num.is_invalid(x)) or np.all(num.is_invalid(y)):
+        return
+
     if np.any(np.isnan(x)) or np.any(np.isnan(y)):
         x, y = interp_meshgrid_2d(x, y)
 
-    _x = centers2edges_2d(x)
-    _y = centers2edges_2d(y)
+    if np.any(num.is_invalid(x)) or np.any(num.is_invalid(y)):
+        x, y, z = num.crop2d(x, y, z)
 
-    return ppcolormesh(ax, _x, _y, z, **kw)
+    for g in x, y, z:
+        if g.size == 0:
+            return
+        elif len(g.shape) < 2:
+            return
+        elif min(g.shape) < 2:
+            im = ax.scatter(x, y, c=z)
+            return im
+
+    try:
+        x = centers2edges_2d(x)
+        y = centers2edges_2d(y)
+    except:
+        return
+
+    im = ax.pcolormesh(x, y, z, cmap=cmap, **kw)
+    ax.set_xlim(x.min(), x.max())
+    ax.set_ylim(y.min(), y.max())
+    return im
 
 
 class PlotNode(Node):
-
     nodeName = 'Plot'
 
     newPlotData = QtCore.pyqtSignal(object)
@@ -117,9 +128,11 @@ class MPLPlot(FCanvas):
         self.axes = []
         iax = 1
         if naxes > nrows * ncols:
-            raise ValueError(f'Number of axes ({naxes}) larger than rows ({nrows}) x columns ({ncols}).')
+            raise ValueError(
+                f'Number of axes ({naxes}) larger than rows ({nrows}) x '
+                f'columns ({ncols}).')
 
-        for i in range(1,naxes+1):
+        for i in range(1, naxes + 1):
             kw = {}
             if iax > 1:
                 kw['sharex'] = self.axes[0]
@@ -137,7 +150,6 @@ class MPLPlot(FCanvas):
         # self.fig.tight_layout()
         self.autosize()
         super().resizeEvent(event)
-
 
 
 class MPLPlotWidget(QtGui.QWidget):
@@ -193,10 +205,12 @@ class AutoPlot(MPLPlotWidget):
         y = data[yName]['values']
         z = data[dName]['values']
         if isinstance(data, MeshgridDataDict):
-            z = z.T
             im = ppcolormesh_from_meshgrid(ax, x, y, z)
         else:
             im = ax.scatter(x, y, c=z)
+
+        if im is None:
+            return
 
         div = make_axes_locatable(ax)
         cax = div.append_axes("right", size="5%", pad=0.05)
@@ -214,12 +228,12 @@ class AutoPlot(MPLPlotWidget):
         axesNames = data.axes()
         dataNames = data.dependents()
         shape = data.shapes()[dataNames[0]]
-        
+
         if 0 in shape:
             return
         if len(axesNames) == 2 and isinstance(data, MeshgridDataDict):
             if min(shape) < 2:
-                data = meshgrid_to_datadict(data)               
+                data = meshgrid_to_datadict(data)
 
         naxes = len(axesNames)
         ndata = len(dataNames)
@@ -230,15 +244,16 @@ class AutoPlot(MPLPlotWidget):
             ax = self.plot.clearFig(1, 1, 1)[0]
             self._plot1d(data, ax, axesNames[0], dataNames)
         elif naxes == 2:
-            nrows = ndata**.5//1
-            ncols = np.ceil(ndata/nrows)
+            nrows = ndata ** .5 // 1
+            ncols = np.ceil(ndata / nrows)
             axes = self.plot.clearFig(nrows, ncols, ndata)
             for i, dn in enumerate(dataNames):
                 ax = axes[i]
                 self._plot2d(data, ax, axesNames[0], axesNames[1], dn)
 
         elif naxes > 2:
-            raise ValueError('Cannot plot more than two axes. (given: {})'.format(axesNames))
+            raise ValueError(
+                'Cannot plot more than two axes. (given: {})'.format(axesNames))
 
         # self.plot.fig.tight_layout()
         self.plot.autosize()
