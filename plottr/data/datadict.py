@@ -936,7 +936,8 @@ def guess_shape_from_datadict(data: DataDict) -> \
 
 def datadict_to_meshgrid(data: DataDict,
                          target_shape: Union[Tuple[int, ...], None] = None,
-                         inner_axis_order: Union[None, List[str]] = None) \
+                         inner_axis_order: Union[None, List[str]] = None,
+                         use_existing_shape: bool = False) \
         -> MeshgridDataDict:
     """
     Try to make a meshgrid from a dataset.
@@ -951,6 +952,10 @@ def datadict_to_meshgrid(data: DataDict,
                              specified axes in all but order.
                              The data is then transposed to conform to the
                              specified order.
+    :param use_existing_shape: if ``True``, simply use the shape that the data
+                               already has. For numpy-array data, this might
+                               already be present.
+                               if ``False``, flatten and reshape.
     :return: the generated ``MeshgridDataDict``.
     """
 
@@ -960,6 +965,11 @@ def datadict_to_meshgrid(data: DataDict,
 
     if not data.axes_are_compatible():
         raise ValueError('Non-compatible axes, cannot grid that.')
+
+    if not use_existing_shape and data.is_expandable():
+        data = data.expand()
+    elif use_existing_shape:
+        target_shape = data.dependents()[0].shape
 
     # guess what the shape likely is.
     if target_shape is None:
