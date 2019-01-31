@@ -159,7 +159,7 @@ def get_data_from_ds(ds: DataSet, start: Optional[int] = None,
     with `start` and `end` only a subset of rows in the DB can be specified.
     """
     names = [n for n, v in ds.paramspecs.items()]
-    return {n : ds.get_data(n, start=start, end=end) for n in names}
+    return {n : np.squeeze(ds.get_data(n, start=start, end=end)) for n in names}
 
 
 def get_all_data_from_ds(ds: DataSet) -> Dict[str, List[List]]:
@@ -171,39 +171,39 @@ def get_all_data_from_ds(ds: DataSet) -> Dict[str, List[List]]:
     return get_data_from_ds(ds)
 
 
-def expand(data: Dict[str, List[List]],
-           copy=True) -> Dict[str, np.ndarray]:
-    """
-    Expands data to get us everying expanded into columns of the same length.
-    To achieve the same length, data will be repeated along the most inner
-    axis if necessary.
-
-    Arguments:
-        data: dictionary in the form {'name' : [[row1], [row2], ...], ...}.
-            the values are thus exactly what dataset.get_data('name') will return.
-    """
-    if copy:
-        data = deepcopy(data)
-
-    inner_len = 1
-    for k, v in data.items():
-        if len(v) == 0:
-            return data
-
-        if type(v[0][0]) not in [list, np.ndarray]:
-            continue
-        else:
-            inner_len = len(v[0][0])
-            break
-
-    for k, v in data.items():
-        v = np.array(v)
-        if inner_len > 1 and v.shape[-1] == 1:
-            v = np.repeat(v, inner_len, axis=-1)
-        v = v.reshape(-1)
-        data[k] = v
-
-    return data
+# def expand(data: Dict[str, List[List]],
+#            copy=True) -> Dict[str, np.ndarray]:
+#     """
+#     Expands data to get us everying expanded into columns of the same length.
+#     To achieve the same length, data will be repeated along the most inner
+#     axis if necessary.
+#
+#     Arguments:
+#         data: dictionary in the form {'name' : [[row1], [row2], ...], ...}.
+#             the values are thus exactly what dataset.get_data('name') will return.
+#     """
+#     if copy:
+#         data = deepcopy(data)
+#
+#     inner_len = 1
+#     for k, v in data.items():
+#         if len(v) == 0:
+#             return data
+#
+#         if type(v[0][0]) not in [list, np.ndarray]:
+#             continue
+#         else:
+#             inner_len = len(v[0][0])
+#             break
+#
+#     for k, v in data.items():
+#         v = np.array(v)
+#         if inner_len > 1 and v.shape[-1] == 1:
+#             v = np.repeat(v, inner_len, axis=-1)
+#         v = v.reshape(-1)
+#         data[k] = v
+#
+#     return data
 
 
 def ds_to_datadict(ds: DataDict, start: Optional[int] = None,
@@ -212,7 +212,8 @@ def ds_to_datadict(ds: DataDict, start: Optional[int] = None,
     Make a datadict from a qcodes dataset.
     `start` and `end` allow selection of only a subset of rows.
     """
-    data = expand(get_data_from_ds(ds, start=start, end=end))
+    # data = expand(get_data_from_ds(ds, start=start, end=end))
+    data = get_data_from_ds(ds, start=start, end=end)
     struct = get_ds_structure(ds)
     datadict = DataDict(**struct)
     for k, v in data.items():

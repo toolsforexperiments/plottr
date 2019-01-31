@@ -612,7 +612,7 @@ class XYAxesSelector(DimensionReducer):
                 self.logger().debug(f'x-Axis is None. this will result in empty output data.')
                 return False
             elif self._xyAxes[0] not in availableAxes:
-                self.logger().warning(f'x-Axis {self._xyAxis[0]} not present in data')
+                self.logger().warning(f'x-Axis {self._xyAxes[0]} not present in data')
                 return False
 
             if self._xyAxes[1] is None:
