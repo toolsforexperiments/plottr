@@ -11,6 +11,7 @@ Welcome to plottr's documentation!
    :caption: Contents:
 
    dataformat
+   nodes
 
 
 
