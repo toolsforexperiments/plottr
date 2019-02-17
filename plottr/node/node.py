@@ -65,7 +65,7 @@ def updateGuiFromNode(func):
 
 def emitGuiUpdate(signalName: str):
     """
-    Decorator for UI functios to emit the signal ``signalName``
+    Decorator for UI functions to emit the signal ``signalName``
     (given as argument the decorator), with the return of the wrapped function.
 
     Signal is only emitted if the flag controlled by ``updateGuiFromNode``
