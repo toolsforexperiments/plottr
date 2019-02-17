@@ -2,7 +2,7 @@ import numpy as np
 
 from plottr.apps.tools import make_sequential_flowchart
 from plottr.node.data_selector import DataSelector
-from ..common import data as testdata
+from plottr.utils import testdata
 
 
 def test_data_extraction(qtbot):
