@@ -5,10 +5,10 @@ Data classes we use throughout the plottr package, and tools to work on them.
 """
 
 import copy as cp
-from functools import reduce
-from typing import List, Tuple, Dict, Sequence, Union, Any
 
 import numpy as np
+from functools import reduce
+from typing import List, Tuple, Dict, Sequence, Union, Any
 
 from plottr.utils import num, misc
 
@@ -539,7 +539,10 @@ class DataDictBase(dict):
         for d, _ in self.data_items():
             arr = self.data_vals(d)
             vals = np.ma.masked_where(num.is_invalid(arr), arr, copy=True)
-            vals.fill_value = np.nan
+            try:
+                vals.fill_value = np.nan
+            except TypeError:
+                vals.fill_value = -9999
             ret[d]['values'] = vals
 
         return ret
