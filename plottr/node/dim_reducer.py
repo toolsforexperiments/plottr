@@ -8,6 +8,7 @@ import numpy as np
 
 from .node import Node, updateOption
 from ..data.datadict import MeshgridDataDict
+from .. import QtGui, QtCore
 
 __author__ = 'Wolfgang Pfaff'
 __license__ = 'MIT'
@@ -68,6 +69,33 @@ reductionFunc = {
 #     return None
 
 
+class AxisOptionWidget(QtGui.QTreeWidget):
+
+    def __init__(self, parent=None):
+        super().__init__(parent)
+
+        self.setColumnCount(4)
+        self.setHeaderLabels(['Axis', 'Setting', 'Options', 'Info'])
+
+        self.choices = {}
+
+        self._dataStructure = None
+        self._dataType = None
+
+    def clear(self):
+        super().clear()
+
+        for n, opts in self.choices.items():
+            opts['settingWidget'].deleteLater()
+            del opts['settingWidget']
+
+        self.choices = {}
+
+    def updateSizes(self):
+        for i in range(4):
+            self.resizeColumnToContents(i)
+
+
 class DimensionReducer(Node):
     """
     A Node that allows the user to reduce the dimensionality of input data.
@@ -124,27 +152,6 @@ class DimensionReducer(Node):
     @updateOption()
     def targetNames(self, val):
         self._targetNames = val
-
-    # Tools for passing reductions
-    # @staticmethod
-    # def encodeReductions(reductions):
-    #     red = {}
-    #     for k, val in reductions.items():
-    #         if val is None:
-    #             continue
-    #         f, arg, kw = val
-    #         red[k] = (reductionNameFromFunc(f), arg, kw)
-    #     return red
-    #
-    # @staticmethod
-    # def decodeReductions(reductions):
-    #     red = {}
-    #     for k, val in reductions.items():
-    #         if val is None:
-    #             continue
-    #         n, arg, kw = val
-    #         red[k] = (reductionFuncFromName(n), arg, kw)
-    #     return red
 
     # Data processing
 
@@ -273,8 +280,6 @@ class DimensionReducer(Node):
         if data is None:
             return None
         return dict(dataOut=data)
-
-# class
 
 
 # class XYAxesSelectionWidget(QtGui.QTreeWidget):
