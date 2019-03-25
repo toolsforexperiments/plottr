@@ -2,7 +2,6 @@
 
 Testing scripts for GUI elements for data display.
 """
-import argparse
 
 from plottr import QtGui
 from plottr.gui.tools import widgetDialog
@@ -26,25 +25,3 @@ def dataSelectionWidget(readonly=False):
     widget.setData(data)
     return app.exec_()
 
-
-funcmap = {
-    'dataselect': (dataSelectionWidget, [], {}),
-    'dataselect-readonly': (dataSelectionWidget, [True, ], {}),
-}
-
-
-def main(name):
-    if name is None:
-        return 0
-
-    func, arg, kw = funcmap[name]
-    func(*arg, **kw)
-
-
-if __name__ == '__main__':
-    parser = argparse.ArgumentParser(description='Testing data display widgets')
-    parser.add_argument('name', help='which test to run', default=None,
-                        choices=list(funcmap.keys()))
-
-    args = parser.parse_args()
-    main(args.name)

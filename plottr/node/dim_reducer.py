@@ -3,11 +3,12 @@
 nodes and widgets for reducing data dimensionality.
 """
 from enum import Enum
+from collections import OrderedDict
 
 import numpy as np
 
 from .node import Node, updateOption
-from ..data.datadict import MeshgridDataDict
+from ..data.datadict import MeshgridDataDict, DataDict, DataDictBase
 from .. import QtGui, QtCore
 
 __author__ = 'Wolfgang Pfaff'
@@ -69,31 +70,95 @@ reductionFunc = {
 #     return None
 
 
-class AxisOptionWidget(QtGui.QTreeWidget):
+class DimensionAssignmentWidget(QtGui.QTreeWidget):
+
+    availableChoices = OrderedDict({
+        DataDictBase: ['None',],
+        DataDict: [],
+        MeshgridDataDict: [],
+    })
 
     def __init__(self, parent=None):
         super().__init__(parent)
 
         self.setColumnCount(4)
-        self.setHeaderLabels(['Axis', 'Setting', 'Options', 'Info'])
+        self.setHeaderLabels(['Dimension', 'Setting', 'Options', 'Info'])
 
         self.choices = {}
 
         self._dataStructure = None
+        self._dataShapes = None
         self._dataType = None
 
     def clear(self):
         super().clear()
 
         for n, opts in self.choices.items():
-            opts['settingWidget'].deleteLater()
-            del opts['settingWidget']
+            opts['selectionWidget'].deleteLater()
+            del opts['selectionWidget']
 
         self.choices = {}
 
     def updateSizes(self):
+        """update column widths to fit content."""
         for i in range(4):
             self.resizeColumnToContents(i)
+
+    def setData(self, data: DataDictBase = None):
+        """
+        set data: add all dimensions to the list, and populate choices.
+
+        :param data: DataDict object
+        """
+        if data is None:
+            self.clear()
+            return
+
+        dstruct = data.structure()
+        dshapes = data.shapes()
+        dtype = type(data)
+
+        if dstruct == self._dataStructure \
+                and dshapes == self._dataShapes \
+                and dtype == self._dataType:
+            return
+
+        self.clear()
+        self._dataType = dtype
+        self._dataShapes = dshapes
+        self._dataStructure = dstruct
+
+        for ax in self._dataStructure.axes():
+            self.addDimension(ax)
+
+
+    def addDimension(self, name):
+        item = QtGui.QTreeWidgetItem([name, '', '', ''])
+        self.addTopLevelItem(item)
+
+        combo = QtGui.QComboBox()
+        for t, opts in self.availableChoices.items():
+            if t == self._dataType or issubclass(self._dataType, t):
+                for o in opts:
+                    combo.addItem(o)
+
+        combo.setMinimumSize(50, 22)
+        combo.setMaximumHeight(22)
+        self.setItemWidget(item, 1, combo)
+        self.updateSizes()
+
+        self.choices[name] = {
+            'selectionWidget': combo,
+            'options': None
+        }
+        combo.currentTextChanged.connect(
+            lambda x: self.selectionChanged(name, x)
+        )
+
+    def selectionChanged(self, name, val):
+        print(name, val)
+        pass
+
 
 
 class DimensionReducer(Node):
@@ -302,36 +367,7 @@ class DimensionReducer(Node):
 #         self._emitChoiceChange = True
 #
 #         self.choices = {}
-#
-#     def clear(self):
-#         super().clear()
-#         for n, opts in self.choices.items():
-#             opts['role'].deleteLater()
-#             del opts['role']
-#
-#         self.choices = {}
-#
-#     def updateSizes(self):
-#         for i in range(4):
-#             self.resizeColumnToContents(i)
-#
-#     def addAxis(self, name, grid=True):
-#         item = QtGui.QTreeWidgetItem([name, '', '', ''])
-#         self.addTopLevelItem(item)
-#
-#         combo = QtGui.QComboBox()
-#         for o in self.options:
-#             if not grid and o in self.gridOnlyOptions:
-#                 pass
-#             else:
-#                 combo.addItem(o)
-#         combo.setMinimumSize(50, 22)
-#         combo.setMaximumHeight(22)
-#         self.setItemWidget(item, 1, combo)
-#         self.updateSizes()
-#
-#         self.choices[name] = {'role' : combo, 'options' : None}
-#         combo.currentTextChanged.connect(lambda x: self.roleChanged(name, x))
+
 #
 #     # Generic role handling
 #
