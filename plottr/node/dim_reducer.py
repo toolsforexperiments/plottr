@@ -2,6 +2,7 @@
 
 nodes and widgets for reducing data dimensionality.
 """
+from typing import Dict, Any, Tuple
 from enum import Enum
 from collections import OrderedDict
 
@@ -71,32 +72,50 @@ reductionFunc = {
 
 
 class DimensionAssignmentWidget(QtGui.QTreeWidget):
+    """
+    A Widget that allows to assign options ('roles') to dimensions of a
+    dataset.
+    In this base version, there are no options included.
+    This needs to be done by inheriting classes.
+    """
 
-    availableChoices = OrderedDict({
-        DataDictBase: ['None',],
-        DataDict: [],
-        MeshgridDataDict: [],
-    })
+    rolesChanged = QtCore.pyqtSignal(object)
 
     def __init__(self, parent=None):
         super().__init__(parent)
 
         self.setColumnCount(4)
-        self.setHeaderLabels(['Dimension', 'Setting', 'Options', 'Info'])
-
-        self.choices = {}
+        self.setHeaderLabels(['Dimension', 'Role', 'Options', 'Info'])
 
         self._dataStructure = None
         self._dataShapes = None
         self._dataType = None
 
+        self.choices = {}
+        self.availableChoices = OrderedDict({
+            DataDictBase: ['None', ],
+            DataDict: [],
+            MeshgridDataDict: [],
+        })
+
     def clear(self):
+        """
+        Clear the widget, delete all accessory widgets.
+        """
         super().clear()
 
         for n, opts in self.choices.items():
-            opts['selectionWidget'].deleteLater()
-            del opts['selectionWidget']
+            opts['roleSelectionWidget'].deleteLater()
+            del opts['roleSelectionWidget']
 
+            if 'optionsWidget' in opts:
+                if opts['optionsWidget'] is not None:
+                    opts['optionsWidget'].deleteLater()
+                del opts['optionsWidget']
+
+        self._dataStructure = None
+        self._dataShapes = None
+        self._dataType = None
         self.choices = {}
 
     def updateSizes(self):
@@ -129,10 +148,14 @@ class DimensionAssignmentWidget(QtGui.QTreeWidget):
         self._dataStructure = dstruct
 
         for ax in self._dataStructure.axes():
-            self.addDimension(ax)
+            self._addDimension(ax)
 
+    def _addDimension(self, name: str):
+        """
+        add a new dimension.
 
-    def addDimension(self, name):
+        :param name: name of the dimension.
+        """
         item = QtGui.QTreeWidgetItem([name, '', '', ''])
         self.addTopLevelItem(item)
 
@@ -148,16 +171,68 @@ class DimensionAssignmentWidget(QtGui.QTreeWidget):
         self.updateSizes()
 
         self.choices[name] = {
-            'selectionWidget': combo,
-            'options': None
+            'roleSelectionWidget': combo,
+            'optionsWidget': None,
         }
         combo.currentTextChanged.connect(
-            lambda x: self.selectionChanged(name, x)
+            lambda x: self.processSelectionChange(name, x)
         )
 
-    def selectionChanged(self, name, val):
-        print(name, val)
-        pass
+    def processSelectionChange(self, name: str, val: str):
+        """
+        Call to notify that a dimension's role should be changed.
+        any specific actions should be implemented in :func:`setRole`.
+
+        :param name: name of the dimension
+        :param val: new role name
+        """
+        self.setRole(name, val)
+        self.rolesChanged.emit(self.getRoles())
+
+    def setRole(self, dim: str, role: str = None, **kw):
+        """
+        Set the role for a dimension, including options.
+
+        :param dim: name of the dimension
+        :param role: name of the role
+        :param kw: options for the role (to be implemented by inheriting classes)
+        """
+        self.choices[dim]['roleSelectionWidget'].setCurrentText(role)
+        item = self.findItems(dim, QtCore.Qt.MatchExactly, 0)[0]
+
+        if 'optionsWidget' in self.choices[dim]:
+            w = self.choices[dim]['optionsWidget']
+            if w is not None:
+                w.deleteLater()
+                self.choices[dim]['optionsWidget'] = None
+
+        self.setItemWidget(item, 2, None)
+
+    def getRole(self, name: str) -> Tuple[str, Any]:
+        """
+        Get the current role and its options for a dimension.
+        :param name: 
+        :return: 
+        """
+        role = self.choices[name]['roleSelectionWidget'].currentText()
+        opts = {}
+        return role, opts
+
+    def getRoles(self) -> Dict[str, Dict[str, Any]]:
+        """
+        Get all roles as set in the UI.
+        :return: Dictionary with information on all current roles/options.
+        """
+        ret = {}
+        for name, val in self.choices.items():
+            role, opts = self.getRole(name)
+            ret[name] = {
+                'role': role,
+                'options': opts,
+            }
+        return ret
+
+
 
 
 
@@ -409,9 +484,6 @@ class DimensionReducer(Node):
 #
 #             w.valueChanged.connect(lambda x: self.axisValueSelected(ax, x))
 #             w.valueChanged.emit(w.value())
-#
-#     def _getRole(self, ax):
-#         return self.choices[ax]['role'].currentText()
 #
 #     def clearInfos(self):
 #         for ax in self.choices.keys():
