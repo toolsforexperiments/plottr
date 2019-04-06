@@ -6,13 +6,14 @@ from plottr.gui.data_display import DataSelectionWidget
 from plottr.utils import testdata
 
 from data_display_widgets import dataSelectionWidget
-from dimension_assignment_widgets import axisReductionWidget
+from dimension_assignment import xySelectionWidget, dimReduction
 
 
 funcmap = {
     'dataselect': (dataSelectionWidget, [], {}),
     'dataselect-readonly': (dataSelectionWidget, [True, ], {}),
-    'axis-reductions' : (axisReductionWidget, [], {})
+    'xyselection-widget' : (xySelectionWidget, [], {}),
+    'dim-reductions' : (dimReduction, [], {'interactive' : False})
 }
 
 

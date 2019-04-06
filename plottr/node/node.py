@@ -225,13 +225,21 @@ class NodeWidget(QtGui.QWidget):
     #: signal (args: (object)) all options to the node.
     allOptionsToNode = QtCore.pyqtSignal(object)
 
-    def __init__(self, parent: QtGui.QWidget = None):
+    def __init__(self, parent: QtGui.QWidget = None, embedWidgetClass = None):
         super().__init__(parent)
 
         self.optGetters = {}
         self.optSetters = {}
 
         self._emitGuiChange = True
+
+        self.widget = None
+        if embedWidgetClass is not None:
+            layout = QtGui.QVBoxLayout()
+            layout.setContentsMargins(0, 0, 0, 0)
+            self.widget = embedWidgetClass()
+            layout.addWidget(self.widget)
+            self.setLayout(layout)
 
     def getAllOptions(self) -> Dict[str, Any]:
         """Return all options as a dictionary"""

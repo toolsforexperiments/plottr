@@ -21,7 +21,7 @@ class DataDisplayWidget(NodeWidget):
     """
 
     def __init__(self):
-        super().__init__()
+        super().__init__(embedWidgetClass=DataSelectionWidget)
 
         self.optSetters = {
             'selectedData': self.setSelected,
@@ -29,12 +29,6 @@ class DataDisplayWidget(NodeWidget):
         self.optGetters = {
             'selectedData': self.getSelected,
         }
-
-        layout = QtGui.QVBoxLayout()
-        layout.setContentsMargins(0, 0, 0, 0)
-        self.widget = DataSelectionWidget()
-        layout.addWidget(self.widget)
-        self.setLayout(layout)
 
         self.widget.dataSelectionMade.connect(
             lambda x: self.signalOption('selectedData'))
