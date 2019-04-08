@@ -60,6 +60,7 @@ reductionFunc = {
     ReductionMethod.average: np.mean,
 }
 
+
 def stringToReductionMethod(value: str):
     for m in ReductionMethod:
         if m.value == value:
@@ -87,6 +88,7 @@ class DimensionAssignmentWidget(QtGui.QTreeWidget):
         self._dataShapes = None
         self._dataType = None
         self._emitRoleChangeSignal = True
+        self._currentRoles = {}
 
         self.choices = {}
         self.availableChoices = OrderedDict({
@@ -201,21 +203,24 @@ class DimensionAssignmentWidget(QtGui.QTreeWidget):
         :param dim: name of the dimension
         :param role: name of the role
         """
+        curRole = self._currentRoles.get(dim, None)
+        if curRole is None or curRole['role'] != role:
+            self.choices[dim]['roleSelectionWidget'].setCurrentText(role)
+            item = self.findItems(dim, QtCore.Qt.MatchExactly, 0)[0]
 
-        # TODO: continue here: need to check whether playing with widgets
-        #       is actually required
+            if 'optionsWidget' in self.choices[dim]:
+                w = self.choices[dim]['optionsWidget']
+                if w is not None:
+                    w.deleteLater()
+                    self.choices[dim]['optionsWidget'] = None
 
-        self.choices[dim]['roleSelectionWidget'].setCurrentText(role)
-        item = self.findItems(dim, QtCore.Qt.MatchExactly, 0)[0]
+            self.setItemWidget(item, 2, None)
+            self.setDimInfo(dim, '')
 
-        if 'optionsWidget' in self.choices[dim]:
-            w = self.choices[dim]['optionsWidget']
-            if w is not None:
-                w.deleteLater()
-                self.choices[dim]['optionsWidget'] = None
-
-        self.setItemWidget(item, 2, None)
-        self.setDimInfo(dim, '')
+            self._currentRoles[dim] = {
+                'role' : role,
+                'options' : {},
+            }
 
     def getRole(self, name: str) -> Tuple[str, Any]:
         """
@@ -279,23 +284,27 @@ class DimensionReductionAssignmentWidget(DimensionAssignmentWidget):
         # at this point, we've already populated the dropdown.
         # this is now for additional options
         item = self.findItems(dim, QtCore.Qt.MatchExactly, 0)[0]
+
         if role == ReductionMethod.elementSelection.value:
             value = kw.get('index', 0)
 
-            # get the number of elements in this dimension
-            axidx = self._dataStructure.axes().index(dim)
-            naxvals = self._dataShapes[dim][axidx]
+            # only create the slider widget if it doesn't exist yet
+            if self.itemWidget(item, 2) is None:
+                # get the number of elements in this dimension
+                axidx = self._dataStructure.axes().index(dim)
+                naxvals = self._dataShapes[dim][axidx]
 
-            w = self.elementSelectionSlider(nvals=naxvals, value=value)
-            w.valueChanged.connect(
-                lambda x: self.elementSelectionSliderChange(dim))
+                w = self.elementSelectionSlider(nvals=naxvals, value=value)
+                w.valueChanged.connect(
+                    lambda x: self.elementSelectionSliderChange(dim))
 
-            w.setMinimumSize(150, 22)
-            w.setMaximumHeight(22)
+                w.setMinimumSize(150, 22)
+                w.setMaximumHeight(22)
 
-            self.choices[dim]['optionsWidget'] = w
-            self.setItemWidget(item, 2, w)
-            self.updateSizes()
+                self.choices[dim]['optionsWidget'] = w
+                self.setItemWidget(item, 2, w)
+                self.updateSizes()
+
             self._setElementSelectionInfo(dim)
 
     def elementSelectionSlider(self, nvals: int, value: int = 0):
@@ -345,7 +354,7 @@ class XYSelectionWidget(DimensionReductionAssignmentWidget):
                     self.setRole(d, 'None')
 
 
-class DimensionReducerWidget(NodeWidget):
+class DimensionReducerNodeWidget(NodeWidget):
 
     def __init__(self):
         super().__init__(embedWidgetClass=DimensionReductionAssignmentWidget)
@@ -373,10 +382,13 @@ class DimensionReducerWidget(NodeWidget):
         return reductions
 
     def setReductions(self, reductions):
-        print(reductions)
         for dimName, (method, arg, kw) in reductions.items():
             role = method.value
             self.widget.setRole(dimName, role, **kw)
+
+        for dimName, _ in self.widget.getRoles().items():
+            if dimName not in reductions.keys():
+                self.widget.setRole(dimName, 'None')
 
     def setData(self, data):
         self.widget.setData(data)
@@ -411,7 +423,7 @@ class DimensionReducer(Node):
     """
 
     nodeName = 'DimensionReducer'
-    uiClass = DimensionReducerWidget
+    uiClass = DimensionReducerNodeWidget
 
     newDataStructure = QtCore.pyqtSignal(object)
     dataShapeChanged = QtCore.pyqtSignal(object)
@@ -572,7 +584,8 @@ class DimensionReducer(Node):
         if not DataDictBase.same_structure(struct, self._dataStructure):
             self._dataStructure = struct
             self.newDataStructure.emit(data)
-        self.dataShapeChanged.emit(data)
+            print('new structure')
+        # self.dataShapeChanged.emit(data)
 
         data = data.mask_invalid()
         data = self._applyDimReductions(data)
@@ -587,6 +600,42 @@ class DimensionReducer(Node):
     def setupUi(self):
         super().setupUi()
         self.newDataStructure.connect(self.ui.setData)
+
+
+class XYSelectorNodeWidget(NodeWidget):
+
+    def __init__(self):
+        super().__init__(embedWidgetClass=XYSelectionWidget)
+
+        self.optSetters = {
+            'reductions': self.setReductions,
+            'xyAxes' : self.setXYAxes,
+        }
+        self.optGetters = {
+            'reductions': self.getReductions,
+            'xyAxes' : self.getXYAxes,
+        }
+
+        pass
+
+class XYSelector(DimensionReducer):
+
+    nodeName = 'XYSelector'
+    uiClass = None
+
+    def __init__(self, *arg, **kw):
+
+        self._xyAxes = (None, None)
+        super().__init__(*arg, **kw)
+
+    @property
+    def xyAxes(self):
+        return self._xyAxes
+
+    @xyAxes.setter
+    @updateOption('xyAxes')
+    def xyAxes(self, val):
+        self._xyAxes = val
 
 
 

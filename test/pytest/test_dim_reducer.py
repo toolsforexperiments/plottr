@@ -8,6 +8,8 @@ from plottr.utils import num
 
 def test_reduction(qtbot):
     """Test basic dimension reduction."""
+    DimensionReducer.uiClass = None
+
     fc = linearFlowchart(('dim_red', DimensionReducer))
     node = fc.nodes()['dim_red']
 

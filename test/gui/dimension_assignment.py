@@ -39,7 +39,7 @@ def dimReduction(interactive=False):
     dialog = widgetDialog(selector.ui, 'reducer')
 
     data = datadict_to_meshgrid(
-        testdata.three_compatible_3d_sets(5, 5, 5)
+        testdata.three_compatible_3d_sets(2, 2, 2)
     )
     fc.setInput(dataIn=data)
 
