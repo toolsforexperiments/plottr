@@ -111,6 +111,10 @@ class Node(NodeBase):
     #: Whether or not to automatically set up a UI widget.
     useUi = True
 
+    #: A signal to notify the UI of option changes
+    #: arguments is a dictionary of options and new values.
+    optionChangeNotification = QtCore.pyqtSignal(dict)
+
     _raiseExceptions = False
 
     def __init__(self, name: str):
@@ -140,6 +144,7 @@ class Node(NodeBase):
         """
         self.ui.optionToNode.connect(self.setOption)
         self.ui.allOptionsToNode.connect(self.setOptions)
+        self.optionChangeNotification.connect(self.ui.setOptionsFromNode)
 
     def ctrlWidget(self) -> Union[QtGui.QWidget, None]:
         """Returns the node widget, if it exists.
@@ -260,6 +265,12 @@ class NodeWidget(QtGui.QWidget):
         :param value: value to set
         """
         self.optSetters[opt](value)
+
+    @QtCore.pyqtSlot(dict)
+    def setOptionsFromNode(self, opts: Dict[str, Any]):
+        """Set all options without triggering updates back to the node."""
+        for opt, val in opts.items():
+            self.setOptionFromNode(opt, val)
 
     @emitGuiUpdate('optionToNode')
     def signalOption(self, name: str) -> Tuple[str, Any]:
