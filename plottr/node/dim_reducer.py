@@ -325,6 +325,7 @@ class DimensionReductionAssignmentWidget(DimensionAssignmentWidget):
         self.setDimInfo(dim, f"({idx + 1}/{naxvals})")
 
 
+# FIXME: i think and xy selection widget should probably not allow 'None'?
 class XYSelectionWidget(DimensionReductionAssignmentWidget):
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -574,6 +575,7 @@ class DimensionReducer(Node):
         struct = data.structure()
         if not DataDictBase.same_structure(struct, self._dataStructure):
             self._dataStructure = struct
+            # FIXME: currently sliders etc. will not be updated!
             self.newDataStructure.emit(data)
         # self.dataShapeChanged.emit(data)
 
@@ -612,6 +614,7 @@ class XYSelectorNodeWidget(NodeWidget):
             lambda x: self.signalOption('dimensionRoles')
         )
 
+    # FIXME: None does not translate well!
     def getRoles(self):
         widgetRoles = self.widget.getRoles()
         roles = {}

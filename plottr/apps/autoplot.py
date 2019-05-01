@@ -18,8 +18,8 @@ from ..data.datadict import DataDictBase, DataDict, MeshgridDataDict
 from ..data.qcodes_dataset import QCodesDSLoader
 from .. import log as plottrlog
 from ..node.data_selector import DataSelector
-from ..node.grid import DataGridder
-from ..node.dim_reducer import XYAxesSelector
+from ..node.grid import DataGridder, GridOption
+from ..node.dim_reducer import XYSelector
 from ..plot.mpl import PlotNode, AutoPlot
 from ..widgets import MonitorIntervalInput
 
@@ -48,7 +48,7 @@ def autoplot(makeUI: bool = True, log: bool = False,
     nodelib = fclib.NodeLibrary()
     nodelib.addNodeType(DataSelector, [('Basic')])
     nodelib.addNodeType(DataGridder, [('Basic')])
-    nodelib.addNodeType(XYAxesSelector, [('Basic')])
+    nodelib.addNodeType(XYSelector, [('Basic')])
     nodelib.addNodeType(PlotNode, [('Plot')])
 
     fc = Flowchart(terminals={
@@ -59,7 +59,7 @@ def autoplot(makeUI: bool = True, log: bool = False,
 
     datasel = fc.createNode('DataSelector')
     grid = fc.createNode('Gridder')
-    xysel = fc.createNode('XYAxesSelector')
+    xysel = fc.createNode('XYSelector')
     plot = fc.createNode('Plot')
 
     fc.connectTerminals(fc['dataIn'], datasel['dataIn'])
@@ -247,8 +247,8 @@ class QCAutoPlotMainWindow(QtGui.QMainWindow):
             axes = axes[0], None
 
         self.fc.nodes()['DataSelector.0'].selectedData = selected
-        self.fc.nodes()['Gridder.0'].grid = 'guess'
-        self.fc.nodes()['XYAxesSelector.0'].xyAxes = axes
+        self.fc.nodes()['Gridder.0'].grid = GridOption.guessShape, {}
+        self.fc.nodes()['XYSelector.0'].xyAxes = axes
 
 
 def autoplotQcodesDataset(makeUI: bool = True, log: bool = False,
@@ -265,7 +265,7 @@ def autoplotQcodesDataset(makeUI: bool = True, log: bool = False,
     nodelib.addNodeType(QCodesDSLoader, [('Input')])
     nodelib.addNodeType(DataSelector, [('Basic')])
     nodelib.addNodeType(DataGridder, [('Basic')])
-    nodelib.addNodeType(XYAxesSelector, [('Basic')])
+    nodelib.addNodeType(XYSelector, [('Basic')])
     nodelib.addNodeType(PlotNode, [('Plot')])
 
     fc = Flowchart(terminals={
@@ -277,7 +277,7 @@ def autoplotQcodesDataset(makeUI: bool = True, log: bool = False,
     loader = fc.createNode('QCodesDSLoader')
     datasel = fc.createNode('DataSelector')
     grid = fc.createNode('Gridder')
-    xysel = fc.createNode('XYAxesSelector')
+    xysel = fc.createNode('XYSelector')
     plot = fc.createNode('Plot')
 
     fc.connectTerminals(fc['dataIn'], loader['dataIn'])
