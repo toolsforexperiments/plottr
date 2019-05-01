@@ -621,7 +621,7 @@ class XYSelectorNodeWidget(NodeWidget):
             if role in ['x-axis', 'y-axis']:
                 roles[dimName] = role
             else:
-                method = stringToReductionMethod(role)
+                method = ReductionMethod(role)
                 if method is not None:
                     roles[dimName] = method, [], opts
 

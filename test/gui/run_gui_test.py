@@ -2,7 +2,7 @@ import argparse
 
 from data_display_widgets import dataSelectionWidget
 from dimension_assignment import xySelectionWidget, dimReduction
-from grid_options import shapeSpecWidget, gridOptionWidget
+from grid_options import shapeSpecWidget, gridOptionWidget, gridder
 
 funcmap = {
     'dataselect': (dataSelectionWidget, [], {}),
@@ -10,7 +10,8 @@ funcmap = {
     'xyselection-widget': (xySelectionWidget, [], {}),
     'dim-reductions': (dimReduction, [], {'interactive': False}),
     'grid-shapespec-widget': (shapeSpecWidget, [], dict()),
-    'grid-widget': (gridOptionWidget, [], dict())
+    'grid-widget': (gridOptionWidget, [], dict()),
+    'grid' : (gridder, [], dict(interactive=False))
 }
 
 
