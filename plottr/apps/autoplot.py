@@ -241,14 +241,15 @@ class QCAutoPlotMainWindow(QtGui.QMainWindow):
             selected = selected[:1]
 
         axes = data.axes(selected)
-        if len(axes) > 2:
-            axes = axes[-2:]
+        drs = dict()
+        if len(axes) >= 2:
+            drs = {axes[-1]: 'x-axis', axes[-2]: 'y-axis'}
         if len(axes) == 1:
-            axes = axes[0], None
+            drs = {axes[0]: 'x-axis'}
 
         self.fc.nodes()['DataSelector.0'].selectedData = selected
         self.fc.nodes()['Gridder.0'].grid = GridOption.guessShape, {}
-        self.fc.nodes()['XYSelector.0'].xyAxes = axes
+        self.fc.nodes()['XYSelector.0'].dimensionRoles = drs
 
 
 def autoplotQcodesDataset(makeUI: bool = True, log: bool = False,

@@ -278,7 +278,7 @@ class DataGridder(Node):
 
         if isinstance(data, DataDict):
             if method is GridOption.noGrid:
-                dout = data
+                dout = data.expand()
             elif method is GridOption.guessShape:
                 dout = dd.datadict_to_meshgrid(data)
             elif method is GridOption.specifyShape:

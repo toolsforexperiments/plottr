@@ -79,8 +79,13 @@ class DimensionAssignmentWidget(QtGui.QTreeWidget):
         self._dataStructure = None
         self._dataShapes = None
         self._dataType = None
-        self._emitRoleChangeSignal = True
         self._currentRoles = {}
+
+        #: This is a flag to control whether we need to emit signals when
+        #: a role has changed. broadly speaking, this is only desired when
+        #: the change comes from the user interacting with the UI, otherwise
+        #: it might lead to undesired recursion.
+        self.emitRoleChangeSignal = True
 
         self.choices = {}
         self.availableChoices = OrderedDict({
@@ -124,11 +129,11 @@ class DimensionAssignmentWidget(QtGui.QTreeWidget):
             self.clear()
             return
 
-        dstruct = data # .structure()
+        dstruct = data.structure()
         dshapes = data.shapes()
         dtype = type(data)
 
-        if dstruct == self._dataStructure \
+        if DataDictBase.same_structure(dstruct, self._dataStructure) \
                 and dshapes == self._dataShapes \
                 and dtype == self._dataType:
             return
@@ -182,11 +187,11 @@ class DimensionAssignmentWidget(QtGui.QTreeWidget):
         # we need a flag here to not emit signals when we recursively change
         # roles. Sometimes we do, because roles are not independent for the
         # dims.
-        if self._emitRoleChangeSignal:
-            self._emitRoleChangeSignal = False
+        if self.emitRoleChangeSignal:
+            self.emitRoleChangeSignal = False
             self.setRole(name, val)
             self.rolesChanged.emit(self.getRoles())
-            self._emitRoleChangeSignal = True
+            self.emitRoleChangeSignal = True
 
     def setRole(self, dim: str, role: str = None):
         """
@@ -320,19 +325,15 @@ class DimensionReductionAssignmentWidget(DimensionAssignmentWidget):
         roles = self.getRoles()
         axidx = self._dataStructure.axes().index(dim)
         naxvals = self._dataShapes[dim][axidx]
-
         idx = roles[dim]['options']['index']
         self.setDimInfo(dim, f"({idx + 1}/{naxvals})")
 
 
-# FIXME: i think and xy selection widget should probably not allow 'None'?
 class XYSelectionWidget(DimensionReductionAssignmentWidget):
     def __init__(self, parent=None):
         super().__init__(parent)
 
-        self.availableChoices[DataDictBase] += ["x-axis"]
-        self.availableChoices[MeshgridDataDict] = \
-            ["y-axis"] + self.availableChoices[MeshgridDataDict]
+        self.availableChoices[DataDictBase] += ["x-axis", "y-axis"]
 
     def setRole(self, dim: str, role: str = None, **kw):
         super().setRole(dim, role, **kw)
@@ -426,6 +427,8 @@ class DimensionReducer(Node):
         self._reductions = {}
         self._targetNames = None
         self._dataStructure = None
+        self._dataType = None
+        self._dataShapes = None
 
         super().__init__(*arg, **kw)
 
@@ -573,10 +576,31 @@ class DimensionReducer(Node):
 
         # this is for the UI
         struct = data.structure()
-        if not DataDictBase.same_structure(struct, self._dataStructure):
-            self._dataStructure = struct
-            # FIXME: currently sliders etc. will not be updated!
+        dtype = type(data)
+        shapes = data.shapes()
+
+        structureChange = False
+        oldAxes = []
+        newAxes = []
+        if isinstance(struct, DataDictBase):
+            newAxes = struct.axes()
+        if isinstance(self._dataStructure, DataDictBase):
+            oldAxes = self._dataStructure.axes()
+        if newAxes != oldAxes:
+            structureChange = True
+
+        if dtype != self._dataType:
+            structureChange = True
+
+        if structureChange:
             self.newDataStructure.emit(data)
+
+        self._dataStructure = struct
+        self._dataType = dtype
+        self._dataShapes = shapes
+
+        # FIXME: currently sliders etc. will not be updated!
+        # FIXME: currently we provoke too many re-sets of the UI elements
         # self.dataShapeChanged.emit(data)
 
         data = super().process(dataIn=data)
@@ -614,16 +638,17 @@ class XYSelectorNodeWidget(NodeWidget):
             lambda x: self.signalOption('dimensionRoles')
         )
 
-    # FIXME: None does not translate well!
     def getRoles(self):
         widgetRoles = self.widget.getRoles()
         roles = {}
         for dimName, rolesOptions in widgetRoles.items():
             role = rolesOptions['role']
             opts = rolesOptions['options']
+
             if role in ['x-axis', 'y-axis']:
                 roles[dimName] = role
-            else:
+
+            elif role in [e.value for e in ReductionMethod]:
                 method = ReductionMethod(role)
                 if method is not None:
                     roles[dimName] = method, [], opts
@@ -631,17 +656,24 @@ class XYSelectorNodeWidget(NodeWidget):
         return roles
 
     def setRoles(self, roles):
+        # when this is called, we do not want the UI to signal changes.
+        self.widget.emitRoleChangeSignal = False
+
         for dimName, role in roles.items():
-            if role not in ['x-axis', 'y-axis']:
+            if role in ['x-axis', 'y-axis']:
+                self.widget.setRole(dimName, role)
+            elif isinstance(role, tuple):
                 method, arg, kw = role
                 methodName = method.value
                 self.widget.setRole(dimName, methodName, **kw)
-            else:
-                self.widget.setRole(dimName, role)
+            elif role is None:
+                self.widget.setRole(dimName, 'None')
 
         for dimName, _ in self.widget.getRoles().items():
             if dimName not in roles.keys():
                 self.widget.setRole(dimName, 'None')
+
+        self.widget.emitRoleChangeSignal = True
 
     def setData(self, data):
         self.widget.setData(data)
