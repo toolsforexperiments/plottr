@@ -14,16 +14,14 @@ from pyqtgraph.Qt import QtGui, QtCore
 from pyqtgraph.flowchart import library as fclib
 from pyqtgraph.dockarea import Dock, DockArea
 
-from ..data.datadict import DataDictBase, DataDict, MeshgridDataDict
+from ..data.datadict import DataDictBase
 from ..data.qcodes_dataset import QCodesDSLoader
 from .. import log as plottrlog
 from ..node.data_selector import DataSelector
 from ..node.grid import DataGridder, GridOption
 from ..node.dim_reducer import XYSelector
 from ..plot.mpl import PlotNode, AutoPlot
-from ..widgets import MonitorIntervalInput
-
-from .tools import make_sequential_flowchart_with_gui
+from plottr.gui.widgets import MonitorIntervalInput
 
 __author__ = 'Wolfgang Pfaff'
 __license__ = 'MIT'
