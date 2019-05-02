@@ -11,7 +11,7 @@ from plottr.utils.num import (
     interp_meshgrid_2d, centers2edges_1d,
     centers2edges_2d
 )
-from pyqtgraph.Qt import QtGui, QtCore
+from .. import QtGui, QtCore
 from ..data.datadict import MeshgridDataDict, meshgrid_to_datadict
 from ..node.node import Node
 from ..utils import (
