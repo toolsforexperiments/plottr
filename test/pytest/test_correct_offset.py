@@ -13,9 +13,9 @@ def test_average_subtraction(qtbot):
     SubtractAverage.uiClass = None
 
     fc = linearFlowchart(
-        ('avgsub', SubtractAverage),
+        ('Subtract Average', SubtractAverage),
     )
-    node = fc.nodes()['avgsub']
+    node = fc.nodes()['Subtract Average']
 
     x = np.arange(11) - 5.
     y = np.linspace(0, 10, 51)

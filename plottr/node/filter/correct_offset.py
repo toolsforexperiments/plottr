@@ -1,9 +1,10 @@
 from typing import List
 
 from plottr import QtGui, Signal, Slot
+from plottr.node import Node as Node_, NodeWidget as NodeWidget_, updateOption
+from plottr.node.node import updateGuiQuietly, emitGuiUpdate
+from plottr.gui.widgets import FormLayoutWrapper
 from plottr.data.datadict import DataDictBase, MeshgridDataDict
-from .. import Node as Node_, NodeWidget as NodeWidget_, updateOption
-from ..node import updateGuiQuietly, emitGuiUpdate
 
 
 class NodeWidget(NodeWidget_):
@@ -69,24 +70,28 @@ class Node(Node_):
         return super().process(dataIn=dataIn)
 
 
-class AxesCombo(QtGui.QComboBox):
-    axisSelected = Signal(str)
+class DimensionCombo(QtGui.QComboBox):
+    dimensionSelected = Signal(str)
 
-    def __init__(self, parent=None):
+    def __init__(self, parent=None, dimensionType='axes'):
         super().__init__(parent)
 
         self.node = None
+        self.dimensionType = dimensionType
 
         self.clear()
         self.entries = ['None']
         for e in self.entries:
             self.addItem(e)
 
-        self.currentTextChanged.connect(self.signalAxisSelection)
+        self.currentTextChanged.connect(self.signalDimensionSelection)
 
     def connectNode(self, node: Node = None):
         self.node = node
-        self.node.dataAxesChanged.connect(self.setDimensions)
+        if self.dimensionType == 'axes':
+            self.node.dataAxesChanged.connect(self.setDimensions)
+        else:
+            raise NotImplementedError('Only Axes supported ATM.')
 
     @updateGuiQuietly
     def setDimensions(self, dims: List[str]):
@@ -96,15 +101,24 @@ class AxesCombo(QtGui.QComboBox):
             self.addItem(d)
 
     @Slot(str)
-    @emitGuiUpdate('axisSelected')
-    def signalAxisSelection(self, val: str):
+    @emitGuiUpdate('dimensionSelected')
+    def signalDimensionSelection(self, val: str):
         return val
+
+
+class AxisSelector(FormLayoutWrapper):
+
+    def __init__(self, parent=None):
+        super().__init__(
+            parent=parent,
+            elements=[('Axis', DimensionCombo(dimensionType='axes'))],
+        )
 
 
 class SubtractAverageWidget(NodeWidget):
 
     def __init__(self, node: Node = None):
-        super().__init__(node=node, embedWidgetClass=AxesCombo)
+        super().__init__(node=node, embedWidgetClass=AxisSelector)
 
         self.optSetters = {
             'averagingAxis': self.setAvgAxis,
@@ -114,16 +128,17 @@ class SubtractAverageWidget(NodeWidget):
             'averagingAxis': self.getAvgAxis,
         }
 
-        self.widget.connectNode(self.node)
-        self.widget.axisSelected.connect(
+        self.combo = self.widget.elements['Axis']
+        self.combo.connectNode(self.node)
+        self.combo.dimensionSelected.connect(
             lambda x: self.signalOption('averagingAxis')
         )
 
     def setAvgAxis(self, val):
-        self.widget.setCurrentText(val)
+        self.combo.setCurrentText(val)
 
     def getAvgAxis(self):
-        return self.widget.currentText()
+        return self.combo.currentText()
 
 
 class SubtractAverage(Node):
