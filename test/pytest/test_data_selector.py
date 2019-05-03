@@ -1,8 +1,9 @@
 import numpy as np
 
-from plottr.apps.tools import make_sequential_flowchart
+# from plottr.apps.tools import make_sequential_flowchart
+from plottr.node.tools import linearFlowchart
 from plottr.node.data_selector import DataSelector
-from ..common import data as testdata
+from plottr.utils import testdata
 
 
 def test_data_extraction(qtbot):
@@ -15,8 +16,11 @@ def test_data_extraction(qtbot):
     data_name = data.dependents()[0]
     field_names = [data_name] + data.axes(data_name)
 
-    nodes, fc = make_sequential_flowchart([DataSelector], inputData=data)
-    nodes[0].selectedData = data_name
+    fc = linearFlowchart(('selector', DataSelector))
+    node = fc.nodes()['selector']
+
+    fc.setInput(dataIn=data)
+    node.selectedData = data_name
     out = fc.output()['dataOut']
 
     assert out.dependents() == [data_name]
@@ -39,8 +43,11 @@ def test_data_extraction2(qtbot):
     data_names = [data.dependents()[0], data.dependents()[1]]
     field_names = data_names + data.axes(data_names[0])
 
-    nodes, fc = make_sequential_flowchart([DataSelector], inputData=data)
-    nodes[0].selectedData = data_names
+    fc = linearFlowchart(('selector', DataSelector))
+    node = fc.nodes()['selector']
+
+    fc.setInput(dataIn=data)
+    node.selectedData = data_names
     out = fc.output()['dataOut']
 
     assert out.dependents() == data_names
@@ -65,12 +72,14 @@ def test_incompatible_sets(qtbot):
     DataSelector.useUi = False
 
     data = testdata.three_incompatible_3d_sets()
-    nodes, fc = make_sequential_flowchart([DataSelector], inputData=data)
-    nodes[0].selectedData = data.dependents()[0], data.dependents()[1]
+    fc = linearFlowchart(('selector', DataSelector))
+    node = fc.nodes()['selector']
+    fc.setInput(dataIn=data)
+    node.selectedData = data.dependents()[0], data.dependents()[1]
     assert fc.output()['dataOut'] == None
 
-    nodes[0].selectedData = data.dependents()[0]
+    node.selectedData = data.dependents()[0]
     assert fc.output()['dataOut'].dependents() == [data.dependents()[0]]
 
-    nodes[0].selectedData = data.dependents()[1]
+    node.selectedData = data.dependents()[1]
     assert fc.output()['dataOut'].dependents() == [data.dependents()[1]]

@@ -4,7 +4,8 @@ from qcodes import ParamSpec, new_data_set
 from qcodes.dataset.database import initialise_database
 from qcodes.dataset.experiment_container import load_or_create_experiment
 
-from plottr.apps.tools import make_sequential_flowchart
+# from plottr.apps.tools import make_sequential_flowchart
+from plottr.node.tools import linearFlowchart
 from plottr.data.qcodes_dataset import (
     datadict_from_path_and_run_id,
     QCodesDSLoader
@@ -75,8 +76,8 @@ def test_update_qcloader(qtbot):
     results = get_2dsoftsweep_results()
 
     # setting up the flowchart
-    nodes, fc = make_sequential_flowchart([QCodesDSLoader])
-    loader = nodes[0]
+    fc = linearFlowchart(('loader', QCodesDSLoader))
+    loader = fc.nodes()['loader']
     loader.pathAndId = DBPATH, run_id
 
     def check():
@@ -84,11 +85,12 @@ def test_update_qcloader(qtbot):
         loader.update()
         ddict = fc.output()['dataOut']
 
-        z_in = zz.reshape(-1)[:nresults]
-        z_out = ddict.data_vals('z')
-        if z_out is not None:
-            assert z_in.size == z_out.size
-            assert np.allclose(z_in, z_out, atol=1e-15)
+        if ddict is not None and nresults > 0:
+            z_in = zz.reshape(-1)[:nresults]
+            z_out = ddict.data_vals('z')
+            if z_out is not None:
+                assert z_in.size == z_out.size
+                assert np.allclose(z_in, z_out, atol=1e-15)
 
     # insert data in small chunks, and check
     while True:

@@ -4,27 +4,19 @@ qcodes_dataset.py
 Dealing with qcodes dataset (the database) data in plottr.
 """
 
-from typing import Dict, Tuple, List, Union, Sequence, Optional
-import json
-import time
-import os
-from copy import deepcopy
+from sqlite3 import Connection
 
 import numpy as np
 import pandas as pd
-from sqlite3 import Connection
+from typing import Dict, List, Union, Optional
 
-from pyqtgraph.Qt import QtGui, QtCore
-
-import qcodes as qc
-from qcodes.dataset.experiment_container import Experiment
 from qcodes.dataset.data_set import DataSet
-from qcodes.dataset.sqlite_base import (get_dependencies, one, transaction,
-                                        get_dependents, get_layout,
-                                        get_runs, connect)
-
+from qcodes.dataset.sqlite_base import (
+    get_dependencies, get_dependents, get_layout,
+    get_runs, connect
+)
 from .datadict import DataDict
-from ..node.node import Node
+from ..node.node import Node, updateOption
 
 __author__ = 'Wolfgang Pfaff'
 __license__ = 'MIT'
@@ -171,41 +163,6 @@ def get_all_data_from_ds(ds: DataSet) -> Dict[str, List[List]]:
     return get_data_from_ds(ds)
 
 
-# def expand(data: Dict[str, List[List]],
-#            copy=True) -> Dict[str, np.ndarray]:
-#     """
-#     Expands data to get us everying expanded into columns of the same length.
-#     To achieve the same length, data will be repeated along the most inner
-#     axis if necessary.
-#
-#     Arguments:
-#         data: dictionary in the form {'name' : [[row1], [row2], ...], ...}.
-#             the values are thus exactly what dataset.get_data('name') will return.
-#     """
-#     if copy:
-#         data = deepcopy(data)
-#
-#     inner_len = 1
-#     for k, v in data.items():
-#         if len(v) == 0:
-#             return data
-#
-#         if type(v[0][0]) not in [list, np.ndarray]:
-#             continue
-#         else:
-#             inner_len = len(v[0][0])
-#             break
-#
-#     for k, v in data.items():
-#         v = np.array(v)
-#         if inner_len > 1 and v.shape[-1] == 1:
-#             v = np.repeat(v, inner_len, axis=-1)
-#         v = v.reshape(-1)
-#         data[k] = v
-#
-#     return data
-
-
 def ds_to_datadict(ds: DataDict, start: Optional[int] = None,
                    end: Optional[int] = None) -> DataDict:
     """
@@ -232,9 +189,9 @@ def datadict_from_path_and_run_id(path: str, run_id: int, **kw) -> DataDict:
 
 class QCodesDSLoader(Node):
 
-    useUi = False
-    uiClass = None
     nodeName = 'QCodesDSLoader'
+    uiClass = None
+    useUi = False
 
     def __init__(self, *arg, **kw):
         self._pathAndId = (None, None)
@@ -249,7 +206,7 @@ class QCodesDSLoader(Node):
         return self._pathAndId
 
     @pathAndId.setter
-    @Node.updateOption('pathAndId')
+    @updateOption('pathAndId')
     def pathAndId(self, val):
         if val != self.pathAndId:
             self._pathAndId = val
@@ -265,4 +222,3 @@ class QCodesDSLoader(Node):
                 data = ds_to_datadict(ds)
                 self.nLoadedRecords = ds.number_of_results
                 return dict(dataOut=data)
-

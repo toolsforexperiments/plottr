@@ -4,16 +4,12 @@ grid.py
 A node and widget for placing data onto a grid (or not).
 """
 
-from pprint import pprint
-import copy
-from functools import wraps
+from enum import Enum, unique
 
-import numpy as np
+from typing import Tuple, Dict, Any
 
-from pyqtgraph import Qt
-from pyqtgraph.Qt import QtGui, QtCore
-
-from .node import Node
+from plottr import QtCore, QtGui
+from .node import Node, NodeWidget, updateOption, updateGuiFromNode
 from ..data import datadict as dd
 from ..data.datadict import DataDict, MeshgridDataDict
 
@@ -21,9 +17,16 @@ __author__ = 'Wolfgang Pfaff'
 __license__ = 'MIT'
 
 
-# TODO: we probably should use Enums here instead of these options...
+@unique
+class GridOption(Enum):
+    noGrid = 0
+    guessShape = 1
+    specifyShape = 2
 
-class ShapeSpecification(QtGui.QWidget):
+
+class ShapeSpecificationWidget(QtGui.QWidget):
+    #: signal that is emitted when we want to communicate a new shape
+    newShapeNotification = QtCore.pyqtSignal(tuple)
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -35,6 +38,11 @@ class ShapeSpecification(QtGui.QWidget):
         self.confirm = QtGui.QPushButton('set')
         self.layout.addRow(self.confirm)
         self.setLayout(self.layout)
+
+        self.confirm.clicked.connect(self.signalShape)
+
+    def signalShape(self):
+        self.newShapeNotification.emit(self.getShape())
 
     def setAxes(self, axes):
         if axes != self._axes:
@@ -65,64 +73,34 @@ class ShapeSpecification(QtGui.QWidget):
         self.confirm.setEnabled(enable)
 
 
-class DataGridderWidget(QtGui.QWidget):
-
-    NOGRID = 1
-    GUESSSHAPE = 2
-    SPECIFYSHAPE = 3
-    FINDGRID = 4
-
+class GridOptionWidget(QtGui.QWidget):
     optionSelected = QtCore.pyqtSignal(object)
-
-    ## Decorators for GUI/Node communication ##
-    # TODO: those should eventually go into the Node base class
-
-    def updateGuiFromNode(func):
-        # @wraps(func)
-        def wrap(self, *arg, **kw):
-            self._emitGuiChange = False
-            ret = func(self, *arg, **kw)
-            self._emitGuiChange = True
-            return ret
-        return wrap
-
-    def emitGuiUpdate(signalName):
-        def decorator(func):
-            # @wraps(func)
-            def wrap(self, *arg, **kw):
-                ret = func(self, *arg, **kw)
-                if self._emitGuiChange:
-                    sig = getattr(self, signalName)
-                    sig.emit(ret)
-            return wrap
-        return decorator
-
 
     def __init__(self, parent=None):
         super().__init__(parent)
 
-        self._emitGuiChange = True
+        self._emitUpdate = True
 
-        ##  make radio buttons and layout ##
+        #  make radio buttons and layout ##
         self.buttons = {
-            self.NOGRID : QtGui.QRadioButton('No grid'),
-            self.GUESSSHAPE : QtGui.QRadioButton('Guess shape'),
-            self.SPECIFYSHAPE : QtGui.QRadioButton('Specify shape'),
+            GridOption.noGrid: QtGui.QRadioButton('No grid'),
+            GridOption.guessShape: QtGui.QRadioButton('Guess shape'),
+            GridOption.specifyShape: QtGui.QRadioButton('Specify shape'),
         }
 
         btnLayout = QtGui.QVBoxLayout()
         self.btnGroup = QtGui.QButtonGroup(self)
 
-        for i in [self.NOGRID, self.GUESSSHAPE, self.SPECIFYSHAPE]:
-            btn = self.buttons[i]
-            self.btnGroup.addButton(btn, i)
+        for opt in GridOption:
+            btn = self.buttons[opt]
+            self.btnGroup.addButton(btn, opt.value)
             btnLayout.addWidget(btn)
 
         btnBox = QtGui.QGroupBox('Grid')
         btnBox.setLayout(btnLayout)
 
-        ## make shape spec widget ##
-        self.shapeSpec = ShapeSpecification()
+        # make shape spec widget
+        self.shapeSpec = ShapeSpecificationWidget()
         shapeLayout = QtGui.QVBoxLayout()
         shapeLayout.addWidget(self.shapeSpec)
         shapeBox = QtGui.QGroupBox('Shape')
@@ -135,62 +113,102 @@ class DataGridderWidget(QtGui.QWidget):
         layout.addStretch()
         self.setLayout(layout)
 
-        ## Connect signals/slots ##
+        # Connect signals/slots #
         self.btnGroup.buttonToggled.connect(self.gridButtonSelected)
         self.shapeSpec.confirm.clicked.connect(self.shapeSpecified)
+
+        # Default settings
+        self.buttons[GridOption.noGrid].setChecked(True)
+        self.enableShapeEdit(False)
 
     def getGrid(self):
         activeBtn = self.btnGroup.checkedButton()
         activeId = self.btnGroup.id(activeBtn)
-        if activeId == self.GUESSSHAPE:
-            return 'guess'
-        elif activeId == self.SPECIFYSHAPE:
-            return self.shapeSpec.getShape()
-        elif activeId == self.NOGRID:
-            return False
-        else:
-            return None
+        opts = {}
+
+        if GridOption(activeId) == GridOption.specifyShape:
+            opts['shape'] = self.shapeSpec.getShape()
+
+        return GridOption(activeId), opts
+
+    def setGrid(self, grid):
+        # This function should not trigger an emission for an update.
+        # We only want that when the user sets the grid in the UI,
+        # to avoid recursive calls
+        self._emitUpdate = False
+
+        method, opts = grid
+        for k, btn in self.buttons.items():
+            if k == method:
+                btn.setChecked(True)
+
+        if method == GridOption.specifyShape:
+            self.setShape(opts['shape'])
 
     @QtCore.pyqtSlot(QtGui.QAbstractButton, bool)
     def gridButtonSelected(self, btn, checked):
         if checked:
-            self.signalGridOption(self.getGrid())
+
+            # only emit the signal when the update is from the UI
+            if self._emitUpdate:
+                self.signalGridOption(self.getGrid())
+
+            if GridOption(self.btnGroup.id(btn)) == GridOption.specifyShape:
+                self.enableShapeEdit(True)
+            else:
+                self.enableShapeEdit(False)
+
+            self._emitUpdate = True
 
     @QtCore.pyqtSlot()
     def shapeSpecified(self):
-        shape = self.shapeSpec.getShape()
-        self.signalGridOption(shape)
+        self.signalGridOption(self.getGrid())
 
-    @emitGuiUpdate('optionSelected')
     def signalGridOption(self, grid):
-        return grid
+        self.optionSelected.emit(grid)
 
-    ## methods for setting from the node ##
-    @updateGuiFromNode
-    def setGrid(self, val):
-        if isinstance(val, tuple):
-            self.setShape(val)
-            self.shapeSpec.enableEditing(True)
-            self.buttons[self.SPECIFYSHAPE].setChecked(True)
-        else:
-            self.shapeSpec.enableEditing(False)
-
-        if val == 'guess':
-            self.buttons[self.GUESSSHAPE].setChecked(True)
-
-        if val == False:
-            self.buttons[self.NOGRID].setChecked(True)
-
-    @QtCore.pyqtSlot(list)
-    @updateGuiFromNode
     def setAxes(self, axes):
         self.shapeSpec.setAxes(axes)
-        self.setGrid(self.getGrid())
+        if self.getGrid()[0] == GridOption.specifyShape:
+            self.enableShapeEdit(True)
+        else:
+            self.enableShapeEdit(False)
 
-    @QtCore.pyqtSlot(tuple)
-    @updateGuiFromNode
     def setShape(self, shape):
         self.shapeSpec.setShape(shape)
+
+    def enableShapeEdit(self, enable):
+        self.shapeSpec.enableEditing(enable)
+
+
+class DataGridderNodeWidget(NodeWidget):
+
+    def __init__(self, node: Node = None):
+        super().__init__(embedWidgetClass=GridOptionWidget)
+
+        self.optSetters = {
+            'grid': self.setGrid,
+        }
+        self.optGetters = {
+            'grid': self.getGrid,
+        }
+        self.widget.optionSelected.connect(
+            lambda x: self.signalOption('grid')
+        )
+
+    def getGrid(self):
+        return self.widget.getGrid()
+
+    def setGrid(self, grid):
+        self.widget.setGrid(grid)
+
+    @updateGuiFromNode
+    def setAxes(self, axes):
+        self.widget.setAxes(axes)
+
+    @updateGuiFromNode
+    def setShape(self, shape):
+        self.widget.setShape(shape)
 
 
 class DataGridder(Node):
@@ -201,120 +219,99 @@ class DataGridder(Node):
     """
 
     nodeName = "Gridder"
-    uiClass = DataGridderWidget
-
-    guiOptions = {
-        'grid' : {
-            'widget' : None,
-            'setFunc' : 'setGrid',
-        }
-    }
+    uiClass = DataGridderNodeWidget
 
     shapeDetermined = QtCore.pyqtSignal(tuple)
     axesList = QtCore.pyqtSignal(list)
 
     def __init__(self, *arg, **kw):
 
-        self._grid = None
+        self._grid = GridOption.noGrid, {}
         self._shape = None
         self._invalid = False
 
         super().__init__(*arg, **kw)
 
-        if self.ui is not None:
-            self.axesList.connect(self.ui.setAxes)
-            self.shapeDetermined.connect(self.ui.setShape)
+    # Properties
 
-
-    ### Properties
     @property
     def grid(self):
         return self._grid
 
     @grid.setter
-    @Node.updateOption('grid')
-    def grid(self, val):
-        self._invalid = False
-        if isinstance(val, tuple):
-            try:
-                self._grid = tuple(int(s) for s in val)
-            except ValueError:
-                self._invalid = True
-                self.logger().error(f"Invalid grid option {val}")
-                raise
+    @updateOption('grid')
+    def grid(self, val: Tuple[GridOption, Dict[str, Any]]):
+        try:
+            method, opts = val
+        except TypeError:
+            raise ValueError(f"Invalid grid specification.")
 
-        elif val in [None, False, 'guess']:
-            self._grid = val
+        if not method in GridOption:
+            raise ValueError(f"Invalid grid method specification.")
 
-        else:
-            self._invalid = True
-            self.logger().error(f"Invalid grid option {val}")
+        if not isinstance(opts, dict):
+            raise ValueError(f"Invalid grid options specification.")
 
+        self._grid = val
 
-    ### Processing
+    # Processing
+
+    def validateOptions(self, data: Any):
+        if not super().validateOptions(data):
+            return False
+
+        return True
+
     def process(self, **kw):
-        data = super().process(**kw)
+        data = kw['dataIn']
         if data is None:
             return None
 
-        data = data['dataOut']
-        if self.ui is not None:
-            self.updateUiDataIn(data)
+        data = super().process(**kw)
+        if data is None:
+            return None
+        data = data['dataOut'].copy()
+        self.axesList.emit(data.axes())
 
         dout = None
-        shape = tuple()
+        method, opts = self._grid
 
-        if self._invalid:
-            return None
+        if isinstance(data, DataDict):
+            if method is GridOption.noGrid:
+                dout = data.expand()
+            elif method is GridOption.guessShape:
+                dout = dd.datadict_to_meshgrid(data)
+            elif method is GridOption.specifyShape:
+                dout = dd.datadict_to_meshgrid(data, target_shape=opts['shape'])
 
-        if self._grid is None:
-            dout = data
-
-        elif self._grid is False and isinstance(data, DataDict):
-            dout = data
-
-        elif self._grid is False and isinstance(data, MeshgridDataDict):
-            dout = dd.meshgrid_to_datadict(data)
-
-        elif self._grid == 'guess' and isinstance(data, DataDict):
-            dout = dd.datadict_to_meshgrid(data)
-
-        elif self._grid == 'guess' and isinstance(data, MeshgridDataDict):
-            dout = data
-
-        elif isinstance(self._grid, tuple):
-            dout = dd.datadict_to_meshgrid(data, target_shape=self._grid)
+        elif isinstance(data, MeshgridDataDict):
+            if method is GridOption.noGrid:
+                dout = dd.meshgrid_to_datadict(data)
+            elif method is GridOption.guessShape:
+                dout = data
+            elif method is GridOption.specifyShape:
+                self.logger().warning(
+                    f"Data is already on grid. Ignore shape.")
+                dout = data
 
         else:
-            self.logger().error(f"Unknown grid option {self._grid}. Most likely a bug :/")
+            self.logger().error(
+                f"Unknown data type {type(data)}.")
             return None
 
         if dout is None:
             return None
 
-        if self.ui is not None:
-            self.updateUiDataOut(dout)
+        if hasattr(dout, 'shape'):
+            self.shapeDetermined.emit(dout.shape())
+        else:
+            self.shapeDetermined.emit(tuple())
 
         return dict(dataOut=dout)
 
     ### Setup UI
 
     def setupUi(self):
-        self.ui.setGrid(self._grid)
-        self.ui.optionSelected.connect(self._setGrid)
-
-    def updateUiDataOut(self, data):
-        if isinstance(data, MeshgridDataDict):
-            shape = data.shape()
-        else:
-            shape = tuple()
-        self.shapeDetermined.emit(shape)
-
-    def updateUiDataIn(self, data):
-        axes = data.axes()
-        self.axesList.emit(axes)
-
-    ### Receiving UI changes
-    @QtCore.pyqtSlot(object)
-    def _setGrid(self, val):
-        self.grid = val
+        super().setupUi()
+        self.axesList.connect(self.ui.setAxes)
+        self.shapeDetermined.connect(self.ui.setShape)

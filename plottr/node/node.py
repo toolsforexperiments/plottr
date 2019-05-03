@@ -3,88 +3,180 @@ node.py
 
 Contains the base class for Nodes.
 """
-import copy
-from pprint import pprint
-import logging
 import traceback
+from logging import Logger
 
-import numpy as np
+from functools import wraps
+from typing import Any, Union, Tuple, Dict
 
-from pyqtgraph.flowchart import Flowchart, Node as pgNode
-from pyqtgraph.Qt import QtGui, QtCore
-
-from ..data import datadict as dd
-from ..data.datadict import DataDict
+from .. import NodeBase
+from .. import QtGui, QtCore
 from .. import log
 
 __author__ = 'Wolfgang Pfaff'
 __license__ = 'MIT'
 
+
 # TODO: implement a threaded version of Node
-# TODO: needed: an order widget for filters
-# TODO: formalize/abstract updating the gui better.
-# TODO: add a 'fresh' flag that allows to set nice defaults on first data-input
 
-class Node(pgNode):
+
+def updateOption(optName: Union[None, str] = None):
+    """Decorator for property setters that are handy for user options.
+
+    Property setters in nodes that are decorated with this will do two things:
+    * call ``Node.update``, in order to update the flowchart.
+    * if there is a UI, we call the matching ``optSetter`` function.
+
+    :param optName: name of the property.
     """
-    The node base class used in plottr, derived from pyqtgraph's `Node`.
-    More thorough documentation is still an outstanding task...
+
+    def decorator(func):
+        @wraps(func)
+        def wrap(self, val):
+            ret = func(self, val)
+            if optName is not None and self.ui is not None and \
+                    optName in self.ui.optSetters:
+                self.ui.optSetters[optName](val)
+            self.update(self.signalUpdate)
+            return ret
+
+        return wrap
+
+    return decorator
+
+
+def updateGuiFromNode(func):
+    """
+    Decorator for the UI to set an internal flag to during execution of
+    the wrapped function. Prevents recursive updating (i.e., if
+    the node sends a new option value to the UI for updating, the UI
+    will then `not` notify the node back after making the update).
     """
 
-    optionChanged = QtCore.pyqtSignal(str, object)
+    @wraps(func)
+    def wrap(self, *arg, **kw):
+        self._emitGuiChange = False
+        ret = func(self, *arg, **kw)
+        self._emitGuiChange = True
+        return ret
 
-    raiseExceptions = False
-    nodeName = "DataDictNode"
+    return wrap
+
+
+updateGuiQuietly = updateGuiFromNode
+
+
+def emitGuiUpdate(signalName: str):
+    """
+    Decorator for UI functions to emit the signal ``signalName``
+    (given as argument the decorator), with the return of the wrapped function.
+
+    Signal is only emitted if the flag controlled by ``updateGuiFromNode``
+    is not ``True``, i.e., if the option change was `not` caused by a
+    function decorated with ``updateGuiFromNode``.
+
+    :param signalName: name of the signal to emit.
+    """
+
+    def decorator(func):
+        @wraps(func)
+        def wrap(self, *arg, **kw):
+            ret = func(self, *arg, **kw)
+            emit = getattr(self, '_emitGuiChange', True)
+            if emit:
+                sig = getattr(self, signalName)
+                sig.emit(ret)
+
+        return wrap
+
+    return decorator
+
+
+class Node(NodeBase):
+    """Base class of the Node we use for plotter.
+
+    This class inherits from ``pyqtgraph``'s Node, and adds a few additional
+    tools, and some defaults.
+    """
+
+    #: Name of the node. used in the flowchart node library.
+    nodeName = 'Node'
+
+    #: Default terminals: one input and one output.
     terminals = {
-        'dataIn' : {'io' : 'in'},
-        'dataOut' : {'io' : 'out'},
+        'dataIn': {'io': 'in'},
+        'dataOut': {'io': 'out'},
     }
-    uiClass = None
-    useUi = True
-    guiOptions = {}
 
-    def __init__(self, name):
+    #: UI node widget class. If not None, and ``useUi`` is ``True``, an
+    #: instance of the widget is created, and signal/slots are connected.
+    uiClass = None
+
+    #: Whether or not to automatically set up a UI widget.
+    useUi = True
+
+    #: A signal to notify the UI of option changes
+    #: arguments is a dictionary of options and new values.
+    optionChangeNotification = QtCore.pyqtSignal(dict)
+
+    _raiseExceptions = False
+
+    def __init__(self, name: str):
+        """Create a new instance of the Node.
+
+        :param name: name of the instance.
+        """
         super().__init__(name, terminals=self.__class__.terminals)
 
         self.signalUpdate = True
-        self.optionChanged.connect(self.processOptionUpdate)
 
         if self.useUi and self.__class__.uiClass is not None:
-            self.ui = self.__class__.uiClass()
+            self.ui = self.__class__.uiClass(node=self)
             self.setupUi()
         else:
             self.ui = None
 
     def setupUi(self):
-        return
+        """ setting up the UI widget.
 
-    def ctrlWidget(self):
+        Gets called automatically in the node initialization.
+        Automatically connect the UIs methods to signal option values.
+
+        Inheriting classes can use this method to do additional setup of the
+        UI widget (like connecting additional signals/slots between node and
+        node widget).
+        """
+        self.ui.optionToNode.connect(self.setOption)
+        self.ui.allOptionsToNode.connect(self.setOptions)
+        self.optionChangeNotification.connect(self.ui.setOptionsFromNode)
+
+    def ctrlWidget(self) -> Union[QtGui.QWidget, None]:
+        """Returns the node widget, if it exists.
+        """
         return self.ui
 
-    def updateOption(optName=None):
-        def decorator(func):
-            def wrap(self, val):
-                ret = func(self, val)
-                if optName is not None:
-                    self.optionChanged.emit(optName, val)
-                self.update(self.signalUpdate)
-                return ret
-            return wrap
-        return decorator
+    def setOption(self, nameAndVal: Tuple[str, Any]):
+        """Set an option.
 
-    def processOptionUpdate(self, optName, value):
-        if optName in self.guiOptions:
-            if self.ui is not None and optName in self.guiOptions:
-                if self.guiOptions[optName]['widget'] is not None:
-                    w = getattr(self.ui, self.guiOptions[optName]['widget'])
-                    func = getattr(w, self.guiOptions[optName]['setFunc'])
-                else:
-                    func = getattr(self.ui, self.guiOptions[optName]['setFunc'])
-                func(value)
+        name is the name of the property, not the string used for referencing
+        (which could in principle be different).
+
+        :param nameAndVal: tuple of option name and new value
+        """
+        name, val = nameAndVal
+        setattr(self, name, val)
+
+    def setOptions(self, opts: Dict[str, Any]):
+        """Set multiple options.
+
+        :param opts: a dictionary of property name : value pairs.
+        """
+        for opt, val in opts.items():
+            setattr(self, opt, val)
 
     def update(self, signal=True):
         super().update(signal=signal)
-        if Node.raiseExceptions and self.exception is not None:
+        if Node._raiseExceptions and self.exception is not None:
             raise self.exception[1]
         elif self.exception is not None:
             e = self.exception
@@ -93,12 +185,25 @@ class Node(pgNode):
                 err += f' -> {t}\n'
             self.logger().error(err)
 
-    def logger(self):
-        logger = log.getLogger(self.__module__ + '.' + self.__class__.__name__)
+    def logger(self) -> Logger:
+        """Get a logger for this node
+
+        :return: logger with a name that can be traced back easily to this node.
+        """
+        name = self.__module__ + '.' + self.__class__.__name__ + '.' \
+               + self.name()
+        logger = log.getLogger()
         logger.setLevel(log.LEVEL)
         return logger
 
-    def validateOptions(self, data):
+    def validateOptions(self, data: Any) -> bool:
+        """Validate the user options
+
+        Does nothing in this base implementation. Can be reimplemented by any
+        inheriting class.
+
+        :param data: the data to verify the options against.
+        """
         return True
 
     def process(self, **kw):
@@ -118,52 +223,77 @@ class NodeWidget(QtGui.QWidget):
     """
     Base class for Node control widgets.
 
-    Provides convenience tools for interacting with Nodes:
-
-    * `updateGuiFromNode`: Use this decorator on methods that update a GUI property
-      prompted by an option change in the node. It will set an internal flag that can
-      be used to prevent signaling the node in turn that the GUI has changed (which
-      could result in infinite signal/slot loops if we're not careful).
-
-    * `emitGuiUpdate(signalName)`: Functions with this decorator will emit the signal
-      `signalName` with the function return as argument. This can be used to communicate
-      GUI changes to the node. Note: The signal still has to be declared manually,
-      and the connection to the node has to be made as well (typically from the node
-      side).
-      Importantly, this method will **not** emit the signal if the internal flag
-      mentioned above is not True; thus we only send the signal to the Node if the
-      Node is **not** the origin of the change to start with.
+    For the widget class to set up communication with the Node automatically,
+    make sure to set :attr:`plottr.node.node.NodeWidget.optGetters` and
+    :attr:`plottr.node.node.NodeWidget.optSetters` for a widget class.
     """
+    #: signal (args: object)) to emit to notify the node of a (changed)
+    #: user option.
+    optionToNode = QtCore.pyqtSignal(object)
 
-    def updateGuiFromNode(func):
-        """
-        Decorator to set an internal flag to False during execution of the wrapped
-        function.
-        """
-        def wrap(self, *arg, **kw):
-            self._emitGuiChange = False
-            ret = func(self, *arg, **kw)
-            self._emitGuiChange = True
-            return ret
-        return wrap
+    #: signal (args: (object)) all options to the node.
+    allOptionsToNode = QtCore.pyqtSignal(object)
 
-    def emitGuiUpdate(signalName):
-        """
-        Decorator to emit signalName with the return of the wrapped function after
-        execution. Signal is only emitted if the flag controlled by `updateGuiFromNode`
-        is not True, i.e., if the option change was not caused by a function
-        decorated with `updateGuiFromNode`.
-        """
-        def decorator(func):
-            def wrap(self, *arg, **kw):
-                ret = func(self, *arg, **kw)
-                if self._emitGuiChange:
-                    sig = getattr(self, signalName)
-                    sig.emit(ret)
-            return wrap
-        return decorator
-
-    def __init__(self, parent: QtGui.QWidget = None):
+    def __init__(self, parent: QtGui.QWidget = None,
+                 embedWidgetClass: QtGui.QWidget = None,
+                 node: Node = None):
         super().__init__(parent)
 
+        self.optGetters = {}
+        self.optSetters = {}
+        self.node = node
+
         self._emitGuiChange = True
+
+        self.widget = None
+        if embedWidgetClass is not None:
+            layout = QtGui.QVBoxLayout()
+            layout.setContentsMargins(0, 0, 0, 0)
+            self.widget = embedWidgetClass()
+            layout.addWidget(self.widget)
+            self.setLayout(layout)
+
+    def getAllOptions(self) -> Dict[str, Any]:
+        """Return all options as a dictionary"""
+        ret = {}
+        for n, f in self.optGetters.items():
+            ret[n] = f()
+
+        return ret
+
+    @updateGuiFromNode
+    def setOptionFromNode(self, opt: str, value: Any):
+        """Set an option from the node
+
+        Calls the set function specified in the class' ``optSetters``.
+        Decorated with ``@updateGuiFromNode``.
+
+        :param opt: name of the option
+        :param value: value to set
+        """
+        self.optSetters[opt](value)
+
+    @QtCore.pyqtSlot(dict)
+    def setOptionsFromNode(self, opts: Dict[str, Any]):
+        """Set all options without triggering updates back to the node."""
+        for opt, val in opts.items():
+            self.setOptionFromNode(opt, val)
+
+    @emitGuiUpdate('optionToNode')
+    def signalOption(self, name: str) -> Tuple[str, Any]:
+        """Returns name and value of an option.
+
+        Value is determined from the optGetters.
+        Decorated with ``@emitGuiUpdate('optionToNode')``.
+
+        :param name: name of the option
+        """
+        return name, self.optGetters[name]()
+
+    @emitGuiUpdate('allOptionsToNode')
+    def signalAllOptions(self) -> Dict[str, Any]:
+        """Return all options as a dictionary
+
+        Decorated with ``@emitGuiUpdate('optionToNode')``.
+        """
+        return self.getAllOptions()

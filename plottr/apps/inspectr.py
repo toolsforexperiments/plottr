@@ -6,16 +6,13 @@ Inspectr app for browsing qcodes data.
 
 import os
 import time
-import logging
-
-import pandas as pd
 
 from pyqtgraph.Qt import QtGui, QtCore
 
 from .. import log as plottrlog
 from ..data.qcodes_dataset import (get_runs_from_db_as_dataframe,
                                    get_ds_info_from_path,)
-from ..widgets import MonitorIntervalInput, FormLayoutWrapper
+from plottr.gui.widgets import MonitorIntervalInput, FormLayoutWrapper
 
 from .autoplot import autoplotQcodesDataset
 
