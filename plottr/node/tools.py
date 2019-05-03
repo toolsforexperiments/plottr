@@ -5,7 +5,7 @@ tools for working with flowcharts and nodes.
 from typing import Type, Tuple
 
 from plottr import Flowchart
-from plottr.node.node import Node
+from plottr.node import Node
 
 __author__ = 'Wolfgang Pfaff'
 __license__ = 'MIT'
@@ -26,7 +26,8 @@ def flowchart() -> Flowchart:
     return fc
 
 
-def linearFlowchart(*nodes: Tuple[str, Type[Node]]) -> Flowchart:
+def linearFlowchart(*nodes: Tuple[str, Type[Node]]) \
+        -> Flowchart:
     """Create a flowchart with linearly connected nodes
 
     :param node: Nodes, in the order in which they will be connected.
