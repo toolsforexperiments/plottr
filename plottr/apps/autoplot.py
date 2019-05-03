@@ -9,19 +9,18 @@ import logging
 import time
 from typing import Union, Tuple
 
-from pyqtgraph.flowchart import Flowchart
-from pyqtgraph.Qt import QtGui, QtCore
-from pyqtgraph.flowchart import library as fclib
-from pyqtgraph.dockarea import Dock, DockArea
-
+from .. import QtGui, QtCore, Flowchart
 from ..data.datadict import DataDictBase
 from ..data.qcodes_dataset import QCodesDSLoader
 from .. import log as plottrlog
+from ..node.tools import linearFlowchart
 from ..node.data_selector import DataSelector
 from ..node.grid import DataGridder, GridOption
 from ..node.dim_reducer import XYSelector
+from ..node.filter.correct_offset import SubtractAverage
 from ..plot.mpl import PlotNode, AutoPlot
-from plottr.gui.widgets import MonitorIntervalInput
+from ..gui.widgets import MonitorIntervalInput, PlotWindow
+from ..gui.tools import flowchartAutoPlot
 
 __author__ = 'Wolfgang Pfaff'
 __license__ = 'MIT'
@@ -33,7 +32,8 @@ def logger():
     logger.setLevel(plottrlog.LEVEL)
     return logger
 
-def autoplot(makeUI: bool = True, log: bool = False,
+
+def autoplot(log: bool = False,
              inputData: Union[None, DataDictBase] = None):
     """
     Sets up a simple flowchart consisting of a data selector,
@@ -43,65 +43,15 @@ def autoplot(makeUI: bool = True, log: bool = False,
     returns the flowchart object and the dialog widget
     """
 
-    nodelib = fclib.NodeLibrary()
-    nodelib.addNodeType(DataSelector, [('Basic')])
-    nodelib.addNodeType(DataGridder, [('Basic')])
-    nodelib.addNodeType(XYSelector, [('Basic')])
-    nodelib.addNodeType(PlotNode, [('Plot')])
+    nodes = [
+        ('Dataset loader', QCodesDSLoader),
+        ('Data selection', DataSelector),
+        ('Grid', DataGridder),
+        ('Dimension assignment', XYSelector),
+        ('Subtract average', SubtractAverage),
+    ]
 
-    fc = Flowchart(terminals={
-        'dataIn': {'io': 'in'},
-        'dataOut': {'io': 'out'}
-    })
-    fc.library = nodelib
-
-    datasel = fc.createNode('DataSelector')
-    grid = fc.createNode('Gridder')
-    xysel = fc.createNode('XYSelector')
-    plot = fc.createNode('Plot')
-
-    fc.connectTerminals(fc['dataIn'], datasel['dataIn'])
-    fc.connectTerminals(datasel['dataOut'], grid['dataIn'])
-    fc.connectTerminals(grid['dataOut'], xysel['dataIn'])
-    fc.connectTerminals(xysel['dataOut'], fc['dataOut'])
-    fc.connectTerminals(xysel['dataOut'], plot['dataIn'])
-
-    # Setting up the GUI window
-    area = DockArea()
-    layout = QtGui.QVBoxLayout()
-    layout.addWidget(area)
-    win = QtGui.QDialog()
-    win.setLayout(layout)
-    win.setWindowTitle('Plottr | Autoplot')
-
-    # data selector
-    dataselDock = Dock('Data Selector', size=(250, 100))
-    dataselDock.addWidget(datasel.ui)
-    area.addDock(dataselDock)
-
-    # grid
-    gridDock = Dock('Grid', size=(250, 80))
-    gridDock.addWidget(grid.ui)
-    area.addDock(gridDock, 'bottom')
-
-    # xy selector
-    xyselDock = Dock('XY Axes Selector', size=(250, 100))
-    xyselDock.addWidget(xysel.ui)
-    area.addDock(xyselDock, 'bottom')
-
-    # log
-    if log:
-        logDock = Dock('Log', size=(250, 100))
-        logDock.addWidget(plottrlog.setupLogging(makeDialog=False))
-        area.addDock(logDock, 'bottom', xyselDock)
-
-    # plot widget
-    plotWidget = AutoPlot()
-    plot.setPlotWidget(plotWidget)
-    plotDock = Dock('Plot', size=(500, 300))
-    plotDock.addWidget(plotWidget)
-    area.addDock(plotDock, 'right')
-
+    win, fc = flowchartAutoPlot(nodes)
     win.show()
 
     if inputData is not None:
@@ -110,8 +60,7 @@ def autoplot(makeUI: bool = True, log: bool = False,
     return fc, win
 
 
-
-class QCAutoPlotMainWindow(QtGui.QMainWindow):
+class QCAutoPlotMainWindow(PlotWindow):
     """
     Main Window for autoplotting a qcodes dataset.
 
@@ -127,7 +76,7 @@ class QCAutoPlotMainWindow(QtGui.QMainWindow):
         super().__init__(parent)
 
         self.fc = fc
-        self.loaderNode = fc.nodes()['QCodesDSLoader.0']
+        self.loaderNode = fc.nodes()['Dataset loader']
         self.monitor = QtCore.QTimer()
 
         # a flag we use to set reasonable defaults when the first data
@@ -168,6 +117,10 @@ class QCAutoPlotMainWindow(QtGui.QMainWindow):
         # more signals/slots
         self.monitor.timeout.connect(self.monitorTriggered)
 
+        # add UI elements
+        if self.fc is not None:
+            self.addNodeWidgetsFromFlowchart(fc)
+
         if pathAndId is not None:
             self.loaderNode.pathAndId = pathAndId
             if monitorInterval is not None:
@@ -190,7 +143,7 @@ class QCAutoPlotMainWindow(QtGui.QMainWindow):
         Displays current time and DS info in the status bar.
         """
         tstamp = time.strftime("%Y-%m-%d %H:%M:%S")
-        path, runId = self.fc.nodes()['QCodesDSLoader.0'].pathAndId
+        path, runId = self.fc.nodes()['Dataset loader'].pathAndId
         self.status.showMessage(f"{path} [{runId}] (loaded: {tstamp})")
 
 
@@ -245,13 +198,15 @@ class QCAutoPlotMainWindow(QtGui.QMainWindow):
         if len(axes) == 1:
             drs = {axes[0]: 'x-axis'}
 
-        self.fc.nodes()['DataSelector.0'].selectedData = selected
-        self.fc.nodes()['Gridder.0'].grid = GridOption.guessShape, {}
-        self.fc.nodes()['XYSelector.0'].dimensionRoles = drs
+        self.fc.nodes()['Data selection'].selectedData = selected
+        self.fc.nodes()['Grid'].grid = GridOption.guessShape, {}
+        self.fc.nodes()['Dimension assignment'].dimensionRoles = drs
+        self.plotWidget.plot.draw()
 
 
-def autoplotQcodesDataset(makeUI: bool = True, log: bool = False,
-                          pathAndId: Union[Tuple[str, int], None] = None) -> (Flowchart, QCAutoPlotMainWindow):
+def autoplotQcodesDataset(log: bool = False,
+                          pathAndId: Union[Tuple[str, int], None] = None) \
+        -> (Flowchart, QCAutoPlotMainWindow):
     """
     Sets up a simple flowchart consisting of a data selector,
     an xy-axes selector, and creates a GUI together with an autoplot
@@ -260,67 +215,16 @@ def autoplotQcodesDataset(makeUI: bool = True, log: bool = False,
     returns the flowchart object and the mainwindow widget
     """
 
-    nodelib = fclib.NodeLibrary()
-    nodelib.addNodeType(QCodesDSLoader, [('Input')])
-    nodelib.addNodeType(DataSelector, [('Basic')])
-    nodelib.addNodeType(DataGridder, [('Basic')])
-    nodelib.addNodeType(XYSelector, [('Basic')])
-    nodelib.addNodeType(PlotNode, [('Plot')])
+    fc = linearFlowchart(
+        ('Dataset loader', QCodesDSLoader),
+        ('Data selection', DataSelector),
+        ('Grid', DataGridder),
+        ('Dimension assignment', XYSelector),
+        ('Subtract average', SubtractAverage),
+        ('plot', PlotNode)
+    )
 
-    fc = Flowchart(terminals={
-        'dataIn': {'io': 'in'},
-        'dataOut': {'io': 'out'}
-    })
-    fc.library = nodelib
-
-    loader = fc.createNode('QCodesDSLoader')
-    datasel = fc.createNode('DataSelector')
-    grid = fc.createNode('Gridder')
-    xysel = fc.createNode('XYSelector')
-    plot = fc.createNode('Plot')
-
-    fc.connectTerminals(fc['dataIn'], loader['dataIn'])
-    fc.connectTerminals(loader['dataOut'], datasel['dataIn'])
-    fc.connectTerminals(datasel['dataOut'], grid['dataIn'])
-    fc.connectTerminals(grid['dataOut'], xysel['dataIn'])
-    fc.connectTerminals(xysel['dataOut'], fc['dataOut'])
-    fc.connectTerminals(xysel['dataOut'], plot['dataIn'])
-
-    ### Setting up the GUI window
-
-    ### Docks
-    area = DockArea()
-
-    # data selector
-    dataselDock = Dock('Data Selector', size=(250, 100))
-    dataselDock.addWidget(datasel.ui)
-    area.addDock(dataselDock)
-
-    # grid
-    gridDock = Dock('Grid', size=(250, 80))
-    gridDock.addWidget(grid.ui)
-    area.addDock(gridDock, 'bottom')
-
-    # xy selector
-    xyselDock = Dock('XY Axes Selector', size=(250, 100))
-    xyselDock.addWidget(xysel.ui)
-    area.addDock(xyselDock, 'bottom')
-
-    # log
-    if log:
-        logDock = Dock('Log', size=(250, 100))
-        logDock.addWidget(plottrlog.setupLogging(makeDialog=False))
-        area.addDock(logDock, 'bottom', xyselDock)
-
-    # plot widget
-    plotWidget = AutoPlot()
-    plot.setPlotWidget(plotWidget)
-    plotDock = Dock('Plot', size=(500, 300))
-    plotDock.addWidget(plotWidget)
-    area.addDock(plotDock, 'right')
-
-    win = QCAutoPlotMainWindow(fc=fc, pathAndId=pathAndId)
-    win.setCentralWidget(area)
+    win = QCAutoPlotMainWindow(fc, pathAndId=pathAndId)
     win.show()
 
     return fc, win
