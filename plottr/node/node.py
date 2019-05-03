@@ -63,6 +63,9 @@ def updateGuiFromNode(func):
     return wrap
 
 
+updateGuiQuietly = updateGuiFromNode
+
+
 def emitGuiUpdate(signalName: str):
     """
     Decorator for UI functions to emit the signal ``signalName``
@@ -79,7 +82,8 @@ def emitGuiUpdate(signalName: str):
         @wraps(func)
         def wrap(self, *arg, **kw):
             ret = func(self, *arg, **kw)
-            if self._emitGuiChange:
+            emit = getattr(self, '_emitGuiChange', True)
+            if emit:
                 sig = getattr(self, signalName)
                 sig.emit(ret)
 
@@ -127,7 +131,7 @@ class Node(NodeBase):
         self.signalUpdate = True
 
         if self.useUi and self.__class__.uiClass is not None:
-            self.ui = self.__class__.uiClass()
+            self.ui = self.__class__.uiClass(node=self)
             self.setupUi()
         else:
             self.ui = None
@@ -230,11 +234,14 @@ class NodeWidget(QtGui.QWidget):
     #: signal (args: (object)) all options to the node.
     allOptionsToNode = QtCore.pyqtSignal(object)
 
-    def __init__(self, parent: QtGui.QWidget = None, embedWidgetClass = None):
+    def __init__(self, parent: QtGui.QWidget = None,
+                 embedWidgetClass: QtGui.QWidget = None,
+                 node: Node = None):
         super().__init__(parent)
 
         self.optGetters = {}
         self.optSetters = {}
+        self.node = node
 
         self._emitGuiChange = True
 
