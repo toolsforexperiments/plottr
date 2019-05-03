@@ -6,8 +6,9 @@ Common GUI widgets that are re-used across plottr.
 
 from typing import Union, List, Tuple
 
-from pyqtgraph.Qt import QtGui, QtCore
-
+from plottr import QtGui, QtCore, Flowchart
+from plottr.node import Node
+from plottr.plot.mpl import PlotNode, AutoPlot
 
 __author__ = 'Wolfgang Pfaff'
 __license__ = 'MIT'
@@ -59,3 +60,59 @@ class MonitorIntervalInput(QtGui.QWidget):
     @QtCore.pyqtSlot(int)
     def spinValueChanged(self, val):
         self.intervalChanged.emit(val)
+
+
+class PlotWindow(QtGui.QMainWindow):
+    """
+    Simple MainWindow class for embedding flowcharts and plots.
+    """
+
+    def __init__(self, parent=None, fc: Flowchart = None, **kw):
+        super().__init__(parent)
+
+        self.nodeWidgets = {}
+        self.plotWidget = None
+
+        if fc is not None:
+            self.addNodeWidgetsFromFlowchart(fc, **kw)
+
+    def addNodeWidget(self, node: Node):
+        """
+        Add a node widget as dock.
+
+        :param node: node for which to add the widget.
+        :return:
+        """
+        if node.useUi and node.uiClass is not None:
+            d = QtGui.QDockWidget(node.name(), self)
+            d.setWidget(node.ui)
+            self.nodeWidgets[node.name()] = d
+            self.addDockWidget(QtCore.Qt.LeftDockWidgetArea, d)
+
+    def addNodeWidgetsFromFlowchart(self, fc: Flowchart,
+                                    exclude: List[str] = [],
+                                    plotNode: str = 'plot',
+                                    makePlotWidget: bool = True):
+        """
+        Add all nodes for a flowchart, excluding nodes given in `exclude`.
+
+        :param fc: flowchart object
+        :param exclude: list of node names. 'Input' and 'Output' are
+                        automatically appended.
+        :param plotNode: specify the name of the plot node, if present
+        :param makePlotWidget: if True, attach a MPL autoplot widget to the plot
+                               node.
+        :return:
+        """
+        exclude += ['Input', 'Output']
+
+        for nodeName, node in fc.nodes().items():
+            if nodeName not in exclude:
+                self.addNodeWidget(node)
+
+            if nodeName == plotNode and makePlotWidget:
+                pn = fc.nodes().get(plotNode, None)
+                if pn is not None and isinstance(pn, PlotNode):
+                    self.plotWidget = AutoPlot()
+                    pn.setPlotWidget(self.plotWidget)
+                    self.setCentralWidget(self.plotWidget)
