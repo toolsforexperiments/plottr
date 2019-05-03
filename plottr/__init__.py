@@ -1,4 +1,4 @@
-from pyqtgraph import QtCore, QtCore
+from pyqtgraph import QtCore, QtGui
 
 Signal = QtCore.pyqtSignal
 Slot = QtCore.pyqtSlot
