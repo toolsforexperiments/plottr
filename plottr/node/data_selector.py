@@ -20,7 +20,7 @@ class DataDisplayWidget(NodeWidget):
     Simple Tree widget to show data and their dependencies in the node data.
     """
 
-    def __init__(self):
+    def __init__(self, node: Node = None):
         super().__init__(embedWidgetClass=DataSelectionWidget)
 
         self.optSetters = {

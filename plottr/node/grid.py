@@ -183,7 +183,7 @@ class GridOptionWidget(QtGui.QWidget):
 
 class DataGridderNodeWidget(NodeWidget):
 
-    def __init__(self):
+    def __init__(self, node: Node = None):
         super().__init__(embedWidgetClass=GridOptionWidget)
 
         self.optSetters = {

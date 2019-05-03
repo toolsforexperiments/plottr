@@ -350,7 +350,7 @@ class XYSelectionWidget(DimensionReductionAssignmentWidget):
 
 class DimensionReducerNodeWidget(NodeWidget):
 
-    def __init__(self):
+    def __init__(self, node: Node = None):
         super().__init__(embedWidgetClass=DimensionReductionAssignmentWidget)
 
         self.optSetters = {
@@ -624,7 +624,7 @@ class DimensionReducer(Node):
 
 class XYSelectorNodeWidget(NodeWidget):
 
-    def __init__(self):
+    def __init__(self, node: Node = None):
         super().__init__(embedWidgetClass=XYSelectionWidget)
 
         self.optSetters = {
