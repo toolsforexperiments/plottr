@@ -217,6 +217,8 @@ class DataDictBase(dict):
 
     # info about structure
 
+    # FIXME: remove shape
+
     @staticmethod
     def same_structure(*data: 'DataDictBase',
                        check_shape: bool = False) -> bool:
@@ -572,6 +574,8 @@ class DataDict(DataDictBase):
         :returns: combined DataDict.
         :raises: ``ValueError`` if the structures are incompatible.
         """
+
+        # FIXME: remove shape
         s = self.structure(add_shape=False)
         if DataDictBase.same_structure(self, newdata):
             for k, v in self.data_items():
