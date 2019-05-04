@@ -13,7 +13,7 @@ from plottr.utils.num import (
     centers2edges_2d
 )
 from .. import QtGui, QtCore
-from ..data.datadict import MeshgridDataDict, meshgrid_to_datadict
+from ..data.datadict import DataDictBase, MeshgridDataDict, meshgrid_to_datadict
 from ..node.node import Node
 from ..utils import (
     num
@@ -139,6 +139,9 @@ class MPLPlot(FCanvas):
         super().__init__(self.fig)
 
         self._tightLayout = False
+        self._showInfo = False
+        self._infoArtist = None
+        self._info = ''
 
         self.clearFig(nrows, ncols)
         self.setParent(parent)
@@ -153,10 +156,9 @@ class MPLPlot(FCanvas):
                                      right=0.875,
                                      wspace=0.35, hspace=0.2)
         else:
-            self.fig.tight_layout()
+            self.fig.tight_layout(rect=[0, 0.03, 1, 0.95])
 
         self.draw()
-
 
     def clearFig(self, nrows=1, ncols=1, naxes=1):
         """
@@ -206,6 +208,24 @@ class MPLPlot(FCanvas):
         self._tightLayout = tight
         self.autosize()
 
+    def setShowInfo(self, show: bool):
+        """Whether to show additional info in the plot"""
+        self._showInfo = show
+        self.updateInfo()
+
+    def updateInfo(self):
+        if self._infoArtist is not None:
+            self._infoArtist.remove()
+            self._infoArtist = None
+
+        if self._showInfo:
+            self._infoArtist = self.fig.text(
+                0, 0, self._info,
+                fontsize='small',
+                verticalalignment='bottom',
+            )
+        self.draw()
+
     def toClipboard(self):
         """
         Copy the current canvas to the clipboard.
@@ -216,6 +236,19 @@ class MPLPlot(FCanvas):
         QtGui.QApplication.clipboard().setImage(
             QtGui.QImage.fromData(buf.getvalue()))
         buf.close()
+
+    def setFigureTitle(self, title: str):
+        """Add a title to the figure."""
+        self.fig.text(0.5, 0.99, title,
+                      horizontalalignment='center',
+                      verticalalignment='top',
+                      fontsize='medium')
+        self.draw()
+
+    def setFigureInfo(self, info: str):
+        """Display an info string in the figure"""
+        self._info = info
+        self.updateInfo()
 
 
 class MPLPlotContainer(QtGui.QWidget):
@@ -247,18 +280,29 @@ class MPLPlotWidget(QtGui.QWidget):
         self.layout.addWidget(self.plot)
         self.layout.addWidget(self.mplBar)
 
-    def setData(self, data):
+    def setData(self, data: DataDictBase):
         raise NotImplementedError
+
+    def setMeta(self, data: DataDictBase):
+        if data.has_meta('title'):
+            self.plot.setFigureTitle(data.meta_val('title'))
+
+        if data.has_meta('info'):
+            self.plot.setFigureInfo(data.meta_val('info'))
 
     def addMplBarOptions(self):
         tlCheck = QtGui.QCheckBox('Tight layout')
         tlCheck.toggled.connect(self.plot.setTightLayout)
 
+        infoCheck = QtGui.QCheckBox('Info')
+        infoCheck.toggled.connect(self.plot.setShowInfo)
+
         self.mplBar.addSeparator()
         self.mplBar.addWidget(tlCheck)
         self.mplBar.addSeparator()
+        self.mplBar.addWidget(infoCheck)
+        self.mplBar.addSeparator()
         self.mplBar.addAction('Copy', self.plot.toClipboard)
-
 
 
 class AutoPlot(MPLPlotWidget):
@@ -346,4 +390,5 @@ class AutoPlot(MPLPlotWidget):
             raise ValueError(
                 'Cannot plot more than two axes. (given: {})'.format(axesNames))
 
+        self.setMeta(data)
         self.plot.autosize()
