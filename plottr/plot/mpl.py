@@ -1,3 +1,4 @@
+import io
 import numpy as np
 from matplotlib import rcParams, cm
 from matplotlib.backends.backend_qt5agg import (
@@ -205,6 +206,17 @@ class MPLPlot(FCanvas):
         self._tightLayout = tight
         self.autosize()
 
+    def toClipboard(self):
+        """
+        Copy the current canvas to the clipboard.
+        :return:
+        """
+        buf = io.BytesIO()
+        self.fig.savefig(buf)
+        QtGui.QApplication.clipboard().setImage(
+            QtGui.QImage.fromData(buf.getvalue()))
+        buf.close()
+
 
 class MPLPlotContainer(QtGui.QWidget):
     """
@@ -244,6 +256,8 @@ class MPLPlotWidget(QtGui.QWidget):
 
         self.mplBar.addSeparator()
         self.mplBar.addWidget(tlCheck)
+        self.mplBar.addSeparator()
+        self.mplBar.addAction('Copy', self.plot.toClipboard)
 
 
 
