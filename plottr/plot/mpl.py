@@ -137,6 +137,8 @@ class MPLPlot(FCanvas):
         self.fig = Figure(figsize=(width, height), dpi=dpi)
         super().__init__(self.fig)
 
+        self._tightLayout = False
+
         self.clearFig(nrows, ncols)
         self.setParent(parent)
 
@@ -145,8 +147,15 @@ class MPLPlot(FCanvas):
         Sets some default spacings/margins.
         :return:
         """
-        self.fig.subplots_adjust(left=0.125, bottom=0.125, top=0.9, right=0.875,
-                                 wspace=0.35, hspace=0.2)
+        if not self._tightLayout:
+            self.fig.subplots_adjust(left=0.125, bottom=0.125, top=0.9,
+                                     right=0.875,
+                                     wspace=0.35, hspace=0.2)
+        else:
+            self.fig.tight_layout()
+
+        self.draw()
+
 
     def clearFig(self, nrows=1, ncols=1, naxes=1):
         """
@@ -177,7 +186,6 @@ class MPLPlot(FCanvas):
             iax += 1
 
         self.autosize()
-        self.draw()
         return self.axes
 
     def resizeEvent(self, event):
@@ -187,6 +195,22 @@ class MPLPlot(FCanvas):
         """
         self.autosize()
         super().resizeEvent(event)
+
+    def setTightLayout(self, tight: bool):
+        """
+        Set tight layout mode.
+        :param tight: if true, use tight layout for autosizing.
+        :return:
+        """
+        self._tightLayout = tight
+        self.autosize()
+
+
+class MPLPlotContainer(QtGui.QWidget):
+    """
+    A widget that contains multiple MPL plots (each with their own tools).
+    """
+    pass
 
 
 class MPLPlotWidget(QtGui.QWidget):
@@ -201,12 +225,26 @@ class MPLPlotWidget(QtGui.QWidget):
         setMplDefaults()
 
         self.plot = MPLPlot()
-        layout = QtGui.QVBoxLayout(self)
-        layout.addWidget(self.plot)
-        layout.addWidget(NavBar(self.plot, self))
+        self.mplBar = NavBar(self.plot, self)
+        self.addMplBarOptions()
+
+        self.toolLayout = QtGui.QHBoxLayout()
+
+        self.layout = QtGui.QVBoxLayout(self)
+        self.layout.addLayout(self.toolLayout)
+        self.layout.addWidget(self.plot)
+        self.layout.addWidget(self.mplBar)
 
     def setData(self, data):
         raise NotImplementedError
+
+    def addMplBarOptions(self):
+        tlCheck = QtGui.QCheckBox('Tight layout')
+        tlCheck.toggled.connect(self.plot.setTightLayout)
+
+        self.mplBar.addSeparator()
+        self.mplBar.addWidget(tlCheck)
+
 
 
 class AutoPlot(MPLPlotWidget):
@@ -238,8 +276,6 @@ class AutoPlot(MPLPlotWidget):
         ax.set_ylabel(ylabel)
         ax.set_xlabel(data.label(axName))
         ax.legend()
-        # self.plot.fig.tight_layout()
-        self.plot.autosize()
 
     def _plot2d(self, data, ax, xName, yName, dName):
         x = data[xName]['values']
@@ -296,6 +332,4 @@ class AutoPlot(MPLPlotWidget):
             raise ValueError(
                 'Cannot plot more than two axes. (given: {})'.format(axesNames))
 
-        # self.plot.fig.tight_layout()
         self.plot.autosize()
-        self.plot.draw()
