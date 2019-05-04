@@ -123,7 +123,11 @@ class PlotWindow(QtGui.QMainWindow):
         self.setStyleSheet(
             """
             QToolButton {
-                font: 11px;
+                font: 10px;
+            }
+            
+            QToolBar QCheckBox {
+                font: 10px;
             }
             """
         )
