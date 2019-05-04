@@ -220,8 +220,8 @@ class QCodesDSLoader(Node):
             ds = DataSet(path_to_db=path, run_id=runId)
             guid = ds.guid
             if ds.number_of_results > self.nLoadedRecords:
-                title = f"{os.path.split(path)[
-                    -1]} | run ID: {runId} | GUID: {guid}"
+                title = f"{os.path.split(path)[-1]} | " \
+                    f"run ID: {runId} | GUID: {guid}"
                 info = """Started: {}
 Finished: {}
 GUID: {}
