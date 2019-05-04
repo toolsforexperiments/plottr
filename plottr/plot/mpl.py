@@ -92,8 +92,13 @@ def ppcolormesh_from_meshgrid(ax, x, y, z, **kw):
 
 
 class PlotNode(Node):
-    nodeName = 'Plot'
+    """
+    Basic Plot Node.
 
+    ATM this doesn't do much besides passing data to the plotting widget.
+    Data is at the moment just passed through.
+    """
+    nodeName = 'Plot'
     newPlotData = QtCore.pyqtSignal(object)
 
     def setPlotWidget(self, widget):
@@ -107,21 +112,60 @@ class PlotNode(Node):
 
 
 class MPLPlot(FCanvas):
+    """
+    This is the basic matplotlib canvas widget we are using for matplotlib
+    plots. ATM, this canvas only provides a few convenience tools for automatic
+    sizing and creating subfigures, but is otherwise not very different
+    from the class that comes with matplotlib.
+    It can be used as any QT widget.
+    """
 
-    def __init__(self, parent=None, width=4, height=3,
-                 dpi=150, nrows=1, ncols=1):
+    def __init__(self, parent: QtGui.QWidget = None, width: float = 4.0,
+                 height: float = 3.0, dpi: int = 150, nrows: int = 1,
+                 ncols: int = 1):
+        """
+        Create the canvas.
+
+        :param parent: the parent widget
+        :param width: canvas width (inches)
+        :param height: canvas height (inches)
+        :param dpi: figure dpi
+        :param nrows: number of subplot rows
+        :param ncols: number of subplot columns
+        """
 
         self.fig = Figure(figsize=(width, height), dpi=dpi)
         super().__init__(self.fig)
+
+        self._tightLayout = False
 
         self.clearFig(nrows, ncols)
         self.setParent(parent)
 
     def autosize(self):
-        self.fig.subplots_adjust(left=0.125, bottom=0.125, top=0.9, right=0.875,
-                                 wspace=0.35, hspace=0.2)
+        """
+        Sets some default spacings/margins.
+        :return:
+        """
+        if not self._tightLayout:
+            self.fig.subplots_adjust(left=0.125, bottom=0.125, top=0.9,
+                                     right=0.875,
+                                     wspace=0.35, hspace=0.2)
+        else:
+            self.fig.tight_layout()
+
+        self.draw()
+
 
     def clearFig(self, nrows=1, ncols=1, naxes=1):
+        """
+        Clear and reset the canvas.
+
+        :param nrows: number of subplot/axes rows to prepare
+        :param ncols: number of subplot/axes column to prepare
+        :param naxes: number of axes in total
+        :return:
+        """
         self.fig.clear()
         setMplDefaults()
 
@@ -141,18 +185,39 @@ class MPLPlot(FCanvas):
             self.axes.append(self.fig.add_subplot(nrows, ncols, i))
             iax += 1
 
-        # self.fig.tight_layout()
         self.autosize()
-        self.draw()
         return self.axes
 
     def resizeEvent(self, event):
-        # self.fig.tight_layout()
+        """
+        Re-implementation of the widget resizeEvent method.
+        Makes sure we resize the plots appropriately.
+        """
         self.autosize()
         super().resizeEvent(event)
 
+    def setTightLayout(self, tight: bool):
+        """
+        Set tight layout mode.
+        :param tight: if true, use tight layout for autosizing.
+        :return:
+        """
+        self._tightLayout = tight
+        self.autosize()
+
+
+class MPLPlotContainer(QtGui.QWidget):
+    """
+    A widget that contains multiple MPL plots (each with their own tools).
+    """
+    pass
+
 
 class MPLPlotWidget(QtGui.QWidget):
+    """
+    Base class for matplotlib-based plot widgets.
+    Per default, add a canvas and the matplotlib NavBar.
+    """
 
     def __init__(self, parent=None):
         super().__init__(parent=parent)
@@ -160,12 +225,26 @@ class MPLPlotWidget(QtGui.QWidget):
         setMplDefaults()
 
         self.plot = MPLPlot()
-        layout = QtGui.QVBoxLayout(self)
-        layout.addWidget(self.plot)
-        layout.addWidget(NavBar(self.plot, self))
+        self.mplBar = NavBar(self.plot, self)
+        self.addMplBarOptions()
+
+        self.toolLayout = QtGui.QHBoxLayout()
+
+        self.layout = QtGui.QVBoxLayout(self)
+        self.layout.addLayout(self.toolLayout)
+        self.layout.addWidget(self.plot)
+        self.layout.addWidget(self.mplBar)
 
     def setData(self, data):
         raise NotImplementedError
+
+    def addMplBarOptions(self):
+        tlCheck = QtGui.QCheckBox('Tight layout')
+        tlCheck.toggled.connect(self.plot.setTightLayout)
+
+        self.mplBar.addSeparator()
+        self.mplBar.addWidget(tlCheck)
+
 
 
 class AutoPlot(MPLPlotWidget):
@@ -197,8 +276,6 @@ class AutoPlot(MPLPlotWidget):
         ax.set_ylabel(ylabel)
         ax.set_xlabel(data.label(axName))
         ax.legend()
-        # self.plot.fig.tight_layout()
-        self.plot.autosize()
 
     def _plot2d(self, data, ax, xName, yName, dName):
         x = data[xName]['values']
@@ -255,6 +332,4 @@ class AutoPlot(MPLPlotWidget):
             raise ValueError(
                 'Cannot plot more than two axes. (given: {})'.format(axesNames))
 
-        # self.plot.fig.tight_layout()
         self.plot.autosize()
-        self.plot.draw()
