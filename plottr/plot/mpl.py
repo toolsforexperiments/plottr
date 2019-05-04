@@ -221,7 +221,7 @@ class MPLPlot(FCanvas):
         if self._showInfo:
             self._infoArtist = self.fig.text(
                 0, 0, self._info,
-                fontsize='small',
+                fontsize='x-small',
                 verticalalignment='bottom',
             )
         self.draw()
@@ -242,7 +242,7 @@ class MPLPlot(FCanvas):
         self.fig.text(0.5, 0.99, title,
                       horizontalalignment='center',
                       verticalalignment='top',
-                      fontsize='medium')
+                      fontsize='small')
         self.draw()
 
     def setFigureInfo(self, info: str):
