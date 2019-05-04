@@ -92,8 +92,13 @@ def ppcolormesh_from_meshgrid(ax, x, y, z, **kw):
 
 
 class PlotNode(Node):
-    nodeName = 'Plot'
+    """
+    Basic Plot Node.
 
+    ATM this doesn't do much besides passing data to the plotting widget.
+    Data is at the moment just passed through.
+    """
+    nodeName = 'Plot'
     newPlotData = QtCore.pyqtSignal(object)
 
     def setPlotWidget(self, widget):
@@ -107,9 +112,27 @@ class PlotNode(Node):
 
 
 class MPLPlot(FCanvas):
+    """
+    This is the basic matplotlib canvas widget we are using for matplotlib
+    plots. ATM, this canvas only provides a few convenience tools for automatic
+    sizing and creating subfigures, but is otherwise not very different
+    from the class that comes with matplotlib.
+    It can be used as any QT widget.
+    """
 
-    def __init__(self, parent=None, width=4, height=3,
-                 dpi=150, nrows=1, ncols=1):
+    def __init__(self, parent: QtGui.QWidget = None, width: float = 4.0,
+                 height: float = 3.0, dpi: int = 150, nrows: int = 1,
+                 ncols: int = 1):
+        """
+        Create the canvas.
+
+        :param parent: the parent widget
+        :param width: canvas width (inches)
+        :param height: canvas height (inches)
+        :param dpi: figure dpi
+        :param nrows: number of subplot rows
+        :param ncols: number of subplot columns
+        """
 
         self.fig = Figure(figsize=(width, height), dpi=dpi)
         super().__init__(self.fig)
@@ -118,10 +141,22 @@ class MPLPlot(FCanvas):
         self.setParent(parent)
 
     def autosize(self):
+        """
+        Sets some default spacings/margins.
+        :return:
+        """
         self.fig.subplots_adjust(left=0.125, bottom=0.125, top=0.9, right=0.875,
                                  wspace=0.35, hspace=0.2)
 
     def clearFig(self, nrows=1, ncols=1, naxes=1):
+        """
+        Clear and reset the canvas.
+
+        :param nrows: number of subplot/axes rows to prepare
+        :param ncols: number of subplot/axes column to prepare
+        :param naxes: number of axes in total
+        :return:
+        """
         self.fig.clear()
         setMplDefaults()
 
@@ -141,18 +176,24 @@ class MPLPlot(FCanvas):
             self.axes.append(self.fig.add_subplot(nrows, ncols, i))
             iax += 1
 
-        # self.fig.tight_layout()
         self.autosize()
         self.draw()
         return self.axes
 
     def resizeEvent(self, event):
-        # self.fig.tight_layout()
+        """
+        Re-implementation of the widget resizeEvent method.
+        Makes sure we resize the plots appropriately.
+        """
         self.autosize()
         super().resizeEvent(event)
 
 
 class MPLPlotWidget(QtGui.QWidget):
+    """
+    Base class for matplotlib-based plot widgets.
+    Per default, add a canvas and the matplotlib NavBar.
+    """
 
     def __init__(self, parent=None):
         super().__init__(parent=parent)
