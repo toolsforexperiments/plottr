@@ -218,16 +218,20 @@ class QCodesDSLoader(Node):
         if not None in self._pathAndId:
             path, runId = self._pathAndId
             ds = DataSet(path_to_db=path, run_id=runId)
+            guid = ds.guid
             if ds.number_of_results > self.nLoadedRecords:
-                title = f"{os.path.split(path)[-1]} [{runId}]"
+                title = f"{os.path.split(path)[
+                    -1]} | run ID: {runId} | GUID: {guid}"
                 info = """Started: {}
 Finished: {}
+GUID: {}
 DB-File [ID]: {} [{}]""".format(ds.run_timestamp(), ds.completed_timestamp(),
-                                path, runId)
+                                guid, path, runId)
 
                 data = ds_to_datadict(ds)
                 data.add_meta('title', title)
                 data.add_meta('info', info)
+                data.add_meta('qcodes_guid', guid)
                 data.add_meta('qcodes_db', path)
                 data.add_meta('qcodes_runId', runId)
                 data.add_meta('qcodes_completedTS', ds.completed_timestamp())
