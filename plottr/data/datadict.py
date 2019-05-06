@@ -97,6 +97,14 @@ class DataDictBase(dict):
             raise ValueError(f"{key} is a meta key.")
         return self[key]['values']
 
+    def has_meta(self, key: str) -> bool:
+        """Check whether meta field exists in the dataset."""
+        k = self._meta_name_to_key(key)
+        if k in self:
+            return True
+        else:
+            return False
+
     def meta_val(self, key: str, data: Union[str, None] = None) -> Any:
         """
         Return the value of meta field ``key`` (given without underscore).
