@@ -2,7 +2,7 @@
 
 nodes and widgets for reducing data dimensionality.
 """
-from typing import Dict, Any, Tuple
+from typing import Dict, Any, Tuple, Type
 from enum import Enum, unique
 from collections import OrderedDict
 
@@ -119,29 +119,26 @@ class DimensionAssignmentWidget(QtGui.QTreeWidget):
         for i in range(4):
             self.resizeColumnToContents(i)
 
-    def setData(self, data: DataDictBase = None):
+    def setData(self, structure: DataDictBase,
+                shapes: dict, dtype: Type[DataDictBase]):
         """
         set data: add all dimensions to the list, and populate choices.
 
         :param data: DataDict object
         """
-        if data is None:
+        if structure is None:
             self.clear()
             return
 
-        dstruct = data.structure()
-        dshapes = data.shapes()
-        dtype = type(data)
-
-        if DataDictBase.same_structure(dstruct, self._dataStructure) \
-                and dshapes == self._dataShapes \
+        if DataDictBase.same_structure(structure, self._dataStructure) \
+                and shapes == self._dataShapes \
                 and dtype == self._dataType:
             return
 
         self.clear()
         self._dataType = dtype
-        self._dataShapes = dshapes
-        self._dataStructure = dstruct
+        self._dataShapes = shapes
+        self._dataStructure = structure
 
         for ax in self._dataStructure.axes():
             self.addDimension(ax)
@@ -384,8 +381,8 @@ class DimensionReducerNodeWidget(NodeWidget):
             if dimName not in reductions.keys():
                 self.widget.setRole(dimName, 'None')
 
-    def setData(self, data):
-        self.widget.setData(data)
+    def setData(self, structure, shapes, dtype):
+        self.widget.setData(structure, shapes, dtype)
 
 
 class DimensionReducer(Node):
@@ -419,16 +416,14 @@ class DimensionReducer(Node):
     nodeName = 'DimensionReducer'
     uiClass = DimensionReducerNodeWidget
 
-    newDataStructure = QtCore.pyqtSignal(object)
-    dataShapeChanged = QtCore.pyqtSignal(object)
+    #: A signal that emits (structure, shapes, type) when data structure has
+    #: changed.
+    newDataStructure = QtCore.pyqtSignal(object, object, object)
 
     def __init__(self, *arg, **kw):
-
         self._reductions = {}
         self._targetNames = None
         self._dataStructure = None
-        self._dataType = None
-        self._dataShapes = None
 
         super().__init__(*arg, **kw)
 
@@ -569,41 +564,12 @@ class DimensionReducer(Node):
 
         return True
 
-    def process(self, **kw):
-        data = kw['dataIn']
-        if data is None:
+    def process(self, dataIn: DataDictBase = None):
+        if dataIn is None:
             return None
 
-        # this is for the UI
-        struct = data.structure()
-        dtype = type(data)
-        shapes = data.shapes()
+        data = super().process(dataIn=dataIn)
 
-        structureChange = False
-        oldAxes = []
-        newAxes = []
-        if isinstance(struct, DataDictBase):
-            newAxes = struct.axes()
-        if isinstance(self._dataStructure, DataDictBase):
-            oldAxes = self._dataStructure.axes()
-        if newAxes != oldAxes:
-            structureChange = True
-
-        if dtype != self._dataType:
-            structureChange = True
-
-        if structureChange:
-            self.newDataStructure.emit(data)
-
-        self._dataStructure = struct
-        self._dataType = dtype
-        self._dataShapes = shapes
-
-        # FIXME: currently sliders etc. will not be updated!
-        # FIXME: currently we provoke too many re-sets of the UI elements
-        # self.dataShapeChanged.emit(data)
-
-        data = super().process(dataIn=data)
         if data is None:
             return None
 
@@ -611,12 +577,9 @@ class DimensionReducer(Node):
         data = data.mask_invalid()
         data = self._applyDimReductions(data)
 
-        if data is None:
-            return None
         return dict(dataOut=data)
 
-    # Methods for GUI interaction
-
+    # FIXME: include connection to a method that helps updating sliders etc.
     def setupUi(self):
         super().setupUi()
         self.newDataStructure.connect(self.ui.setData)
@@ -675,8 +638,8 @@ class XYSelectorNodeWidget(NodeWidget):
 
         self.widget.emitRoleChangeSignal = True
 
-    def setData(self, data):
-        self.widget.setData(data)
+    def setData(self, structure, shapes, dtype):
+        self.widget.setData(structure, shapes, dtype)
 
 
 class XYSelector(DimensionReducer):
@@ -813,7 +776,3 @@ class XYSelector(DimensionReducer):
             data = data.reorder_axes(**_kw)
 
         return dict(dataOut=data)
-
-    def setupUi(self):
-        super().setupUi()
-        self.newDataStructure.connect(self.ui.setData)

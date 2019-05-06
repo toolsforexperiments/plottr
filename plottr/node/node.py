@@ -10,7 +10,8 @@ from functools import wraps
 from typing import Any, Union, Tuple, Dict
 
 from .. import NodeBase
-from .. import QtGui, QtCore
+from .. import QtGui, QtCore, Signal, Slot
+from ..data.datadict import DataDictBase, MeshgridDataDict
 from .. import log
 
 __author__ = 'Wolfgang Pfaff'
@@ -119,6 +120,26 @@ class Node(NodeBase):
     #: arguments is a dictionary of options and new values.
     optionChangeNotification = QtCore.pyqtSignal(dict)
 
+    #: signal emitted when available data axes change
+    #: emits a the list of names of new axes
+    dataAxesChanged = Signal(list)
+
+    #: signal emitted when any available data fields change (dep. and indep.)
+    #: emits a the list of names of new axes
+    dataFieldsChanged = Signal(list)
+
+    #: signal emitted when data type changes
+    dataTypeChanged = Signal(object)
+
+    #: signal emitted when data structure changes (fields, or dtype)
+    dataStructureChanged = Signal(object)
+
+    #: signal emitted when data shapes change
+    dataShapesChanged = Signal(dict)
+
+    #: when data structure changes, emits (structure, shapes, type)
+    newDataStructure = QtCore.pyqtSignal(object, object, object)
+
     _raiseExceptions = False
 
     def __init__(self, name: str):
@@ -129,6 +150,11 @@ class Node(NodeBase):
         super().__init__(name, terminals=self.__class__.terminals)
 
         self.signalUpdate = True
+        self.dataAxes = None
+        self.dataDependents = None
+        self.dataType = None
+        self.dataShapes = None
+        self.dataStructure = None
 
         if self.useUi and self.__class__.uiClass is not None:
             self.ui = self.__class__.uiClass(node=self)
@@ -206,17 +232,77 @@ class Node(NodeBase):
         """
         return True
 
-    def process(self, **kw):
-        data = kw['dataIn']
+    def process(self, dataIn: DataDictBase=None):
+        if dataIn is None:
+            return None
 
-        if not self.validateOptions(data):
+        if isinstance(dataIn, DataDictBase):
+            dtype = type(dataIn)
+            daxes = dataIn.axes()
+            ddeps = dataIn.dependents()
+            dshapes = dataIn.shapes()
+
+            _axesChanged = False
+            _fieldsChanged = False
+            _typeChanged = False
+            _structChanged = False
+            _shapesChanged = False
+
+            if daxes != self.dataAxes:
+                _axesChanged = True
+
+            if daxes != self.dataAxes or ddeps != self.dataDependents:
+                _fieldsChanged = True
+
+            if dtype != self.dataType:
+                _typeChanged = True
+
+            if dtype != self.dataType or daxes != self.dataAxes \
+                    or ddeps != self.dataDependents:
+                _structChanged = True
+
+            if dshapes != self.dataShapes:
+                _shapesChanged = True
+
+            self.dataAxes = daxes
+            self.dataDependents = ddeps
+            self.dataType = dtype
+            self.dataShapes = dshapes
+            self.dataStructure = dataIn.structure(add_shape=False)
+
+            if _axesChanged:
+                self.dataAxesChanged.emit(daxes)
+
+            if _fieldsChanged:
+                self.dataFieldsChanged.emit(daxes + ddeps)
+
+            if _typeChanged:
+                self.dataTypeChanged.emit(dtype)
+
+            if _structChanged:
+                self.dataStructureChanged.emit(self.dataStructure)
+                self.newDataStructure.emit(
+                    self.dataStructure, self.dataShapes, self.dataType)
+
+            if _shapesChanged and not _structChanged:
+                self.dataShapesChanged.emit(dshapes)
+
+        else:
+            dtype = type(dataIn)
+            daxes = None
+            ddeps = None
+            dshapes = None
+
+            if dtype != self.dataType:
+                _typeChanged = True
+            if _typeChanged:
+                self.dataTypeChanged.emit(dtype)
+
+        if not self.validateOptions(dataIn):
             self.logger().debug("Option validation not passed")
             return None
 
-        if data is None:
-            return None
-
-        return dict(dataOut=data)
+        return dict(dataOut=dataIn)
 
 
 class NodeWidget(QtGui.QWidget):

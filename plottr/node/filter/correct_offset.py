@@ -1,73 +1,10 @@
 from typing import List
 
 from plottr import QtGui, Signal, Slot
-from plottr.node import Node as Node_, NodeWidget as NodeWidget_, updateOption
+from plottr.node import Node, NodeWidget, updateOption
 from plottr.node.node import updateGuiQuietly, emitGuiUpdate
 from plottr.gui.widgets import FormLayoutWrapper
 from plottr.data.datadict import DataDictBase, MeshgridDataDict
-
-
-class NodeWidget(NodeWidget_):
-    pass
-
-
-class Node(Node_):
-    #: signal emitted when available data axes change
-    #: emits a the list of names of new axes
-    dataAxesChanged = Signal(list)
-
-    #: signal emitted when any available data fields change (dep. and indep.)
-    #: emits a the list of names of new axes
-    dataFieldsChanged = Signal(list)
-
-    #: signal emitted when data type changes
-    dataTypeChanged = Signal(object)
-
-    #: signal emitted when data structure changes (fields, or dtype)
-    dataStructureChanged = Signal(object)
-
-    #: signal emitted when data shapes change
-    dataShapesChanged = Signal(dict)
-
-    def __init__(self, name: str):
-        super().__init__(name)
-
-        self.dataAxes = None
-        self.dataDependents = None
-        self.dataType = None
-        self.dataShapes = None
-
-    def process(self, dataIn: DataDictBase=None):
-        if dataIn is None:
-            return None
-
-        daxes = dataIn.axes()
-        ddeps = dataIn.dependents()
-        dtype = type(dataIn)
-        dshapes = dataIn.shapes()
-
-        if daxes != self.dataAxes:
-            self.dataAxesChanged.emit(daxes)
-
-        if daxes != self.dataAxes or ddeps != self.dataDependents:
-            self.dataFieldsChanged.emit(daxes + ddeps)
-
-        if dtype != self.dataType:
-            self.dataTypeChanged.emit(dtype)
-
-        if dtype != self.dataType or daxes != self.dataAxes \
-                or ddeps != self.dataDependents:
-            self.dataStructureChanged.emit(dataIn.structure(add_shape=False))
-
-        if dshapes != self.dataShapes:
-            self.dataShapesChanged.emit(dshapes)
-
-        self.dataAxes = daxes
-        self.dataDependents = ddeps
-        self.dataType = dtype
-        self.dataShapes = dshapes
-
-        return super().process(dataIn=dataIn)
 
 
 class DimensionCombo(QtGui.QComboBox):
