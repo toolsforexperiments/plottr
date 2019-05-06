@@ -3,12 +3,12 @@ qcodes_dataset.py
 
 Dealing with qcodes dataset (the database) data in plottr.
 """
-
+import os
 from sqlite3 import Connection
+from typing import Dict, List, Union, Optional
 
 import numpy as np
 import pandas as pd
-from typing import Dict, List, Union, Optional
 
 from qcodes.dataset.data_set import DataSet
 from qcodes.dataset.sqlite_base import (
@@ -218,7 +218,23 @@ class QCodesDSLoader(Node):
         if not None in self._pathAndId:
             path, runId = self._pathAndId
             ds = DataSet(path_to_db=path, run_id=runId)
+            guid = ds.guid
             if ds.number_of_results > self.nLoadedRecords:
+                title = f"{os.path.split(path)[-1]} | " \
+                    f"run ID: {runId} | GUID: {guid}"
+                info = """Started: {}
+Finished: {}
+GUID: {}
+DB-File [ID]: {} [{}]""".format(ds.run_timestamp(), ds.completed_timestamp(),
+                                guid, path, runId)
+
                 data = ds_to_datadict(ds)
+                data.add_meta('title', title)
+                data.add_meta('info', info)
+                data.add_meta('qcodes_guid', guid)
+                data.add_meta('qcodes_db', path)
+                data.add_meta('qcodes_runId', runId)
+                data.add_meta('qcodes_completedTS', ds.completed_timestamp())
+                data.add_meta('qcodes_runTS', ds.run_timestamp())
                 self.nLoadedRecords = ds.number_of_results
                 return dict(dataOut=data)

@@ -76,6 +76,8 @@ class PlotWindow(QtGui.QMainWindow):
         if fc is not None:
             self.addNodeWidgetsFromFlowchart(fc, **kw)
 
+        self.setDefaultStyle()
+
     def addNodeWidget(self, node: Node):
         """
         Add a node widget as dock.
@@ -116,3 +118,16 @@ class PlotWindow(QtGui.QMainWindow):
                     self.plotWidget = AutoPlot()
                     pn.setPlotWidget(self.plotWidget)
                     self.setCentralWidget(self.plotWidget)
+
+    def setDefaultStyle(self):
+        self.setStyleSheet(
+            """
+            QToolButton {
+                font: 10px;
+            }
+            
+            QToolBar QCheckBox {
+                font: 10px;
+            }
+            """
+        )
