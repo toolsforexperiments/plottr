@@ -3,7 +3,7 @@ data_selector.py
 
 A node and widget for subselecting from a dataset.
 """
-from typing import List, Tuple, Dict
+from typing import List, Tuple, Dict, Any
 
 from plottr import QtGui, QtCore
 from .node import Node, NodeWidget, updateOption
@@ -40,8 +40,9 @@ class DataDisplayWidget(NodeWidget):
     def getSelected(self) -> List[str]:
         return self.widget.getSelectedData()
 
-    def setData(self, data: DataDictBase):
-        self.widget.setData(data)
+    def setData(self, structure: DataDictBase,
+                shapes: Dict[str, Tuple[int, ...]], _: Any):
+        self.widget.setData(structure, shapes)
 
     def setShape(self, shapes: Dict[str, Tuple[int, ...]]):
         self.widget.setShape(shapes)
@@ -72,9 +73,6 @@ class DataSelector(Node):
 
     nodeName = "DataSelector"
     uiClass = DataDisplayWidget
-
-    newDataStructure = QtCore.pyqtSignal(object)
-    dataShapeChanged = QtCore.pyqtSignal(object)
 
     force_numerical_data = True
 
@@ -148,18 +146,11 @@ class DataSelector(Node):
 
         return ret
 
-    def process(self, **kw):
-        data = super().process(**kw)
+    def process(self, dataIn: DataDictBase = None):
+        data = super().process(dataIn=dataIn)
         if data is None:
             return None
         data = data['dataOut']
-
-        # this is for the UI
-        struct = data.structure()
-        if not DataDictBase.same_structure(struct, self._dataStructure):
-            self._dataStructure = struct
-            self.newDataStructure.emit(struct)
-        self.dataShapeChanged.emit(data.shapes())
 
         # this is the actual operation of the node
         data = self._reduceData(data)
@@ -173,5 +164,5 @@ class DataSelector(Node):
     def setupUi(self):
         super().setupUi()
         self.newDataStructure.connect(self.ui.setData)
-        self.dataShapeChanged.connect(self.ui.setShape)
+        self.dataShapesChanged.connect(self.ui.setShape)
 

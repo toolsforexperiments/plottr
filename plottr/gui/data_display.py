@@ -53,17 +53,17 @@ class DataSelectionWidget(QtGui.QTreeWidget):
         for i in range(4):
             self.resizeColumnToContents(i)
 
-    def setData(self, data: Union[None, DataDictBase]):
+    def setData(self, structure: DataDictBase, shapes: dict):
         """Set data; populates the tree."""
-        if data is not None:
-            self._dataShapes = data.shapes()
-            self._dataStructure = data.structure()
+        if structure is not None:
+            self._dataShapes = shapes
+            self._dataStructure = structure
         else:
             self._dataShapes = {}
             self._dataStructure = DataDictBase()
 
         self.clear()
-        if data is not None:
+        if structure is not None:
             self._populate()
 
     def setShape(self, shape: Dict[str, Tuple[int, ...]]):
