@@ -232,7 +232,8 @@ class MPLPlot(FCanvas):
         :return:
         """
         buf = io.BytesIO()
-        self.fig.savefig(buf)
+        self.fig.savefig(buf, dpi=300, facecolor='w', format='png',
+                         transparent=True)
         QtGui.QApplication.clipboard().setImage(
             QtGui.QImage.fromData(buf.getvalue()))
         buf.close()
