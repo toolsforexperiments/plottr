@@ -23,6 +23,24 @@ __license__ = 'MIT'
 # TODO: direct slicing of full datasets. implement getitem/setitem?
 
 
+def is_meta_key(key):
+    if key[:2] == '__' and key[-2:] == '__':
+        return True
+    else:
+        return False
+
+
+def meta_key_to_name(key):
+    if is_meta_key(key):
+        return key[2:-2]
+    else:
+        raise ValueError(f'{key} is not a meta key.')
+
+
+def meta_name_to_key(name):
+    return '__' + name + '__'
+
+
 class DataDictBase(dict):
     """
     Simple data storage class that is based on a regular dictionary.
@@ -38,19 +56,15 @@ class DataDictBase(dict):
 
     @staticmethod
     def _is_meta_key(key):
-        if key[:2] == '__' and key[-2:] == '__':
-            return True
+        return is_meta_key(key)
 
     @staticmethod
     def _meta_key_to_name(key):
-        if DataDictBase._is_meta_key(key):
-            return key[2:-2]
-        else:
-            raise ValueError(f'{key} is not a meta key.')
+        return meta_key_to_name(key)
 
     @staticmethod
     def _meta_name_to_key(name):
-        return '__' + name + '__'
+        return meta_name_to_key(name)
 
     def data_items(self):
         """
@@ -62,7 +76,8 @@ class DataDictBase(dict):
             if not self._is_meta_key(k):
                 yield k, v
 
-    def meta_items(self, data: Union[str, None] = None):
+    def meta_items(self, data: Union[str, None] = None,
+                   clean_keys: bool = True):
         """
         Generator for meta items.
 
@@ -72,17 +87,26 @@ class DataDictBase(dict):
         :param data: if ``None`` iterate over global meta data.
                      if it's the name of a data field, iterate over the meta
                      information of that field.
+        :param clean_keys: if `True`, remove the underscore pre/suffix
 
         """
         if data is None:
             for k, v in self.items():
                 if self._is_meta_key(k):
-                    yield self._meta_key_to_name(k), v
+                    if clean_keys:
+                        n = self._meta_key_to_name(k)
+                    else:
+                        n = k
+                    yield n, v
 
         else:
             for k, v in self[data].items():
                 if self._is_meta_key(k):
-                    yield self._meta_key_to_name(k), v
+                    if clean_keys:
+                        n = self._meta_key_to_name(k)
+                    else:
+                        n = k
+                    yield n, v
 
     def data_vals(self, key: str) -> Sequence:
         """
