@@ -3,7 +3,7 @@ datadict.py :
 
 Data classes we use throughout the plottr package, and tools to work on them.
 """
-
+import warnings
 import copy as cp
 
 import numpy as np
@@ -225,8 +225,6 @@ class DataDictBase(dict):
 
     # info about structure
 
-    # FIXME: remove shape
-
     @staticmethod
     def same_structure(*data: 'DataDictBase',
                        check_shape: bool = False) -> bool:
@@ -260,33 +258,39 @@ class DataDictBase(dict):
 
         return True
 
-    def structure(self, add_shape: bool = True,
-                  include_meta: bool = True) -> 'DataDictBase':
+    def structure(self, add_shape: bool = False,
+                  include_meta: bool = True,
+                  same_type: bool = False) -> 'DataDictBase':
         """
         Get the structure of the DataDict.
 
-        Return the datadict without values (``value`` omitted in the dict).
+        Return the datadict without values (`value` omitted in the dict).
 
-        :param add_shape: if ``True`` include a meta field ``shape`` for each
-                          data field that contains the shape of the data values.
-
-        :param include_meta: if ``True``, include the meta information in
+        :param add_shape: Deprecated -- ignored.
+        :param include_meta: if `True`, include the meta information in
                              the returned dict, else clear it.
+        :param same_type: if `True`, return type will be the one of the
+                          object this is called on. Else, DataDictBase.
 
         :return: The DataDictBase containing the structure only.
         """
+        if add_shape:
+            warnings.warn("'add_shape' is deprecated and will be ignored",
+                          DeprecationWarning)
+        add_shape = False
+
         if self.validate():
             s = DataDictBase()
             shapes = {}
             for n, v in self.data_items():
                 v2 = v.copy()
                 v2.pop('values')
-                if not add_shape and '__shape__' in v2:
-                    v2.pop('__shape__')
+                # if not add_shape and '__shape__' in v2:
+                #     v2.pop('__shape__')
 
                 s[n] = v2
-                if add_shape:
-                    shapes[n] = np.array(v['values']).shape
+                # if add_shape:
+                #     shapes[n] = np.array(v['values']).shape
 
             if include_meta:
                 for n, v in self.meta_items():
@@ -296,6 +300,9 @@ class DataDictBase(dict):
 
             for n, shp in shapes.items():
                 s.add_meta('shape', shp, data=n)
+
+            if same_type:
+                s = self.__class__(**s)
 
             return s
 
@@ -605,19 +612,42 @@ class DataDict(DataDictBase):
         :param newdata: DataDict to append.
         :raises: ``ValueError``, if the structures are incompatible.
         """
-        if DataDictBase.same_structure(self, newdata):
-            for k, v in newdata.data_items():
-                if isinstance(self[k]['values'], list) and isinstance(
-                        v['values'], list):
-                    self[k]['values'] += v['values']
-                else:
-                    self[k]['values'] = np.append(
-                        self[k]['values'],
-                        v['values'],
-                        axis=0
-                    )
-        else:
+        if not DataDictBase.same_structure(self, newdata):
             raise ValueError('Incompatible data structures.')
+
+        newvals = {}
+        for k, v in newdata.data_items():
+            if isinstance(self[k]['values'], list) and isinstance(
+                    v['values'], list):
+                newvals[k] = self[k]['values'] + v['values']
+            else:
+                newvals[k] = np.append(
+                    self[k]['values'],
+                    v['values'],
+                    axis=0
+                )
+
+        # only actually
+        for k, v in newvals.items():
+            self[k]['values'] = v
+
+    def add_data(self, **kw: Sequence):
+        """
+        Add data to all values. new data must be valid in itself.
+
+        This method is useful to easily add data without needing to specify
+        meta data or dependencies, etc.
+
+        :param kw: one array per data field (none can be omitted).
+        :return: None
+        """
+        dd = self.structure(same_type=True)
+        for k, v in kw.items():
+            dd[k]['values'] = v
+
+        if dd.validate():
+            self.append(dd)
+            self.validate()
 
     # shape information and expansion
 
