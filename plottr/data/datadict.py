@@ -16,11 +16,11 @@ __author__ = 'Wolfgang Pfaff'
 __license__ = 'MIT'
 
 
-# TODO: serialization (json...)
 # TODO: functionality that returns axes values given a set of slices.
 # TODO: an easier way to access data and meta values.
-#  maybe with getattr/setattr?
+#       maybe with getattr/setattr?
 # TODO: direct slicing of full datasets. implement getitem/setitem?
+# TODO: feature to compare if datadicts are equal not fully tested yet.
 
 
 def is_meta_key(key):
@@ -51,6 +51,68 @@ class DataDictBase(dict):
 
     def __init__(self, **kw):
         super().__init__(self, **kw)
+
+    def __eq__(self, other: 'DataDictBase'):
+        """Check for content equality of two datadicts."""
+
+        if not self.same_structure(self, other):
+            # print('structure')
+            return False
+
+        for k, v in self.meta_items():
+            if k not in [kk for kk, vv in other.meta_items()]:
+                # print(f'{k} not in {other}')
+                return False
+            elif other.meta_val(k) != v:
+                # print(f'{other.meta_val(k)} != {v}')
+                return False
+
+        for k, v in other.meta_items():
+            if k not in [kk for kk, vv in self.meta_items()]:
+                # print(f'{k} not in {self}')
+                return False
+
+        for dn, dv in self.data_items():
+            # print(dn)
+            if dn not in [dnn for dnn, dvv in other.data_items()]:
+                # print(f"{dn} not in {other}")
+                return False
+
+            if self[dn].get('unit', '') != other[dn].get('unit', ''):
+                # print(f"different units for {dn}")
+                return False
+
+            if self[dn].get('axes', []) != other[dn].get('axes', []):
+                # print(f"different axes for {dn}")
+                return False
+
+            if not num.arrays_equal(
+                np.array(self.data_vals(dn)),
+                np.array(other.data_vals(dn)),
+            ):
+                # print(f"different data for {dn}")
+                return False
+
+            for k, v in self.meta_items(dn):
+                if k not in [kk for kk, vv in other.meta_items(dn)]:
+                    # print(f"{dn}: {k} not in {other}")
+                    return False
+                elif v != other.meta_val(k, dn):
+                    # print(f"{v} != {other.meta_val(k, dn)}")
+                    return False
+
+        for dn, dv in other.data_items():
+            # print(dn)
+            if dn not in [dnn for dnn, dvv in self.data_items()]:
+                # print(f"{dn} not in {other}")
+                return False
+
+            for k, v in other.meta_items(dn):
+                if k not in [kk for kk, vv in self.meta_items(dn)]:
+                    # print(f"{dn}: {k} not in {other}")
+                    return False
+
+        return True
 
     # Assignment and retrieval of data and meta data
 
@@ -119,7 +181,7 @@ class DataDictBase(dict):
         """
         if self._is_meta_key(key):
             raise ValueError(f"{key} is a meta key.")
-        return self[key]['values']
+        return self[key].get('values', np.array([]))
 
     def has_meta(self, key: str) -> bool:
         """Check whether meta field exists in the dataset."""

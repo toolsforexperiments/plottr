@@ -17,7 +17,7 @@ underscore pre- and suffix.
 
 import os
 import time
-
+from enum import Enum
 from typing import Any, Union
 
 import numpy as np
@@ -27,6 +27,9 @@ from .datadict import DataDict, is_meta_key
 
 
 DATAFILEXT = '.dd.h5'
+
+
+AppendMode = Enum('AppendMode', names='new all none')
 
 
 def h5ify(obj: Any) -> Any:
@@ -117,7 +120,8 @@ def init_file(filepath: str, groupname: str, reset: bool = True):
 
 
 def datadict_to_hdf5(datadict: DataDict, basepath: str,
-                     groupname: str = 'data', append_mode: str = 'new',
+                     groupname: str = 'data',
+                     append_mode: AppendMode = AppendMode.new,
                      swmr_mode: bool = True):
     """Write a DataDict to DDH5
 
@@ -129,15 +133,12 @@ def datadict_to_hdf5(datadict: DataDict, basepath: str,
     :param basepath: path of the file, without extension.
     :param groupname: name of the top level group to store the data in
     :param append_mode:
-        - 'new': only rows that are new in the datadict and not yet in the
-          file will be appended
-        - 'all': all contents of the datadict will be appended.
-        - None: if group exists already in the file, all content will be
-          deleted.
+        - `AppendMode.none` : delete and re-create group
+        - `AppendMode.new` : append rows in the datadict that exceed
+            the number of existing rows in the dataset already stored
+        - `AppendMode.all`
     :param swmr_mode: use HDF5 SWMR mode on the file when appending.
     """
-    if append_mode not in ['new', 'all', None]:
-        raise ValueError("append_mode must be one of 'new', 'all', None")
 
     if len(basepath) > len(DATAFILEXT) and \
             basepath[-len(DATAFILEXT):] == DATAFILEXT:
@@ -146,7 +147,7 @@ def datadict_to_hdf5(datadict: DataDict, basepath: str,
     else:
         filepath = basepath + DATAFILEXT
 
-    init_file(filepath, groupname, reset=append_mode is None)
+    init_file(filepath, groupname, reset=append_mode == AppendMode.none)
 
     with h5py.File(filepath, 'a', libver='latest') as f:
         grp = f[groupname]
@@ -194,11 +195,11 @@ def datadict_to_hdf5(datadict: DataDict, basepath: str,
                 ds = grp[k]
                 dslen = len(ds.value)
 
-                if append_mode == 'new':
+                if append_mode == AppendMode.new:
                     newshp = tuple([nrows] + list(shp[1:]))
                     ds.resize(newshp)
                     ds[dslen:] = data[dslen:]
-                elif append_mode == 'all':
+                elif append_mode == AppendMode.all:
                     newshp = tuple([dslen+nrows] + list(shp[1:]))
                     ds.resize(newshp)
                     ds[dslen:] = data[:]
@@ -258,6 +259,10 @@ def datadict_from_hdf5(basepath: str, groupname: str = 'data',
         else:
             if stopidx is None or stopidx > lens[0]:
                 stopidx = lens[0]
+
+        for attr in grp.attrs:
+            if is_meta_key(attr):
+                res[attr] = deh5ify(grp.attrs[attr])
 
         for k in keys:
             try:
