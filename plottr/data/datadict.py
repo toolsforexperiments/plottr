@@ -367,14 +367,16 @@ class DataDictBase(dict):
 
         if self.validate():
             s = DataDictBase()
-            shapes = {}
+            # shapes = {}
             for n, v in self.data_items():
                 v2 = v.copy()
                 v2.pop('values')
+
                 # if not add_shape and '__shape__' in v2:
                 #     v2.pop('__shape__')
 
                 s[n] = v2
+
                 # if add_shape:
                 #     shapes[n] = np.array(v['values']).shape
 
@@ -384,8 +386,8 @@ class DataDictBase(dict):
             else:
                 s.clear_meta()
 
-            for n, shp in shapes.items():
-                s.add_meta('shape', shp, data=n)
+            # for n, shp in shapes.items():
+            #     s.add_meta('shape', shp, data=n)
 
             if same_type:
                 s = self.__class__(**s)
@@ -718,6 +720,7 @@ class DataDict(DataDictBase):
             self[k]['values'] = v
 
     def add_data(self, **kw: Sequence):
+        # TODO: fill non-given data with nan or none
         """
         Add data to all values. new data must be valid in itself.
 

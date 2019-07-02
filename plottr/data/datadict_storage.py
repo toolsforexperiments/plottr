@@ -25,6 +25,9 @@ import h5py
 
 from .datadict import DataDict, is_meta_key
 
+__author__ = 'Wolfgang Pfaff'
+__license__ = 'MIT'
+
 
 DATAFILEXT = '.dd.h5'
 
@@ -88,16 +91,12 @@ def add_cur_time_attr(h5obj: Any, name: str = 'creation',
     set_attr(h5obj, prefix+name+'_time_str'+suffix, tstr)
 
 
-def init_file(filepath: str, groupname: str, reset: bool = True):
+def init_file(filepath: str):
     """Init a new file.
 
-    create the folder structure, if necessary, and create the group `groupname`
-    at the top level. Will not delete content in the file except if a group
-    of the specified name already exists.
+    create the folder structure, if necessary, and the file.
 
     :param filepath: full file path
-    :param groupname: top level group name
-    :param reset: if True, will delete group if it already exists in the file.
     """
     folder, path = os.path.split(filepath)
     if not os.path.exists(folder):
@@ -106,17 +105,6 @@ def init_file(filepath: str, groupname: str, reset: bool = True):
     if not os.path.exists(filepath):
         with h5py.File(filepath, 'w', libver='latest') as _:
             pass
-
-    with h5py.File(filepath, 'a', libver='latest') as f:
-        if reset and groupname in f:
-            del f[groupname]
-            f.flush()
-
-        if groupname not in f:
-            g = f.create_group(groupname)
-            add_cur_time_attr(g)
-
-        f.flush()
 
 
 def datadict_to_hdf5(datadict: DataDict, basepath: str,
@@ -135,8 +123,9 @@ def datadict_to_hdf5(datadict: DataDict, basepath: str,
     :param append_mode:
         - `AppendMode.none` : delete and re-create group
         - `AppendMode.new` : append rows in the datadict that exceed
-            the number of existing rows in the dataset already stored
-        - `AppendMode.all`
+            the number of existing rows in the dataset already stored.
+            Note: we're not checking for content, only length!
+        - `AppendMode.all` : append all data in datadict to file data sets
     :param swmr_mode: use HDF5 SWMR mode on the file when appending.
     """
 
@@ -147,24 +136,37 @@ def datadict_to_hdf5(datadict: DataDict, basepath: str,
     else:
         filepath = basepath + DATAFILEXT
 
-    init_file(filepath, groupname, reset=append_mode == AppendMode.none)
+    if not os.path.exists(filepath):
+        init_file(filepath)
 
     with h5py.File(filepath, 'a', libver='latest') as f:
-        grp = f[groupname]
+        if append_mode == AppendMode.none and groupname in f:
+            del f[groupname]
+            f.flush()
+            grp = f.create_group(groupname)
+            add_cur_time_attr(grp)
 
-        # add top-level meta data.
-        for k, v in datadict.meta_items(clean_keys=False):
-            set_attr(grp, k, v)
+        elif groupname not in f:
+            grp = f.create_group(groupname)
+            add_cur_time_attr(grp)
+
+        else:
+            grp = f[groupname]
 
         # if we want to use swmr, we need to make sure that we're not
         # creating any more objects (see hdf5 docs).
-        if swmr_mode:
-            allexist = True
-            for k, v in datadict.data_items():
-                if k not in grp:
-                    allexist = False
-            if allexist:
-                f.swmr_mode = True
+        allexist = True
+        for k, v in datadict.data_items():
+            if k not in grp:
+                allexist = False
+
+        # add top-level meta data.
+        if not allexist:
+            for k, v in datadict.meta_items(clean_keys=False):
+                set_attr(grp, k, v)
+
+        if allexist and swmr_mode:
+            f.swmr_mode = True
 
         for k, v in datadict.data_items():
             data = v['values']
@@ -193,7 +195,7 @@ def datadict_to_hdf5(datadict: DataDict, basepath: str,
             # chosen append mode.
             else:
                 ds = grp[k]
-                dslen = len(ds.value)
+                dslen = ds.shape[0]
 
                 if append_mode == AppendMode.new:
                     newshp = tuple([nrows] + list(shp[1:]))

@@ -100,12 +100,13 @@ def test_structure():
 
     assert dd.structure().dependents() == ['z']
     assert dd.structure().axes('z') == ['x', 'y']
-    assert dd.structure(add_shape=False, include_meta=False) == \
-           dd2.structure(add_shape=False, include_meta=False)
-    assert dd.structure(add_shape=True, include_meta=False) != \
-           dd2.structure(add_shape=True, include_meta=False)
-    assert dd.structure(add_shape=False, include_meta=True) != \
-           dd2.structure(add_shape=False, include_meta=True)
+
+    assert dd.structure(include_meta=False) == \
+           dd2.structure(include_meta=False)
+
+    assert dd.structure(include_meta=True) != \
+           dd2.structure(include_meta=True)
+
     assert DataDictBase.same_structure(dd, dd2)
 
 
