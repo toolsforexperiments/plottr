@@ -4,12 +4,12 @@ from .. import QtGui
 from .node import Node, NodeWidget, updateOption
 
 
-class AutoNodeGuiTemnplate(NodeWidget):
+class AutoNodeGuiTemplate(NodeWidget):
     widgetConnection = dict()
 
 
 def connectIntegerSpinbox(
-        gui: AutoNodeGuiTemnplate,
+        gui: AutoNodeGuiTemplate,
         optionName: str,
         specs: Dict[str, Any],
         confirm: bool):
@@ -25,7 +25,7 @@ def connectIntegerSpinbox(
     return widget
 
 def connectFloatSpinbox(
-        gui: AutoNodeGuiTemnplate,
+        gui: AutoNodeGuiTemplate,
         optionName: str,
         specs: Dict[str, Any],
         confirm: bool):
@@ -41,7 +41,7 @@ def connectFloatSpinbox(
     return widget
 
 
-class AutoNodeGui(AutoNodeGuiTemnplate):
+class AutoNodeGui(AutoNodeGuiTemplate):
 
     widgetConnection = {
         int: connectIntegerSpinbox,
