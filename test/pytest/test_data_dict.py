@@ -49,6 +49,36 @@ def test_append():
     )
 
 
+def test_add_data():
+    """Testing simple adding of data"""
+
+    # make base data
+    dd = DataDict(
+        x=dict(values=[1, 2, 3]),
+        y=dict(values=np.arange(6).reshape(3, 2), axes=['x']),
+    )
+    assert dd.validate()
+
+    # test bad data insertion
+    with pytest.raises(ValueError):
+        dd.add_data(x=[4, ])
+    assert num.arrays_equal(
+        dd.data_vals('x'),
+        np.array([1, 2, 3]),
+    )
+
+    # this should work!
+    dd.add_data(x=[4, ], y=[[6, 7], ])
+    assert num.arrays_equal(
+        dd.data_vals('x'),
+        np.array([1, 2, 3, 4])
+    )
+    assert num.arrays_equal(
+        dd.data_vals('y'),
+        np.arange(8).reshape(4, 2)
+    )
+
+
 def test_expansion_simple():
     """Test whether simple expansion of nested parameters works."""
 
