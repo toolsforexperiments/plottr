@@ -735,7 +735,11 @@ class DataDict(DataDictBase):
             dd[k]['values'] = v
 
         if dd.validate():
-            self.append(dd)
+            if self.nrecords() > 0:
+                self.append(dd)
+            else:
+                for k, v in dd.data_items():
+                    self[k]['values'] = v['values']
             self.validate()
 
     # shape information and expansion

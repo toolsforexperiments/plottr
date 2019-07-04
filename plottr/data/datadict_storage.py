@@ -32,11 +32,10 @@ from ..node import (
 
 from .datadict import DataDict, is_meta_key
 
-
 __author__ = 'Wolfgang Pfaff'
 __license__ = 'MIT'
 
-DATAFILEXT = '.dd.h5'
+DATAFILEXT = '.ddh5'
 
 AppendMode = Enum('AppendMode', names='new all none')
 
@@ -312,6 +311,7 @@ class DDH5LoaderWidget(NodeWidget):
 
         self.fileinput = QtGui.QLineEdit()
         self.groupinput = QtGui.QLineEdit('data')
+        self.reload = QtGui.QPushButton('Reload')
 
         self.optSetters = {
             'filepath': self.fileinput.setText,
@@ -322,10 +322,15 @@ class DDH5LoaderWidget(NodeWidget):
             'groupname': self.groupinput.text,
         }
 
-        self.layout = QtGui.QFormLayout()
-        self.layout.addRow('File path:', self.fileinput)
-        self.layout.addRow('Group:', self.groupinput)
-        self.setLayout(self.layout)
+        flayout = QtGui.QFormLayout()
+        flayout.addRow('File path:', self.fileinput)
+        flayout.addRow('Group:', self.groupinput)
+
+        vlayout = QtGui.QVBoxLayout()
+        vlayout.addLayout(flayout)
+        vlayout.addWidget(self.reload)
+
+        self.setLayout(vlayout)
 
         self.fileinput.textEdited.connect(
             lambda x: self.signalOption('filepath')
@@ -333,10 +338,10 @@ class DDH5LoaderWidget(NodeWidget):
         self.groupinput.textEdited.connect(
             lambda x: self.signalOption('groupname')
         )
+        self.reload.pressed.connect(self.node.update)
 
 
 class DDH5Loader(Node):
-
     nodeName = 'DDH5Loader'
     uiClass = DDH5LoaderWidget
     useUi = True
@@ -348,6 +353,7 @@ class DDH5Loader(Node):
         super().__init__(name)
 
         self.groupname = 'data'
+        self.nLoadedRecords = 0
 
     # Properties #
 
@@ -380,6 +386,7 @@ class DDH5Loader(Node):
         data = datadict_from_hdf5(self._filepath, groupname=self.groupname)
         title = f"{self.filepath}"
         data.add_meta('title', title)
+        self.nLoadedRecords = data.nrecords()
 
         if super().process(dataIn=data) is None:
             return None
@@ -387,3 +394,55 @@ class DDH5Loader(Node):
         return dict(dataOut=data)
 
 
+class DDH5Writer(object):
+
+    def __init__(self, basedir, datadict):
+        self.basedir = basedir
+        self.datadict = datadict
+        self.basepath = None
+        self.inserted_rows = 0
+
+    def __enter__(self):
+        folder = os.path.join(
+            self.basedir,
+            time.strftime("%Y-%m-%d"),
+        )
+        os.makedirs(folder, exist_ok=True)
+        filebase = time.strftime("%Y-%m-%d_")
+
+        files = os.listdir(folder)
+        datafiles = [f for f in files if
+                     ((os.path.splitext(f)[1] == DATAFILEXT)
+                      and (f[:len(filebase)] == filebase))]
+
+        if len(datafiles) > 0:
+            datafiles.sort()
+            idx = int(os.path.splitext(datafiles[-1])[0][-3:]) + 1
+            suffix = f"{idx:03}"
+        else:
+            suffix = '001'
+
+        self.basepath = os.path.join(folder, filebase + suffix)
+        print('Datafile: ', self.basepath)
+
+        if self.datadict.nrecords() > 0:
+            datadict_to_hdf5(self.datadict, self.basepath,
+                             append_mode=AppendMode.none)
+            self.inserted_rows = self.datadict.nrecords()
+
+        return self
+
+    def __exit__(self, exc_type, exc_value, exc_traceback):
+        pass
+
+    def add_data(self, **kw):
+        self.datadict.add_data(**kw)
+
+        if self.inserted_rows > 0:
+            mode = AppendMode.new
+        else:
+            mode = AppendMode.none
+
+        if self.datadict.nrecords() > 0:
+            datadict_to_hdf5(self.datadict, self.basepath,
+                             append_mode=mode)
