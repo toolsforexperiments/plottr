@@ -23,14 +23,19 @@ from typing import Any, Union
 import numpy as np
 import h5py
 
+from plottr import QtGui, Signal, Slot
+
+from ..node import (
+    Node, NodeWidget, updateOption, updateGuiFromNode,
+    emitGuiUpdate,
+)
+
 from .datadict import DataDict, is_meta_key
 
 __author__ = 'Wolfgang Pfaff'
 __license__ = 'MIT'
 
-
-DATAFILEXT = '.dd.h5'
-
+DATAFILEXT = '.ddh5'
 
 AppendMode = Enum('AppendMode', names='new all none')
 
@@ -87,8 +92,8 @@ def add_cur_time_attr(h5obj: Any, name: str = 'creation',
     tsec = time.mktime(t)
     tstr = time.strftime("%Y-%m-%d %H:%M:%S", t)
 
-    set_attr(h5obj, prefix+name+'_time_sec'+suffix, tsec)
-    set_attr(h5obj, prefix+name+'_time_str'+suffix, tstr)
+    set_attr(h5obj, prefix + name + '_time_sec' + suffix, tsec)
+    set_attr(h5obj, prefix + name + '_time_str' + suffix, tstr)
 
 
 def init_file(filepath: str):
@@ -202,7 +207,7 @@ def datadict_to_hdf5(datadict: DataDict, basepath: str,
                     ds.resize(newshp)
                     ds[dslen:] = data[dslen:]
                 elif append_mode == AppendMode.all:
-                    newshp = tuple([dslen+nrows] + list(shp[1:]))
+                    newshp = tuple([dslen + nrows] + list(shp[1:]))
                     ds.resize(newshp)
                     ds[dslen:] = data[:]
 
@@ -269,7 +274,7 @@ def datadict_from_hdf5(basepath: str, groupname: str = 'data',
         for k in keys:
             try:
                 ds = grp[k]
-                entry = dict(values=np.array([]),)
+                entry = dict(values=np.array([]), )
 
                 if 'axes' in ds.attrs:
                     entry['axes'] = deh5ify(ds.attrs['axes']).tolist()
@@ -295,3 +300,149 @@ def datadict_from_hdf5(basepath: str, groupname: str = 'data',
     dd = DataDict(**res)
     dd.validate()
     return dd
+
+
+# Node for monitoring #
+
+class DDH5LoaderWidget(NodeWidget):
+
+    def __init__(self, node: Node = None):
+        super().__init__(node=node)
+
+        self.fileinput = QtGui.QLineEdit()
+        self.groupinput = QtGui.QLineEdit('data')
+        self.reload = QtGui.QPushButton('Reload')
+
+        self.optSetters = {
+            'filepath': self.fileinput.setText,
+            'groupname': self.groupinput.setText,
+        }
+        self.optGetters = {
+            'filepath': self.fileinput.text,
+            'groupname': self.groupinput.text,
+        }
+
+        flayout = QtGui.QFormLayout()
+        flayout.addRow('File path:', self.fileinput)
+        flayout.addRow('Group:', self.groupinput)
+
+        vlayout = QtGui.QVBoxLayout()
+        vlayout.addLayout(flayout)
+        vlayout.addWidget(self.reload)
+
+        self.setLayout(vlayout)
+
+        self.fileinput.textEdited.connect(
+            lambda x: self.signalOption('filepath')
+        )
+        self.groupinput.textEdited.connect(
+            lambda x: self.signalOption('groupname')
+        )
+        self.reload.pressed.connect(self.node.update)
+
+
+class DDH5Loader(Node):
+    nodeName = 'DDH5Loader'
+    uiClass = DDH5LoaderWidget
+    useUi = True
+
+    def __init__(self, name: str):
+        self._filepath = None
+        self._groupname = None
+
+        super().__init__(name)
+
+        self.groupname = 'data'
+        self.nLoadedRecords = 0
+
+    # Properties #
+
+    @property
+    def filepath(self):
+        return self._filepath
+
+    @filepath.setter
+    @updateOption('filepath')
+    def filepath(self, val):
+        self._filepath = val
+
+    @property
+    def groupname(self):
+        return self._groupname
+
+    @groupname.setter
+    @updateOption('groupname')
+    def groupname(self, val):
+        self._groupname = val
+
+    # Data processing #
+
+    def process(self, dataIn=None):
+        if self._filepath is None or self._groupname is None:
+            return None
+        if not os.path.exists(self._filepath):
+            return None
+
+        data = datadict_from_hdf5(self._filepath, groupname=self.groupname)
+        title = f"{self.filepath}"
+        data.add_meta('title', title)
+        self.nLoadedRecords = data.nrecords()
+
+        if super().process(dataIn=data) is None:
+            return None
+
+        return dict(dataOut=data)
+
+
+class DDH5Writer(object):
+
+    def __init__(self, basedir, datadict):
+        self.basedir = basedir
+        self.datadict = datadict
+        self.basepath = None
+        self.inserted_rows = 0
+
+    def __enter__(self):
+        folder = os.path.join(
+            self.basedir,
+            time.strftime("%Y-%m-%d"),
+        )
+        os.makedirs(folder, exist_ok=True)
+        filebase = time.strftime("%Y-%m-%d_")
+
+        files = os.listdir(folder)
+        datafiles = [f for f in files if
+                     ((os.path.splitext(f)[1] == DATAFILEXT)
+                      and (f[:len(filebase)] == filebase))]
+
+        if len(datafiles) > 0:
+            datafiles.sort()
+            idx = int(os.path.splitext(datafiles[-1])[0][-3:]) + 1
+            suffix = f"{idx:03}"
+        else:
+            suffix = '001'
+
+        self.basepath = os.path.join(folder, filebase + suffix)
+        print('Datafile: ', self.basepath)
+
+        if self.datadict.nrecords() > 0:
+            datadict_to_hdf5(self.datadict, self.basepath,
+                             append_mode=AppendMode.none)
+            self.inserted_rows = self.datadict.nrecords()
+
+        return self
+
+    def __exit__(self, exc_type, exc_value, exc_traceback):
+        pass
+
+    def add_data(self, **kw):
+        self.datadict.add_data(**kw)
+
+        if self.inserted_rows > 0:
+            mode = AppendMode.new
+        else:
+            mode = AppendMode.none
+
+        if self.datadict.nrecords() > 0:
+            datadict_to_hdf5(self.datadict, self.basepath,
+                             append_mode=mode)

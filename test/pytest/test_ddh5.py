@@ -4,9 +4,9 @@ import numpy as np
 
 from plottr.data import datadict as dd
 from plottr.data import datadict_storage as dds
+from plottr.node.tools import linearFlowchart
 
-
-FN = './test_ddh5_data'
+FN = './test_ddh5_data.dd.h5'
 
 
 def _clean_from_file(datafromfile):
@@ -79,3 +79,47 @@ def test_appending():
     dds.datadict_to_hdf5(data, FN, append_mode=dds.AppendMode.all)
     ret = _clean_from_file(dds.datadict_from_hdf5(FN))
     assert ret == (data + data)
+
+
+def test_loader_node(qtbot):
+    dds.DDH5Loader.useUi = False
+
+    x = np.arange(3)
+    y = np.repeat(np.linspace(0, 1, 5).reshape(1, -1), 3, 0)
+    z = np.arange(y.size).reshape(y.shape)
+
+    data = dd.DataDict(
+        x=dict(values=x, unit='A',
+               __info__='careful!',
+               __moreinfo__='more words in here'),
+        y=dict(values=y, unit='B'),
+        z=dict(values=z, axes=['x', 'y'], unit='C'),
+        __desc__='some description',
+    )
+    assert data.validate()
+    dds.datadict_to_hdf5(data, FN, append_mode=dds.AppendMode.new)
+    assert _clean_from_file(dds.datadict_from_hdf5(FN)) == data
+
+    fc = linearFlowchart(('loader', dds.DDH5Loader))
+    node = fc.nodes()['loader']
+
+    assert fc.outputValues()['dataOut'] is None
+
+    node.filepath = FN
+    out = fc.outputValues()['dataOut'].copy()
+    out.pop('__title__')
+    assert _clean_from_file(out) == data
+
+    data.add_data(x=[3], y=np.linspace(0, 1, 5).reshape(1, -1),
+                  z=np.arange(5).reshape(1,- 1))
+    dds.datadict_to_hdf5(data, FN, append_mode=dds.AppendMode.new)
+    assert _clean_from_file(dds.datadict_from_hdf5(FN)) == data
+
+    out = fc.outputValues()['dataOut'].copy()
+    out.pop('__title__')
+    assert _clean_from_file(out) != data
+
+    node.update()
+    out = fc.outputValues()['dataOut'].copy()
+    out.pop('__title__')
+    assert _clean_from_file(out) == data
