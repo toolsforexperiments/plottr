@@ -7,10 +7,11 @@ Autoplotting app using plottr nodes.
 import os
 import logging
 import time
-from typing import Union, Tuple
+from typing import Union, Tuple, Any
 
 from .. import QtGui, QtCore, Flowchart
 from ..data.datadict import DataDictBase
+from ..data.datadict_storage import DDH5Loader
 from ..data.qcodes_dataset import QCodesDSLoader
 from .. import log as plottrlog
 from ..node.tools import linearFlowchart
@@ -44,7 +45,6 @@ def autoplot(log: bool = False,
     """
 
     nodes = [
-        ('Dataset loader', QCodesDSLoader),
         ('Data selection', DataSelector),
         ('Grid', DataGridder),
         ('Dimension assignment', XYSelector),
@@ -60,35 +60,24 @@ def autoplot(log: bool = False,
     return fc, win
 
 
-class QCAutoPlotMainWindow(PlotWindow):
-    """
-    Main Window for autoplotting a qcodes dataset.
+class AutoPlotMainWindow(PlotWindow):
 
-    Comes with menu options for refreshing the loaded dataset,
-    and a toolbar for enabling live-monitoring/refreshing the loaded
-    dataset.
-    """
-
-    def __init__(self, fc: Flowchart, parent: Union[QtGui.QWidget, None] = None,
-                 pathAndId: Union[Tuple[str, int], None] = None,
-                 monitorInterval: Union[int, None] = None):
+    def __init__(self, fc: Flowchart,
+                 parent: Union[QtGui.QWidget, None] = None,
+                 monitorInterval: Union[int, None] = None,
+                 loaderName: str = 'Data loader'):
 
         super().__init__(parent)
 
         self.fc = fc
-        self.loaderNode = fc.nodes()['Dataset loader']
+        self.loaderNode = fc.nodes()[loaderName]
         self.monitor = QtCore.QTimer()
 
         # a flag we use to set reasonable defaults when the first data
         # is processed
         self._initialized = False
 
-        windowTitle = "Plottr | QCoDeS autoplot"
-        if pathAndId is not None:
-            path = os.path.abspath(pathAndId[0])
-            windowTitle += f" | {os.path.split(path)[1]} [{pathAndId[1]}]"
-            pathAndId = path, pathAndId[1]
-
+        windowTitle = "Plottr | Autoplot"
         self.setWindowTitle(windowTitle)
 
         # toolbar
@@ -121,14 +110,9 @@ class QCAutoPlotMainWindow(PlotWindow):
         if self.fc is not None:
             self.addNodeWidgetsFromFlowchart(fc)
 
-        if pathAndId is not None:
-            self.loaderNode.pathAndId = pathAndId
-            if monitorInterval is not None:
-                self.setMonitorInterval(monitorInterval)
-
-            if self.loaderNode.nLoadedRecords > 0:
-                self.setDefaults()
-                self._initialized = True
+        # start monitor
+        if monitorInterval is not None:
+            self.setMonitorInterval(monitorInterval)
 
     def closeEvent(self, event):
         """
@@ -143,9 +127,7 @@ class QCAutoPlotMainWindow(PlotWindow):
         Displays current time and DS info in the status bar.
         """
         tstamp = time.strftime("%Y-%m-%d %H:%M:%S")
-        path, runId = self.fc.nodes()['Dataset loader'].pathAndId
-        self.status.showMessage(f"{path} [{runId}] (loaded: {tstamp})")
-
+        self.status.showMessage(f"loaded: {tstamp}")
 
     @QtCore.pyqtSlot()
     def refreshData(self):
@@ -159,7 +141,6 @@ class QCAutoPlotMainWindow(PlotWindow):
             self.setDefaults()
             self._initialized = True
 
-
     @QtCore.pyqtSlot(int)
     def setMonitorInterval(self, val):
         """
@@ -171,7 +152,6 @@ class QCAutoPlotMainWindow(PlotWindow):
 
         self.monitorInput.spin.setValue(val)
 
-
     @QtCore.pyqtSlot()
     def monitorTriggered(self):
         """
@@ -180,7 +160,6 @@ class QCAutoPlotMainWindow(PlotWindow):
         """
         logger().debug('Refreshing data')
         self.refreshData()
-
 
     def setDefaults(self):
         """
@@ -204,6 +183,37 @@ class QCAutoPlotMainWindow(PlotWindow):
         self.plotWidget.plot.draw()
 
 
+class QCAutoPlotMainWindow(AutoPlotMainWindow):
+    """
+    Main Window for autoplotting a qcodes dataset.
+
+    Comes with menu options for refreshing the loaded dataset,
+    and a toolbar for enabling live-monitoring/refreshing the loaded
+    dataset.
+    """
+
+    def __init__(self, fc: Flowchart,
+                 parent: Union[QtGui.QWidget, None] = None,
+                 monitorInterval: Union[int, None] = None,
+                 pathAndId: Union[Tuple[str, int], None] = None):
+
+        super().__init__(fc, parent, monitorInterval)
+
+        windowTitle = "Plottr | QCoDeS autoplot"
+        if pathAndId is not None:
+            path = os.path.abspath(pathAndId[0])
+            windowTitle += f" | {os.path.split(path)[1]} [{pathAndId[1]}]"
+            pathAndId = path, pathAndId[1]
+        self.setWindowTitle(windowTitle)
+
+        if pathAndId is not None:
+            self.loaderNode.pathAndId = pathAndId
+
+        if self.loaderNode.nLoadedRecords > 0:
+            self.setDefaults()
+            self._initialized = True
+
+
 def autoplotQcodesDataset(log: bool = False,
                           pathAndId: Union[Tuple[str, int], None] = None) \
         -> (Flowchart, QCAutoPlotMainWindow):
@@ -216,7 +226,7 @@ def autoplotQcodesDataset(log: bool = False,
     """
 
     fc = linearFlowchart(
-        ('Dataset loader', QCodesDSLoader),
+        ('Data loader', QCodesDSLoader),
         ('Data selection', DataSelector),
         ('Grid', DataGridder),
         ('Dimension assignment', XYSelector),
@@ -226,5 +236,29 @@ def autoplotQcodesDataset(log: bool = False,
 
     win = QCAutoPlotMainWindow(fc, pathAndId=pathAndId)
     win.show()
+
+    return fc, win
+
+
+def autoplotDDH5(filepath: str = '', groupname: str = 'data') \
+        -> (Flowchart, AutoPlotMainWindow):
+    fc = linearFlowchart(
+        ('Data loader', DDH5Loader),
+        ('Data selection', DataSelector),
+        ('Grid', DataGridder),
+        ('Dimension assignment', XYSelector),
+        ('Subtract average', SubtractAverage),
+        ('plot', PlotNode)
+    )
+
+    win = AutoPlotMainWindow(fc)
+    win.show()
+
+    fc.nodes()['Data loader'].filepath = filepath
+    fc.nodes()['Data loader'].groupname = groupname
+    if fc.nodes()['Data loader'].nLoadedRecords > 0:
+        win.setDefaults()
+
+    win.setMonitorInterval(2)
 
     return fc, win
