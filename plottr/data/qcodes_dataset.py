@@ -174,7 +174,8 @@ def ds_to_datadict(ds: DataDict, start: Optional[int] = None,
     struct = get_ds_structure(ds)
     datadict = DataDict(**struct)
     for k, v in data.items():
-        datadict[k]['values'] = data[k]
+        if k in datadict:
+            datadict[k]['values'] = data[k]
 
     datadict.validate()
     return datadict
