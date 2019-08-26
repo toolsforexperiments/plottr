@@ -1159,3 +1159,54 @@ def meshgrid_to_datadict(data: MeshgridDataDict) -> DataDict:
     newdata = newdata.sanitize()
     newdata.validate()
     return newdata
+
+
+# Tools for manipulating and transforming data
+
+def combine_datadicts(*dicts: DataDict) -> DataDict:
+    """
+    Try to make one datadict out of multiple.
+
+    Rules:
+    - all supplied `DataDicts` need to have the same number of records.
+    - if input `DataDicts` share axes dimensions, then they need to be
+    identical.
+    - global meta is taken from the first argument
+    - if dependent names occur in multiple inputs, we automatically rename by
+    appending '-<counter>'
+
+    :returns: combined `DataDict`
+    """
+    ret = None
+    for d in dicts:
+        if ret is None:
+            ret = d.copy()
+        else:
+            if d.nrecords() != ret.nrecords():
+                raise ValueError(
+                    'Only DataDicts with the same number of records can be '
+                    'combined.')
+
+            for ax in d.axes():
+                if ax not in ret:
+                    ret[ax] = d[ax]
+                else:
+                    a1, a2 = ret.data_vals(ax), d.data_vals(ax)
+                    if a1.shape != a2.shape:
+                        raise ValueError(f"Incompatible axis '{ax}'")
+                    elif not num.arrays_equal(a1, a2):
+                        raise ValueError(f"Incompatible axis values for '{ax}'")
+
+            for n in d.dependents():
+                if n not in ret:
+                    ret[n] = d[n]
+                else:
+                    idx = 0
+                    newname = n + f"-{idx}"
+                    while newname in ret:
+                        idx += 1
+                        newname = n + f"-{idx}"
+                    ret[newname] = d[n]
+
+    ret.validate()
+    return ret

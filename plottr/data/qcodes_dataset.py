@@ -180,6 +180,32 @@ def ds_to_datadict(ds: DataDict, start: Optional[int] = None,
     return datadict
 
 
+def ds_to_datadicts(ds: DataSet) -> Dict[str, DataDict]:
+    """
+    Make DataDicts from a qcodes DataSet.
+
+    :param ds: qcodes dataset
+    :returns: dictionary with one item per dependent.
+              key: name of the dependent
+              value: DataDict containing that dependent and its
+                     axes.
+    """
+    ret = {}
+    pdata = ds.get_parameter_data()
+    for p, spec in ds.paramspecs.items():
+        if spec.depends_on != '':
+            axes = spec.depends_on.split(',')
+            data = {}
+            data[p] = dict(unit=spec.unit, axes=axes, values=pdata[p][p])
+            for ax in axes:
+                axspec = ds.paramspecs[ax]
+                data[ax] = dict(unit=axspec.unit, values=pdata[p][ax])
+            ret[p] = DataDict(**data)
+            ret[p].validate()
+
+    return ret
+
+
 def datadict_from_path_and_run_id(path: str, run_id: int, **kw) -> DataDict:
     ds = DataSet(path_to_db=path, run_id=run_id)
     return ds_to_datadict(ds, **kw)
