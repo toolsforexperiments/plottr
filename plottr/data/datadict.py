@@ -170,7 +170,7 @@ class DataDictBase(dict):
                         n = k
                     yield n, v
 
-    def data_vals(self, key: str) -> Sequence:
+    def data_vals(self, key: str) -> Union[Sequence, np.ndarray]:
         """
         Return the data values of field ``key``.
 
@@ -1163,50 +1163,94 @@ def meshgrid_to_datadict(data: MeshgridDataDict) -> DataDict:
 
 # Tools for manipulating and transforming data
 
-def combine_datadicts(*dicts: DataDict) -> DataDict:
+def _find_replacement_name(ddict: DataDictBase, name: str) -> str:
+    """
+    Find a replacement name for a data field that already exists in a
+    datadict.
+
+    Appends '-<index>' to the name.
+
+    :param ddict: datadict that contains the already existing field
+    :param name: the name that needs to be replaced
+    :return: a suitable replacement
+    """
+    if name not in ddict:
+        return name
+    else:
+        idx = 0
+        newname = name + f"_{idx}"
+        while newname in ddict:
+            idx += 1
+            newname = name + f"_{idx}"
+        return newname
+
+
+def combine_datadicts(*dicts: DataDict) -> DataDictBase:
     """
     Try to make one datadict out of multiple.
 
-    Rules:
-    - all supplied `DataDicts` need to have the same number of records.
-    - if input `DataDicts` share axes dimensions, then they need to be
-    identical.
-    - global meta is taken from the first argument
-    - if dependent names occur in multiple inputs, we automatically rename by
-    appending '-<counter>'
+    Basic rules:
+    - we try to maintain the input type
+    - return type is 'downgraded' to DataDictBase if the contents are not
+      compatible (i.e., different numbers of records in the inputs)
 
-    :returns: combined `DataDict`
+    :returns: combined data
+
+    TODO: deal correctly with MeshGridData when combined with other types
+    TODO: should we strictly copy all values?
+    TODO: we should try to consolidate axes as much as possible. Currently
+          axes in the return can be separated even if they match (caused
+          by earlier mismatches)
     """
     ret = None
+    rettype = None
+
     for d in dicts:
         if ret is None:
             ret = d.copy()
+            rettype = type(d)
+
         else:
-            if d.nrecords() != ret.nrecords():
-                raise ValueError(
-                    'Only DataDicts with the same number of records can be '
-                    'combined.')
 
-            for ax in d.axes():
-                if ax not in ret:
-                    ret[ax] = d[ax]
-                else:
-                    a1, a2 = ret.data_vals(ax), d.data_vals(ax)
-                    if a1.shape != a2.shape:
-                        raise ValueError(f"Incompatible axis '{ax}'")
-                    elif not num.arrays_equal(a1, a2):
-                        raise ValueError(f"Incompatible axis values for '{ax}'")
+            # if we don't have a well defined number of records anymore,
+            # need to revert the type to DataDictBase
+            if hasattr(d, 'nrecords') and hasattr(ret, 'nrecords'):
+                if d.nrecords() != ret.nrecords():
+                    rettype = DataDictBase
+            else:
+                rettype = DataDictBase
+            ret = rettype(**ret)
 
-            for n in d.dependents():
-                if n not in ret:
-                    ret[n] = d[n]
+            # First, parse the axes in the to-be-added ddict.
+            # if dimensions with same names are present already in the current
+            # return ddict and are not compatible with what's to be added,
+            # rename the incoming dimension.
+            ax_map = {}
+            for d_ax in d.axes():
+                if d_ax in ret.axes():
+                    if num.arrays_equal(d.data_vals(d_ax), ret.data_vals(d_ax)):
+                        ax_map[d_ax] = d_ax
+                    else:
+                        newax = _find_replacement_name(ret, d_ax)
+                        ax_map[d_ax] = newax
+                        ret[newax] = d[d_ax]
+                elif d_ax in ret.dependents():
+                    newax = _find_replacement_name(ret, d_ax)
+                    ax_map[d_ax] = newax
+                    ret[newax] = d[d_ax]
                 else:
-                    idx = 0
-                    newname = n + f"-{idx}"
-                    while newname in ret:
-                        idx += 1
-                        newname = n + f"-{idx}"
-                    ret[newname] = d[n]
+                    ax_map[d_ax] = d_ax
+                    ret[d_ax] = d[d_ax]
+
+            for d_dep in d.dependents():
+                if d_dep in ret:
+                    newdep = _find_replacement_name(ret, d_dep)
+                else:
+                    newdep = d_dep
+
+                dep_axes = [ax_map[ax] for ax in d[d_dep]['axes']]
+                ret[newdep] = d[d_dep]
+                ret[newdep]['axes'] = dep_axes
 
     ret.validate()
     return ret
