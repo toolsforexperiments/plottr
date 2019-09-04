@@ -159,8 +159,8 @@ def ds_to_datadicts(ds: DataSet) -> Dict[str, DataDict]:
     pdata = ds.get_parameter_data()
     for p, spec in ds.paramspecs.items():
         if spec.depends_on != '':
-            axes = spec.depends_on.split(', ')
-            data = {}
+            axes = spec.depends_on_ # .split(', ')
+            data = dict()
             data[p] = dict(unit=spec.unit, axes=axes, values=pdata[p][p])
             for ax in axes:
                 axspec = ds.paramspecs[ax]
@@ -218,7 +218,7 @@ class QCodesDSLoader(Node):
     ### processing
 
     def process(self, **kw):
-        if not None in self._pathAndId:
+        if None not in self._pathAndId:
             path, runId = self._pathAndId
             ds = DataSet(path_to_db=path, run_id=runId)
             guid = ds.guid

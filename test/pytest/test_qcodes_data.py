@@ -22,6 +22,9 @@ def test_load_2dsoftsweep():
     m = qc.Measurement(exp=exp)
     m.register_custom_parameter('x')
     m.register_custom_parameter('y')
+
+    # check that unused parameters don't mess with
+    m.register_custom_parameter('foo')
     dd_expected = DataDict(x=dict(values=np.array([])),
                            y=dict(values=np.array([])))
     for n in range(N):
@@ -31,7 +34,7 @@ def test_load_2dsoftsweep():
 
     with m.run() as datasaver:
         for result in testdata.generate_2d_scalar_simple(3, 3, N):
-            row = [(k, v) for k, v in result.items()]
+            row = [(k, v) for k, v in result.items()] + [('foo', 1)]
             datasaver.add_result(*row)
             dd_expected.add_data(**result)
 
