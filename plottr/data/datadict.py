@@ -732,7 +732,12 @@ class DataDict(DataDictBase):
         """
         dd = self.structure(same_type=True)
         for k, v in kw.items():
-            dd[k]['values'] = v
+            if isinstance(v, list):
+                dd[k]['values'] = np.array(v)
+            elif isinstance(v, np.ndarray):
+                dd[k]['values'] = v
+            else:
+                dd[k]['values'] = np.array([v])
 
         if dd.validate():
             if self.nrecords() > 0:
@@ -1185,7 +1190,7 @@ def _find_replacement_name(ddict: DataDictBase, name: str) -> str:
         return newname
 
 
-def combine_datadicts(*dicts: DataDict) -> DataDictBase:
+def combine_datadicts(*dicts: DataDict) -> Union[DataDictBase, DataDict]:
     """
     Try to make one datadict out of multiple.
 
