@@ -11,10 +11,12 @@ import numpy as np
 import pandas as pd
 
 from qcodes.dataset.data_set import DataSet
-from qcodes.dataset.sqlite_base import (
-    get_dependencies, get_dependents, get_layout,
-    get_runs, connect
+from qcodes.dataset.sqlite.database import connect
+from qcodes.dataset.sqlite.queries import (
+    get_dependencies, get_dependents,
+    get_layout, get_runs,
 )
+
 from .datadict import DataDictBase, DataDict, combine_datadicts
 from ..node.node import Node, updateOption
 
@@ -22,7 +24,7 @@ __author__ = 'Wolfgang Pfaff'
 __license__ = 'MIT'
 
 
-### Tools for extracting information on runs in a database
+# Tools for extracting information on runs in a database
 
 def get_ds_structure(ds):
     """
@@ -44,15 +46,16 @@ def get_ds_structure(ds):
         # get name etc.
         layout = get_layout(ds.conn, dependent_id)
         name = layout['name']
-        structure[name] = {'values' : [], 'unit' : layout['unit'], 'axes' : []}
+        structure[name] = {'values': [], 'unit': layout['unit'], 'axes': []}
 
-        # find dependencies (i.e., axes) and add their names/units in the right order
+        # find dependencies (i.e., axes) and add their names/units in the
+        # right order
         dependencies = get_dependencies(ds.conn, dependent_id)
         for dep_id, iax in dependencies:
             dep_layout = get_layout(ds.conn, dep_id)
             dep_name = dep_layout['name']
             structure[name]['axes'].insert(iax, dep_name)
-            structure[dep_name] = {'values' : [], 'unit' : dep_layout['unit']}
+            structure[dep_name] = {'values': [], 'unit': dep_layout['unit']}
 
     return structure
 
@@ -124,7 +127,8 @@ def get_runs_from_db(path: str, start: int = 0,
 
     for run in runs:
         run_id = run['run_id']
-        overview[run_id] = get_ds_info(conn, run_id, get_structure=get_structure)
+        overview[run_id] = get_ds_info(conn, run_id,
+                                       get_structure=get_structure)
 
     return overview
 
@@ -139,46 +143,7 @@ def get_runs_from_db_as_dataframe(path, *arg, **kw):
     return df
 
 
-# Getting data from a dataset
-
-# def get_data_from_ds(ds: DataSet, start: Optional[int] = None,
-#                      end: Optional[int] = None) -> Dict[str, List[List]]:
-#     """
-#     Returns a dictionary in the format {'name' : data}, where data
-#     is what dataset.get_data('name') returns, i.e., a list of lists, where
-#     the inner list is the row as inserted into the DB.
-#
-#     with `start` and `end` only a subset of rows in the DB can be specified.
-#     """
-#     names = [n for n, v in ds.paramspecs.items()]
-#     return {n : np.squeeze(ds.get_data(n, start=start, end=end)) for n in names}
-
-
-# def get_all_data_from_ds(ds: DataSet) -> Dict[str, List[List]]:
-#     """
-#     Returns a dictionary in the format {'name' : data}, where data
-#     is what dataset.get_data('name') returns, i.e., a list of lists, where
-#     the inner list is the row as inserted into the DB.
-#     """
-#     return get_data_from_ds(ds)
-
-
-# def ds_to_datadict(ds: DataDict, start: Optional[int] = None,
-#                    end: Optional[int] = None) -> DataDict:
-#     """
-#     Make a datadict from a qcodes dataset.
-#     `start` and `end` allow selection of only a subset of rows.
-#     """
-#     # data = expand(get_data_from_ds(ds, start=start, end=end))
-#     data = get_data_from_ds(ds, start=start, end=end)
-#     struct = get_ds_structure(ds)
-#     datadict = DataDict(**struct)
-#     for k, v in data.items():
-#         datadict[k]['values'] = data[k]
-#
-#     datadict.validate()
-#     return datadict
-
+# Extracting data
 
 def ds_to_datadicts(ds: DataSet) -> Dict[str, DataDict]:
     """
@@ -227,7 +192,6 @@ def datadict_from_path_and_run_id(path: str, run_id: int) -> DataDictBase:
 ### qcodes dataset loader node
 
 class QCodesDSLoader(Node):
-
     nodeName = 'QCodesDSLoader'
     uiClass = None
     useUi = False
@@ -260,7 +224,7 @@ class QCodesDSLoader(Node):
             guid = ds.guid
             if ds.number_of_results > self.nLoadedRecords:
                 title = f"{os.path.split(path)[-1]} | " \
-                    f"run ID: {runId} | GUID: {guid}"
+                        f"run ID: {runId} | GUID: {guid}"
                 info = """Started: {}
 Finished: {}
 GUID: {}
