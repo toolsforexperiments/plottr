@@ -15,7 +15,7 @@ from qcodes.dataset.sqlite_base import (
     get_dependencies, get_dependents, get_layout,
     get_runs, connect
 )
-from .datadict import DataDict
+from .datadict import DataDictBase, DataDict, combine_datadicts
 from ..node.node import Node, updateOption
 
 __author__ = 'Wolfgang Pfaff'
@@ -141,43 +141,43 @@ def get_runs_from_db_as_dataframe(path, *arg, **kw):
 
 # Getting data from a dataset
 
-def get_data_from_ds(ds: DataSet, start: Optional[int] = None,
-                     end: Optional[int] = None) -> Dict[str, List[List]]:
-    """
-    Returns a dictionary in the format {'name' : data}, where data
-    is what dataset.get_data('name') returns, i.e., a list of lists, where
-    the inner list is the row as inserted into the DB.
-
-    with `start` and `end` only a subset of rows in the DB can be specified.
-    """
-    names = [n for n, v in ds.paramspecs.items()]
-    return {n : np.squeeze(ds.get_data(n, start=start, end=end)) for n in names}
-
-
-def get_all_data_from_ds(ds: DataSet) -> Dict[str, List[List]]:
-    """
-    Returns a dictionary in the format {'name' : data}, where data
-    is what dataset.get_data('name') returns, i.e., a list of lists, where
-    the inner list is the row as inserted into the DB.
-    """
-    return get_data_from_ds(ds)
+# def get_data_from_ds(ds: DataSet, start: Optional[int] = None,
+#                      end: Optional[int] = None) -> Dict[str, List[List]]:
+#     """
+#     Returns a dictionary in the format {'name' : data}, where data
+#     is what dataset.get_data('name') returns, i.e., a list of lists, where
+#     the inner list is the row as inserted into the DB.
+#
+#     with `start` and `end` only a subset of rows in the DB can be specified.
+#     """
+#     names = [n for n, v in ds.paramspecs.items()]
+#     return {n : np.squeeze(ds.get_data(n, start=start, end=end)) for n in names}
 
 
-def ds_to_datadict(ds: DataDict, start: Optional[int] = None,
-                   end: Optional[int] = None) -> DataDict:
-    """
-    Make a datadict from a qcodes dataset.
-    `start` and `end` allow selection of only a subset of rows.
-    """
-    # data = expand(get_data_from_ds(ds, start=start, end=end))
-    data = get_data_from_ds(ds, start=start, end=end)
-    struct = get_ds_structure(ds)
-    datadict = DataDict(**struct)
-    for k, v in data.items():
-        datadict[k]['values'] = data[k]
+# def get_all_data_from_ds(ds: DataSet) -> Dict[str, List[List]]:
+#     """
+#     Returns a dictionary in the format {'name' : data}, where data
+#     is what dataset.get_data('name') returns, i.e., a list of lists, where
+#     the inner list is the row as inserted into the DB.
+#     """
+#     return get_data_from_ds(ds)
 
-    datadict.validate()
-    return datadict
+
+# def ds_to_datadict(ds: DataDict, start: Optional[int] = None,
+#                    end: Optional[int] = None) -> DataDict:
+#     """
+#     Make a datadict from a qcodes dataset.
+#     `start` and `end` allow selection of only a subset of rows.
+#     """
+#     # data = expand(get_data_from_ds(ds, start=start, end=end))
+#     data = get_data_from_ds(ds, start=start, end=end)
+#     struct = get_ds_structure(ds)
+#     datadict = DataDict(**struct)
+#     for k, v in data.items():
+#         datadict[k]['values'] = data[k]
+#
+#     datadict.validate()
+#     return datadict
 
 
 def ds_to_datadicts(ds: DataSet) -> Dict[str, DataDict]:
@@ -194,7 +194,7 @@ def ds_to_datadicts(ds: DataSet) -> Dict[str, DataDict]:
     pdata = ds.get_parameter_data()
     for p, spec in ds.paramspecs.items():
         if spec.depends_on != '':
-            axes = spec.depends_on.split(',')
+            axes = spec.depends_on.split(', ')
             data = {}
             data[p] = dict(unit=spec.unit, axes=axes, values=pdata[p][p])
             for ax in axes:
@@ -206,9 +206,22 @@ def ds_to_datadicts(ds: DataSet) -> Dict[str, DataDict]:
     return ret
 
 
-def datadict_from_path_and_run_id(path: str, run_id: int, **kw) -> DataDict:
+def ds_to_datadict(ds: DataSet) -> DataDictBase:
+    ddicts = ds_to_datadicts(ds)
+    ddict = combine_datadicts(*[v for k, v in ddicts.items()])
+    return ddict
+
+
+def datadict_from_path_and_run_id(path: str, run_id: int) -> DataDictBase:
+    """
+    Load a qcodes dataset as a DataDict.
+
+    :param path: file path of the qcodes .db file.
+    :param run_id: run_id of the dataset.
+    :return: DataDict containing the data.
+    """
     ds = DataSet(path_to_db=path, run_id=run_id)
-    return ds_to_datadict(ds, **kw)
+    return ds_to_datadict(ds)
 
 
 ### qcodes dataset loader node
