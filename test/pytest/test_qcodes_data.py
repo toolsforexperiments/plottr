@@ -20,30 +20,27 @@ def test_load_2dsoftsweep():
     initialise_database()
     exp = load_or_create_experiment('2d_softsweep', sample_name='no sample')
 
-    N = 1
+    N = 5
     m = qc.Measurement(exp=exp)
     m.register_custom_parameter('x')
     m.register_custom_parameter('y')
+    dd_expected = DataDict(x=dict(values=np.array([])),
+                           y=dict(values=np.array([])))
     for n in range(N):
         m.register_custom_parameter(f'z_{n}', setpoints=['x', 'y'])
+        dd_expected[f'z_{n}'] = dict(values=np.array([]), axes=['x', 'y'])
+    dd_expected.validate()
 
-    # dd_expected = DataDict()
-    xvals, yvals, zvals = [], [], []
     with m.run() as datasaver:
         for result in testdata.generate_2d_scalar_simple(3, 3, N):
             row = [(k, v) for k, v in result.items()]
             datasaver.add_result(*row)
-            xvals.append(result['x'])
-            yvals.append(result['y'])
-            zvals.append(result['z_0'])
+            dd_expected.add_data(**result)
 
     # retrieve data as data dict
     run_id = datasaver.dataset.captured_run_id
     ddict = datadict_from_path_and_run_id(DBPATH, run_id)
-
-    assert np.all(np.isclose(ddict.data_vals('z_0'), np.array(zvals), atol=1e-15))
-    assert np.all(np.isclose(ddict.data_vals('x'), np.array(xvals), atol=1e-15))
-    assert np.all(np.isclose(ddict.data_vals('y'), np.array(yvals), atol=1e-15))
+    assert ddict == dd_expected
 
 
 def test_update_qcloader(qtbot):
