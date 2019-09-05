@@ -170,7 +170,7 @@ class DataDictBase(dict):
                         n = k
                     yield n, v
 
-    def data_vals(self, key: str) -> Sequence:
+    def data_vals(self, key: str) -> Union[Sequence, np.ndarray]:
         """
         Return the data values of field ``key``.
 
@@ -732,7 +732,12 @@ class DataDict(DataDictBase):
         """
         dd = self.structure(same_type=True)
         for k, v in kw.items():
-            dd[k]['values'] = v
+            if isinstance(v, list):
+                dd[k]['values'] = np.array(v)
+            elif isinstance(v, np.ndarray):
+                dd[k]['values'] = v
+            else:
+                dd[k]['values'] = np.array([v])
 
         if dd.validate():
             if self.nrecords() > 0:
@@ -1159,3 +1164,98 @@ def meshgrid_to_datadict(data: MeshgridDataDict) -> DataDict:
     newdata = newdata.sanitize()
     newdata.validate()
     return newdata
+
+
+# Tools for manipulating and transforming data
+
+def _find_replacement_name(ddict: DataDictBase, name: str) -> str:
+    """
+    Find a replacement name for a data field that already exists in a
+    datadict.
+
+    Appends '-<index>' to the name.
+
+    :param ddict: datadict that contains the already existing field
+    :param name: the name that needs to be replaced
+    :return: a suitable replacement
+    """
+    if name not in ddict:
+        return name
+    else:
+        idx = 0
+        newname = name + f"_{idx}"
+        while newname in ddict:
+            idx += 1
+            newname = name + f"_{idx}"
+        return newname
+
+
+def combine_datadicts(*dicts: DataDict) -> Union[DataDictBase, DataDict]:
+    """
+    Try to make one datadict out of multiple.
+
+    Basic rules:
+    - we try to maintain the input type
+    - return type is 'downgraded' to DataDictBase if the contents are not
+      compatible (i.e., different numbers of records in the inputs)
+
+    :returns: combined data
+
+    TODO: deal correctly with MeshGridData when combined with other types
+    TODO: should we strictly copy all values?
+    TODO: we should try to consolidate axes as much as possible. Currently
+          axes in the return can be separated even if they match (caused
+          by earlier mismatches)
+    """
+    ret = None
+    rettype = None
+
+    for d in dicts:
+        if ret is None:
+            ret = d.copy()
+            rettype = type(d)
+
+        else:
+
+            # if we don't have a well defined number of records anymore,
+            # need to revert the type to DataDictBase
+            if hasattr(d, 'nrecords') and hasattr(ret, 'nrecords'):
+                if d.nrecords() != ret.nrecords():
+                    rettype = DataDictBase
+            else:
+                rettype = DataDictBase
+            ret = rettype(**ret)
+
+            # First, parse the axes in the to-be-added ddict.
+            # if dimensions with same names are present already in the current
+            # return ddict and are not compatible with what's to be added,
+            # rename the incoming dimension.
+            ax_map = {}
+            for d_ax in d.axes():
+                if d_ax in ret.axes():
+                    if num.arrays_equal(d.data_vals(d_ax), ret.data_vals(d_ax)):
+                        ax_map[d_ax] = d_ax
+                    else:
+                        newax = _find_replacement_name(ret, d_ax)
+                        ax_map[d_ax] = newax
+                        ret[newax] = d[d_ax]
+                elif d_ax in ret.dependents():
+                    newax = _find_replacement_name(ret, d_ax)
+                    ax_map[d_ax] = newax
+                    ret[newax] = d[d_ax]
+                else:
+                    ax_map[d_ax] = d_ax
+                    ret[d_ax] = d[d_ax]
+
+            for d_dep in d.dependents():
+                if d_dep in ret:
+                    newdep = _find_replacement_name(ret, d_dep)
+                else:
+                    newdep = d_dep
+
+                dep_axes = [ax_map[ax] for ax in d[d_dep]['axes']]
+                ret[newdep] = d[d_dep]
+                ret[newdep]['axes'] = dep_axes
+
+    ret.validate()
+    return ret

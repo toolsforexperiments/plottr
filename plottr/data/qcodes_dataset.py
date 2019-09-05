@@ -11,18 +11,20 @@ import numpy as np
 import pandas as pd
 
 from qcodes.dataset.data_set import DataSet
-from qcodes.dataset.sqlite_base import (
-    get_dependencies, get_dependents, get_layout,
-    get_runs, connect
+from qcodes.dataset.sqlite.database import connect
+from qcodes.dataset.sqlite.queries import (
+    get_dependencies, get_dependents,
+    get_layout, get_runs,
 )
-from .datadict import DataDict
+
+from .datadict import DataDictBase, DataDict, combine_datadicts
 from ..node.node import Node, updateOption
 
 __author__ = 'Wolfgang Pfaff'
 __license__ = 'MIT'
 
 
-### Tools for extracting information on runs in a database
+# Tools for extracting information on runs in a database
 
 def get_ds_structure(ds):
     """
@@ -44,15 +46,16 @@ def get_ds_structure(ds):
         # get name etc.
         layout = get_layout(ds.conn, dependent_id)
         name = layout['name']
-        structure[name] = {'values' : [], 'unit' : layout['unit'], 'axes' : []}
+        structure[name] = {'values': [], 'unit': layout['unit'], 'axes': []}
 
-        # find dependencies (i.e., axes) and add their names/units in the right order
+        # find dependencies (i.e., axes) and add their names/units in the
+        # right order
         dependencies = get_dependencies(ds.conn, dependent_id)
         for dep_id, iax in dependencies:
             dep_layout = get_layout(ds.conn, dep_id)
             dep_name = dep_layout['name']
             structure[name]['axes'].insert(iax, dep_name)
-            structure[dep_name] = {'values' : [], 'unit' : dep_layout['unit']}
+            structure[dep_name] = {'values': [], 'unit': dep_layout['unit']}
 
     return structure
 
@@ -124,7 +127,8 @@ def get_runs_from_db(path: str, start: int = 0,
 
     for run in runs:
         run_id = run['run_id']
-        overview[run_id] = get_ds_info(conn, run_id, get_structure=get_structure)
+        overview[run_id] = get_ds_info(conn, run_id,
+                                       get_structure=get_structure)
 
     return overview
 
@@ -139,56 +143,55 @@ def get_runs_from_db_as_dataframe(path, *arg, **kw):
     return df
 
 
-# Getting data from a dataset
+# Extracting data
 
-def get_data_from_ds(ds: DataSet, start: Optional[int] = None,
-                     end: Optional[int] = None) -> Dict[str, List[List]]:
+def ds_to_datadicts(ds: DataSet) -> Dict[str, DataDict]:
     """
-    Returns a dictionary in the format {'name' : data}, where data
-    is what dataset.get_data('name') returns, i.e., a list of lists, where
-    the inner list is the row as inserted into the DB.
+    Make DataDicts from a qcodes DataSet.
 
-    with `start` and `end` only a subset of rows in the DB can be specified.
+    :param ds: qcodes dataset
+    :returns: dictionary with one item per dependent.
+              key: name of the dependent
+              value: DataDict containing that dependent and its
+                     axes.
     """
-    names = [n for n, v in ds.paramspecs.items()]
-    return {n : np.squeeze(ds.get_data(n, start=start, end=end)) for n in names}
+    ret = {}
+    pdata = ds.get_parameter_data()
+    for p, spec in ds.paramspecs.items():
+        if spec.depends_on != '':
+            axes = spec.depends_on_ # .split(', ')
+            data = dict()
+            data[p] = dict(unit=spec.unit, axes=axes, values=pdata[p][p])
+            for ax in axes:
+                axspec = ds.paramspecs[ax]
+                data[ax] = dict(unit=axspec.unit, values=pdata[p][ax])
+            ret[p] = DataDict(**data)
+            ret[p].validate()
+
+    return ret
 
 
-def get_all_data_from_ds(ds: DataSet) -> Dict[str, List[List]]:
+def ds_to_datadict(ds: DataSet) -> DataDictBase:
+    ddicts = ds_to_datadicts(ds)
+    ddict = combine_datadicts(*[v for k, v in ddicts.items()])
+    return ddict
+
+
+def datadict_from_path_and_run_id(path: str, run_id: int) -> DataDictBase:
     """
-    Returns a dictionary in the format {'name' : data}, where data
-    is what dataset.get_data('name') returns, i.e., a list of lists, where
-    the inner list is the row as inserted into the DB.
+    Load a qcodes dataset as a DataDict.
+
+    :param path: file path of the qcodes .db file.
+    :param run_id: run_id of the dataset.
+    :return: DataDict containing the data.
     """
-    return get_data_from_ds(ds)
-
-
-def ds_to_datadict(ds: DataDict, start: Optional[int] = None,
-                   end: Optional[int] = None) -> DataDict:
-    """
-    Make a datadict from a qcodes dataset.
-    `start` and `end` allow selection of only a subset of rows.
-    """
-    # data = expand(get_data_from_ds(ds, start=start, end=end))
-    data = get_data_from_ds(ds, start=start, end=end)
-    struct = get_ds_structure(ds)
-    datadict = DataDict(**struct)
-    for k, v in data.items():
-        datadict[k]['values'] = data[k]
-
-    datadict.validate()
-    return datadict
-
-
-def datadict_from_path_and_run_id(path: str, run_id: int, **kw) -> DataDict:
     ds = DataSet(path_to_db=path, run_id=run_id)
-    return ds_to_datadict(ds, **kw)
+    return ds_to_datadict(ds)
 
 
 ### qcodes dataset loader node
 
 class QCodesDSLoader(Node):
-
     nodeName = 'QCodesDSLoader'
     uiClass = None
     useUi = False
@@ -215,13 +218,13 @@ class QCodesDSLoader(Node):
     ### processing
 
     def process(self, **kw):
-        if not None in self._pathAndId:
+        if None not in self._pathAndId:
             path, runId = self._pathAndId
             ds = DataSet(path_to_db=path, run_id=runId)
             guid = ds.guid
             if ds.number_of_results > self.nLoadedRecords:
                 title = f"{os.path.split(path)[-1]} | " \
-                    f"run ID: {runId} | GUID: {guid}"
+                        f"run ID: {runId} | GUID: {guid}"
                 info = """Started: {}
 Finished: {}
 GUID: {}
