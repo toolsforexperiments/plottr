@@ -9,8 +9,8 @@ from plottr.data.qcodes_dataset import (
     datadict_from_path_and_run_id,
     QCodesDSLoader,
     get_ds_structure,
-    get_ds_info
-)
+    get_ds_info,
+    get_runs_from_db)
 
 DBPATH = './test_qc_saveandload.db'
 
@@ -141,6 +141,66 @@ def test_get_ds_info():
     ds_info_with_structure = get_ds_info(dataset.conn, dataset.run_id)
 
     assert ds_info_with_structure == expected_ds_info_with_structure
+
+
+def test_get_runs_from_db(tmp_path):
+    # Prepare datasets
+
+    db_path = str(tmp_path / 'some.db')
+    qc.config.core.db_location = db_path
+    initialise_database()
+
+    exp1 = load_or_create_experiment('get_runs_from_db', sample_name='qubit')
+    m1 = qc.Measurement(exp=exp1)
+
+    m1.register_custom_parameter('x', unit='cm')
+    m1.register_custom_parameter('y')
+    m1.register_custom_parameter('foo')
+    for n in range(2):
+        m1.register_custom_parameter(f'z_{n}', setpoints=['x', 'y'])
+
+    with m1.run() as datasaver:
+        dataset11 = datasaver.dataset
+
+    with m1.run() as datasaver:
+        datasaver.add_result(('x', 1.), ('y', 2.), ('z_0', 42.), ('z_1', 0.2))
+
+        dataset12 = datasaver.dataset
+
+    exp2 = load_or_create_experiment('give_em', sample_name='now')
+    m2 = qc.Measurement(exp=exp2)
+
+    m2.register_custom_parameter('a')
+    m2.register_custom_parameter('b', unit='mm')
+    m2.register_custom_parameter('c', setpoints=['a', 'b'])
+
+    with m2.run() as datasaver:
+        datasaver.add_result(('a', 1.), ('b', 2.), ('c', 42.))
+        datasaver.add_result(('a', 4.), ('b', 5.), ('c', 77.))
+        dataset2 = datasaver.dataset
+
+    # Prepare an expected overview of the created database
+    expected_overview = {ds.run_id: get_ds_info(ds.conn, ds.run_id,
+                                                get_structure=False)
+                         for ds in (dataset11, dataset12, dataset2)}
+
+    # Get the actual overview of the created database
+    overview = get_runs_from_db(db_path)
+
+    # Finally, assert
+    assert overview == expected_overview
+
+    # Prepare an expected overview of the created database WITH STRUCTURE
+    expected_overview_with_structure = {
+        ds.run_id: get_ds_info(ds.conn, ds.run_id, get_structure=True)
+        for ds in (dataset11, dataset12, dataset2)
+    }
+
+    # Get the actual overview of the created database WITH STRUCTURE
+    overview_with_structure = get_runs_from_db(db_path, get_structure=True)
+
+    # Finally, assert WITH STRUCTURE
+    assert overview_with_structure == expected_overview_with_structure
 
 
 def test_update_qcloader(qtbot):
