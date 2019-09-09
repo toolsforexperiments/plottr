@@ -5,13 +5,13 @@ Dealing with qcodes dataset (the database) data in plottr.
 """
 import os
 from sqlite3 import Connection
-from typing import Dict, List, Union, Optional
+from typing import Dict, List, Union, Optional, TYPE_CHECKING
 
 import numpy as np
 import pandas as pd
 
-from qcodes.dataset.data_set import DataSet
-from qcodes.dataset.sqlite.database import connect
+from qcodes.dataset.data_set import load_by_id
+from qcodes.dataset.sqlite.database import initialise_or_create_database_at, connect
 from qcodes.dataset.sqlite.queries import (
     get_dependencies, get_dependents,
     get_layout, get_runs,
@@ -23,6 +23,8 @@ from ..node.node import Node, updateOption
 __author__ = 'Wolfgang Pfaff'
 __license__ = 'MIT'
 
+if TYPE_CHECKING:
+    from qcodes.dataset.data_set import DataSet
 
 # Tools for extracting information on runs in a database
 
@@ -68,7 +70,7 @@ def get_ds_info(conn: Connection, run_id: int,
     if get_structure is True: return the datastructure in that dataset
     as well (key is `structure' then).
     """
-    ds = DataSet(conn=conn, run_id=run_id)
+    ds = load_by_id(run_id=run_id, conn=conn)
 
     ret = {}
     ret['experiment'] = ds.exp_name
@@ -100,8 +102,8 @@ def get_ds_info_from_path(path: str, run_id: int,
     Convenience function that determines the dataset from `path` and
     `run_id`, then calls `get_ds_info`.
     """
-
-    ds = DataSet(path_to_db=path, run_id=run_id)
+    initialise_or_create_database_at(path)
+    ds = load_by_id(run_id=run_id)
     return get_ds_info(ds.conn, run_id, get_structure=get_structure)
 
 
@@ -145,7 +147,7 @@ def get_runs_from_db_as_dataframe(path, *arg, **kw):
 
 # Extracting data
 
-def ds_to_datadicts(ds: DataSet) -> Dict[str, DataDict]:
+def ds_to_datadicts(ds: 'DataSet') -> Dict[str, DataDict]:
     """
     Make DataDicts from a qcodes DataSet.
 
@@ -171,7 +173,7 @@ def ds_to_datadicts(ds: DataSet) -> Dict[str, DataDict]:
     return ret
 
 
-def ds_to_datadict(ds: DataSet) -> DataDictBase:
+def ds_to_datadict(ds: 'DataSet') -> DataDictBase:
     ddicts = ds_to_datadicts(ds)
     ddict = combine_datadicts(*[v for k, v in ddicts.items()])
     return ddict
@@ -185,7 +187,8 @@ def datadict_from_path_and_run_id(path: str, run_id: int) -> DataDictBase:
     :param run_id: run_id of the dataset.
     :return: DataDict containing the data.
     """
-    ds = DataSet(path_to_db=path, run_id=run_id)
+    initialise_or_create_database_at(path)
+    ds = load_by_id(run_id=run_id)
     return ds_to_datadict(ds)
 
 
@@ -220,7 +223,10 @@ class QCodesDSLoader(Node):
     def process(self, **kw):
         if None not in self._pathAndId:
             path, runId = self._pathAndId
-            ds = DataSet(path_to_db=path, run_id=runId)
+
+            initialise_or_create_database_at(path)
+            ds = load_by_id(run_id=runId)
+
             guid = ds.guid
             if ds.number_of_results > self.nLoadedRecords:
                 title = f"{os.path.split(path)[-1]} | " \
