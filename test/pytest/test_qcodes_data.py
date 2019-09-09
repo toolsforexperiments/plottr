@@ -7,7 +7,8 @@ from plottr.utils import testdata
 from plottr.node.tools import linearFlowchart
 from plottr.data.qcodes_dataset import (
     datadict_from_path_and_run_id,
-    QCodesDSLoader
+    QCodesDSLoader,
+    get_ds_structure
 )
 
 DBPATH = './test_qc_saveandload.db'
@@ -42,6 +43,52 @@ def test_load_2dsoftsweep():
     run_id = datasaver.dataset.captured_run_id
     ddict = datadict_from_path_and_run_id(DBPATH, run_id)
     assert ddict == dd_expected
+
+
+def test_get_ds_structure():
+    qc.config.core.db_location = DBPATH
+    initialise_database()
+    exp = load_or_create_experiment('2d_softsweep', sample_name='no sample')
+
+    N = 5
+
+    m = qc.Measurement(exp=exp)
+    m.register_custom_parameter('x', unit='cm')
+    m.register_custom_parameter('y')
+
+    # check that unused parameters don't mess with
+    m.register_custom_parameter('foo')
+
+    for n in range(N):
+        m.register_custom_parameter(f'z_{n}', setpoints=['x', 'y'])
+
+    with m.run() as datasaver:
+        dataset = datasaver.dataset
+
+    # test dataset structure function
+    expected_structure = {
+        'x': {
+            'unit': 'cm',
+            'values': []
+        },
+        'y': {
+            'unit': '',
+            'values': []
+        }
+        # note that parameter 'foo' is not expected to be included
+        # because it's a "standalone" parameter
+    }
+    for n in range(N):
+        expected_structure.update(
+            {f'z_{n}': {
+                'unit': '',
+                'axes': ['x', 'y'],
+                'values': []
+                }
+            }
+        )
+    structure = get_ds_structure(dataset)
+    assert structure == expected_structure
 
 
 def test_update_qcloader(qtbot):
