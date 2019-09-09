@@ -1,6 +1,8 @@
 import numpy as np
+import pytest
+
 import qcodes as qc
-from qcodes import initialise_database, load_or_create_experiment
+from qcodes import load_or_create_experiment, initialise_or_create_database_at
 
 from plottr.data.datadict import DataDict
 from plottr.utils import testdata
@@ -12,16 +14,66 @@ from plottr.data.qcodes_dataset import (
     get_runs_from_db,
     ds_to_datadict)
 
-DBPATH = './test_qc_saveandload.db'
+
+@pytest.fixture(scope='function')
+def empty_db_path(tmp_path):
+    db_path = str(tmp_path / 'some.db')
+    initialise_or_create_database_at(db_path)
+    yield db_path
 
 
-def test_load_2dsoftsweep():
-    qc.config.core.db_location = DBPATH
-    initialise_database()
+@pytest.fixture
+def experiment(empty_db_path):
     exp = load_or_create_experiment('2d_softsweep', sample_name='no sample')
+    yield exp
+    exp.conn.close()
 
+
+@pytest.fixture
+def database_with_three_datasets(empty_db_path):
+    """Fixture of a database file with 3 DataSets"""
+    exp1 = load_or_create_experiment('get_runs_from_db', sample_name='qubit')
+    m1 = qc.Measurement(exp=exp1)
+
+    m1.register_custom_parameter('x', unit='cm')
+    m1.register_custom_parameter('y')
+    m1.register_custom_parameter('foo')
+    for n in range(2):
+        m1.register_custom_parameter(f'z_{n}', setpoints=['x', 'y'])
+
+    with m1.run() as datasaver:
+        dataset11 = datasaver.dataset
+
+    with m1.run() as datasaver:
+        datasaver.add_result(('x', 1.), ('y', 2.), ('z_0', 42.), ('z_1', 0.2))
+
+        dataset12 = datasaver.dataset
+
+    exp2 = load_or_create_experiment('give_em', sample_name='now')
+    m2 = qc.Measurement(exp=exp2)
+
+    m2.register_custom_parameter('a')
+    m2.register_custom_parameter('b', unit='mm')
+    m2.register_custom_parameter('c', setpoints=['a', 'b'])
+
+    with m2.run() as datasaver:
+        datasaver.add_result(('a', 1.), ('b', 2.), ('c', 42.))
+        datasaver.add_result(('a', 4.), ('b', 5.), ('c', 77.))
+        dataset2 = datasaver.dataset
+
+    datasets = (dataset11, dataset12, dataset2)
+
+    yield empty_db_path, datasets
+
+    for ds in datasets:
+        ds.conn.close()
+    exp1.conn.close()
+    exp2.conn.close()
+
+
+def test_load_2dsoftsweep(experiment):
     N = 5
-    m = qc.Measurement(exp=exp)
+    m = qc.Measurement(exp=experiment)
     m.register_custom_parameter('x', unit='cm')
     m.register_custom_parameter('y')
 
@@ -45,14 +97,10 @@ def test_load_2dsoftsweep():
     assert ddict == dd_expected
 
 
-def test_get_ds_structure():
-    qc.config.core.db_location = DBPATH
-    initialise_database()
-    exp = load_or_create_experiment('2d_softsweep', sample_name='no sample')
-
+def test_get_ds_structure(experiment):
     N = 5
 
-    m = qc.Measurement(exp=exp)
+    m = qc.Measurement(exp=experiment)
     m.register_custom_parameter('x', unit='cm')
     m.register_custom_parameter('y')
 
@@ -91,14 +139,10 @@ def test_get_ds_structure():
     assert structure == expected_structure
 
 
-def test_get_ds_info():
-    qc.config.core.db_location = DBPATH
-    initialise_database()
-    exp = load_or_create_experiment('test_get_ds_info', sample_name='qubit')
-
+def test_get_ds_info(experiment):
     N = 5
 
-    m = qc.Measurement(exp=exp)
+    m = qc.Measurement(exp=experiment)
 
     m.register_custom_parameter('x', unit='cm')
     m.register_custom_parameter('y')
@@ -120,8 +164,8 @@ def test_get_ds_info():
     completed_ts = dataset.completed_timestamp()
 
     expected_ds_info = {
-        'experiment': 'test_get_ds_info',
-        'sample': 'qubit',
+        'experiment': '2d_softsweep',
+        'sample': 'no sample',
         'completed date': completed_ts[:10],
         'completed time': completed_ts[11:],
         'started date': started_ts[:10],
@@ -141,48 +185,15 @@ def test_get_ds_info():
     assert ds_info_with_structure == expected_ds_info_with_structure
 
 
-def test_get_runs_from_db(tmp_path):
-    # Prepare datasets
-
-    db_path = str(tmp_path / 'some.db')
-    qc.config.core.db_location = db_path
-    initialise_database()
-
-    exp1 = load_or_create_experiment('get_runs_from_db', sample_name='qubit')
-    m1 = qc.Measurement(exp=exp1)
-
-    m1.register_custom_parameter('x', unit='cm')
-    m1.register_custom_parameter('y')
-    m1.register_custom_parameter('foo')
-    for n in range(2):
-        m1.register_custom_parameter(f'z_{n}', setpoints=['x', 'y'])
-
-    with m1.run() as datasaver:
-        dataset11 = datasaver.dataset
-
-    with m1.run() as datasaver:
-        datasaver.add_result(('x', 1.), ('y', 2.), ('z_0', 42.), ('z_1', 0.2))
-
-        dataset12 = datasaver.dataset
-
-    exp2 = load_or_create_experiment('give_em', sample_name='now')
-    m2 = qc.Measurement(exp=exp2)
-
-    m2.register_custom_parameter('a')
-    m2.register_custom_parameter('b', unit='mm')
-    m2.register_custom_parameter('c', setpoints=['a', 'b'])
-
-    with m2.run() as datasaver:
-        datasaver.add_result(('a', 1.), ('b', 2.), ('c', 42.))
-        datasaver.add_result(('a', 4.), ('b', 5.), ('c', 77.))
-        dataset2 = datasaver.dataset
+def test_get_runs_from_db(database_with_three_datasets):
+    db_path, datasets = database_with_three_datasets
 
     # Prepare an expected overview of the created database
     expected_overview = {ds.run_id: get_ds_info(ds, get_structure=False)
-                         for ds in (dataset11, dataset12, dataset2)}
+                         for ds in datasets}
 
     # Get the actual overview of the created database
-    overview = get_runs_from_db(db_path)
+    overview = get_runs_from_db(db_path)  # get_structure=False is the default
 
     # Finally, assert
     assert overview == expected_overview
@@ -190,7 +201,7 @@ def test_get_runs_from_db(tmp_path):
     # Prepare an expected overview of the created database WITH STRUCTURE
     expected_overview_with_structure = {
         ds.run_id: get_ds_info(ds, get_structure=True)
-        for ds in (dataset11, dataset12, dataset2)
+        for ds in datasets
     }
 
     # Get the actual overview of the created database WITH STRUCTURE
@@ -200,9 +211,9 @@ def test_get_runs_from_db(tmp_path):
     assert overview_with_structure == expected_overview_with_structure
 
 
-def test_update_qcloader(qtbot):
-    qc.config.core.db_location = DBPATH
-    initialise_database()
+def test_update_qcloader(qtbot, empty_db_path):
+    db_path = empty_db_path
+
     exp = load_or_create_experiment('2d_softsweep', sample_name='no sample')
 
     N = 2
@@ -235,7 +246,7 @@ def test_update_qcloader(qtbot):
     with m.run() as datasaver:
         ds = datasaver.dataset
         run_id = datasaver.dataset.captured_run_id
-        loader.pathAndId = DBPATH, run_id
+        loader.pathAndId = db_path, run_id
 
         for result in testdata.generate_2d_scalar_simple(3, 3, N):
             row = [(k, v) for k, v in result.items()]
