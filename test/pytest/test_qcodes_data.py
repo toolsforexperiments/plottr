@@ -6,11 +6,11 @@ from plottr.data.datadict import DataDict
 from plottr.utils import testdata
 from plottr.node.tools import linearFlowchart
 from plottr.data.qcodes_dataset import (
-    datadict_from_path_and_run_id,
     QCodesDSLoader,
     get_ds_structure,
     get_ds_info,
-    get_runs_from_db)
+    get_runs_from_db,
+    ds_to_datadict)
 
 DBPATH = './test_qc_saveandload.db'
 
@@ -41,8 +41,7 @@ def test_load_2dsoftsweep():
             dd_expected.add_data(**result)
 
     # retrieve data as data dict
-    run_id = datasaver.dataset.captured_run_id
-    ddict = datadict_from_path_and_run_id(DBPATH, run_id)
+    ddict = ds_to_datadict(datasaver.dataset)
     assert ddict == dd_expected
 
 

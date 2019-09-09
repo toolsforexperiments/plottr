@@ -191,19 +191,6 @@ def ds_to_datadict(ds: 'DataSet') -> DataDictBase:
     return ddict
 
 
-def datadict_from_path_and_run_id(path: str, run_id: int) -> DataDictBase:
-    """
-    Load a qcodes dataset as a DataDict.
-
-    :param path: file path of the qcodes .db file.
-    :param run_id: run_id of the dataset.
-    :return: DataDict containing the data.
-    """
-    initialise_or_create_database_at(path)
-    ds = load_by_id(run_id=run_id)
-    return ds_to_datadict(ds)
-
-
 ### qcodes dataset loader node
 
 class QCodesDSLoader(Node):
