@@ -106,15 +106,16 @@ def get_ds_info(ds: 'DataSet', get_structure: bool = True) -> Dict[str, str]:
     return ret
 
 
-def get_ds_info_from_path(path: str, run_id: int,
-                          get_structure: bool = True):
+def load_dataset_from(path: str, run_id: int) -> 'DataSet':
     """
-    Convenience function that determines the dataset from `path` and
-    `run_id`, then calls `get_ds_info`.
+    Loads ``DataSet`` with the given ``run_id`` from a database file that
+    is located in in the given ``path``.
+
+    Note that after the call to this function, the database location in the
+    qcodes config of the current python process is changed to ``path``.
     """
     initialise_or_create_database_at(path)
-    ds = load_by_id(run_id=run_id)
-    return get_ds_info(ds, get_structure=get_structure)
+    return load_by_id(run_id=run_id)
 
 
 def get_runs_from_db(path: str, start: int = 0,
@@ -223,8 +224,7 @@ class QCodesDSLoader(Node):
         if None not in self._pathAndId:
             path, runId = self._pathAndId
 
-            initialise_or_create_database_at(path)
-            ds = load_by_id(run_id=runId)
+            ds = load_dataset_from(path, runId)
 
             guid = ds.guid
             if ds.number_of_results > self.nLoadedRecords:

@@ -11,7 +11,7 @@ from pyqtgraph.Qt import QtGui, QtCore
 
 from .. import log as plottrlog
 from ..data.qcodes_dataset import (get_runs_from_db_as_dataframe,
-                                   get_ds_info_from_path,)
+                                   get_ds_structure, load_dataset_from)
 from plottr.gui.widgets import MonitorIntervalInput, FormLayoutWrapper
 
 from .autoplot import autoplotQcodesDataset
@@ -413,8 +413,8 @@ class QCodesDBInspector(QtGui.QMainWindow):
 
     @QtCore.pyqtSlot(int)
     def setRunSelection(self, runId):
-        info = get_ds_info_from_path(self.filepath, runId, get_structure=True)
-        structure = info['structure']
+        ds = load_dataset_from(self.filepath, runId)
+        structure = get_ds_structure(ds)
         for k, v in structure.items():
             v.pop('values')
         contentInfo = {'data' : structure}
