@@ -110,8 +110,7 @@ def test_get_ds_info():
     with m.run() as datasaver:
         dataset = datasaver.dataset
 
-        ds_info_with_empty_timestamps = get_ds_info(dataset.conn,
-                                                    dataset.run_id,
+        ds_info_with_empty_timestamps = get_ds_info(dataset,
                                                     get_structure=False)
         assert ds_info_with_empty_timestamps['completed date'] == ''
         assert ds_info_with_empty_timestamps['completed time'] == ''
@@ -131,14 +130,14 @@ def test_get_ds_info():
         'records': 0
     }
 
-    ds_info = get_ds_info(dataset.conn, dataset.run_id, get_structure=False)
+    ds_info = get_ds_info(dataset, get_structure=False)
 
     assert ds_info == expected_ds_info
 
     expected_ds_info_with_structure = expected_ds_info.copy()
     expected_ds_info_with_structure['structure'] = get_ds_structure(dataset)
 
-    ds_info_with_structure = get_ds_info(dataset.conn, dataset.run_id)
+    ds_info_with_structure = get_ds_info(dataset)
 
     assert ds_info_with_structure == expected_ds_info_with_structure
 
@@ -180,8 +179,7 @@ def test_get_runs_from_db(tmp_path):
         dataset2 = datasaver.dataset
 
     # Prepare an expected overview of the created database
-    expected_overview = {ds.run_id: get_ds_info(ds.conn, ds.run_id,
-                                                get_structure=False)
+    expected_overview = {ds.run_id: get_ds_info(ds, get_structure=False)
                          for ds in (dataset11, dataset12, dataset2)}
 
     # Get the actual overview of the created database
@@ -192,7 +190,7 @@ def test_get_runs_from_db(tmp_path):
 
     # Prepare an expected overview of the created database WITH STRUCTURE
     expected_overview_with_structure = {
-        ds.run_id: get_ds_info(ds.conn, ds.run_id, get_structure=True)
+        ds.run_id: get_ds_info(ds, get_structure=True)
         for ds in (dataset11, dataset12, dataset2)
     }
 

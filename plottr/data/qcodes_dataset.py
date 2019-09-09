@@ -4,7 +4,6 @@ qcodes_dataset.py
 Dealing with qcodes dataset (the database) data in plottr.
 """
 import os
-from sqlite3 import Connection
 from typing import Dict, List, Set, Union, TYPE_CHECKING
 
 import pandas as pd
@@ -72,16 +71,13 @@ def get_ds_structure(ds: 'DataSet'):
     return structure
 
 
-def get_ds_info(conn: Connection, run_id: int,
-                get_structure: bool = True) -> Dict[str, str]:
+def get_ds_info(ds: 'DataSet', get_structure: bool = True) -> Dict[str, str]:
     """
-    Get some info on a run in dict form from a db connection and runId.
+    Get some info on a DataSet in dict.
 
     if get_structure is True: return the datastructure in that dataset
     as well (key is `structure' then).
     """
-    ds = load_by_id(run_id=run_id, conn=conn)
-
     ret = {}
     ret['experiment'] = ds.exp_name
     ret['sample'] = ds.sample_name
@@ -118,7 +114,7 @@ def get_ds_info_from_path(path: str, run_id: int,
     """
     initialise_or_create_database_at(path)
     ds = load_by_id(run_id=run_id)
-    return get_ds_info(ds.conn, run_id, get_structure=get_structure)
+    return get_ds_info(ds, get_structure=get_structure)
 
 
 def get_runs_from_db(path: str, start: int = 0,
@@ -146,8 +142,7 @@ def get_runs_from_db(path: str, start: int = 0,
 
     for run_id in run_ids:
         ds = load_by_id(run_id)
-        overview[run_id] = get_ds_info(ds.conn, run_id,
-                                       get_structure=get_structure)
+        overview[run_id] = get_ds_info(ds, get_structure=get_structure)
 
     return overview
 
