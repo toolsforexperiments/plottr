@@ -8,7 +8,8 @@ from plottr.node.tools import linearFlowchart
 from plottr.data.qcodes_dataset import (
     datadict_from_path_and_run_id,
     QCodesDSLoader,
-    get_ds_structure
+    get_ds_structure,
+    get_ds_info
 )
 
 DBPATH = './test_qc_saveandload.db'
@@ -89,6 +90,57 @@ def test_get_ds_structure():
         )
     structure = get_ds_structure(dataset)
     assert structure == expected_structure
+
+
+def test_get_ds_info():
+    qc.config.core.db_location = DBPATH
+    initialise_database()
+    exp = load_or_create_experiment('test_get_ds_info', sample_name='qubit')
+
+    N = 5
+
+    m = qc.Measurement(exp=exp)
+
+    m.register_custom_parameter('x', unit='cm')
+    m.register_custom_parameter('y')
+    m.register_custom_parameter('foo')
+    for n in range(N):
+        m.register_custom_parameter(f'z_{n}', setpoints=['x', 'y'])
+
+    with m.run() as datasaver:
+        dataset = datasaver.dataset
+
+        ds_info_with_empty_timestamps = get_ds_info(dataset.conn,
+                                                    dataset.run_id,
+                                                    get_structure=False)
+        assert ds_info_with_empty_timestamps['completed date'] == ''
+        assert ds_info_with_empty_timestamps['completed time'] == ''
+
+    # timestamps are difficult to test for, so we will cheat here and
+    # instead of hard-coding timestamps we will just get them from the dataset
+    started_ts = dataset.run_timestamp()
+    completed_ts = dataset.completed_timestamp()
+
+    expected_ds_info = {
+        'experiment': 'test_get_ds_info',
+        'sample': 'qubit',
+        'completed date': completed_ts[:10],
+        'completed time': completed_ts[11:],
+        'started date': started_ts[:10],
+        'started time': started_ts[11:],
+        'records': 0
+    }
+
+    ds_info = get_ds_info(dataset.conn, dataset.run_id, get_structure=False)
+
+    assert ds_info == expected_ds_info
+
+    expected_ds_info_with_structure = expected_ds_info.copy()
+    expected_ds_info_with_structure['structure'] = get_ds_structure(dataset)
+
+    ds_info_with_structure = get_ds_info(dataset.conn, dataset.run_id)
+
+    assert ds_info_with_structure == expected_ds_info_with_structure
 
 
 def test_update_qcloader(qtbot):
