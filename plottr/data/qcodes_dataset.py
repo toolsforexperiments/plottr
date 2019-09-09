@@ -85,8 +85,12 @@ def get_ds_info(conn: Connection, run_id: int,
         ret['completed time'] = ''
 
     _start_ts = ds.run_timestamp()
-    ret['started date'] = _start_ts[:10]
-    ret['started time'] = _start_ts[11:]
+    if _start_ts is not None:
+        ret['started date'] = _start_ts[:10]
+        ret['started time'] = _start_ts[11:]
+    else:
+        ret['started date'] = ''
+        ret['started time'] = ''
 
     if get_structure:
         ret['structure'] = get_ds_structure(ds)
