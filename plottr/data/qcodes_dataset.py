@@ -5,17 +5,14 @@ Dealing with qcodes dataset (the database) data in plottr.
 """
 import os
 from sqlite3 import Connection
-from typing import Dict, List, Union, Optional, TYPE_CHECKING
+from typing import Dict, List, Set, Union, Optional, TYPE_CHECKING
 
 import numpy as np
 import pandas as pd
 
 from qcodes.dataset.data_set import load_by_id
 from qcodes.dataset.sqlite.database import initialise_or_create_database_at, connect
-from qcodes.dataset.sqlite.queries import (
-    get_dependencies, get_dependents,
-    get_layout, get_runs,
-)
+from qcodes.dataset.sqlite.queries import get_runs
 
 from .datadict import DataDictBase, DataDict, combine_datadicts
 from ..node.node import Node, updateOption
@@ -25,39 +22,53 @@ __license__ = 'MIT'
 
 if TYPE_CHECKING:
     from qcodes.dataset.data_set import DataSet
+    from qcodes import ParamSpec
+
+
+def _get_names_of_standalone_parameters(paramspecs: List['ParamSpec']
+                                        ) -> Set[str]:
+    all_independents = set(spec.name
+                           for spec in paramspecs
+                           if len(spec.depends_on_) == 0)
+    used_independents = set(d for spec in paramspecs for d in spec.depends_on_)
+    standalones = all_independents.difference(used_independents)
+    return standalones
+
 
 # Tools for extracting information on runs in a database
 
-def get_ds_structure(ds):
+def get_ds_structure(ds: 'DataSet'):
     """
     Return the structure of the dataset, i.e., a dictionary in the form
-        {'parameter' : {
-            'unit' : unit,
-            'axes' : list of dependencies,
-            'values' : [],
+        {
+            'dependent_parameter_name': {
+                'unit': unit,
+                'axes': list of names of independent parameters,
+                'values': []
             },
-        ...
+            'independent_parameter_name': {
+                'unit': unit,
+                'values': []
+            },
+            ...
         }
+
+    Note that standalone parameters (those which don't depend on any other
+    parameter and no other parameter depends on them) are not included
+    in the returned structure.
     """
 
     structure = {}
 
-    # for each data param (non-independent param)
-    for dependent_id in get_dependents(ds.conn, ds.run_id):
+    paramspecs = ds.get_parameters()
 
-        # get name etc.
-        layout = get_layout(ds.conn, dependent_id)
-        name = layout['name']
-        structure[name] = {'values': [], 'unit': layout['unit'], 'axes': []}
+    standalones = _get_names_of_standalone_parameters(paramspecs)
 
-        # find dependencies (i.e., axes) and add their names/units in the
-        # right order
-        dependencies = get_dependencies(ds.conn, dependent_id)
-        for dep_id, iax in dependencies:
-            dep_layout = get_layout(ds.conn, dep_id)
-            dep_name = dep_layout['name']
-            structure[name]['axes'].insert(iax, dep_name)
-            structure[dep_name] = {'values': [], 'unit': dep_layout['unit']}
+    for spec in paramspecs:
+        if spec.name not in standalones:
+            structure[spec.name] = {'unit': spec.unit, 'values': []}
+            if len(spec.depends_on_) > 0:
+                structure[spec.name]['axes'] = list(spec.depends_on_)
 
     return structure
 
