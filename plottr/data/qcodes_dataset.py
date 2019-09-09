@@ -173,7 +173,7 @@ def ds_to_datadicts(ds: 'DataSet') -> Dict[str, DataDict]:
     pdata = ds.get_parameter_data()
     for p, spec in ds.paramspecs.items():
         if spec.depends_on != '':
-            axes = spec.depends_on_ # .split(', ')
+            axes = spec.depends_on_
             data = dict()
             data[p] = dict(unit=spec.unit, axes=axes, values=pdata[p][p])
             for ax in axes:
