@@ -5,9 +5,8 @@ Dealing with qcodes dataset (the database) data in plottr.
 """
 import os
 from sqlite3 import Connection
-from typing import Dict, List, Set, Union, Optional, TYPE_CHECKING
+from typing import Dict, List, Set, Union, TYPE_CHECKING
 
-import numpy as np
 import pandas as pd
 
 from qcodes.dataset.data_set import load_by_id
