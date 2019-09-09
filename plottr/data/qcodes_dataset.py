@@ -11,8 +11,8 @@ import numpy as np
 import pandas as pd
 
 from qcodes.dataset.data_set import load_by_id
-from qcodes.dataset.sqlite.database import initialise_or_create_database_at, connect
-from qcodes.dataset.sqlite.queries import get_runs
+from qcodes.dataset.experiment_container import experiments
+from qcodes.dataset.sqlite.database import initialise_or_create_database_at
 
 from .datadict import DataDictBase, DataDict, combine_datadicts
 from ..node.node import Node, updateOption
@@ -132,30 +132,33 @@ def get_runs_from_db(path: str, start: int = 0,
     if `get_structure` is True, include info on the run data structure
     in the return dict.
     """
+    initialise_or_create_database_at(path)
 
-    conn = connect(path)
-    runs = get_runs(conn)
+    run_ids = list(sorted(ds.run_id
+                          for exp in experiments()
+                          for ds in exp.data_sets()))
 
     if stop is None:
-        stop = len(runs)
+        stop = len(run_ids)
 
-    runs = runs[start:stop]
+    run_ids = run_ids[start:stop]
+
     overview = {}
 
-    for run in runs:
-        run_id = run['run_id']
-        overview[run_id] = get_ds_info(conn, run_id,
+    for run_id in run_ids:
+        ds = load_by_id(run_id)
+        overview[run_id] = get_ds_info(ds.conn, run_id,
                                        get_structure=get_structure)
 
     return overview
 
 
-def get_runs_from_db_as_dataframe(path, *arg, **kw):
+def get_runs_from_db_as_dataframe(path):
     """
     Wrapper around `get_runs_from_db` that returns the overview
     as pandas dataframe.
     """
-    overview = get_runs_from_db(path, *arg, **kw)
+    overview = get_runs_from_db(path)
     df = pd.DataFrame.from_dict(overview, orient='index')
     return df
 
