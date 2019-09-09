@@ -4,6 +4,8 @@ qcodes_dataset.py
 Dealing with qcodes dataset (the database) data in plottr.
 """
 import os
+from itertools import chain
+from operator import attrgetter
 from typing import Dict, List, Set, Union, TYPE_CHECKING
 
 import pandas as pd
@@ -122,29 +124,29 @@ def get_runs_from_db(path: str, start: int = 0,
                      stop: Union[None, int] = None,
                      get_structure: bool = False):
     """
-    Get a db 'overview' dictionary from the db located in `path`.
+    Get a db ``overview`` dictionary from the db located in ``path``. The
+    ``overview`` dictionary maps ``DataSet.run_id``s to dataset information as
+    returned by ``get_ds_info`` functions.
+
     `start` and `stop` refer to indices of the runs in the db that we want
     to have details on; if `stop` is None, we'll use runs until the end.
-    if `get_structure` is True, include info on the run data structure
+
+    If `get_structure` is True, include info on the run data structure
     in the return dict.
     """
     initialise_or_create_database_at(path)
 
-    run_ids = list(sorted(ds.run_id
-                          for exp in experiments()
-                          for ds in exp.data_sets()))
+    datasets = sorted(
+        chain.from_iterable(exp.data_sets() for exp in experiments()),
+        key=attrgetter('run_id')
+    )
 
-    if stop is None:
-        stop = len(run_ids)
+    # There is no need for checking whether ``stop`` is ``None`` because if
+    # it is the following is simply equivalent to ``datasets[start:]``
+    datasets = datasets[start:stop]
 
-    run_ids = run_ids[start:stop]
-
-    overview = {}
-
-    for run_id in run_ids:
-        ds = load_by_id(run_id)
-        overview[run_id] = get_ds_info(ds, get_structure=get_structure)
-
+    overview = {ds.run_id: get_ds_info(ds, get_structure=get_structure)
+                for ds in datasets}
     return overview
 
 
