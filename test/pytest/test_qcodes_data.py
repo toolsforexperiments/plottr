@@ -20,12 +20,12 @@ def test_load_2dsoftsweep():
 
     N = 5
     m = qc.Measurement(exp=exp)
-    m.register_custom_parameter('x')
+    m.register_custom_parameter('x', unit='cm')
     m.register_custom_parameter('y')
 
     # check that unused parameters don't mess with
     m.register_custom_parameter('foo')
-    dd_expected = DataDict(x=dict(values=np.array([])),
+    dd_expected = DataDict(x=dict(values=np.array([]), unit='cm'),
                            y=dict(values=np.array([])))
     for n in range(N):
         m.register_custom_parameter(f'z_{n}', setpoints=['x', 'y'])
