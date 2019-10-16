@@ -73,6 +73,7 @@ def get_ds_info(conn: Connection, run_id: int,
     ret = {}
     ret['experiment'] = ds.exp_name
     ret['sample'] = ds.sample_name
+    ret['name'] = ds.name
 
     _complete_ts = ds.completed_timestamp()
     if _complete_ts is not None:

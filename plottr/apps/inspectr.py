@@ -104,7 +104,7 @@ class DateList(QtGui.QListWidget):
 
 class RunList(QtGui.QTreeWidget):
 
-    cols = ['Run ID', 'Experiment', 'Sample', 'Started', 'Completed', 'Records']
+    cols = ['Run ID', 'Experiment', 'Sample', 'Name', 'Started', 'Completed', 'Records']
 
     runSelected = QtCore.pyqtSignal(int)
     runActivated = QtCore.pyqtSignal(int)
@@ -122,6 +122,7 @@ class RunList(QtGui.QTreeWidget):
         lst = [str(runId)]
         lst.append(vals.get('experiment', ''))
         lst.append(vals.get('sample', ''))
+        lst.append(vals.get('name', ''))
         lst.append(vals.get('started date', '') + ' ' + vals.get('started time', ''))
         lst.append(vals.get('completed date', '') + ' ' + vals.get('completed time', ''))
         lst.append(str(vals.get('records', '')))
