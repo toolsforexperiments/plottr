@@ -6,7 +6,7 @@ from plottr.data import datadict as dd
 from plottr.data import datadict_storage as dds
 from plottr.node.tools import linearFlowchart
 
-FN = './test_ddh5_data.dd.h5'
+FN = './test_ddh5_data.ddh5'
 
 
 def _clean_from_file(datafromfile):
