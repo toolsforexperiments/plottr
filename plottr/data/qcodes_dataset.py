@@ -83,6 +83,7 @@ def get_ds_info(ds: 'DataSet', get_structure: bool = True) -> Dict[str, str]:
     ret = {}
     ret['experiment'] = ds.exp_name
     ret['sample'] = ds.sample_name
+    ret['name'] = ds.name
 
     _complete_ts = ds.completed_timestamp()
     if _complete_ts is not None:
