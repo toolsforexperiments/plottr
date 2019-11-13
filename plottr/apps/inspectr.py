@@ -102,6 +102,24 @@ class DateList(QtGui.QListWidget):
     ])
 
 
+class SortableTreeWidgetItem(QtGui.QTreeWidgetItem):
+    """
+    QTreeWidgetItem with an overridden comparator that sorts numerical values
+    as numbers instead of sorting them alphabetically.
+    """
+    def __init__(self, parent=None):
+        super().__init__(parent)
+
+    def __lt__(self, other):
+        col = self.treeWidget().sortColumn()
+        text1 = self.text(col)
+        text2 = other.text(col)
+        try:
+            return float(text1) < float(text2)
+        except ValueError:
+            return text1 < text2
+
+
 class RunList(QtGui.QTreeWidget):
 
     cols = ['Run ID', 'Experiment', 'Sample', 'Started', 'Completed', 'Records']
@@ -126,13 +144,19 @@ class RunList(QtGui.QTreeWidget):
         lst.append(vals.get('completed date', '') + ' ' + vals.get('completed time', ''))
         lst.append(str(vals.get('records', '')))
 
-        item = QtGui.QTreeWidgetItem(lst)
+        item = SortableTreeWidgetItem(lst)
         self.addTopLevelItem(item)
 
     def setRuns(self, selection):
         self.clear()
+
+        # disable sorting before inserting values to avoid performance hit
+        self.setSortingEnabled(False)
+
         for runId, record in selection.items():
             self.addRun(runId, **record)
+
+        self.setSortingEnabled(True)
 
         for i in range(len(self.cols)):
             self.resizeColumnToContents(i)
