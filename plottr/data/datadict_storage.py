@@ -255,7 +255,7 @@ def datadict_from_hdf5(basepath: str, groupname: str = 'data',
 
         grp = f[groupname]
         keys = list(grp.keys())
-        lens = [len(grp[k].value) for k in keys]
+        lens = [len(grp[k][:]) for k in keys]
 
         if len(set(lens)) > 1:
             if not ignore_unequal_lengths:
@@ -285,7 +285,7 @@ def datadict_from_hdf5(basepath: str, groupname: str = 'data',
                     entry['unit'] = deh5ify(ds.attrs['unit'])
 
                 if not structure_only:
-                    entry['values'] = ds.value[startidx:stopidx]
+                    entry['values'] = ds[startidx:stopidx]
 
                 # and now the meta data
                 for attr in ds.attrs:

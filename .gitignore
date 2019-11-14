@@ -1,5 +1,3 @@
-doc/build
-
 # IDEs
 .idea/
 .vscode/*
@@ -75,6 +73,7 @@ instance/
 
 # Sphinx documentation
 docs/_build/
+doc/build
 
 # PyBuilder
 target/

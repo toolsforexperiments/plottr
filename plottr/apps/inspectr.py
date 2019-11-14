@@ -11,7 +11,7 @@ from pyqtgraph.Qt import QtGui, QtCore
 
 from .. import log as plottrlog
 from ..data.qcodes_dataset import (get_runs_from_db_as_dataframe,
-                                   get_ds_info_from_path,)
+                                   get_ds_structure, load_dataset_from)
 from plottr.gui.widgets import MonitorIntervalInput, FormLayoutWrapper
 
 from .autoplot import autoplotQcodesDataset
@@ -102,9 +102,27 @@ class DateList(QtGui.QListWidget):
     ])
 
 
+class SortableTreeWidgetItem(QtGui.QTreeWidgetItem):
+    """
+    QTreeWidgetItem with an overridden comparator that sorts numerical values
+    as numbers instead of sorting them alphabetically.
+    """
+    def __init__(self, parent=None):
+        super().__init__(parent)
+
+    def __lt__(self, other):
+        col = self.treeWidget().sortColumn()
+        text1 = self.text(col)
+        text2 = other.text(col)
+        try:
+            return float(text1) < float(text2)
+        except ValueError:
+            return text1 < text2
+
+
 class RunList(QtGui.QTreeWidget):
 
-    cols = ['Run ID', 'Experiment', 'Sample', 'Started', 'Completed', 'Records']
+    cols = ['Run ID', 'Experiment', 'Sample', 'Name', 'Started', 'Completed', 'Records']
 
     runSelected = QtCore.pyqtSignal(int)
     runActivated = QtCore.pyqtSignal(int)
@@ -122,17 +140,24 @@ class RunList(QtGui.QTreeWidget):
         lst = [str(runId)]
         lst.append(vals.get('experiment', ''))
         lst.append(vals.get('sample', ''))
+        lst.append(vals.get('name', ''))
         lst.append(vals.get('started date', '') + ' ' + vals.get('started time', ''))
         lst.append(vals.get('completed date', '') + ' ' + vals.get('completed time', ''))
         lst.append(str(vals.get('records', '')))
 
-        item = QtGui.QTreeWidgetItem(lst)
+        item = SortableTreeWidgetItem(lst)
         self.addTopLevelItem(item)
 
     def setRuns(self, selection):
         self.clear()
+
+        # disable sorting before inserting values to avoid performance hit
+        self.setSortingEnabled(False)
+
         for runId, record in selection.items():
             self.addRun(runId, **record)
+
+        self.setSortingEnabled(True)
 
         for i in range(len(self.cols)):
             self.resizeColumnToContents(i)
@@ -413,8 +438,8 @@ class QCodesDBInspector(QtGui.QMainWindow):
 
     @QtCore.pyqtSlot(int)
     def setRunSelection(self, runId):
-        info = get_ds_info_from_path(self.filepath, runId, get_structure=True)
-        structure = info['structure']
+        ds = load_dataset_from(self.filepath, runId)
+        structure = get_ds_structure(ds)
         for k, v in structure.items():
             v.pop('values')
         contentInfo = {'data' : structure}

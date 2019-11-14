@@ -4,18 +4,15 @@ qcodes_dataset.py
 Dealing with qcodes dataset (the database) data in plottr.
 """
 import os
-from sqlite3 import Connection
-from typing import Dict, List, Union, Optional
+from itertools import chain
+from operator import attrgetter
+from typing import Dict, List, Set, Union, TYPE_CHECKING
 
-import numpy as np
 import pandas as pd
 
-from qcodes.dataset.data_set import DataSet
-from qcodes.dataset.sqlite.database import connect
-from qcodes.dataset.sqlite.queries import (
-    get_dependencies, get_dependents,
-    get_layout, get_runs,
-)
+from qcodes.dataset.data_set import load_by_id
+from qcodes.dataset.experiment_container import experiments
+from qcodes.dataset.sqlite.database import initialise_or_create_database_at
 
 from .datadict import DataDictBase, DataDict, combine_datadicts
 from ..node.node import Node, updateOption
@@ -23,56 +20,70 @@ from ..node.node import Node, updateOption
 __author__ = 'Wolfgang Pfaff'
 __license__ = 'MIT'
 
+if TYPE_CHECKING:
+    from qcodes.dataset.data_set import DataSet
+    from qcodes import ParamSpec
+
+
+def _get_names_of_standalone_parameters(paramspecs: List['ParamSpec']
+                                        ) -> Set[str]:
+    all_independents = set(spec.name
+                           for spec in paramspecs
+                           if len(spec.depends_on_) == 0)
+    used_independents = set(d for spec in paramspecs for d in spec.depends_on_)
+    standalones = all_independents.difference(used_independents)
+    return standalones
+
 
 # Tools for extracting information on runs in a database
 
-def get_ds_structure(ds):
+def get_ds_structure(ds: 'DataSet'):
     """
     Return the structure of the dataset, i.e., a dictionary in the form
-        {'parameter' : {
-            'unit' : unit,
-            'axes' : list of dependencies,
-            'values' : [],
+        {
+            'dependent_parameter_name': {
+                'unit': unit,
+                'axes': list of names of independent parameters,
+                'values': []
             },
-        ...
+            'independent_parameter_name': {
+                'unit': unit,
+                'values': []
+            },
+            ...
         }
+
+    Note that standalone parameters (those which don't depend on any other
+    parameter and no other parameter depends on them) are not included
+    in the returned structure.
     """
 
     structure = {}
 
-    # for each data param (non-independent param)
-    for dependent_id in get_dependents(ds.conn, ds.run_id):
+    paramspecs = ds.get_parameters()
 
-        # get name etc.
-        layout = get_layout(ds.conn, dependent_id)
-        name = layout['name']
-        structure[name] = {'values': [], 'unit': layout['unit'], 'axes': []}
+    standalones = _get_names_of_standalone_parameters(paramspecs)
 
-        # find dependencies (i.e., axes) and add their names/units in the
-        # right order
-        dependencies = get_dependencies(ds.conn, dependent_id)
-        for dep_id, iax in dependencies:
-            dep_layout = get_layout(ds.conn, dep_id)
-            dep_name = dep_layout['name']
-            structure[name]['axes'].insert(iax, dep_name)
-            structure[dep_name] = {'values': [], 'unit': dep_layout['unit']}
+    for spec in paramspecs:
+        if spec.name not in standalones:
+            structure[spec.name] = {'unit': spec.unit, 'values': []}
+            if len(spec.depends_on_) > 0:
+                structure[spec.name]['axes'] = list(spec.depends_on_)
 
     return structure
 
 
-def get_ds_info(conn: Connection, run_id: int,
-                get_structure: bool = True) -> Dict[str, str]:
+def get_ds_info(ds: 'DataSet', get_structure: bool = True) -> Dict[str, str]:
     """
-    Get some info on a run in dict form from a db connection and runId.
+    Get some info on a DataSet in dict.
 
     if get_structure is True: return the datastructure in that dataset
     as well (key is `structure' then).
     """
-    ds = DataSet(conn=conn, run_id=run_id)
-
     ret = {}
     ret['experiment'] = ds.exp_name
     ret['sample'] = ds.sample_name
+    ret['name'] = ds.name
 
     _complete_ts = ds.completed_timestamp()
     if _complete_ts is not None:
@@ -83,8 +94,12 @@ def get_ds_info(conn: Connection, run_id: int,
         ret['completed time'] = ''
 
     _start_ts = ds.run_timestamp()
-    ret['started date'] = _start_ts[:10]
-    ret['started time'] = _start_ts[11:]
+    if _start_ts is not None:
+        ret['started date'] = _start_ts[:10]
+        ret['started time'] = _start_ts[11:]
+    else:
+        ret['started date'] = ''
+        ret['started time'] = ''
 
     if get_structure:
         ret['structure'] = get_ds_structure(ds)
@@ -94,58 +109,61 @@ def get_ds_info(conn: Connection, run_id: int,
     return ret
 
 
-def get_ds_info_from_path(path: str, run_id: int,
-                          get_structure: bool = True):
+def load_dataset_from(path: str, run_id: int) -> 'DataSet':
     """
-    Convenience function that determines the dataset from `path` and
-    `run_id`, then calls `get_ds_info`.
-    """
+    Loads ``DataSet`` with the given ``run_id`` from a database file that
+    is located in in the given ``path``.
 
-    ds = DataSet(path_to_db=path, run_id=run_id)
-    return get_ds_info(ds.conn, run_id, get_structure=get_structure)
+    Note that after the call to this function, the database location in the
+    qcodes config of the current python process is changed to ``path``.
+    """
+    initialise_or_create_database_at(path)
+    return load_by_id(run_id=run_id)
 
 
 def get_runs_from_db(path: str, start: int = 0,
                      stop: Union[None, int] = None,
                      get_structure: bool = False):
     """
-    Get a db 'overview' dictionary from the db located in `path`.
+    Get a db ``overview`` dictionary from the db located in ``path``. The
+    ``overview`` dictionary maps ``DataSet.run_id``s to dataset information as
+    returned by ``get_ds_info`` functions.
+
     `start` and `stop` refer to indices of the runs in the db that we want
     to have details on; if `stop` is None, we'll use runs until the end.
-    if `get_structure` is True, include info on the run data structure
+
+    If `get_structure` is True, include info on the run data structure
     in the return dict.
     """
+    initialise_or_create_database_at(path)
 
-    conn = connect(path)
-    runs = get_runs(conn)
+    datasets = sorted(
+        chain.from_iterable(exp.data_sets() for exp in experiments()),
+        key=attrgetter('run_id')
+    )
 
-    if stop is None:
-        stop = len(runs)
+    # There is no need for checking whether ``stop`` is ``None`` because if
+    # it is the following is simply equivalent to ``datasets[start:]``
+    datasets = datasets[start:stop]
 
-    runs = runs[start:stop]
-    overview = {}
-
-    for run in runs:
-        run_id = run['run_id']
-        overview[run_id] = get_ds_info(conn, run_id,
-                                       get_structure=get_structure)
-
+    overview = {ds.run_id: get_ds_info(ds, get_structure=get_structure)
+                for ds in datasets}
     return overview
 
 
-def get_runs_from_db_as_dataframe(path, *arg, **kw):
+def get_runs_from_db_as_dataframe(path):
     """
     Wrapper around `get_runs_from_db` that returns the overview
     as pandas dataframe.
     """
-    overview = get_runs_from_db(path, *arg, **kw)
+    overview = get_runs_from_db(path)
     df = pd.DataFrame.from_dict(overview, orient='index')
     return df
 
 
 # Extracting data
 
-def ds_to_datadicts(ds: DataSet) -> Dict[str, DataDict]:
+def ds_to_datadicts(ds: 'DataSet') -> Dict[str, DataDict]:
     """
     Make DataDicts from a qcodes DataSet.
 
@@ -159,7 +177,7 @@ def ds_to_datadicts(ds: DataSet) -> Dict[str, DataDict]:
     pdata = ds.get_parameter_data()
     for p, spec in ds.paramspecs.items():
         if spec.depends_on != '':
-            axes = spec.depends_on_ # .split(', ')
+            axes = spec.depends_on_
             data = dict()
             data[p] = dict(unit=spec.unit, axes=axes, values=pdata[p][p])
             for ax in axes:
@@ -171,22 +189,10 @@ def ds_to_datadicts(ds: DataSet) -> Dict[str, DataDict]:
     return ret
 
 
-def ds_to_datadict(ds: DataSet) -> DataDictBase:
+def ds_to_datadict(ds: 'DataSet') -> DataDictBase:
     ddicts = ds_to_datadicts(ds)
     ddict = combine_datadicts(*[v for k, v in ddicts.items()])
     return ddict
-
-
-def datadict_from_path_and_run_id(path: str, run_id: int) -> DataDictBase:
-    """
-    Load a qcodes dataset as a DataDict.
-
-    :param path: file path of the qcodes .db file.
-    :param run_id: run_id of the dataset.
-    :return: DataDict containing the data.
-    """
-    ds = DataSet(path_to_db=path, run_id=run_id)
-    return ds_to_datadict(ds)
 
 
 ### qcodes dataset loader node
@@ -220,9 +226,12 @@ class QCodesDSLoader(Node):
     def process(self, **kw):
         if None not in self._pathAndId:
             path, runId = self._pathAndId
-            ds = DataSet(path_to_db=path, run_id=runId)
-            guid = ds.guid
+
+            ds = load_dataset_from(path, runId)
+
             if ds.number_of_results > self.nLoadedRecords:
+
+                guid = ds.guid
                 title = f"{os.path.split(path)[-1]} | " \
                         f"run ID: {runId} | GUID: {guid}"
                 info = """Started: {}
