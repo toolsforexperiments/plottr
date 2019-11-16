@@ -1,6 +1,8 @@
 import pytest
-
+import numpy as np
+from plottr.utils.num import arrays_equal
 from plottr.data.datadict import DataDict, DataDictBase
+from plottr.data.datadict import combine_datadicts
 
 
 # TODO: full description of tests.
@@ -100,12 +102,13 @@ def test_structure():
 
     assert dd.structure().dependents() == ['z']
     assert dd.structure().axes('z') == ['x', 'y']
-    assert dd.structure(add_shape=False, include_meta=False) == \
-           dd2.structure(add_shape=False, include_meta=False)
-    assert dd.structure(add_shape=True, include_meta=False) != \
-           dd2.structure(add_shape=True, include_meta=False)
-    assert dd.structure(add_shape=False, include_meta=True) != \
-           dd2.structure(add_shape=False, include_meta=True)
+
+    assert dd.structure(include_meta=False) == \
+           dd2.structure(include_meta=False)
+
+    assert dd.structure(include_meta=True) != \
+           dd2.structure(include_meta=True)
+
     assert DataDictBase.same_structure(dd, dd2)
 
 
@@ -180,3 +183,128 @@ def test_shapes():
     assert shapes['x'] == (3,)
     assert shapes['y'] == (3,)
     assert shapes['z'] == (3, 2)
+
+
+def test_combine_ddicts():
+    """test the datadict combination function"""
+
+    # first case: two ddicts with different independents and shared axes.
+    # should work. probably the most common use case.
+    dd1 = DataDict(
+        x=dict(
+            values=np.array([1, 2, 3]),
+        ),
+        y=dict(
+            values=np.array([1, 2, 3]),
+        ),
+        z1=dict(
+            values=np.array([1, 2, 3]),
+            axes=['x', 'y'],
+        )
+    )
+    dd1.validate()
+
+    dd2 = DataDict(
+        x=dict(
+            values=np.array([1, 2, 3]),
+        ),
+        y=dict(
+            values=np.array([1, 2, 3]),
+        ),
+        z2=dict(
+            values=np.array([3, 2, 1]),
+            axes=['x', 'y'],
+        )
+    )
+    dd2.validate()
+
+    combined_dd = combine_datadicts(dd1, dd2)
+    expected_dd = DataDict(
+        x=dict(
+            values=np.array([1, 2, 3]),
+        ),
+        y=dict(
+            values=np.array([1, 2, 3]),
+        ),
+        z1=dict(
+            values=np.array([1, 2, 3]),
+            axes=['x', 'y'],
+        ),
+        z2=dict(
+            values=np.array([3, 2, 1]),
+            axes=['x', 'y'],
+        ),
+    )
+    expected_dd.validate()
+    assert combined_dd == expected_dd
+
+    # second case: two ddicts with a conflict in an axis
+    dd1 = DataDict(
+        x=dict(
+            values=np.array([1, 2, 3]),
+        ),
+        y=dict(
+            values=np.array([1, 2, 3]),
+        ),
+        z1=dict(
+            values=np.array([1, 2, 3]),
+            axes=['x', 'y'],
+        )
+    )
+    dd1.validate()
+
+    dd2 = DataDict(
+        x=dict(
+            values=np.array([1, 2, 4]),
+        ),
+        y=dict(
+            values=np.array([1, 2, 3]),
+        ),
+        z2=dict(
+            values=np.array([3, 2, 1]),
+            axes=['x', 'y'],
+        )
+    )
+    dd2.validate()
+
+    combined_dd = combine_datadicts(dd1, dd2)
+    expected_dd = DataDict(
+        x=dict(
+            values=np.array([1, 2, 3]),
+        ),
+        y=dict(
+            values=np.array([1, 2, 3]),
+        ),
+        z1=dict(
+            values=np.array([1, 2, 3]),
+            axes=['x', 'y'],
+        ),
+        x_0=dict(
+            values=np.array([1, 2, 4]),
+        ),
+        z2=dict(
+            values=np.array([3, 2, 1]),
+            axes=['x_0', 'y'],
+        )
+    )
+    expected_dd.validate()
+    assert combined_dd == expected_dd
+
+    # third case: rename a dependent only
+    x = np.array([1, 2, 3])
+    y = np.array([1, 2, 3])
+    z = np.arange(3)
+    dd1 = DataDict(x=dict(values=x),
+                   y=dict(values=y),
+                   z=dict(values=z, axes=['x', 'y']))
+    dd1.validate()
+    dd2 = dd1.copy()
+    dd2['z']['values'] = z[::-1]
+    dd2.validate()
+
+    combined_dd = combine_datadicts(dd1, dd2)
+    expected_dd = DataDict(x=dict(values=x),
+                           y=dict(values=y),
+                           z=dict(values=z, axes=['x', 'y']),
+                           z_0=dict(values=z[::-1], axes=['x', 'y']))
+    assert combined_dd == expected_dd

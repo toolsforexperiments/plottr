@@ -3,7 +3,7 @@ datadict.py :
 
 Data classes we use throughout the plottr package, and tools to work on them.
 """
-
+import warnings
 import copy as cp
 
 import numpy as np
@@ -16,11 +16,29 @@ __author__ = 'Wolfgang Pfaff'
 __license__ = 'MIT'
 
 
-# TODO: serialization (json...)
 # TODO: functionality that returns axes values given a set of slices.
 # TODO: an easier way to access data and meta values.
-#  maybe with getattr/setattr?
+#       maybe with getattr/setattr?
 # TODO: direct slicing of full datasets. implement getitem/setitem?
+# TODO: feature to compare if datadicts are equal not fully tested yet.
+
+
+def is_meta_key(key):
+    if key[:2] == '__' and key[-2:] == '__':
+        return True
+    else:
+        return False
+
+
+def meta_key_to_name(key):
+    if is_meta_key(key):
+        return key[2:-2]
+    else:
+        raise ValueError(f'{key} is not a meta key.')
+
+
+def meta_name_to_key(name):
+    return '__' + name + '__'
 
 
 class DataDictBase(dict):
@@ -34,23 +52,81 @@ class DataDictBase(dict):
     def __init__(self, **kw):
         super().__init__(self, **kw)
 
+    def __eq__(self, other: 'DataDictBase'):
+        """Check for content equality of two datadicts."""
+
+        if not self.same_structure(self, other):
+            # print('structure')
+            return False
+
+        for k, v in self.meta_items():
+            if k not in [kk for kk, vv in other.meta_items()]:
+                # print(f'{k} not in {other}')
+                return False
+            elif other.meta_val(k) != v:
+                # print(f'{other.meta_val(k)} != {v}')
+                return False
+
+        for k, v in other.meta_items():
+            if k not in [kk for kk, vv in self.meta_items()]:
+                # print(f'{k} not in {self}')
+                return False
+
+        for dn, dv in self.data_items():
+            # print(dn)
+            if dn not in [dnn for dnn, dvv in other.data_items()]:
+                # print(f"{dn} not in {other}")
+                return False
+
+            if self[dn].get('unit', '') != other[dn].get('unit', ''):
+                # print(f"different units for {dn}")
+                return False
+
+            if self[dn].get('axes', []) != other[dn].get('axes', []):
+                # print(f"different axes for {dn}")
+                return False
+
+            if not num.arrays_equal(
+                np.array(self.data_vals(dn)),
+                np.array(other.data_vals(dn)),
+            ):
+                # print(f"different data for {dn}")
+                return False
+
+            for k, v in self.meta_items(dn):
+                if k not in [kk for kk, vv in other.meta_items(dn)]:
+                    # print(f"{dn}: {k} not in {other}")
+                    return False
+                elif v != other.meta_val(k, dn):
+                    # print(f"{v} != {other.meta_val(k, dn)}")
+                    return False
+
+        for dn, dv in other.data_items():
+            # print(dn)
+            if dn not in [dnn for dnn, dvv in self.data_items()]:
+                # print(f"{dn} not in {other}")
+                return False
+
+            for k, v in other.meta_items(dn):
+                if k not in [kk for kk, vv in self.meta_items(dn)]:
+                    # print(f"{dn}: {k} not in {other}")
+                    return False
+
+        return True
+
     # Assignment and retrieval of data and meta data
 
     @staticmethod
     def _is_meta_key(key):
-        if key[:2] == '__' and key[-2:] == '__':
-            return True
+        return is_meta_key(key)
 
     @staticmethod
     def _meta_key_to_name(key):
-        if DataDictBase._is_meta_key(key):
-            return key[2:-2]
-        else:
-            raise ValueError(f'{key} is not a meta key.')
+        return meta_key_to_name(key)
 
     @staticmethod
     def _meta_name_to_key(name):
-        return '__' + name + '__'
+        return meta_name_to_key(name)
 
     def data_items(self):
         """
@@ -62,7 +138,8 @@ class DataDictBase(dict):
             if not self._is_meta_key(k):
                 yield k, v
 
-    def meta_items(self, data: Union[str, None] = None):
+    def meta_items(self, data: Union[str, None] = None,
+                   clean_keys: bool = True):
         """
         Generator for meta items.
 
@@ -72,19 +149,28 @@ class DataDictBase(dict):
         :param data: if ``None`` iterate over global meta data.
                      if it's the name of a data field, iterate over the meta
                      information of that field.
+        :param clean_keys: if `True`, remove the underscore pre/suffix
 
         """
         if data is None:
             for k, v in self.items():
                 if self._is_meta_key(k):
-                    yield self._meta_key_to_name(k), v
+                    if clean_keys:
+                        n = self._meta_key_to_name(k)
+                    else:
+                        n = k
+                    yield n, v
 
         else:
             for k, v in self[data].items():
                 if self._is_meta_key(k):
-                    yield self._meta_key_to_name(k), v
+                    if clean_keys:
+                        n = self._meta_key_to_name(k)
+                    else:
+                        n = k
+                    yield n, v
 
-    def data_vals(self, key: str) -> Sequence:
+    def data_vals(self, key: str) -> Union[Sequence, np.ndarray]:
         """
         Return the data values of field ``key``.
 
@@ -95,7 +181,7 @@ class DataDictBase(dict):
         """
         if self._is_meta_key(key):
             raise ValueError(f"{key} is a meta key.")
-        return self[key]['values']
+        return self[key].get('values', np.array([]))
 
     def has_meta(self, key: str) -> bool:
         """Check whether meta field exists in the dataset."""
@@ -225,8 +311,6 @@ class DataDictBase(dict):
 
     # info about structure
 
-    # FIXME: remove shape
-
     @staticmethod
     def same_structure(*data: 'DataDictBase',
                        check_shape: bool = False) -> bool:
@@ -260,33 +344,41 @@ class DataDictBase(dict):
 
         return True
 
-    def structure(self, add_shape: bool = True,
-                  include_meta: bool = True) -> 'DataDictBase':
+    def structure(self, add_shape: bool = False,
+                  include_meta: bool = True,
+                  same_type: bool = False) -> 'DataDictBase':
         """
         Get the structure of the DataDict.
 
-        Return the datadict without values (``value`` omitted in the dict).
+        Return the datadict without values (`value` omitted in the dict).
 
-        :param add_shape: if ``True`` include a meta field ``shape`` for each
-                          data field that contains the shape of the data values.
-
-        :param include_meta: if ``True``, include the meta information in
+        :param add_shape: Deprecated -- ignored.
+        :param include_meta: if `True`, include the meta information in
                              the returned dict, else clear it.
+        :param same_type: if `True`, return type will be the one of the
+                          object this is called on. Else, DataDictBase.
 
         :return: The DataDictBase containing the structure only.
         """
+        if add_shape:
+            warnings.warn("'add_shape' is deprecated and will be ignored",
+                          DeprecationWarning)
+        add_shape = False
+
         if self.validate():
             s = DataDictBase()
-            shapes = {}
+            # shapes = {}
             for n, v in self.data_items():
                 v2 = v.copy()
                 v2.pop('values')
-                if not add_shape and '__shape__' in v2:
-                    v2.pop('__shape__')
+
+                # if not add_shape and '__shape__' in v2:
+                #     v2.pop('__shape__')
 
                 s[n] = v2
-                if add_shape:
-                    shapes[n] = np.array(v['values']).shape
+
+                # if add_shape:
+                #     shapes[n] = np.array(v['values']).shape
 
             if include_meta:
                 for n, v in self.meta_items():
@@ -294,8 +386,11 @@ class DataDictBase(dict):
             else:
                 s.clear_meta()
 
-            for n, shp in shapes.items():
-                s.add_meta('shape', shp, data=n)
+            # for n, shp in shapes.items():
+            #     s.add_meta('shape', shp, data=n)
+
+            if same_type:
+                s = self.__class__(**s)
 
             return s
 
@@ -605,19 +700,52 @@ class DataDict(DataDictBase):
         :param newdata: DataDict to append.
         :raises: ``ValueError``, if the structures are incompatible.
         """
-        if DataDictBase.same_structure(self, newdata):
-            for k, v in newdata.data_items():
-                if isinstance(self[k]['values'], list) and isinstance(
-                        v['values'], list):
-                    self[k]['values'] += v['values']
-                else:
-                    self[k]['values'] = np.append(
-                        self[k]['values'],
-                        v['values'],
-                        axis=0
-                    )
-        else:
+        if not DataDictBase.same_structure(self, newdata):
             raise ValueError('Incompatible data structures.')
+
+        newvals = {}
+        for k, v in newdata.data_items():
+            if isinstance(self[k]['values'], list) and isinstance(
+                    v['values'], list):
+                newvals[k] = self[k]['values'] + v['values']
+            else:
+                newvals[k] = np.append(
+                    self[k]['values'],
+                    v['values'],
+                    axis=0
+                )
+
+        # only actually
+        for k, v in newvals.items():
+            self[k]['values'] = v
+
+    def add_data(self, **kw: Sequence):
+        # TODO: fill non-given data with nan or none
+        """
+        Add data to all values. new data must be valid in itself.
+
+        This method is useful to easily add data without needing to specify
+        meta data or dependencies, etc.
+
+        :param kw: one array per data field (none can be omitted).
+        :return: None
+        """
+        dd = self.structure(same_type=True)
+        for k, v in kw.items():
+            if isinstance(v, list):
+                dd[k]['values'] = np.array(v)
+            elif isinstance(v, np.ndarray):
+                dd[k]['values'] = v
+            else:
+                dd[k]['values'] = np.array([v])
+
+        if dd.validate():
+            if self.nrecords() > 0:
+                self.append(dd)
+            else:
+                for k, v in dd.data_items():
+                    self[k]['values'] = v['values']
+            self.validate()
 
     # shape information and expansion
 
@@ -1036,3 +1164,98 @@ def meshgrid_to_datadict(data: MeshgridDataDict) -> DataDict:
     newdata = newdata.sanitize()
     newdata.validate()
     return newdata
+
+
+# Tools for manipulating and transforming data
+
+def _find_replacement_name(ddict: DataDictBase, name: str) -> str:
+    """
+    Find a replacement name for a data field that already exists in a
+    datadict.
+
+    Appends '-<index>' to the name.
+
+    :param ddict: datadict that contains the already existing field
+    :param name: the name that needs to be replaced
+    :return: a suitable replacement
+    """
+    if name not in ddict:
+        return name
+    else:
+        idx = 0
+        newname = name + f"_{idx}"
+        while newname in ddict:
+            idx += 1
+            newname = name + f"_{idx}"
+        return newname
+
+
+def combine_datadicts(*dicts: DataDict) -> Union[DataDictBase, DataDict]:
+    """
+    Try to make one datadict out of multiple.
+
+    Basic rules:
+    - we try to maintain the input type
+    - return type is 'downgraded' to DataDictBase if the contents are not
+      compatible (i.e., different numbers of records in the inputs)
+
+    :returns: combined data
+
+    TODO: deal correctly with MeshGridData when combined with other types
+    TODO: should we strictly copy all values?
+    TODO: we should try to consolidate axes as much as possible. Currently
+          axes in the return can be separated even if they match (caused
+          by earlier mismatches)
+    """
+    ret = None
+    rettype = None
+
+    for d in dicts:
+        if ret is None:
+            ret = d.copy()
+            rettype = type(d)
+
+        else:
+
+            # if we don't have a well defined number of records anymore,
+            # need to revert the type to DataDictBase
+            if hasattr(d, 'nrecords') and hasattr(ret, 'nrecords'):
+                if d.nrecords() != ret.nrecords():
+                    rettype = DataDictBase
+            else:
+                rettype = DataDictBase
+            ret = rettype(**ret)
+
+            # First, parse the axes in the to-be-added ddict.
+            # if dimensions with same names are present already in the current
+            # return ddict and are not compatible with what's to be added,
+            # rename the incoming dimension.
+            ax_map = {}
+            for d_ax in d.axes():
+                if d_ax in ret.axes():
+                    if num.arrays_equal(d.data_vals(d_ax), ret.data_vals(d_ax)):
+                        ax_map[d_ax] = d_ax
+                    else:
+                        newax = _find_replacement_name(ret, d_ax)
+                        ax_map[d_ax] = newax
+                        ret[newax] = d[d_ax]
+                elif d_ax in ret.dependents():
+                    newax = _find_replacement_name(ret, d_ax)
+                    ax_map[d_ax] = newax
+                    ret[newax] = d[d_ax]
+                else:
+                    ax_map[d_ax] = d_ax
+                    ret[d_ax] = d[d_ax]
+
+            for d_dep in d.dependents():
+                if d_dep in ret:
+                    newdep = _find_replacement_name(ret, d_dep)
+                else:
+                    newdep = d_dep
+
+                dep_axes = [ax_map[ax] for ax in d[d_dep]['axes']]
+                ret[newdep] = d[d_dep]
+                ret[newdep]['axes'] = dep_axes
+
+    ret.validate()
+    return ret
