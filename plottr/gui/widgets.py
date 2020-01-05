@@ -131,3 +131,41 @@ class PlotWindow(QtGui.QMainWindow):
             }
             """
         )
+
+
+class SnapshotWidget(QtGui.QTreeWidget):
+
+    def __init__(self, parent=None):
+        super().__init__(parent)
+
+        self.setHeaderLabels(['Key', 'Value'])
+        self.setColumnCount(2)
+
+    
+    def loadSnapshot(self, snapshotDict : dict):
+        """
+        Loads a qcodes DataSet snapshot in the tree view
+        """
+        self.clear()
+        items = dictToTreeWidgetItems(snapshotDict)
+        for item in items:
+            self.addTopLevelItem(item)
+            item.setExpanded(True)
+
+        #self.expandAll()
+        for i in range(2):
+            self.resizeColumnToContents(i)
+
+
+
+def dictToTreeWidgetItems(d):
+    items = []
+    for k, v in d.items():
+        if not isinstance(v, dict):
+            item = QtGui.QTreeWidgetItem([str(k), str(v)])
+        else:
+            item = QtGui.QTreeWidgetItem([k, ''])
+            for child in dictToTreeWidgetItems(v):
+                item.addChild(child)
+        items.append(item)
+    return items
