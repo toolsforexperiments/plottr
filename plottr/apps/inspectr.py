@@ -12,7 +12,7 @@ from pyqtgraph.Qt import QtGui, QtCore
 from .. import log as plottrlog
 from ..data.qcodes_dataset import (get_runs_from_db_as_dataframe,
                                    get_ds_structure, load_dataset_from)
-from plottr.gui.widgets import MonitorIntervalInput, FormLayoutWrapper
+from plottr.gui.widgets import MonitorIntervalInput, FormLayoutWrapper, dictToTreeWidgetItems
 
 from .autoplot import autoplotQcodesDataset
 
@@ -27,18 +27,6 @@ def logger():
 
 
 ### Database inspector tool
-
-def dictToTreeWidgetItems(d):
-    items = []
-    for k, v in d.items():
-        if not isinstance(v, dict):
-            item = QtGui.QTreeWidgetItem([str(k), str(v)])
-        else:
-            item = QtGui.QTreeWidgetItem([k, ''])
-            for child in dictToTreeWidgetItems(v):
-                item.addChild(child)
-        items.append(item)
-    return items
 
 class DateList(QtGui.QListWidget):
 
