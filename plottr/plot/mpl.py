@@ -1,4 +1,8 @@
+import logging
 import io
+from enum import Enum, unique, auto
+from typing import Tuple, Dict
+
 import numpy as np
 from matplotlib import rcParams, cm
 from matplotlib.backends.backend_qt5agg import (
@@ -14,10 +18,44 @@ from plottr.utils.num import (
 )
 from .. import QtGui, QtCore
 from ..data.datadict import DataDictBase, MeshgridDataDict, meshgrid_to_datadict
-from ..node.node import Node
 from ..utils import (
     num
 )
+
+from .base import PlotNode, PlotWidget
+
+__author__ = 'Wolfgang Pfaff'
+__license__ = 'MIT'
+
+logger = logging.getLogger(__name__)
+logger.setLevel(logging.INFO)
+
+
+@unique
+class PlotDataType(Enum):
+    unknown = auto()
+    scatter1d = auto()
+    line1d = auto()
+    scatter2d = auto()
+    grid2d = auto()
+
+@unique
+class PlotType(Enum):
+    empty = auto()
+    image = auto()
+
+
+def determinePlotDataType(data: DataDictBase) -> PlotDataType:
+    if not isinstance(data, DataDictBase):
+        return PlotDataType.unknown
+    if not data.axes_are_compatible():
+        return PlotDataType.unknown
+
+    if isinstance(data, MeshgridDataDict):
+        if len(data.axes()) == 2:
+            return PlotDataType.grid2d
+
+    return PlotDataType.unknown
 
 
 # TODO: configurable plot options
@@ -90,26 +128,6 @@ def ppcolormesh_from_meshgrid(ax, x, y, z, **kw):
     ax.set_xlim(x.min(), x.max())
     ax.set_ylim(y.min(), y.max())
     return im
-
-
-class PlotNode(Node):
-    """
-    Basic Plot Node.
-
-    ATM this doesn't do much besides passing data to the plotting widget.
-    Data is at the moment just passed through.
-    """
-    nodeName = 'Plot'
-    newPlotData = QtCore.pyqtSignal(object)
-
-    def setPlotWidget(self, widget):
-        self.plotWidget = widget
-        self.newPlotData.connect(self.plotWidget.setData)
-
-    def process(self, **kw):
-        data = kw['dataIn']
-        self.newPlotData.emit(data)
-        return dict(dataOut=data)
 
 
 class MPLPlot(FCanvas):
@@ -259,7 +277,7 @@ class MPLPlotContainer(QtGui.QWidget):
     pass
 
 
-class MPLPlotWidget(QtGui.QWidget):
+class MPLPlotWidget_(PlotWidget):
     """
     Base class for matplotlib-based plot widgets.
     Per default, add a canvas and the matplotlib NavBar.
@@ -274,15 +292,9 @@ class MPLPlotWidget(QtGui.QWidget):
         self.mplBar = NavBar(self.plot, self)
         self.addMplBarOptions()
 
-        self.toolLayout = QtGui.QHBoxLayout()
-
         self.layout = QtGui.QVBoxLayout(self)
-        self.layout.addLayout(self.toolLayout)
         self.layout.addWidget(self.plot)
         self.layout.addWidget(self.mplBar)
-
-    def setData(self, data: DataDictBase):
-        raise NotImplementedError
 
     def setMeta(self, data: DataDictBase):
         if data.has_meta('title'):
@@ -306,7 +318,114 @@ class MPLPlotWidget(QtGui.QWidget):
         self.mplBar.addAction('Copy', self.plot.toClipboard)
 
 
-class AutoPlot(MPLPlotWidget):
+class MPLPlotWidget(MPLPlotWidget_):
+    """A widget for plotting with matplotlib"""
+
+    # TODO: options on this level:
+    #    log x/y/z; multiple lines per plot; type of 2d; blitting;
+
+    def __init__(self, parent=None):
+        super().__init__(parent=parent)
+
+        self.plotDataType = PlotDataType.unknown
+        self.plotType = PlotType.empty
+
+        self.blit = True
+        self.axCache = None # list of axes
+        self.axLimits = None
+        self.dataType = type(None)
+        self.dataStructure = None
+        self.dataShapes = None
+        self.dataLimits = None
+
+    def _analyzeData(self, data: DataDictBase) -> Dict[str, bool]:
+        """checks data and compares with previous properties."""
+        dataType = type(data)
+        if data is None:
+            dataStructure = None
+            dataShapes = None
+            dataLimits = None
+        else:
+            dataStructure = data.structure(include_meta=False)
+            dataShapes = data.shapes()
+            dataLimits = {}
+            for n in data.axes() + data.dependents():
+                vals = data.data_vals(n)
+                dataLimits[n] = vals.min(), vals.max()
+
+        result = {
+            'dataTypeChanged': dataType != self.dataType,
+            'dataStructureChanged': dataStructure != self.dataStructure,
+            'dataShapesChanged': dataShapes != self.dataShapes,
+            'dataLimitsChanged': dataLimits != self.dataLimits,
+        }
+
+        self.dataType = dataType
+        self.dataStructure = dataStructure
+        self.dataShapes = dataShapes
+        self.dataLimits = dataLimits
+
+        return result
+
+    def setData(self, data: DataDictBase):
+        """Analyses data, determines whether/what to plot"""
+        super().setData(data)
+
+        changes = self._analyzeData(data)
+        self.plotDataType = determinePlotDataType(data)
+        self.plotData(data)
+
+    def plotData(self, data: DataDictBase):
+        """Analyses options and data, determines what to plot"""
+        # TODO: determine number of plots. depends on options, data, ..
+
+        if self.plotDataType == PlotDataType.unknown:
+            logger.info("Unknown plot data type")
+            return
+
+        if self.plotDataType == PlotDataType.grid2d:
+            logger.debug(f"Plot 2D data as image.")
+            # self.plot2dImage(data)
+
+        else:
+            logger.info(f"No plot routine defined for {self.plotType}")
+            return
+
+        self.plot.draw()
+        QtCore.QCoreApplication.processEvents()
+
+    # Plotting functions
+    def plot2dImage(self, data: MeshgridDataDict):
+        # here we need to check whether we need to replot axes etc., or
+        # only content
+
+        xname = data.axes()[0]
+        yname = data.axes()[1]
+        zname = data.dependents()[0]
+        x = data.data_vals(xname)
+        y = data.data_vals(yname)
+        z = data.data_vals(zname)
+
+        x0, x1 = x.min(), x.max()
+        y0, y1 = y.min(), y.max()
+
+        axes = self.plot.clearFig(1, 1, 1)
+        ax = axes[0]
+        ax.grid(False)
+        im = ax.imshow(z.T, aspect='auto', origin='lower',
+                       extent=(x0, x1, y0, y1))
+        div = make_axes_locatable(ax)
+        cax = div.append_axes("right", size="5%", pad=0.05)
+        cb = self.plot.fig.colorbar(im, cax=cax)
+
+        ax.set_xlabel(data.label(xname))
+        ax.set_ylabel(data.label(yname))
+        cax.set_ylabel(data.label(zname))
+
+
+
+
+class AutoPlot(MPLPlotWidget_):
     # TODO: the y-label generation is a bit crude like this.
 
     MAXYLABELS = 3
@@ -393,3 +512,5 @@ class AutoPlot(MPLPlotWidget):
 
         self.setMeta(data)
         self.plot.autosize()
+
+

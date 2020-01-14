@@ -21,6 +21,7 @@ def generate_2d_scalar_simple(nx, ny, ndeps=1):
     :param nx: number of points on the x-axes.
     :param ny: number of points on the y-axis.
     :param ndeps: number of columns
+    :param noise: how much noise to add to data
     """
 
     x = np.arange(nx, dtype=float)

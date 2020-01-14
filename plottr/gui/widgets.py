@@ -8,7 +8,8 @@ from typing import Union, List, Tuple
 
 from plottr import QtGui, QtCore, Flowchart
 from plottr.node import Node
-from plottr.plot.mpl import PlotNode, AutoPlot
+from plottr.plot.mpl import AutoPlot
+from plottr.plot import PlotNode, PlotWidgetWrapper
 
 __author__ = 'Wolfgang Pfaff'
 __license__ = 'MIT'
@@ -63,6 +64,44 @@ class MonitorIntervalInput(QtGui.QWidget):
 
 
 class PlotWindow(QtGui.QMainWindow):
+    """
+    MainWindow class for embedding plots using PlotWidgetWrapper.
+    """
+    def __init__(self, parent=None):
+        super().__init__(parent=parent)
+        self.setDefaultStyle()
+
+    def setDefaultStyle(self):
+        self.setStyleSheet(
+            """
+            QToolButton {
+                font: 10px;
+            }
+
+            QToolBar QCheckBox {
+                font: 10px;
+            }
+            
+            PlotWidgetWrapper {
+                background: red;
+            }
+            """
+        )
+
+
+class SinglePlotWindow(PlotWindow):
+
+    def __init__(self, parent=None):
+        super().__init__(parent=parent)
+
+        self.plot = PlotWidgetWrapper(parent=self)
+        self.setCentralWidget(self.plot)
+
+
+
+
+# Code below is still in use but will be deprecated eventually.
+class AutoPlotWindow(QtGui.QMainWindow):
     """
     Simple MainWindow class for embedding flowcharts and plots.
     """
@@ -125,7 +164,7 @@ class PlotWindow(QtGui.QMainWindow):
             QToolButton {
                 font: 10px;
             }
-            
+
             QToolBar QCheckBox {
                 font: 10px;
             }

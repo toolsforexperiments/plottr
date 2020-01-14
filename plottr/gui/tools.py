@@ -5,7 +5,7 @@ helpers and tools for creating GUI elements.
 
 from typing import Type, Tuple, List
 
-from .widgets import PlotWindow
+from .widgets import AutoPlotWindow
 from .. import QtGui, Flowchart
 from ..node import Node
 from ..node.tools import linearFlowchart
@@ -29,8 +29,8 @@ def widgetDialog(widget: QtGui.QWidget, title: str = '',
 
 
 def flowchartAutoPlot(nodes: List[Tuple[str, Type[Node]]]) \
-        -> (PlotWindow, Flowchart):
+        -> (AutoPlotWindow, Flowchart):
     nodes.append(('plot', PlotNode))
     fc = linearFlowchart(*nodes)
-    win = PlotWindow(fc=fc, plotNode='plot')
+    win = AutoPlotWindow(fc=fc, plotNode='plot')
     return win, fc

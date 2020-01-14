@@ -20,7 +20,7 @@ from ..node.grid import DataGridder, GridOption
 from ..node.dim_reducer import XYSelector
 from ..node.filter.correct_offset import SubtractAverage
 from ..plot.mpl import PlotNode, AutoPlot
-from ..gui.widgets import MonitorIntervalInput, PlotWindow
+from ..gui.widgets import MonitorIntervalInput, AutoPlotWindow
 from ..gui.tools import flowchartAutoPlot
 
 __author__ = 'Wolfgang Pfaff'
@@ -60,7 +60,7 @@ def autoplot(log: bool = False,
     return fc, win
 
 
-class AutoPlotMainWindow(PlotWindow):
+class AutoPlotMainWindow(AutoPlotWindow):
 
     def __init__(self, fc: Flowchart,
                  parent: Union[QtGui.QWidget, None] = None,
