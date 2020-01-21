@@ -20,8 +20,10 @@ from ..node.grid import DataGridder, GridOption
 from ..node.dim_reducer import XYSelector
 from ..node.filter.correct_offset import SubtractAverage
 from ..plot.mpl import PlotNode, AutoPlot
-from ..gui.widgets import MonitorIntervalInput, AutoPlotWindow
+from ..gui.widgets import MonitorIntervalInput, PlotWindow, SnapshotWidget
 from ..gui.tools import flowchartAutoPlot
+
+
 
 __author__ = 'Wolfgang Pfaff'
 __license__ = 'MIT'
@@ -110,6 +112,7 @@ class AutoPlotMainWindow(AutoPlotWindow):
         if self.fc is not None:
             self.addNodeWidgetsFromFlowchart(fc)
 
+        
         # start monitor
         if monitorInterval is not None:
             self.setMonitorInterval(monitorInterval)
@@ -129,6 +132,7 @@ class AutoPlotMainWindow(AutoPlotWindow):
         tstamp = time.strftime("%Y-%m-%d %H:%M:%S")
         self.status.showMessage(f"loaded: {tstamp}")
 
+
     @QtCore.pyqtSlot()
     def refreshData(self):
         """
@@ -136,10 +140,12 @@ class AutoPlotMainWindow(AutoPlotWindow):
         """
         self.loaderNode.update()
         self.showTime()
-
+      
         if not self._initialized and self.loaderNode.nLoadedRecords > 0:
             self.setDefaults()
             self._initialized = True
+            
+
 
     @QtCore.pyqtSlot(int)
     def setMonitorInterval(self, val):
@@ -165,6 +171,7 @@ class AutoPlotMainWindow(AutoPlotWindow):
         """
         set some defaults (for convenience).
         """
+
         data = self.loaderNode.outputValues()['dataOut']
         selected = data.dependents()
         if len(selected) > 0:
@@ -208,9 +215,18 @@ class QCAutoPlotMainWindow(AutoPlotMainWindow):
 
         if pathAndId is not None:
             self.loaderNode.pathAndId = pathAndId
-
+        
+        #add qcodes specific snapshot widget
+        d = QtGui.QDockWidget('snapshot', self)
+        self.snapshotWidget = SnapshotWidget()
+        d.setWidget(self.snapshotWidget)
+        self.addDockWidget(QtCore.Qt.BottomDockWidgetArea, d)
+        
         if self.loaderNode.nLoadedRecords > 0:
             self.setDefaults()
+            #also setup the snapshot here since the loader node is now initialized 
+            logger().debug('loaded snapshot')
+            self.snapshotWidget.loadSnapshot(self.loaderNode.dataSnapshot)
             self._initialized = True
 
 
@@ -262,3 +278,5 @@ def autoplotDDH5(filepath: str = '', groupname: str = 'data') \
     win.setMonitorInterval(2)
 
     return fc, win
+
+
