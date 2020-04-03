@@ -4,7 +4,7 @@ widgets.py
 Common GUI widgets that are re-used across plottr.
 """
 
-from typing import Union, List, Tuple
+from typing import Union, List, Tuple, Optional
 
 from plottr import QtGui, QtCore, Flowchart
 from plottr.node import Node
@@ -180,12 +180,15 @@ class SnapshotWidget(QtGui.QTreeWidget):
         self.setHeaderLabels(['Key', 'Value'])
         self.setColumnCount(2)
 
-    
-    def loadSnapshot(self, snapshotDict : dict):
+    def loadSnapshot(self, snapshotDict : Optional[dict]):
         """
         Loads a qcodes DataSet snapshot in the tree view
         """
         self.clear()
+
+        if snapshotDict is None:
+            return
+
         items = dictToTreeWidgetItems(snapshotDict)
         for item in items:
             self.addTopLevelItem(item)
