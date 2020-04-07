@@ -1,44 +1,71 @@
-from .. import QtGui, QtCore
-from ..node.node import Node
+"""
+plottr/plot/base.py : Contains the base classes for plotting nodes and widgets.
+"""
+
+from typing import Dict
+
+from .. import QtGui, Signal
 from ..data.datadict import DataDictBase
+from ..node.node import Node
+
+__author__ = 'Wolfgang Pfaff'
+__license__ = 'MIT'
 
 
 class PlotNode(Node):
     """
-    Basic Plot Node.
+    Basic Plot Node, derived from :class:`plottr.node.node.Node`.
 
-    ATM this doesn't do much besides passing data to the plotting widget.
-    Data is at the moment just passed through.
+    At the moment this doesn't do much besides passing data to the plotting widget.
+    Data is just passed through.
+    On receipt of new data, :attr:`newPlotData` is emitted.
     """
     nodeName = 'Plot'
-    newPlotData = QtCore.pyqtSignal(object)
+
+    #: Signal emitted when :meth:`process` is called, with the data passed to
+    #: it as argument.
+    newPlotData = Signal(object)
 
     def __init__(self, name: str):
+        """Constructor for :class:`PlotNode`. """
         super().__init__(name=name)
-        self.plotWidget = None
+        self.plotWidgetContainer = None
 
-    def setPlotWidget(self, widget):
-        self.plotWidget = widget
-        self.newPlotData.connect(self.plotWidget.setData)
+    def setPlotWidgetContainer(self, w: 'PlotWidgetContainer'):
+        """Set the plot widget container.
 
-    def process(self, **kw):
-        data = kw['dataIn']
-        self.newPlotData.emit(data)
-        return dict(dataOut=data)
+        Makes sure that newly arriving data is sent to plot GUI elements.
+
+        :param w: container to connect the node to.
+        """
+        self.plotWidgetContainer = w
+        self.newPlotData.connect(self.plotWidgetContainer.setData)
+
+    def process(self, dataIn: DataDictBase = None) -> Dict[str, DataDictBase]:
+        """Emits the :attr:`newPlotData` signal when called.
+        Note: does not call the parent method :meth:`plottr.node.node.Node.process`.
+
+        :param dataIn: input data
+        :returns: input data as is: ``{dataOut: dataIn}``
+        """
+        self.newPlotData.emit(dataIn)
+        return dict(dataOut=dataIn)
 
 
-class PlotWidgetWrapper(QtGui.QWidget):
+class PlotWidgetContainer(QtGui.QWidget):
     """
-    This is the base widget for Plots.
+    This is the base widget for Plots, derived from `QWidget`.
 
     This widget does not implement any plotting. It merely is a wrapping
     widget that contains the actual plot widget in it. This actual plot
     widget can be set dynamically.
-    However, PlotWidget does provide some common functionality that all
-    plotting widgets in general are expected to have.
+
+    Use :class:`PlotWidget` as base for implementing widgets that can be
+    added to this container.
     """
 
     def __init__(self, parent: QtGui.QWidget = None):
+        """Constructor for :class:`PlotWidgetContainer`. """
         super().__init__(parent=parent)
 
         self.plotWidget = None
@@ -47,8 +74,14 @@ class PlotWidgetWrapper(QtGui.QWidget):
         self.layout = QtGui.QVBoxLayout(self)
         self.layout.setContentsMargins(0, 0, 0, 0)
 
-    def setPlotWidget(self, widget: QtGui.QWidget):
-        """set the plot widget."""
+    def setPlotWidget(self, widget: "PlotWidget"):
+        """Set the plot widget.
+
+        Makes sure that the added widget receives new data.
+
+        :param widget: plot widget
+        """
+
         # TODO: disconnect everything, make sure old widget is garbage collected
 
         if widget is self.plotWidget:
@@ -64,6 +97,11 @@ class PlotWidgetWrapper(QtGui.QWidget):
             self.plotWidget.setData(self.data)
 
     def setData(self, data: DataDictBase):
+        """set Data. If a plot widget is defined, call the widget's
+        :meth:`PlotWidget.setData` method.
+
+        :param data: input data to be plotted.
+        """
         self.data = data
         if self.plotWidget is not None:
             self.plotWidget.setData(self.data)
@@ -71,16 +109,18 @@ class PlotWidgetWrapper(QtGui.QWidget):
 
 class PlotWidget(QtGui.QWidget):
     """
-    Base class for Plot Widgets.
+    Base class for Plot Widgets, this just defines the API. Derived from
+    `QWidget`.
+
+    Implement a child class for actual plotting.
     """
 
     def __init__(self, parent=None):
         super().__init__(parent=parent)
 
     def setData(self, data: DataDictBase):
-        # self.data = data
-        pass
+        """Set data. Use this to trigger plotting.
 
-    def plotData(self, data: DataDictBase):
-        raise NotImplementedError
-
+        :param data: data to be plotted.
+        """
+        self.data = data

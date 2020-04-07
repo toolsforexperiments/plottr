@@ -1,1 +1,1 @@
-from .base import PlotNode, PlotWidgetWrapper
+from .base import PlotNode, PlotWidgetContainer
