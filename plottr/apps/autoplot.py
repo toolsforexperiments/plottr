@@ -197,9 +197,9 @@ class QCAutoPlotMainWindow(AutoPlotMainWindow):
     def __init__(self, fc: Flowchart,
                  parent: Union[QtGui.QWidget, None] = None,
                  monitorInterval: Union[int, None] = None,
-                 pathAndId: Union[Tuple[str, int], None] = None):
+                 pathAndId: Union[Tuple[str, int], None] = None, **kw):
 
-        super().__init__(fc, parent, monitorInterval)
+        super().__init__(fc, parent, monitorInterval, **kw)
 
         windowTitle = "Plottr | QCoDeS autoplot"
         if pathAndId is not None:
