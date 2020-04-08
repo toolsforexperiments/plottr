@@ -1,5 +1,10 @@
 """
 Generation of useful test data.
+
+Convention:
+functions with name `generate_[...]` return generators that can be
+used to produce data line by line.
+functions with name `get_[...]` return valid DataDict objects.
 """
 
 import numpy as np
@@ -35,8 +40,48 @@ def generate_2d_scalar_simple(nx, ny, ndeps=1):
         yield ret
 
 
-# DEPRECATED BUT STILL IN USE
+def get_1d_scalar_cos_data(nx=10, ndata=1):
+    """
+    return a datadict with `ndata` dependents.
+    All have a cos-dependence on x (with increasing frequency).
+    Also noise is added on top.
+    """
+    x = np.linspace(0, 10, nx)
+    d = DataDict(
+        x=dict(values=x, unit='A')
+    )
+    for n in range(ndata):
+        dd = np.cos((n+1)*x) + (-0.1 + 0.2 * np.random.rand(x.size))
+        d[f"data_{n+1}"] = dict(values=dd, axes=['x',], unit='a.u.')
 
+    d.validate()
+    return d
+
+
+def get_2d_scalar_cos_data(nx=10, ny=10, ndata=1):
+    """
+    return a datadict with `ndata` dependents.
+    All have a cos-dependence on x (with increasing frequency),
+    and repetitions along y.
+    Also noise is added on top.
+    """
+    x = np.linspace(0, 10, nx)
+    y = np.arange(ny)
+    xx, yy = np.meshgrid(x, y, indexing='ij')
+
+    d = DataDict(
+        x=dict(values=xx.reshape(-1), unit='A'),
+        y=dict(values=yy.reshape(-1), unit='B'),
+    )
+    for n in range(ndata):
+        dd = np.cos((n+1)*xx) + (-0.1 + 0.2 * np.random.rand(*yy.shape))
+        d[f"data_{n+1}"] = dict(values=dd.reshape(-1), axes=['x', 'y'])
+
+    d.validate()
+    return d
+
+
+# DEPRECATED BUT STILL IN USE
 def two_1d_traces(nvals=11):
     x = np.linspace(0, 10, nvals)
     y = np.cos(x)
