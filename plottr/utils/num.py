@@ -363,11 +363,13 @@ def centers2edges_2d(centers):
 
     To illustrate: if x are the centers, we return the inferred o's:
 
+    ``
     o   o   o   o
       x---x---x
     o | o | o | o
       x---x---x
     o   o   o   o
+    ``
     """
     shp = centers.shape
     edges = np.zeros((shp[0] + 1, shp[1] + 1))

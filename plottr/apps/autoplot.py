@@ -4,31 +4,30 @@ autoplot.py
 Autoplotting app using plottr nodes.
 """
 
-import os
 import logging
+import os
 import time
-from typing import Union, Tuple, Any
+from typing import Union, Tuple
 
 from .. import QtGui, QtCore, Flowchart
+from .. import log as plottrlog
 from ..data.datadict import DataDictBase
 from ..data.datadict_storage import DDH5Loader
 from ..data.qcodes_dataset import QCodesDSLoader
-from .. import log as plottrlog
-from ..node.tools import linearFlowchart
+from ..gui.widgets import MonitorIntervalInput, AutoPlotWindow, SnapshotWidget, flowchartAutoPlot
 from ..node.data_selector import DataSelector
-from ..node.grid import DataGridder, GridOption
 from ..node.dim_reducer import XYSelector
 from ..node.filter.correct_offset import SubtractAverage
-from ..plot.mpl import PlotNode, AutoPlot
-from ..gui.widgets import MonitorIntervalInput, PlotWindow, SnapshotWidget
-from ..gui.tools import flowchartAutoPlot
-
-
+from ..node.grid import DataGridder, GridOption
+from ..node.tools import linearFlowchart
+from ..plot.base import PlotNode
 
 __author__ = 'Wolfgang Pfaff'
 __license__ = 'MIT'
 
+
 # TODO: * separate logging window
+
 
 def logger():
     logger = logging.getLogger('plottr.apps.autoplot')
@@ -50,7 +49,7 @@ def autoplot(log: bool = False,
         ('Data selection', DataSelector),
         ('Grid', DataGridder),
         ('Dimension assignment', XYSelector),
-        ('Subtract average', SubtractAverage),
+        # ('Subtract average', SubtractAverage),
     ]
 
     win, fc = flowchartAutoPlot(nodes)
@@ -62,7 +61,7 @@ def autoplot(log: bool = False,
     return fc, win
 
 
-class AutoPlotMainWindow(PlotWindow):
+class AutoPlotMainWindow(AutoPlotWindow):
 
     def __init__(self, fc: Flowchart,
                  parent: Union[QtGui.QWidget, None] = None,
@@ -112,7 +111,6 @@ class AutoPlotMainWindow(PlotWindow):
         if self.fc is not None:
             self.addNodeWidgetsFromFlowchart(fc)
 
-        
         # start monitor
         if monitorInterval is not None:
             self.setMonitorInterval(monitorInterval)
@@ -132,7 +130,6 @@ class AutoPlotMainWindow(PlotWindow):
         tstamp = time.strftime("%Y-%m-%d %H:%M:%S")
         self.status.showMessage(f"loaded: {tstamp}")
 
-
     @QtCore.pyqtSlot()
     def refreshData(self):
         """
@@ -140,12 +137,10 @@ class AutoPlotMainWindow(PlotWindow):
         """
         self.loaderNode.update()
         self.showTime()
-      
+
         if not self._initialized and self.loaderNode.nLoadedRecords > 0:
             self.setDefaults()
             self._initialized = True
-            
-
 
     @QtCore.pyqtSlot(int)
     def setMonitorInterval(self, val):
@@ -202,9 +197,9 @@ class QCAutoPlotMainWindow(AutoPlotMainWindow):
     def __init__(self, fc: Flowchart,
                  parent: Union[QtGui.QWidget, None] = None,
                  monitorInterval: Union[int, None] = None,
-                 pathAndId: Union[Tuple[str, int], None] = None):
+                 pathAndId: Union[Tuple[str, int], None] = None, **kw):
 
-        super().__init__(fc, parent, monitorInterval)
+        super().__init__(fc, parent, monitorInterval, **kw)
 
         windowTitle = "Plottr | QCoDeS autoplot"
         if pathAndId is not None:
@@ -215,16 +210,16 @@ class QCAutoPlotMainWindow(AutoPlotMainWindow):
 
         if pathAndId is not None:
             self.loaderNode.pathAndId = pathAndId
-        
-        #add qcodes specific snapshot widget
+
+        # add qcodes specific snapshot widget
         d = QtGui.QDockWidget('snapshot', self)
         self.snapshotWidget = SnapshotWidget()
         d.setWidget(self.snapshotWidget)
         self.addDockWidget(QtCore.Qt.BottomDockWidgetArea, d)
-        
+
         if self.loaderNode.nLoadedRecords > 0:
             self.setDefaults()
-            #also setup the snapshot here since the loader node is now initialized 
+            # setup snapshot since the loader node is now initialized
             logger().debug('loaded snapshot')
             self.snapshotWidget.loadSnapshot(self.loaderNode.dataSnapshot)
             self._initialized = True
@@ -278,5 +273,3 @@ def autoplotDDH5(filepath: str = '', groupname: str = 'data') \
     win.setMonitorInterval(2)
 
     return fc, win
-
-

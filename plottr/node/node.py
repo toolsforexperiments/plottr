@@ -140,6 +140,8 @@ class Node(NodeBase):
     #: when data structure changes, emits (structure, shapes, type)
     newDataStructure = QtCore.pyqtSignal(object, object, object)
 
+    #: developer flag for whether we actually want to raise of use the logging
+    #: system
     _raiseExceptions = False
 
     def __init__(self, name: str):

@@ -2,7 +2,7 @@ import numpy as np
 
 from plottr import QtGui
 from plottr.data.datadict import MeshgridDataDict
-from plottr.gui.tools import flowchartAutoPlot
+from plottr.gui.widgets import flowchartAutoPlot
 from plottr.node.filter.correct_offset import SubtractAverage
 
 

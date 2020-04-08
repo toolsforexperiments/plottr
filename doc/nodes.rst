@@ -104,9 +104,3 @@ That is essentially all that is needed for the Node; only the process function t
 
 
 This node can then already be used, with the UI if desired, in a flowchart.
-
-API documentation for the node module
--------------------------------------
-
-.. automodule:: plottr.node.node
-    :members:

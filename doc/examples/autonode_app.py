@@ -14,7 +14,7 @@ from plottr.node.data_selector import DataSelector
 from plottr.node.grid import DataGridder
 from plottr.node.dim_reducer import XYSelector
 from plottr.node.autonode import autonode
-from plottr.plot.mpl import PlotNode
+from plottr.plot.base import PlotNode
 from plottr.apps.autoplot import QCAutoPlotMainWindow
 
 
@@ -73,7 +73,8 @@ def main(pathAndId):
         ('plot', PlotNode),
     )
 
-    win = QCAutoPlotMainWindow(fc, pathAndId=pathAndId)
+    win = QCAutoPlotMainWindow(fc, pathAndId=pathAndId,
+                               loaderName='Dataset loader')
     win.show()
 
     return app.exec_()
