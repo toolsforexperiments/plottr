@@ -11,6 +11,7 @@ import numpy as np
 from .node import Node, updateOption, NodeWidget, updateGuiFromNode
 from ..data.datadict import MeshgridDataDict, DataDict, DataDictBase
 from .. import QtGui, QtCore
+from ..gui.icons import axesAssignIcon, xySelectIcon
 
 __author__ = 'Wolfgang Pfaff'
 __license__ = 'MIT'
@@ -586,6 +587,8 @@ class DimensionReducer(Node):
 
 
 class XYSelectorNodeWidget(NodeWidget):
+
+    icon = xySelectIcon
 
     def __init__(self, node: Node = None):
         super().__init__(embedWidgetClass=XYSelectionWidget)
