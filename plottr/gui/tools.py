@@ -3,13 +3,7 @@
 helpers and tools for creating GUI elements.
 """
 
-from typing import Type, Tuple, List
-
-from .widgets import AutoPlotWindow
-from .. import QtGui, Flowchart
-from ..node import Node
-from ..node.tools import linearFlowchart
-from ..plot.mpl import PlotNode
+from .. import QtGui
 
 __author__ = 'Wolfgang Pfaff'
 __license__ = 'MIT'
@@ -28,9 +22,18 @@ def widgetDialog(widget: QtGui.QWidget, title: str = '',
     return win
 
 
-def flowchartAutoPlot(nodes: List[Tuple[str, Type[Node]]]) \
-        -> (AutoPlotWindow, Flowchart):
-    nodes.append(('plot', PlotNode))
-    fc = linearFlowchart(*nodes)
-    win = AutoPlotWindow(fc=fc, plotNode='plot')
-    return win, fc
+def dictToTreeWidgetItems(d):
+    items = []
+    for k, v in d.items():
+        if not isinstance(v, dict):
+            item = QtGui.QTreeWidgetItem([str(k), str(v)])
+        else:
+            item = QtGui.QTreeWidgetItem([k, ''])
+            for child in dictToTreeWidgetItems(v):
+                item.addChild(child)
+        items.append(item)
+    return items
+
+
+def flowchartAutoPlot():
+    pass

@@ -4,12 +4,14 @@ widgets.py
 Common GUI widgets that are re-used across plottr.
 """
 
-from typing import Union, List, Tuple, Optional
+from typing import Union, List, Tuple, Optional, Type
 
+from .tools import dictToTreeWidgetItems
 from plottr import QtGui, QtCore, Flowchart
 from plottr.node import Node
+from plottr.node.tools import linearFlowchart
 from plottr.plot.mpl import AutoPlot
-from plottr.plot import PlotNode, PlotWidgetWrapper
+from plottr.plot import PlotNode, PlotWidgetContainer
 
 __author__ = 'Wolfgang Pfaff'
 __license__ = 'MIT'
@@ -65,7 +67,7 @@ class MonitorIntervalInput(QtGui.QWidget):
 
 class PlotWindow(QtGui.QMainWindow):
     """
-    MainWindow class for embedding plots using PlotWidgetWrapper.
+    MainWindow class for embedding plots using PlotWidgetContainer.
     """
     def __init__(self, parent=None):
         super().__init__(parent=parent)
@@ -81,10 +83,6 @@ class PlotWindow(QtGui.QMainWindow):
             QToolBar QCheckBox {
                 font: 10px;
             }
-            
-            PlotWidgetWrapper {
-                background: red;
-            }
             """
         )
 
@@ -94,14 +92,11 @@ class SinglePlotWindow(PlotWindow):
     def __init__(self, parent=None):
         super().__init__(parent=parent)
 
-        self.plot = PlotWidgetWrapper(parent=self)
+        self.plot = PlotWidgetContainer(parent=self)
         self.setCentralWidget(self.plot)
 
 
-
-
-# Code below is still in use but will be deprecated eventually.
-class AutoPlotWindow(QtGui.QMainWindow):
+class AutoPlotWindow(SinglePlotWindow):
     """
     Simple MainWindow class for embedding flowcharts and plots.
     """
@@ -110,7 +105,6 @@ class AutoPlotWindow(QtGui.QMainWindow):
         super().__init__(parent)
 
         self.nodeWidgets = {}
-        self.plotWidget = None
 
         if fc is not None:
             self.addNodeWidgetsFromFlowchart(fc, **kw)
@@ -154,22 +148,17 @@ class AutoPlotWindow(QtGui.QMainWindow):
             if nodeName == plotNode and makePlotWidget:
                 pn = fc.nodes().get(plotNode, None)
                 if pn is not None and isinstance(pn, PlotNode):
-                    self.plotWidget = AutoPlot()
-                    pn.setPlotWidget(self.plotWidget)
-                    self.setCentralWidget(self.plotWidget)
+                    pn.setPlotWidgetContainer(self.plot)
+                    self.plotWidget = AutoPlot(parent=self.plot)
+                    self.plot.setPlotWidget(self.plotWidget)
 
-    def setDefaultStyle(self):
-        self.setStyleSheet(
-            """
-            QToolButton {
-                font: 10px;
-            }
 
-            QToolBar QCheckBox {
-                font: 10px;
-            }
-            """
-        )
+def flowchartAutoPlot(nodes: List[Tuple[str, Type[Node]]]) \
+        -> (AutoPlotWindow, Flowchart):
+    nodes.append(('plot', PlotNode))
+    fc = linearFlowchart(*nodes)
+    win = AutoPlotWindow(fc=fc, plotNode='plot')
+    return win, fc
 
 
 class SnapshotWidget(QtGui.QTreeWidget):
@@ -198,16 +187,3 @@ class SnapshotWidget(QtGui.QTreeWidget):
         for i in range(2):
             self.resizeColumnToContents(i)
 
-
-
-def dictToTreeWidgetItems(d):
-    items = []
-    for k, v in d.items():
-        if not isinstance(v, dict):
-            item = QtGui.QTreeWidgetItem([str(k), str(v)])
-        else:
-            item = QtGui.QTreeWidgetItem([k, ''])
-            for child in dictToTreeWidgetItems(v):
-                item.addChild(child)
-        items.append(item)
-    return items
