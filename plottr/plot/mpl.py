@@ -566,6 +566,8 @@ class AutoPlot(_MPLPlotWidget):
             self._plotTypeFromToolBar)
         self.plotOptionsToolBar.setIconSize(QtCore.QSize(32, 32))
 
+        self.setMinimumSize(640, 480)
+
     def _analyzeData(self, data: DataDictBase) -> Dict[str, bool]:
         """checks data and compares with previous properties."""
         dataType = type(data)
