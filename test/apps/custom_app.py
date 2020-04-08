@@ -6,7 +6,7 @@ import lmfit
 
 from plottr import QtGui
 from plottr.data.datadict import DataDictBase, MeshgridDataDict
-from plottr.gui.tools import flowchartAutoPlot
+from plottr.gui.widgets import flowchartAutoPlot
 from plottr.node.dim_reducer import XYSelector
 from plottr.node.autonode import autonode
 
