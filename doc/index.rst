@@ -7,11 +7,13 @@ Welcome to plottr's documentation!
 ==================================
 
 .. toctree::
-   :maxdepth: 2
+   :maxdepth: 3
    :caption: Contents:
 
    dataformat
    nodes
+   plotnode
+   api/index
 
 
 
