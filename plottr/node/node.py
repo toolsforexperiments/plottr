@@ -116,6 +116,9 @@ class Node(NodeBase):
     #: Whether or not to automatically set up a UI widget.
     useUi = True
 
+    #: Whether the ui should be visible by default
+    uiVisibleByDefault = False
+
     #: A signal to notify the UI of option changes
     #: arguments is a dictionary of options and new values.
     optionChangeNotification = QtCore.pyqtSignal(dict)
@@ -315,6 +318,13 @@ class NodeWidget(QtGui.QWidget):
     make sure to set :attr:`plottr.node.node.NodeWidget.optGetters` and
     :attr:`plottr.node.node.NodeWidget.optSetters` for a widget class.
     """
+
+    #: icon for this node
+    icon = None
+
+    #: preferred location of the widget when used as dock widget
+    preferredDockWidgetArea = QtCore.Qt.LeftDockWidgetArea
+
     #: signal (args: object)) to emit to notify the node of a (changed)
     #: user option.
     optionToNode = QtCore.pyqtSignal(object)
