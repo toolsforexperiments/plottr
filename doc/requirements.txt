@@ -1,1 +1,2 @@
 sphinx-autodoc-typehints
+PyQt5>=5.9.0
