@@ -73,6 +73,9 @@ class PlotWindow(QtGui.QMainWindow):
         super().__init__(parent=parent)
         self.setDefaultStyle()
 
+        self.nodeToolBar = QtGui.QToolBar('Node control', self)
+        self.addToolBar(self.nodeToolBar)
+
     def setDefaultStyle(self):
         self.setStyleSheet(
             """
@@ -99,6 +102,9 @@ class SinglePlotWindow(PlotWindow):
 class AutoPlotWindow(SinglePlotWindow):
     """
     Simple MainWindow class for embedding flowcharts and plots.
+
+    All keyword arguments supplied will be propagated to
+    :meth:`addNodeWidgetFromFlowchart`.
     """
 
     def __init__(self, parent=None, fc: Flowchart = None, **kw):
@@ -111,23 +117,44 @@ class AutoPlotWindow(SinglePlotWindow):
 
         self.setDefaultStyle()
 
-    def addNodeWidget(self, node: Node):
+    def addNodeWidget(self, node: Node, **kwargs):
         """
         Add a node widget as dock.
 
         :param node: node for which to add the widget.
-        :return:
+
+        :keyword arguments:
+            * *visible* (`bool`; default: taken from widget class definition) --
+              whether the widget is visible from the start
+            * *dockArea* (`QtCore.Qt.DockWidgetArea`; default: taken from class) --
+              where the dock widget initially sits in the window
+            * *icon* (`QtCore.QIcon`; default: taken from class) --
+              an icon to use for the toolbar
         """
+
         if node.useUi and node.uiClass is not None:
+            dockArea = kwargs.get('dockArea', node.ui.preferredDockWidgetArea)
+            visible = kwargs.get('visible', node.uiVisibleByDefault)
+            icon = kwargs.get('icon', node.ui.icon)
+
             d = QtGui.QDockWidget(node.name(), self)
             d.setWidget(node.ui)
             self.nodeWidgets[node.name()] = d
-            self.addDockWidget(QtCore.Qt.LeftDockWidgetArea, d)
+            self.addDockWidget(dockArea, d)
+
+            action = d.toggleViewAction()
+            if icon is not None:
+                action.setIcon(icon)
+            self.nodeToolBar.addAction(action)
+
+            if not visible:
+                d.close()
 
     def addNodeWidgetsFromFlowchart(self, fc: Flowchart,
                                     exclude: List[str] = [],
                                     plotNode: str = 'plot',
-                                    makePlotWidget: bool = True):
+                                    makePlotWidget: bool = True,
+                                    **kwargs):
         """
         Add all nodes for a flowchart, excluding nodes given in `exclude`.
 
@@ -137,7 +164,14 @@ class AutoPlotWindow(SinglePlotWindow):
         :param plotNode: specify the name of the plot node, if present
         :param makePlotWidget: if True, attach a MPL autoplot widget to the plot
                                node.
-        :return:
+        :param kwargs: see below.
+
+        :keyword arguments:
+            * *widgetOptions* (`dictionary`) --
+              each entry in the dictionary should have the form
+              { nodeName : { option : value, ...}, ... }.
+              the options will be passed to :meth:`addNodeWidget` as keyword
+              arguments.
         """
         exclude += ['Input', 'Output']
 
@@ -153,11 +187,11 @@ class AutoPlotWindow(SinglePlotWindow):
                     self.plot.setPlotWidget(self.plotWidget)
 
 
-def flowchartAutoPlot(nodes: List[Tuple[str, Type[Node]]]) \
+def flowchartAutoPlot(nodes: List[Tuple[str, Type[Node]]], **kwargs) \
         -> (AutoPlotWindow, Flowchart):
     nodes.append(('plot', PlotNode))
     fc = linearFlowchart(*nodes)
-    win = AutoPlotWindow(fc=fc, plotNode='plot')
+    win = AutoPlotWindow(fc=fc, plotNode='plot', **kwargs)
     return win, fc
 
 
