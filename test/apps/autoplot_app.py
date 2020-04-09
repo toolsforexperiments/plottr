@@ -16,10 +16,10 @@ def make_data():
 
 def main():
     plottrlog.LEVEL = logging.DEBUG
-    testdata = make_data()
+    data = make_data()
 
     app = QtGui.QApplication([])
-    fc, win = autoplot(inputData=testdata, log=True)
+    fc, win = autoplot(inputData=data)
 
     if (sys.flags.interactive != 1) or not hasattr(QtCore, 'PYQT_VERSION'):
         QtGui.QApplication.instance().exec_()
