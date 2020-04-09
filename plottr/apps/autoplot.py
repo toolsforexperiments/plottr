@@ -34,13 +34,14 @@ def logger():
     return logger
 
 
-def autoplot(inputData: Union[None, DataDictBase] = None):
+def autoplot(inputData: Union[None, DataDictBase] = None) \
+        -> (Flowchart, 'AutoPlotMainWindow'):
     """
-    Sets up a simple flowchart consisting of a data selector,
+    Sets up a simple flowchart consisting of a data selector, gridder,
     an xy-axes selector, and creates a GUI together with an autoplot
     widget.
 
-    returns the flowchart object and the dialog widget
+    :returns: the flowchart object and the dialog widget
     """
 
     nodes = [
@@ -67,6 +68,11 @@ def autoplot(inputData: Union[None, DataDictBase] = None):
 
 
 class UpdateToolBar(QtGui.QToolBar):
+    """
+    A very simple toolbar to enable monitoring or triggering based on a timer.
+    Contains a timer whose interval can be set.
+    The toolbar will then emit a signal each interval.
+    """
 
     #: Signal emitted after each trigger interval
     trigger = Signal()
@@ -106,6 +112,9 @@ class UpdateToolBar(QtGui.QToolBar):
 
     Slot()
     def stop(self):
+        """
+        Stop the timer.
+        """
         self.monitor.stop()
 
 
