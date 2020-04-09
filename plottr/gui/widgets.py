@@ -8,10 +8,9 @@ from typing import Union, List, Tuple, Optional, Type
 
 from .tools import dictToTreeWidgetItems
 from plottr import QtGui, QtCore, Flowchart
-from plottr.node import Node
-from plottr.node.tools import linearFlowchart
+from plottr.node import Node, linearFlowchart
 from plottr.plot.mpl import AutoPlot
-from plottr.plot import PlotNode, PlotWidgetContainer
+from ..plot import PlotNode, PlotWidgetContainer, MPLAutoPlot
 
 __author__ = 'Wolfgang Pfaff'
 __license__ = 'MIT'
@@ -67,14 +66,29 @@ class MonitorIntervalInput(QtGui.QWidget):
 
 class PlotWindow(QtGui.QMainWindow):
     """
-    MainWindow class for embedding plots using PlotWidgetContainer.
+    Simple MainWindow class for embedding flowcharts and plots.
+
+    All keyword arguments supplied will be propagated to
+    :meth:`addNodeWidgetFromFlowchart`.
     """
-    def __init__(self, parent=None):
-        super().__init__(parent=parent)
-        self.setDefaultStyle()
+
+    plotWidgetClass = MPLAutoPlot
+
+    def __init__(self, parent=None, fc: Flowchart = None, **kw):
+        super().__init__(parent)
+
+        self.plot = PlotWidgetContainer(parent=self)
+        self.setCentralWidget(self.plot)
+        self.plotWidget = None
 
         self.nodeToolBar = QtGui.QToolBar('Node control', self)
         self.addToolBar(self.nodeToolBar)
+
+        self.nodeWidgets = {}
+        if fc is not None:
+            self.addNodeWidgetsFromFlowchart(fc, **kw)
+
+        self.setDefaultStyle()
 
     def setDefaultStyle(self):
         self.setStyleSheet(
@@ -88,34 +102,6 @@ class PlotWindow(QtGui.QMainWindow):
             }
             """
         )
-
-
-class SinglePlotWindow(PlotWindow):
-
-    def __init__(self, parent=None):
-        super().__init__(parent=parent)
-
-        self.plot = PlotWidgetContainer(parent=self)
-        self.setCentralWidget(self.plot)
-
-
-class AutoPlotWindow(SinglePlotWindow):
-    """
-    Simple MainWindow class for embedding flowcharts and plots.
-
-    All keyword arguments supplied will be propagated to
-    :meth:`addNodeWidgetFromFlowchart`.
-    """
-
-    def __init__(self, parent=None, fc: Flowchart = None, **kw):
-        super().__init__(parent)
-
-        self.nodeWidgets = {}
-
-        if fc is not None:
-            self.addNodeWidgetsFromFlowchart(fc, **kw)
-
-        self.setDefaultStyle()
 
     def addNodeWidget(self, node: Node, **kwargs):
         """
@@ -175,23 +161,26 @@ class AutoPlotWindow(SinglePlotWindow):
         """
         exclude += ['Input', 'Output']
 
+        opts = kwargs.get('widgetOptions', dict())
+
         for nodeName, node in fc.nodes().items():
             if nodeName not in exclude:
-                self.addNodeWidget(node)
+                thisOpts = opts.get(nodeName, dict())
+                self.addNodeWidget(node, **thisOpts)
 
             if nodeName == plotNode and makePlotWidget:
                 pn = fc.nodes().get(plotNode, None)
                 if pn is not None and isinstance(pn, PlotNode):
                     pn.setPlotWidgetContainer(self.plot)
-                    self.plotWidget = AutoPlot(parent=self.plot)
+                    self.plotWidget = self.plotWidgetClass(parent=self.plot)
                     self.plot.setPlotWidget(self.plotWidget)
 
 
-def flowchartAutoPlot(nodes: List[Tuple[str, Type[Node]]], **kwargs) \
-        -> (AutoPlotWindow, Flowchart):
+def makeFlowchartWithPlotWindow(nodes: List[Tuple[str, Type[Node]]], **kwargs) \
+        -> (PlotWindow, Flowchart):
     nodes.append(('plot', PlotNode))
     fc = linearFlowchart(*nodes)
-    win = AutoPlotWindow(fc=fc, plotNode='plot', **kwargs)
+    win = PlotWindow(fc=fc, plotNode='plot', **kwargs)
     return win, fc
 
 

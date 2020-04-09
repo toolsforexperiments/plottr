@@ -2,7 +2,7 @@ import numpy as np
 
 from plottr import QtGui
 from plottr.data.datadict import MeshgridDataDict
-from plottr.gui.widgets import flowchartAutoPlot
+from plottr.gui.widgets import makeFlowchartWithAutoPlotWindow
 from plottr.node.filter.correct_offset import SubtractAverage
 
 
@@ -31,7 +31,7 @@ def subtractAverage():
 
     # make app and gui, fc
     app = QtGui.QApplication([])
-    win, fc = flowchartAutoPlot([
+    win, fc = makeFlowchartWithAutoPlotWindow([
         ('sub', SubtractAverage)
     ])
     win.show()
