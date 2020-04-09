@@ -651,10 +651,10 @@ class AutoPlot(_MPLPlotWidget):
         """Plot the data using previously determined data and plot types."""
 
         if self.plotDataType is PlotDataType.unknown:
-            logger.info("No plotable data.")
+            logger.debug("No plotable data.")
 
         if self.plotType is PlotType.empty:
-            logger.info("No plot routine determined.")
+            logger.debug("No plot routine determined.")
             return
 
         # only in combined 1D plots we need always only 1 panel.
