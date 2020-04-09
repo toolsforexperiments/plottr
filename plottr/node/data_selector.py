@@ -52,7 +52,7 @@ class DataDisplayWidget(NodeWidget):
 
     def _updateOptions(self, selected):
         ds = self.widget._dataStructure
-        for n, w in self.widget.checkBoxes.items():
+        for n, w in self.widget.dataItems.items():
             if selected != [] and ds[n]['axes'] != ds[selected[0]]['axes']:
                 self.widget.setItemEnabled(n, False)
             else:

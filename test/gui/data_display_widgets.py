@@ -9,19 +9,19 @@ from plottr.gui.data_display import DataSelectionWidget
 from plottr.utils import testdata
 
 
-def dataSelectionWidget(readonly=False):
+def test_dataSelectionWidget(readonly: bool = False):
     def selectionCb(selection):
         print(selection)
 
-    app = QtGui.QApplication([])
+    # app = QtGui.QApplication([])
     widget = DataSelectionWidget(readonly=readonly)
     widget.dataSelectionMade.connect(selectionCb)
 
     # set up the UI, feed data in
     data = testdata.three_incompatible_3d_sets(5, 5, 5)
     dialog = widgetDialog(widget)
-    widget.setData(data)
+    widget.setData(data.structure(), data.shapes())
     widget.clear()
-    widget.setData(data)
-    return app.exec_()
+    widget.setData(data.structure(), data.shapes())
+    return dialog
 
