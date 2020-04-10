@@ -159,6 +159,8 @@ def three_incompatible_3d_sets(nx=3, ny=3, nz=3, rand_factor=1):
     xx, yy, zz = np.meshgrid(x, y, z, indexing='ij')
     dd = np.cos(xx) * np.sin(yy) + rand_factor * np.random.rand(*zz.shape)
     dd2 = np.sin(xx) * np.cos(yy) + rand_factor * np.random.rand(*zz.shape)
+    dd3 = np.cos(xx) ** 2 * np.exp(-yy**2 * 0.2) + rand_factor * np.random.rand(
+        *zz.shape)
 
     d = DataDict(
         x=dict(values=xx.reshape(-1), unit='mA'),
@@ -166,10 +168,10 @@ def three_incompatible_3d_sets(nx=3, ny=3, nz=3, rand_factor=1):
         z=dict(values=zz.reshape(-1), unit='nF'),
         data=dict(values=dd.reshape(-1),
                   axes=['x', 'y', 'z'], unit='kW'),
-        more_data=dict(values=dd2.transpose((1, 0, 2)).reshape(-1),
+        more_data=dict(values=dd2.reshape(-1),
                        axes=['y', 'x', 'z'], unit='MV'),
-        different_data=dict(values=dd2.T.reshape(-1),
-                            axes=['z', 'y', 'x'], unit='TS')
+        different_data=dict(values=dd3.reshape(-1),
+                            axes=['z', 'y', 'x'], unit='TS'),
     )
     d.validate()
     return d
