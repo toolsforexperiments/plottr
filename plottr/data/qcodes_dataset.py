@@ -240,9 +240,6 @@ GUID: {}
 DB-File [ID]: {} [{}]""".format(ds.run_timestamp(), ds.completed_timestamp(),
                                 guid, path, runId)
 
-                #now also load the snapshot and save in the object so we can use it later in the snapshot widget
-                self.dataSnapshot = ds.snapshot
-
                 data = ds_to_datadict(ds)
                 data.add_meta('title', title)
                 data.add_meta('info', info)

@@ -258,19 +258,10 @@ class QCAutoPlotMainWindow(AutoPlotMainWindow):
         if pathAndId is not None:
             self.loaderNode.pathAndId = pathAndId
 
-        # add qcodes specific snapshot widget
-        d = QtGui.QDockWidget('snapshot', self)
-        self.snapshotWidget = SnapshotWidget()
-        d.setWidget(self.snapshotWidget)
-        self.addDockWidget(QtCore.Qt.BottomDockWidgetArea, d)
-
         if self.loaderNode.nLoadedRecords > 0:
             self.setDefaults(self.loaderNode.outputValues()['dataOut'])
-
-            # setup snapshot since the loader node is now initialized
-            logger().debug('loaded snapshot')
-            self.snapshotWidget.loadSnapshot(self.loaderNode.dataSnapshot)
             self._initialized = True
+
 
 
 def autoplotQcodesDataset(log: bool = False,
