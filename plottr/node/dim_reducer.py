@@ -140,6 +140,7 @@ class DimensionAssignmentWidget(QtGui.QTreeWidget):
         self._dataType = dtype
         self._dataShapes = shapes
         self._dataStructure = structure
+        self._currentRoles = {}
 
         for ax in self._dataStructure.axes():
             self.addDimension(ax)
@@ -777,5 +778,11 @@ class XYSelector(DimensionReducer):
         if self._xyAxes[0] is not None and self._xyAxes[1] is not None:
             _kw = {self._xyAxes[0]: 0, self._xyAxes[1]: 1}
             data = data.reorder_axes(**_kw)
+
+        # it is possible that UI options have been re-generated, while the
+        # options in the node have not been changed. to make sure everything
+        # is in sync, we simply set the UI options again here.
+        if self.ui is not None:
+            self.ui.setRoles(self.dimensionRoles)
 
         return dict(dataOut=data)
