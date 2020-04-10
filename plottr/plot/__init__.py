@@ -1,1 +1,2 @@
-from .base import PlotNode, PlotWidgetContainer
+from .base import PlotNode, PlotWidgetContainer, makeFlowchartWithPlot
+from .mpl import AutoPlot as MPLAutoPlot

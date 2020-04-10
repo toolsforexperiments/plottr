@@ -2,11 +2,11 @@
 plottr/plot/base.py : Contains the base classes for plotting nodes and widgets.
 """
 
-from typing import Dict
+from typing import Dict, List, Type, Tuple
 
-from .. import QtGui, Signal
+from .. import QtGui, Signal, Flowchart
 from ..data.datadict import DataDictBase
-from ..node.node import Node
+from ..node import Node, linearFlowchart
 
 __author__ = 'Wolfgang Pfaff'
 __license__ = 'MIT'
@@ -124,3 +124,11 @@ class PlotWidget(QtGui.QWidget):
         :param data: data to be plotted.
         """
         self.data = data
+
+
+def makeFlowchartWithPlot(nodes: List[Tuple[str, Type[Node]]],
+                          plotNodeName: str = 'plot') -> Flowchart:
+    nodes.append((plotNodeName, PlotNode))
+    fc = linearFlowchart(*nodes)
+    return fc
+

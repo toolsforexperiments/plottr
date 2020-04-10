@@ -9,6 +9,7 @@ from plottr import QtGui, QtCore
 from .node import Node, NodeWidget, updateOption
 from ..data.datadict import DataDictBase
 from ..gui.data_display import DataSelectionWidget
+from ..gui.icons import dataColumnsIcon
 from ..utils import num
 
 __author__ = 'Wolfgang Pfaff'
@@ -19,6 +20,8 @@ class DataDisplayWidget(NodeWidget):
     """
     Simple Tree widget to show data and their dependencies in the node data.
     """
+
+    icon = dataColumnsIcon
 
     def __init__(self, node: Node = None):
         super().__init__(embedWidgetClass=DataSelectionWidget)
@@ -49,7 +52,7 @@ class DataDisplayWidget(NodeWidget):
 
     def _updateOptions(self, selected):
         ds = self.widget._dataStructure
-        for n, w in self.widget.checkBoxes.items():
+        for n, w in self.widget.dataItems.items():
             if selected != [] and ds[n]['axes'] != ds[selected[0]]['axes']:
                 self.widget.setItemEnabled(n, False)
             else:

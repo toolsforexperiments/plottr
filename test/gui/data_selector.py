@@ -5,10 +5,7 @@ from plottr.node.tools import linearFlowchart
 from plottr.utils import testdata
 
 
-def test_data_selector(interactive=True):
-    if not interactive:
-        app = QtGui.QApplication([])
-
+def test_data_selector():
     fc = linearFlowchart(('selector', DataSelector))
     selector = fc.nodes()['selector']
     dialog = widgetDialog(selector.ui, 'selector')
@@ -25,11 +22,8 @@ def test_data_selector(interactive=True):
     fc.setInput(dataIn=data)
     selector.selectedData = ['data']
 
-    if not interactive:
-        app.exec_()
-    else:
-        return dialog, fc
+    return dialog, fc
 
 
 if __name__ == '__main__':
-    test_data_selector(False)
+    test_data_selector()

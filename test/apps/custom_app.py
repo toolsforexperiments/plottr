@@ -6,7 +6,7 @@ import lmfit
 
 from plottr import QtGui
 from plottr.data.datadict import DataDictBase, MeshgridDataDict
-from plottr.gui.widgets import flowchartAutoPlot
+from plottr.gui.widgets import makeFlowchartWithPlotWindow
 from plottr.node.dim_reducer import XYSelector
 from plottr.node.autonode import autonode
 
@@ -72,7 +72,7 @@ def main():
 
     # flowchart and window
     nodes = makeNodeList()
-    win, fc = flowchartAutoPlot(nodes)
+    win, fc = makeFlowchartWithPlotWindow(nodes)
     win.show()
 
     # feed in data

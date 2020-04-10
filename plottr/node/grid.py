@@ -12,6 +12,7 @@ from plottr import QtCore, QtGui
 from .node import Node, NodeWidget, updateOption, updateGuiFromNode
 from ..data import datadict as dd
 from ..data.datadict import DataDict, MeshgridDataDict
+from ..gui.icons import gridIcon
 
 __author__ = 'Wolfgang Pfaff'
 __license__ = 'MIT'
@@ -182,6 +183,8 @@ class GridOptionWidget(QtGui.QWidget):
 
 
 class DataGridderNodeWidget(NodeWidget):
+
+    icon = gridIcon
 
     def __init__(self, node: Node = None):
         super().__init__(embedWidgetClass=GridOptionWidget)

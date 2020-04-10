@@ -1,7 +1,15 @@
 """
-inspectr.py
+plottr/apps/inspectr.py -- tool for browsing qcodes data.
 
-Inspectr app for browsing qcodes data.
+This module provides a GUI tool to browsing qcodes .db files.
+You can drap/drop .db files into the inspectr window, then browse through
+datasets by date. The inspectr itself shows some elementary information
+about each dataset and you can launch a plotting window that allows visualizing
+the data in it.
+
+Note that this tool is essentially only visualizing some basic structure of the
+runs contained in the database. It does not to any handling or loading of
+data. it relies on the public qcodes API to get its information.
 """
 
 import os
@@ -29,6 +37,7 @@ def logger():
 ### Database inspector tool
 
 class DateList(QtGui.QListWidget):
+    """Displays a list of dates for which there are runs in the database."""
 
     datesSelected = QtCore.pyqtSignal(list)
     fileDropped = QtCore.pyqtSignal(str)
@@ -109,6 +118,7 @@ class SortableTreeWidgetItem(QtGui.QTreeWidgetItem):
 
 
 class RunList(QtGui.QTreeWidget):
+    """Shows the list of runs for a given date selection."""
 
     cols = ['Run ID', 'Experiment', 'Sample', 'Name', 'Started', 'Completed', 'Records']
 
@@ -166,6 +176,11 @@ class RunList(QtGui.QTreeWidget):
 
 
 class RunInfo(QtGui.QTreeWidget):
+    """widget that shows some more details on a selected run.
+
+    When sending information in form of a dictionary, it will create
+    a tree view of that dictionary and display that.
+    """
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -204,15 +219,22 @@ class LoadDBProcess(QtCore.QObject):
         dbdf = get_runs_from_db_as_dataframe(self.path)
         self.dbdfLoaded.emit(dbdf)
 
+
 class QCodesDBInspector(QtGui.QMainWindow):
     """
     Main window of the inspectr tool.
     """
 
+    #: `Signal ()` -- Emitted when when there's an update to the internally
+    #: cached data (the *data base data frame* :)).
     dbdfUpdated = QtCore.pyqtSignal()
-    sendInfo = QtCore.pyqtSignal(dict)
+
+    #: Signal (`dict`) -- emitted to communicate information about a given
+    #: run to the widget that displays the information
+    _sendInfo = QtCore.pyqtSignal(dict)
 
     def __init__(self, parent=None, dbPath=None):
+        """Constructor for :class:`QCodesDBInspector`."""
         super().__init__(parent)
 
         self._plotWindows = {}
@@ -293,7 +315,7 @@ class QCodesDBInspector(QtGui.QMainWindow):
 
         ### Thread workers
         
-        # DB loading
+        # DB loading. can be slow, so nice to have in a thread.
         self.loadDBProcess = LoadDBProcess()
         self.loadDBThread = QtCore.QThread()
         self.loadDBProcess.moveToThread(self.loadDBThread)
@@ -311,7 +333,7 @@ class QCodesDBInspector(QtGui.QMainWindow):
         self.dateList.fileDropped.connect(self.loadFullDB)
         self.runList.runSelected.connect(self.setRunSelection)
         self.runList.runActivated.connect(self.plotRun)
-        self.sendInfo.connect(self.runInfo.setInfo)
+        self._sendInfo.connect(self.runInfo.setInfo)
         self.monitor.timeout.connect(self.monitorTriggered)
 
         if self.filepath is not None:
@@ -363,6 +385,10 @@ class QCodesDBInspector(QtGui.QMainWindow):
         if path is not None and path != self.filepath:
             self.filepath = path
 
+            # makes sure we treat a newly loaded file fresh and not as a
+            # refreshed one.
+            self.latestRunId = None
+
         if self.filepath is not None:
             if not self.loadDBThread.isRunning():
                 self.loadDBProcess.setPath(self.filepath)
@@ -395,7 +421,7 @@ class QCodesDBInspector(QtGui.QMainWindow):
     @QtCore.pyqtSlot()
     def refreshDB(self):
         if self.filepath is not None:
-            if self.dbdf.size > 0:
+            if self.dbdf is not None and self.dbdf.size > 0:
                 self.latestRunId = self.dbdf.index.values.max()
             else:
                 self.latestRunId = -1
@@ -427,18 +453,23 @@ class QCodesDBInspector(QtGui.QMainWindow):
     @QtCore.pyqtSlot(int)
     def setRunSelection(self, runId):
         ds = load_dataset_from(self.filepath, runId)
+        snap = None
+        if hasattr(ds, 'snapshot'):
+            snap = ds.snapshot
+
         structure = get_ds_structure(ds)
         for k, v in structure.items():
             v.pop('values')
-        contentInfo = {'data' : structure}
-        self.sendInfo.emit(contentInfo)
+        contentInfo = {'Data structure': structure,
+                       'QCoDeS Snapshot': snap}
+        self._sendInfo.emit(contentInfo)
 
     @QtCore.pyqtSlot(int)
     def plotRun(self, runId):
         fc, win = autoplotQcodesDataset(pathAndId=(self.filepath, runId))
         self._plotWindows[runId] = {
-            'flowchart' : fc,
-            'window' : win,
+            'flowchart': fc,
+            'window': win,
         }
         win.showTime()
 

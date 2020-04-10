@@ -5,7 +5,7 @@ from plottr import QtGui
 from plottr import log
 from plottr.data.datadict import DataDict, datadict_to_meshgrid
 from plottr.utils import testdata
-from plottr.gui.widgets import SinglePlotWindow
+from plottr.gui import PlotWindow
 from plottr.plot.mpl import AutoPlot
 
 
@@ -21,7 +21,7 @@ logger = setup_logging()
 
 def simple_2d_plot():
     app = QtGui.QApplication([])
-    win = SinglePlotWindow()
+    win = PlotWindow()
     plot = AutoPlot(parent=win)
     win.plot.setPlotWidget(plot)
     win.show()
@@ -47,7 +47,7 @@ def simple_2d_plot():
         nsamples = 30
         for i in range(nsamples):
             data = datadict_to_meshgrid(
-                testdata.get_2d_scalar_cos_data(201, 151, 1)
+                testdata.get_2d_scalar_cos_data(201, 101, 1)
             )
             win.plot.setData(data)
         t1 = time.perf_counter()

@@ -3,6 +3,12 @@ from .. import QtGui, QtCore, plottrPath
 
 gfxPath = os.path.join(plottrPath, 'gui', 'gfx')
 
+# Template
+# Icon = QtGui.QIcon(
+#     os.path.join(gfxPath, ".svg")
+# )
+
+# Plot types
 singleTracePlotIcon = QtGui.QIcon(
     os.path.join(gfxPath, "single_trace_plot.svg")
 )
@@ -21,4 +27,20 @@ colormeshPlotIcon = QtGui.QIcon(
 
 scatterPlot2dIcon = QtGui.QIcon(
     os.path.join(gfxPath, "2dscatter_plot.svg")
+)
+
+dataColumnsIcon = QtGui.QIcon(
+    os.path.join(gfxPath, "data_columns.svg")
+)
+
+axesAssignIcon = QtGui.QIcon(
+    os.path.join(gfxPath, "axes_assign.svg")
+)
+
+gridIcon = QtGui.QIcon(
+    os.path.join(gfxPath, "grid.svg")
+)
+
+xySelectIcon = QtGui.QIcon(
+    os.path.join(gfxPath, "xy_select.svg")
 )
