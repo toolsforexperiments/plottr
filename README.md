@@ -19,12 +19,6 @@ To use: from the root of the cloned plottr repository, run `python apps/inspectr
 
 For basic instructions, check out the Notebook *Live plotting qcodes data* under `/doc/examples`.
 
-### Live plotting using qcodes subscribers
-
-You might have read this in the qcodes documentation: http://qcodes.github.io/Qcodes/examples/plotting/live_plotting.html
-In the most recent version of `plottr`, this way of live plotting does not actually work anymore; 
-see the example notebook for how it actually works :)
-
 ### Interactive usage
 
 For now, check out the Notebook *Interactive data inspection* under `/doc/examples/`.
