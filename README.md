@@ -9,8 +9,7 @@ https://plottr.readthedocs.io (work in progress...)
 
 ## Recent changes:
 
-2020-04-17
-----------
+### 2020-04-17
 
 * the main repo has now moved to to a different organization: https://github.com/toolsforexperiments/plottr
   the old repo (https://github.com/data-plottr/plottr) will be kept in sync for a while, but deleted eventually.
