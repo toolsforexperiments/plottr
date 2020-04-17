@@ -19,10 +19,6 @@ To use: from the root of the cloned plottr repository, run `python apps/inspectr
 
 For basic instructions, check out the Notebook *Live plotting qcodes data* under `/doc/examples`.
 
-### Interactive usage
-
-For now, check out the Notebook *Interactive data inspection* under `/doc/examples/`.
-
 ## Some notes on installing
 
 Note: this package is not compatible with the original `plottr` tool.
@@ -43,7 +39,3 @@ clone the repo, and install using `pip install -e plottr/`.
 
 Docs are currently work in progress. You can find it here (still sparse, though!):
 https://plottr.readthedocs.io
-
-## If you're looking for the 'original' plottr package...
-
-It's in the branch `plottr-original` (also take a look at the "releases" tab on this repo)
