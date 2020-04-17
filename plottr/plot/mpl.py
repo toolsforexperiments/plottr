@@ -763,6 +763,14 @@ class AutoPlot(_MPLPlotWidget):
                 ax.grid(False)
                 x0, x1 = x.min(), x.max()
                 y0, y1 = y.min(), y.max()
+
+                # in image mode we have to be a little careful:
+                # if the x/y axes are specified with decreasing values we need to
+                # flip the image. otherwise we'll end up with an axis that has the
+                # opposite ordering from the data.
+                z = z if x[0, 0] < x[1, 0] else z[::-1, :]
+                z = z if y[0, 0] < y[0, 1] else z[:, ::-1]
+
                 im = ax.imshow(z.T, aspect='auto', origin='lower',
                                extent=(x0, x1, y0, y1))
 
