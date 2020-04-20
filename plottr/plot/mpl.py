@@ -5,7 +5,7 @@ plottr/plot/mpl.py : Tools for plotting with matplotlib.
 import logging
 import io
 from enum import Enum, unique, auto
-from typing import Tuple, Dict, List
+from typing import Dict, List
 from collections import OrderedDict
 
 # standard scientific computing imports
@@ -26,8 +26,8 @@ from ..utils import num
 from ..utils.num import interp_meshgrid_2d, centers2edges_2d
 from ..data.datadict import DataDictBase, DataDict, MeshgridDataDict
 
-from ..gui.icons import (singleTracePlotIcon, multiTracePlotIcon, imagePlotIcon,
-                         colormeshPlotIcon, scatterPlot2dIcon)
+from plottr.icons import (singleTracePlotIcon, multiTracePlotIcon, imagePlotIcon,
+                          colormeshPlotIcon, scatterPlot2dIcon)
 
 
 __author__ = 'Wolfgang Pfaff'
@@ -110,6 +110,8 @@ def determinePlotDataType(data: DataDictBase) -> PlotDataType:
         return PlotDataType.unknown
 
     if isinstance(data, MeshgridDataDict):
+        shape = data.shapes()[data.dependents()[0]]
+
         if len(data.axes()) == 2:
             return PlotDataType.grid2d
         else:
@@ -761,18 +763,28 @@ class AutoPlot(_MPLPlotWidget):
 
             if style == 'image':
                 ax.grid(False)
+                extent = [None, None, None, None]
                 x0, x1 = x.min(), x.max()
                 y0, y1 = y.min(), y.max()
+                extent = [x0, x1, y0, y1]
 
-                # in image mode we have to be a little careful:
-                # if the x/y axes are specified with decreasing values we need to
-                # flip the image. otherwise we'll end up with an axis that has the
-                # opposite ordering from the data.
-                z = z if x[0, 0] < x[1, 0] else z[::-1, :]
-                z = z if y[0, 0] < y[0, 1] else z[:, ::-1]
+                if x.shape[0] > 1:
+                    # in image mode we have to be a little careful:
+                    # if the x/y axes are specified with decreasing values we need to
+                    # flip the image. otherwise we'll end up with an axis that has the
+                    # opposite ordering from the data.
+                    z = z if x[0, 0] < x[1, 0] else z[::-1, :]
+
+                if y.shape[1] > 1:
+                    z = z if y[0, 0] < y[0, 1] else z[:, ::-1]
+
+                if x0 == x1:
+                    extent[1] = x0+1
+                if y0 == y1:
+                    extent[3] = y0+1
 
                 im = ax.imshow(z.T, aspect='auto', origin='lower',
-                               extent=(x0, x1, y0, y1))
+                               extent=tuple(extent))
 
             elif style == 'mesh':
                 ax.grid(False)
