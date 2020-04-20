@@ -1,7 +1,7 @@
 import os
-from .. import QtGui, QtCore, plottrPath
+from plottr import QtGui, QtCore, plottrPath
 
-gfxPath = os.path.join(plottrPath, 'gui', 'gfx')
+gfxPath = os.path.join(plottrPath, 'resource', 'gfx')
 
 # Template
 # Icon = QtGui.QIcon(
