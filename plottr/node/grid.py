@@ -95,9 +95,10 @@ class ShapeSpecificationWidget(QtGui.QWidget):
             self._axes = axes
 
             for i in range(self.layout.rowCount() - 1):
-                self.layout.removeRow(0)
                 self._widgets[i]['name'].deleteLater()
                 self._widgets[i]['shape'].deleteLater()
+                self.layout.removeRow(0)
+
             self._widgets = {}
 
             for i, ax in enumerate(axes):

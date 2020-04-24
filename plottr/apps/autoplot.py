@@ -147,14 +147,14 @@ class AutoPlotMainWindow(PlotWindow):
         self.setStatusBar(self.status)
 
         # menu bar
-        menu = self.menuBar()
-        fileMenu = menu.addMenu('&Data')
+        self.menu = self.menuBar()
+        self.fileMenu = self.menu.addMenu('&Data')
 
         if self.loaderNode is not None:
             refreshAction = QtGui.QAction('&Refresh', self)
             refreshAction.setShortcut('R')
             refreshAction.triggered.connect(self.refreshData)
-            fileMenu.addAction(refreshAction)
+            self.fileMenu.addAction(refreshAction)
 
         # add monitor if needed
         if monitor:
