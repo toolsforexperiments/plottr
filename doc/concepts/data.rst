@@ -1,7 +1,7 @@
 .. documentation of the internal data formats.
 
 Data formats
-============
+++++++++++++
 
 The main format we're using within plottr is the ``DataDict``. While most of the actual numeric data will typically live in numpy arrays (or lists, or similar), they don't typically capture easily arbitrary metadata and relationships between arrays. Say, for example, we have some data ``z`` that depends on two other variables, ``x`` and ``y``. This information has be stored somewhere, and numpy doesn't offer readily a solution here. There are various extensions, for example `xarray <http://xarray.pydata.org>`_ or the `MetaArray class <https://scipy-cookbook.readthedocs.io/items/MetaArray.html>`_. Those however typically have a grid format in mind, which we do not want to impose. Instead, we use a wrapper around the python dictionary that contains all the required meta information to infer the relevant relationships, and that uses numpy arrays internally to store the numeric data. Additionally we can story any other arbitrary meta data.
 
@@ -57,9 +57,3 @@ Relevant data classes
 
 For more information, see the API documentation.
 
-
-API documentation for the datadict module
------------------------------------------
-
-.. automodule:: plottr.data.datadict
-    :members:
