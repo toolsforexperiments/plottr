@@ -8,10 +8,10 @@ from collections import OrderedDict
 
 import numpy as np
 
-from .node import Node, updateOption, NodeWidget, updateGuiFromNode
+from .node import Node, updateOption, NodeWidget
 from ..data.datadict import MeshgridDataDict, DataDict, DataDictBase
 from .. import QtGui, QtCore
-from ..gui.icons import axesAssignIcon, xySelectIcon
+from plottr.icons import xySelectIcon
 
 __author__ = 'Wolfgang Pfaff'
 __license__ = 'MIT'
@@ -527,6 +527,7 @@ class DimensionReducer(Node):
 
         delete = []
         for ax, reduction in self._reductions.items():
+
             if reduction is None:
                 if isinstance(data, MeshgridDataDict):
                     self.logger().warning(f'Reduction for axis {ax} is None. '
@@ -558,7 +559,16 @@ class DimensionReducer(Node):
                     f'Invalid reduction method for axis {ax}. '
                     f'Needs to be callable or a ReductionMethod type.'
                 )
+                return False
 
+            # reduction methods are only defined for grid data.
+            # remove reduction methods if we're not on a grid.
+            if isinstance(fun, ReductionMethod) and not isinstance(data, MeshgridDataDict):
+                self.logger().info(f'Reduction set for axis {ax} is only suited for '
+                                   f'grid data. Removing.')
+                delete.append(ax)
+
+            # set the reduction in the correct format.
             self._reductions[ax] = (fun, arg, kw)
 
         for ax in delete:

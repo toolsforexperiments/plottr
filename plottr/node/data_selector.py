@@ -5,11 +5,10 @@ A node and widget for subselecting from a dataset.
 """
 from typing import List, Tuple, Dict, Any
 
-from plottr import QtGui, QtCore
 from .node import Node, NodeWidget, updateOption
 from ..data.datadict import DataDictBase
 from ..gui.data_display import DataSelectionWidget
-from ..gui.icons import dataColumnsIcon
+from plottr.icons import dataColumnsIcon
 from ..utils import num
 
 __author__ = 'Wolfgang Pfaff'

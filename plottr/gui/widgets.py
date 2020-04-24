@@ -9,7 +9,6 @@ from typing import Union, List, Tuple, Optional, Type
 from .tools import dictToTreeWidgetItems
 from plottr import QtGui, QtCore, Flowchart
 from plottr.node import Node, linearFlowchart
-from plottr.plot.mpl import AutoPlot
 from ..plot import PlotNode, PlotWidgetContainer, MPLAutoPlot
 
 __author__ = 'Wolfgang Pfaff'

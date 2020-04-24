@@ -137,6 +137,36 @@ def array1d_to_meshgrid(arr: Sequence, target_shape: Tuple[int, ...],
     return arr.reshape(target_shape)
 
 
+def _find_switches(arr, rth=25, ztol=1e-15):
+    arr_ = np.ma.MaskedArray(arr, is_invalid(arr))
+    deltas = arr_[1:] - arr_[:-1]
+    hi = np.percentile(arr[~is_invalid(arr)], 100.-rth)
+    lo = np.percentile(arr[~is_invalid(arr)], rth)
+    diff = np.abs(hi-lo)
+
+    if not diff > ztol:
+        return np.array([])
+
+    # first step: suspected switches are where we have 'large' jumps in value.
+    switch_candidates = np.where(np.abs(deltas) >= diff)[0]
+    switch_candidates = switch_candidates[switch_candidates > 0]
+    if not len(switch_candidates) > 0:
+        return np.array([])
+
+    # importantly: switches have to opposite to the sweep direction.
+    # we check the sweep direction by looking at the values prior to the
+    # first suspected switch
+    sweep_direction = np.sign(np.mean(deltas[:switch_candidates[0]]))
+
+    # real switches are then those where the delta is opposite to the sweep
+    # direction.
+    switch_candidate_vals = deltas[switch_candidates]
+    switches = [s for (s, v) in zip(switch_candidates, switch_candidate_vals)
+                if np.sign(v) == -sweep_direction]
+
+    return np.array(switches)
+
+
 def find_direction_period(vals: np.ndarray, ignore_last: bool = False) \
         -> Union[None, int]:
     """
@@ -149,17 +179,14 @@ def find_direction_period(vals: np.ndarray, ignore_last: bool = False) \
              The period, i.e., the number of elements after which
              the more common direction is changed.
     """
-    direction = np.sign(vals[1:] - vals[:-1])
-    ups = np.where(direction == 1)[0]
-    downs = np.where(direction == -1)[0]
+    switches = _find_switches(vals)
 
-    if len(ups) > len(downs):
-        switches = downs
-    else:
-        switches = ups
-
+    # if there's no switch at all, no period is defined.
     if len(switches) == 0:
-        return vals.size
+        return np.inf
+
+    # if there was one switch there is a period only if the switch occurred
+    # in the second half of the data
     elif len(switches) == 1:
         if switches[0] >= (vals.size / 2.) - 1:
             return switches[0] + 1
@@ -197,6 +224,7 @@ def guess_grid_from_sweep_direction(**axes: np.ndarray) \
     :raises: `ValueError` for incorrect input
     """
     periods = []
+    sorting = []
     names = []
     size = None
 
@@ -213,35 +241,68 @@ def guess_grid_from_sweep_direction(**axes: np.ndarray) \
             if size != np.array(vals).size:
                 raise ValueError("Non-matching array sizes.")
 
+        # first step: find repeating patterns in the data.
+        # record for each dimension in which interval it repeats.
         period = find_direction_period(vals, ignore_last=True)
         if period is not None:
-            periods.append(period)
             names.append(name)
+            periods.append(period)
+
+            # some dimensions will likely not have a finite period (because
+            # there have been no repetitions (yet).
+            # in those cases we try to make a guess as to which dimensions
+            # are likely to be the more inner (i.e., faster changing) ones.
+            # we do that by looking at how diverse the entries are.
+            # more diverse -> more likely to be a fast axis.
+            if period != np.inf:
+                sorting.append(period)
+            else:
+                mean = vals.mean()
+                std = np.std(vals)
+                if std == 0:
+                    cost = np.inf
+                else:
+                    if mean == 0:
+                        mean = max(np.abs(vals.max()), np.abs(vals.min()))
+                    cost = 1./np.abs(np.std(vals)/mean)
+                sorting.append(size + cost)
         else:
             return None
 
-    order = np.argsort(periods)
+    # invert the order. we work from fastest to slowest repetition period.
+    order = np.argsort(sorting)
     periods = np.array(periods)[order]
+    shape = periods.copy()
     names = np.array(names)[order]
 
     divisor = 1
-    for i, p in enumerate(periods.copy()):
+    for i, p in enumerate(periods):
 
-        # need to make sure that incomplete grids work.
-        # for incomplete grids, the period of the outermost (here: last) axis
-        # is by definition not yet complete --> compensate for that.
-        if i + 1 == periods.size and periods[i] % divisor > 0:
-            periods[i] = periods[i] // divisor + 1
+        # we need to treat the non-repeating dimensions correctly.
+        # if there's a rest when diving on a dimension that has no defined period,
+        # that means we have to add 1 to the period to get its length.
+        # (typically it'll go from 0 to 1 then)
+        if shape[i] == np.inf:
+            if size % divisor > 0:
+                shape[i] = int(size // divisor) + 1
+            else:
+                shape[i] = int(size // divisor)
         else:
-            periods[i] //= divisor
-        divisor *= int(periods[i])
+            shape[i] //= divisor
 
-    # incomplete grids can lack at most <slowest period - 1> elements.
-    if (divisor < size) or (divisor > (size + divisor//periods[-1] - 1)):
+        divisor *= int(shape[i])
+
+    shape = shape.astype(int)
+
+    # this is a sanity check.
+    # at this point, `divisor` is the size of the full grid.
+    # it cannot be smaller than the total size, but can be larger
+    # for incomplete grids.
+    if (divisor < size):
         return None
 
     # in returning, we go back to standard order, i.e., slow->fast.
-    return names[::-1].tolist(), tuple(periods[::-1])
+    return names[::-1].tolist(), tuple(shape[::-1])
 
 
 def crop2d_rows_cols(arr: np.ndarray) -> Tuple[np.ndarray, np.ndarray]:

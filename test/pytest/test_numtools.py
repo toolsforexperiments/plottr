@@ -1,3 +1,5 @@
+from collections import OrderedDict
+
 import numpy as np
 
 from plottr.utils import num
@@ -45,14 +47,17 @@ def test_find_direction_period():
     assert num.find_direction_period(arr) == 5
 
     arr[1] = np.nan
-    arr[6] = None
+    arr[7] = None
     assert num.find_direction_period(arr) == 5
 
     arr = np.array([1, 2, 3, 1, 2, 1, 2, 3])
     assert num.find_direction_period(arr) is None
 
+    arr = np.ones(10)
+    assert num.find_direction_period(arr) is np.inf
 
-def test_find_grid_from_directions():
+
+def test_find_grid_from_directions_2d():
     """Test finding the shape of a dataset by analyzing axes values"""
 
     x = np.arange(5)
@@ -71,6 +76,68 @@ def test_find_grid_from_directions():
     )
     assert ret[0] == ['x', 'y']
     assert ret[1] == xx.shape
+
+
+def test_find_grid_from_directions_multid():
+    """Test grid finding on N-d data, incl dimensions that don't change and
+    some missing data."""
+
+    arrs = dict(
+        v = np.logspace(-5, 3, 9),
+        w = np.linspace(-100, -90, 17),
+        x = np.arange(5),
+        y = np.arange(10, 0, -1),
+        z0 = None,
+        z1 = None,
+        z2 = None,
+    )
+
+    for m in np.linspace(0, 7645, 31):
+        nmissing = int(m)
+
+        # construct expected outcome
+        names_unordered = ['w', 'v', 'x', 'y']
+        fullsize = np.prod([arrs[a].size for a in names_unordered])
+
+        # compute the shape by simply iterating
+        target_order = names_unordered.copy()
+        target_shape = [1 for a in names_unordered]
+        cur_dim = -1
+        while np.prod(target_shape) < (fullsize-nmissing):
+            if target_shape[cur_dim] < arrs[names_unordered[cur_dim]].size:
+                target_shape[cur_dim] += 1
+            else:
+                cur_dim -= 1
+
+        # add non-sweep dims
+        for n, v in arrs.items():
+            if n[0] == 'z':
+                target_shape.insert(0, 1)
+                target_order.insert(0, n)
+        target_shape = tuple(target_shape)
+
+        # construct input data
+        arrs_unordered = [arrs[k] for k in names_unordered]
+        grid = np.meshgrid(*arrs_unordered, indexing='ij')
+
+        # format input data such that we can feed it into the function
+        grid_flat = [a.flatten() for a in grid]
+        if nmissing > 0:
+            grid_flat = [a[:-nmissing] for a in grid_flat]
+        grid_flat_dict = {k: v for k, v in zip(names_unordered, grid_flat)}
+        for n, v in arrs.items():
+            if n[0] == 'z':
+                grid_flat_dict[n] = np.ones(grid_flat[0].size)
+
+        # analyze flattened data arrays
+        names_out, shapes_out = num.guess_grid_from_sweep_direction(**grid_flat_dict)
+
+        # test shape
+        assert shapes_out == target_shape
+
+        for i, n in enumerate(names_out):
+            if shapes_out[i] > 1:
+                assert n == target_order[i]
 
 
 def test_cropping2d():

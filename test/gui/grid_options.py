@@ -6,35 +6,39 @@ Testing Widgets for the gridding node.
 from plottr import QtGui
 from plottr.data.datadict import datadict_to_meshgrid
 from plottr.gui.tools import widgetDialog
-from plottr.node.grid import GridOptionWidget, ShapeSpecificationWidget, DataGridder
+from plottr.node.grid import GridOptionWidget, ShapeSpecificationWidget, DataGridder, GridOption
 from plottr.utils import testdata
 from plottr.node.tools import linearFlowchart
 
 
-def shapeSpecWidget():
+def test_shapeSpecWidget():
     def cb(val):
         print(val)
 
-    app = QtGui.QApplication([])
     widget = ShapeSpecificationWidget()
     widget.newShapeNotification.connect(cb)
 
     # set up the UI, feed data in
-    data = datadict_to_meshgrid(
-        testdata.three_compatible_3d_sets(5, 5, 5)
-    )
     dialog = widgetDialog(widget)
-    widget.setAxes(data.axes())
-    widget.setShape(data.shape())
+    widget.setAxes(['x', 'y', 'aVeryVeryVeryVeryLongAxisName'])
 
-    return app.exec_()
+    widget.setShape({
+        'order': ['x', 'y', 'aVeryVeryVeryVeryLongAxisName'],
+        'shape': (5,5,5),
+    })
+
+    widget.setShape({
+        'order': ['y', 'x', 'aVeryVeryVeryVeryLongAxisName'],
+        'shape': (11, 4, -9),
+    })
+
+    return dialog
 
 
-def gridOptionWidget():
+def test_gridOptionWidget():
     def cb(val):
         print(val)
 
-    app = QtGui.QApplication([])
     widget = GridOptionWidget()
     widget.optionSelected.connect(cb)
 
@@ -44,17 +48,18 @@ def gridOptionWidget():
     )
     dialog = widgetDialog(widget)
     widget.setAxes(data.axes())
-    widget.setShape(data.shape())
 
-    return app.exec_()
+    widget.setShape({
+        'order': ['x', 'y', 'z'],
+        'shape': (5,5,5),
+    })
+
+    return dialog
 
 
-def gridder(interactive=False):
+def test_GridNode():
     def cb(val):
         print(val)
-
-    if not interactive:
-        app = QtGui.QApplication([])
 
     fc = linearFlowchart(('grid', DataGridder))
     gridder = fc.nodes()['grid']
@@ -63,8 +68,13 @@ def gridder(interactive=False):
     data = testdata.three_compatible_3d_sets(2, 2, 2)
     fc.setInput(dataIn=data)
 
-    if not interactive:
-        gridder.shapeDetermined.connect(cb)
-        app.exec_()
-    else:
-        return dialog, fc
+    gridder.shapeDetermined.connect(cb)
+
+    gridder.grid = GridOption.guessShape, {}
+    gridder.grid = GridOption.specifyShape, \
+                   dict(order=['x', 'y', 'z'], shape=(2,2,3))
+    gridder.grid = GridOption.guessShape, {}
+    gridder.grid = GridOption.specifyShape, \
+                   dict(order=['x', 'y', 'z'], shape=(2,2,3))
+
+    return dialog, fc
