@@ -137,6 +137,36 @@ def array1d_to_meshgrid(arr: Sequence, target_shape: Tuple[int, ...],
     return arr.reshape(target_shape)
 
 
+def _find_switches(arr, rth=25, ztol=1e-15):
+    arr_ = np.ma.MaskedArray(arr, is_invalid(arr))
+    deltas = arr_[1:] - arr_[:-1]
+    hi = np.percentile(arr[~is_invalid(arr)], 100.-rth)
+    lo = np.percentile(arr[~is_invalid(arr)], rth)
+    diff = np.abs(hi-lo)
+
+    if not diff > ztol:
+        return np.array([])
+
+    # first step: suspected switches are where we have 'large' jumps in value.
+    switch_candidates = np.where(np.abs(deltas) >= diff)[0]
+    switch_candidates = switch_candidates[switch_candidates > 0]
+    if not len(switch_candidates) > 0:
+        return np.array([])
+
+    # importantly: switches have to opposite to the sweep direction.
+    # we check the sweep direction by looking at the values prior to the
+    # first suspected switch
+    sweep_direction = np.sign(np.mean(deltas[:switch_candidates[0]]))
+
+    # real switches are then those where the delta is opposite to the sweep
+    # direction.
+    switch_candidate_vals = deltas[switch_candidates]
+    switches = [s for (s, v) in zip(switch_candidates, switch_candidate_vals)
+                if np.sign(v) == -sweep_direction]
+
+    return np.array(switches)
+
+
 def find_direction_period(vals: np.ndarray, ignore_last: bool = False) \
         -> Union[None, int]:
     """
@@ -149,14 +179,7 @@ def find_direction_period(vals: np.ndarray, ignore_last: bool = False) \
              The period, i.e., the number of elements after which
              the more common direction is changed.
     """
-    direction = np.sign(vals[1:] - vals[:-1])
-    ups = np.where(direction == 1)[0]
-    downs = np.where(direction == -1)[0]
-
-    if len(ups) > len(downs):
-        switches = downs
-    else:
-        switches = ups
+    switches = _find_switches(vals)
 
     # if there's no switch at all, no period is defined.
     if len(switches) == 0:
@@ -221,7 +244,6 @@ def guess_grid_from_sweep_direction(**axes: np.ndarray) \
         # first step: find repeating patterns in the data.
         # record for each dimension in which interval it repeats.
         period = find_direction_period(vals, ignore_last=True)
-
         if period is not None:
             names.append(name)
             periods.append(period)
