@@ -47,11 +47,14 @@ def test_find_direction_period():
     assert num.find_direction_period(arr) == 5
 
     arr[1] = np.nan
-    arr[6] = None
+    arr[7] = None
     assert num.find_direction_period(arr) == 5
 
     arr = np.array([1, 2, 3, 1, 2, 1, 2, 3])
     assert num.find_direction_period(arr) is None
+
+    arr = np.ones(10)
+    assert num.find_direction_period(arr) is np.inf
 
 
 def test_find_grid_from_directions_2d():
