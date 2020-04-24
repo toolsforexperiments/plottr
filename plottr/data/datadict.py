@@ -1087,19 +1087,19 @@ def datadict_to_meshgrid(data: DataDict,
 
     :param data: input DataDict.
     :param target_shape: target shape. if ``None`` we use
-                         ``guess_shape_from_datadict`` to infer.
+        ``guess_shape_from_datadict`` to infer.
     :param inner_axis_order: if axes of the datadict are not specified in the
-                             'C' order (1st the slowest, last the fastest axis)
-                             then the 'true' inner order can be specified as
-                             a list of axes names, which has to match the
-                             specified axes in all but order.
-                             The data is then transposed to conform to the
-                             specified order.
+        'C' order (1st the slowest, last the fastest axis) then the
+        'true' inner order can be specified as a list of axes names, which has
+        to match the specified axes in all but order. The data is then
+        transposed to conform to the specified order.
+        **Note**: if this is given, then `target_shape` needs to be given in
+        in the order of this inner_axis_order. The output data will keep the
+        axis ordering specified in the `axes` property.
     :param use_existing_shape: if ``True``, simply use the shape that the data
-                               already has. For numpy-array data, this might
-                               already be present.
-                               if ``False``, flatten and reshape.
-    :return: the generated ``MeshgridDataDict``.
+        already has. For numpy-array data, this might already be present.
+        if ``False``, flatten and reshape.
+    :returns: the generated ``MeshgridDataDict``.
     """
 
     # if the data is empty, return empty MeshgridData
@@ -1195,18 +1195,20 @@ def combine_datadicts(*dicts: DataDict) -> Union[DataDictBase, DataDict]:
     Try to make one datadict out of multiple.
 
     Basic rules:
+
     - we try to maintain the input type
     - return type is 'downgraded' to DataDictBase if the contents are not
       compatible (i.e., different numbers of records in the inputs)
 
     :returns: combined data
-
-    TODO: deal correctly with MeshGridData when combined with other types
-    TODO: should we strictly copy all values?
-    TODO: we should try to consolidate axes as much as possible. Currently
-          axes in the return can be separated even if they match (caused
-          by earlier mismatches)
     """
+
+    # TODO: deal correctly with MeshGridData when combined with other types
+    # TODO: should we strictly copy all values?
+    # TODO: we should try to consolidate axes as much as possible. Currently
+    #   axes in the return can be separated even if they match (caused
+    #   by earlier mismatches)
+
     ret = None
     rettype = None
 
