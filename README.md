@@ -9,9 +9,18 @@ https://plottr.readthedocs.io (work in progress...)
 
 ## Recent changes:
 
+### 2020-04-24
+
+#### Fixed
+- there were several issues/annoyances that caused (minor) issues with grid handling and plotting in rare-ish circumstances. Most of them should be fixed now.
+
+#### Added
+- A few docs and examples, mostly about grid usage.
+
 ### 2020-04-17
 
-* the main repo has now moved to to a different organization: https://github.com/toolsforexperiments/plottr
+#### Changed
+- the main repo has now moved to to a different organization: https://github.com/toolsforexperiments/plottr 
   the old repo (https://github.com/data-plottr/plottr) will be kept in sync for a while, but deleted eventually.
 
 # Quickstart
