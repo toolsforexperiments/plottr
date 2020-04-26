@@ -11,7 +11,7 @@ from collections import OrderedDict
 # standard scientific computing imports
 import numpy as np
 from matplotlib.image import AxesImage
-from matplotlib import rcParams, cm
+from matplotlib import rcParams, cm, pyplot as plt
 from matplotlib.axes import Axes
 from matplotlib.backends.backend_qt5agg import (
     FigureCanvasQTAgg as FCanvas,
@@ -79,6 +79,19 @@ class PlotType(Enum):
     #: 2D scatter plot
     scatter2d = auto()
 
+@unique
+class ComplexRepresentation(Enum):
+    """Options for plotting complex-valued data."""
+
+    #: only real
+    real = auto()
+
+    #: real and imaginary
+    realAndImag = auto()
+
+    #: magnitude and phase
+    magAndPhase = auto()
+
 
 def determinePlotDataType(data: DataDictBase) -> PlotDataType:
     """
@@ -137,7 +150,7 @@ def setMplDefaults():
     rcParams['grid.linestyle'] = ':'
     rcParams['font.family'] = 'Arial', 'Helvetica', 'DejaVu Sans'
     rcParams['font.size'] = 6
-    rcParams['lines.markersize'] = 4
+    rcParams['lines.markersize'] = 3
     rcParams['lines.linestyle'] = '-'
     rcParams['savefig.transparent'] = False
     rcParams['figure.subplot.bottom'] = 0.15
@@ -208,6 +221,81 @@ def ppcolormesh_from_meshgrid(ax: Axes, x: np.ndarray, y: np.ndarray,
     ax.set_xlim(x.min(), x.max())
     ax.set_ylim(y.min(), y.max())
     return im
+
+
+def plotImage(ax, x, y, z, **kw):
+    ax.grid(False)
+    x0, x1 = x.min(), x.max()
+    y0, y1 = y.min(), y.max()
+
+    extentx = [x0, x1]
+    if x0 > x1:
+        extentx = extentx[::-1]
+    if x0 == x1:
+        extentx = [x0, x0+1]
+    extenty = [y0, y1]
+    if y0 > y1:
+        extenty = extenty[::-1]
+    if y0 == y1:
+        extenty = [y0, y0+1]
+    extent = tuple(extentx + extenty)
+
+    if x.shape[0] > 1:
+        # in image mode we have to be a little careful:
+        # if the x/y axes are specified with decreasing values we need to
+        # flip the image. otherwise we'll end up with an axis that has the
+        # opposite ordering from the data.
+        z = z if x[0, 0] < x[1, 0] else z[::-1, :]
+
+    if y.shape[1] > 1:
+        z = z if y[0, 0] < y[0, 1] else z[:, ::-1]
+
+    im = ax.imshow(z.T, aspect='auto', origin='lower',
+                   extent=extent, **kw)
+    return im
+
+
+def attachColorBar(ax, im):
+    div = make_axes_locatable(ax)
+    cax = div.append_axes("right", size="5%", pad=0.05)
+    cb = plt.colorbar(im, cax=cax)
+    return cax
+
+
+def plot1dTrace(ax, x, y, **kw):
+    if isinstance(x, np.ma.MaskedArray):
+        xvals = x.filled(np.nan)
+    else:
+        xvals = x.copy()
+
+    if isinstance(y, np.ma.MaskedArray):
+        yvals = y.filled(np.nan)
+    else:
+        yvals = y.copy()
+
+    plot_kw = dict(lw=1, mew=1, mfc='None')
+    plot_kw.update(kw)
+
+    lbl_ = plot_kw.pop('label', None)
+    lbl = None
+    lbl_imag = None
+
+    fmt = plot_kw.pop('fmt', 'o-')
+
+    if np.issubsctype(yvals, np.complexfloating):
+        if lbl_ is None:
+            lbl = 'Re'
+            lbl_imag = 'Im'
+        else:
+            lbl = f"Re({lbl_})"
+            lbl_imag = f"Im({lbl_})"
+    if lbl is None:
+        lbl = lbl_
+
+    ax.plot(xvals, yvals.real, fmt, label=lbl, **plot_kw)
+    if np.issubsctype(yvals, np.complexfloating):
+        plot_kw['dashes'] = [2, 2]
+        ax.plot(xvals, yvals.imag, fmt, label=lbl_imag, **plot_kw)
 
 
 class MPLPlot(FCanvas):
@@ -416,6 +504,10 @@ class _AutoPlotToolBar(QtGui.QToolBar):
     #: signal emitted when the plot type has been changed
     plotTypeSelected = Signal(PlotType)
 
+    #: signal emitted when the complex data option has been changed
+    complexPolarSelected = Signal(bool)
+
+
     def __init__(self, name: str, parent: QtGui.QWidget = None):
         """Constructor for :class:`AutoPlotToolBar`"""
 
@@ -452,6 +544,13 @@ class _AutoPlotToolBar(QtGui.QToolBar):
         self.plotasScatter2d.setCheckable(True)
         self.plotasScatter2d.triggered.connect(
             lambda: self.selectPlotType(PlotType.scatter2d))
+
+        # other options
+        self.addSeparator()
+
+        self.plotComplexPolar = self.addAction('Mag/Phase')
+        self.plotComplexPolar.setCheckable(True)
+        self.plotComplexPolar.triggered.connect(self.complexPolarSelected)
 
         self.plotTypeActions = OrderedDict({
             PlotType.multitraces: self.plotasMultiTraces,
@@ -555,6 +654,8 @@ class AutoPlot(_MPLPlotWidget):
 
         self.plotDataType = PlotDataType.unknown
         self.plotType = PlotType.empty
+        self.complexRepresentation = ComplexRepresentation.real
+        self.complexPreference = ComplexRepresentation.realAndImag
 
         self.dataType = type(None)
         self.dataStructure = None
@@ -564,8 +665,14 @@ class AutoPlot(_MPLPlotWidget):
         # A toolbar for configuring the plot
         self.plotOptionsToolBar = _AutoPlotToolBar('Plot options', self)
         self.layout.insertWidget(1, self.plotOptionsToolBar)
+
         self.plotOptionsToolBar.plotTypeSelected.connect(
-            self._plotTypeFromToolBar)
+            self._plotTypeFromToolBar
+        )
+        self.plotOptionsToolBar.complexPolarSelected.connect(
+            self._complexPreferenceFromToolBar
+        )
+
         self.plotOptionsToolBar.setIconSize(QtCore.QSize(32, 32))
 
         self.setMinimumSize(640, 480)
@@ -599,6 +706,24 @@ class AutoPlot(_MPLPlotWidget):
         self.dataLimits = dataLimits
 
         return result
+
+    def dataIsComplex(self, dependentName=None):
+        """Determine whether our data is complex.
+        If dependent_name is not given, check all dependents, return True if any
+        of them is complex.
+        """
+        if self.data is None:
+            return False
+
+        if dependentName is None:
+            for d in self.data.dependents():
+                if np.issubsctype(self.data.data_vals(d), np.complexfloating):
+                    return True
+        else:
+            if np.issubsctype(self.data.data_vals(dependentName), np.complexfloating):
+                return True
+
+        return False
 
     def setData(self, data: DataDictBase):
         """Analyses data and determines whether/what to plot.
@@ -640,6 +765,15 @@ class AutoPlot(_MPLPlotWidget):
             self.plotType = plotType
             self._plotData(adjustSize=True)
 
+    @Slot(bool)
+    def _complexPreferenceFromToolBar(self, magPhasePreferred):
+        if magPhasePreferred:
+            self.complexPreference = ComplexRepresentation.magAndPhase
+        else:
+            self.complexPreference = ComplexRepresentation.realAndImag
+
+        self._plotData(adjustSize=True)
+
     def _makeAxes(self, nAxes: int) -> Axes:
         """Create a grid of axes.
         We try to keep the grid as square as possible.
@@ -659,32 +793,24 @@ class AutoPlot(_MPLPlotWidget):
             logger.debug("No plot routine determined.")
             return
 
-        # only in combined 1D plots we need always only 1 panel.
-        # most plots require as many panels as datasets
-        if self.plotType is PlotType.multitraces:
-            axes = self._makeAxes(1)
+        if not self.dataIsComplex():
+            self.complexRepresentation = ComplexRepresentation.real
         else:
-            axes = self._makeAxes(len(self.data.dependents()))
+            self.complexRepresentation = self.complexPreference
 
         if self.plotType is PlotType.multitraces:
             logger.debug(f"Plotting lines in a single panel")
-            self._plot1d(axes, self.data, style='singlepanel')
+            self._plot1dSinglepanel()
 
         elif self.plotType is PlotType.singletraces:
             logger.debug(f"Plotting one line per panel")
-            self._plot1d(axes, self.data, style='separatepanels')
+            self._plot1dSeparatePanels()
 
-        elif self.plotType is PlotType.image:
-            logger.debug(f"Plot 2D data as image.")
-            self._plot2d(axes, self.data, style='image')
-
-        elif self.plotType is PlotType.colormesh:
-            logger.debug(f"Plot 2D data as colormesh.")
-            self._plot2d(axes, self.data, style='mesh')
-
-        elif self.plotType is PlotType.scatter2d:
-            logger.debug(f"Plot 2D data as scatter plot.")
-            self._plot2d(axes, self.data, style='scatter')
+        elif self.plotType in [PlotType.image,
+                               PlotType.colormesh,
+                               PlotType.scatter2d]:
+            logger.debug(f"Plot 2D data.")
+            self._plot2d()
 
         else:
             logger.info(f"No plot routine defined for {self.plotType}")
@@ -695,113 +821,140 @@ class AutoPlot(_MPLPlotWidget):
             self.plot.autosize()
         else:
             self.plot.draw()
+
         QtCore.QCoreApplication.processEvents()
 
     # Plotting functions
-    def _plot1d(self, axes: List[Axes], data: DataDict, style: str):
-        """Plot 1D data.
+    def _plot1dSinglepanel(self):
+        xname = self.data.axes()[0]
+        xvals = self.data.data_vals(xname)
+        depnames = self.data.dependents()
+        depvals = [self.data.data_vals(d) for d in depnames]
 
-        Expects a list of axes objects and matching data.
+        if self.complexRepresentation is ComplexRepresentation.magAndPhase:
+            nAxes = 2
+        else:
+            nAxes = 1
+        axes = self._makeAxes(nAxes)
 
-        * if style is 'singlepanel':
-            will only use the first axes. all datasets will be plotted into that
-            axes.
-        * if style is 'separatepanels':
-            will plot one dependent per panel.
-        """
-        xname = data.axes()[0]
-        x = data.data_vals(xname)
-        depnames = data.dependents()
-        deps = [data.data_vals(d) for d in depnames]
-        hasLabels = False
+        for yname, yvals in zip(depnames, depvals):
 
-        for i, d in enumerate(depnames):
-            if style == 'singlepanel' and len(depnames) > 1:
-                ax = axes[0]
-                lbl = data.label(d)
-                ylbl = None
-                hasLabels = True
-            else:
-                ax = axes[i]
-                lbl = None
-                ylbl = data.label(d)
+            # otherwise we sometimes raise ComplexWarning. This is basically just
+            # cosmetic.
+            if isinstance(yvals, np.ma.MaskedArray):
+                yvals = yvals.filled(np.nan)
 
-            if self.plotDataType is PlotDataType.scatter1d:
-                fmt = 'o'
-            else:
-                fmt = 'o-'
+            if self.complexRepresentation in [ComplexRepresentation.real,
+                                              ComplexRepresentation.realAndImag]:
+                plot1dTrace(axes[0], xvals, yvals, label=self.data.label(yname))
 
-            ax.plot(x, deps[i], fmt, mfc='None', mew=1, lw=0.5, label=lbl)
-            ax.set_xlabel(xname)
-            ax.set_ylabel(ylbl)
+            elif self.complexRepresentation is ComplexRepresentation.magAndPhase:
+                if self.dataIsComplex(yname):
+                    plot1dTrace(axes[0], xvals, np.real(np.abs(yvals)),
+                                label=f"Abs({self.data.label(yname)})")
+                    plot1dTrace(axes[1], xvals, np.angle(yvals),
+                                label=f"Arg({yname})")
+                else:
+                    plot1dTrace(axes[0], xvals, yvals, label=self.data.label(yname))
 
-        if style == 'singlepanel' and hasLabels:
+        for ax in axes:
+            ax.set_xlabel(self.data.label(xname))
             ax.legend(fontsize='small', loc=1)
 
-    def _plot2d(self, axes: List[Axes], data: DataDict, style: str):
-        """Plot 2D data.
+    def _plot1dSeparatePanels(self):
+        xname = self.data.axes()[0]
+        xvals = self.data.data_vals(xname)
+        depnames = self.data.dependents()
+        depvals = [self.data.data_vals(d) for d in depnames]
 
-        Expects a list of axes objects into which the dependents of the data
-        are plotted (one dataset per axes).
+        if self.complexRepresentation in [ComplexRepresentation.real,
+                                          ComplexRepresentation.realAndImag]:
+            nAxes = len(depnames)
+        else:
+            nAxes = 0
+            for d in depnames:
+                if self.dataIsComplex(d):
+                    nAxes += 2
+                else:
+                    nAxes += 1
+        axes = self._makeAxes(nAxes)
+        hasLegend = [False for ax in axes]
 
-        How data is plotted depends on style:
-        'image': use `imshow`.
-        'mesh': use `pcolormesh`.
-        'scatter': make a 2d scatter plot with color as z.
+        iax = 0
+        for yname, yvals in zip(depnames, depvals):
 
-        Logger will show an error if a bad style is given.
-        """
+            # otherwise we sometimes raise ComplexWarning. This is basically just
+            # cosmetic.
+            if isinstance(yvals, np.ma.MaskedArray):
+                yvals = yvals.filled(np.nan)
 
-        xname = data.axes()[0]
-        yname = data.axes()[1]
-        x = data.data_vals(xname)
-        y = data.data_vals(yname)
+            if self.complexRepresentation in [ComplexRepresentation.real,
+                                              ComplexRepresentation.realAndImag]:
+                plot1dTrace(axes[iax], xvals, yvals)
+                axes[iax].set_ylabel(self.data.label(yname))
+                if self.dataIsComplex(yname):
+                    hasLegend[iax] = True
+                iax += 1
 
-        # expect that list of axes matches the dependents.
-        for ax, zname in zip(axes, data.dependents()):
-            z = data.data_vals(zname)
+            elif self.complexRepresentation is ComplexRepresentation.magAndPhase:
+                if self.dataIsComplex(yname):
+                    plot1dTrace(axes[iax], xvals, np.real(np.abs(yvals)))
+                    plot1dTrace(axes[iax+1], xvals, np.angle(yvals))
+                    axes[iax].set_ylabel(f"Abs({self.data.label(yname)})")
+                    axes[iax+1].set_ylabel(f"Arg({yname})")
+                    iax += 2
+                else:
+                    plot1dTrace(axes[iax], xvals, yvals)
+                    axes[iax].set_ylabel(self.data.label(yname))
+                    iax += 1
 
-            if style == 'image':
-                ax.grid(False)
-                extent = [None, None, None, None]
-                x0, x1 = x.min(), x.max()
-                y0, y1 = y.min(), y.max()
-                extent = [x0, x1, y0, y1]
+        for ax, legend in zip(axes, hasLegend):
+            ax.set_xlabel(self.data.label(xname))
+            if legend:
+                ax.legend(fontsize='small', loc=1)
 
-                if x.shape[0] > 1:
-                    # in image mode we have to be a little careful:
-                    # if the x/y axes are specified with decreasing values we need to
-                    # flip the image. otherwise we'll end up with an axis that has the
-                    # opposite ordering from the data.
-                    z = z if x[0, 0] < x[1, 0] else z[::-1, :]
+    def _plot2d(self):
+        xname = self.data.axes()[0]
+        yname = self.data.axes()[1]
+        xvals = self.data.data_vals(xname)
+        yvals = self.data.data_vals(yname)
+        depnames = self.data.dependents()
+        depvals = [self.data.data_vals(d) for d in depnames]
 
-                if y.shape[1] > 1:
-                    z = z if y[0, 0] < y[0, 1] else z[:, ::-1]
+        if self.complexRepresentation is ComplexRepresentation.real:
+            nAxes = len(depnames)
+        else:
+            nAxes = 0
+            for d in depnames:
+                if self.dataIsComplex(d):
+                    nAxes += 2
+                else:
+                    nAxes += 1
+        axes = self._makeAxes(nAxes)
 
-                if x0 == x1:
-                    extent[1] = x0+1
-                if y0 == y1:
-                    extent[3] = y0+1
+        def doPlot(ax, zvals, zname):
+            im = plotImage(ax, xvals, yvals, zvals)
+            cax = attachColorBar(ax, im)
+            ax.set_xlabel(self.data.label(xname))
+            ax.set_ylabel(self.data.label(yname))
+            cax.set_ylabel(zname)
 
-                im = ax.imshow(z.T, aspect='auto', origin='lower',
-                               extent=tuple(extent))
+        iax = 0
+        for zname, zvals in zip(depnames, depvals):
 
-            elif style == 'mesh':
-                ax.grid(False)
-                im = ppcolormesh_from_meshgrid(ax, x, y, z)
+            # otherwise we sometimes raise ComplexWarning. This is basically just
+            # cosmetic.
+            if isinstance(zvals, np.ma.MaskedArray):
+                zvals = zvals.filled(np.nan)
 
-            elif style == 'scatter':
-                im = ax.scatter(x, y, c=z)
-
-            else:
-                logger.error(f"unknown style '{style}'")
-
-            # this seems to be a reasonable way to get good-looking color bars
-            # for all panels.
-            div = make_axes_locatable(ax)
-            cax = div.append_axes("right", size="5%", pad=0.05)
-            cb = self.plot.fig.colorbar(im, cax=cax)
-
-            ax.set_xlabel(data.label(xname))
-            ax.set_ylabel(data.label(yname))
-            cax.set_ylabel(data.label(zname))
+            if self.complexRepresentation is ComplexRepresentation.real:
+                doPlot(axes[iax], zvals.real, self.data.label(zname))
+                iax += 1
+            elif self.complexRepresentation is ComplexRepresentation.realAndImag:
+                doPlot(axes[iax], zvals.real, f"Re({self.data.label(zname)})")
+                doPlot(axes[iax+1], zvals.imag, f"Im({self.data.label(zname)})")
+                iax += 2
+            elif self.complexRepresentation is ComplexRepresentation.magAndPhase:
+                doPlot(axes[iax], np.abs(zvals), f"Abs({self.data.label(zname)})")
+                doPlot(axes[iax+1], np.angle(zvals), f"Arg({zname})")
+                iax += 2
