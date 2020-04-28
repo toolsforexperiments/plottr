@@ -118,6 +118,8 @@ class PlotWidget(QtGui.QWidget):
     def __init__(self, parent=None):
         super().__init__(parent=parent)
 
+        self.data = None
+
     def setData(self, data: DataDictBase):
         """Set data. Use this to trigger plotting.
 
