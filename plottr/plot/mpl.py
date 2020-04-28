@@ -5,13 +5,13 @@ plottr/plot/mpl.py : Tools for plotting with matplotlib.
 import logging
 import io
 from enum import Enum, unique, auto
-from typing import Dict, List
+from typing import Dict, List, Tuple, Union
 from collections import OrderedDict
 
 # standard scientific computing imports
 import numpy as np
 from matplotlib.image import AxesImage
-from matplotlib import rcParams, cm, pyplot as plt
+from matplotlib import rcParams, cm, colors, pyplot as plt
 from matplotlib.axes import Axes
 from matplotlib.backends.backend_qt5agg import (
     FigureCanvasQTAgg as FCanvas,
@@ -34,10 +34,18 @@ __author__ = 'Wolfgang Pfaff'
 __license__ = 'MIT'
 
 
+# TODO: might be handy to develop some form of figure manager class,
+#   into which we can dump various types of data, and that figures
+#   out the general layout/labeling, etc.
+#   could be a context manager, where during the enter we just accumulate infos,
+#   and do the plotting only at the end.
+
+
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
 
 
+# Types of plots and plottable data
 @unique
 class PlotDataType(Enum):
     """Types of (plotable) data"""
@@ -139,6 +147,25 @@ def determinePlotDataType(data: DataDictBase) -> PlotDataType:
     return PlotDataType.unknown
 
 
+# matplotlib tools and settings
+default_prop_cycle = rcParams['axes.prop_cycle']
+default_cmap = cm.get_cmap('magma')
+symmetric_cmap = cm.get_cmap('bwr')
+
+
+class SymmetricNorm(colors.Normalize):
+    """Color norm that's symmetric and linear around a center value."""
+    def __init__(self, vmin=None, vmax=None, vcenter=0, clip=False):
+        super().__init__(vmin, vmax, clip)
+        self.vcenter = vcenter
+
+    def __call__(self, value, clip=None):
+        vlim = max(abs(self.vmin-self.vcenter), abs(self.vmax-self.vcenter))
+        self.vmax = vlim+self.vcenter
+        self.vmin = -vlim+self.vcenter
+        return super().__call__(value, clip)
+
+
 def setMplDefaults():
     """Set some reasonable matplotlib defaults for appearance."""
 
@@ -159,8 +186,82 @@ def setMplDefaults():
     rcParams['figure.subplot.right'] = 0.9
 
 
+# 2D plots
+def colorplot2d(ax: Axes, x: np.ndarray, y: np.ndarray, z: np.ndarray,
+                style: PlotType = PlotType.image,
+                axLabels: Tuple[str, str, str] = ('', '', ''),
+                **kw):
+    """make a 2d colorplot. what plot is made, depends on `style`.
+    Any of the 2d plot types in :class:`PlotType` works.
+
+    :param ax: matplotlib axes to plot in
+    :param x: x coordinates (meshgrid)
+    :param y: y coordinates (meshgrid)
+    :param z: z data
+    :param style: the plot type
+    :axLabels: labels for the x, y axes, and the colorbar.
+
+    all keywords are passed to the actual plotting functions:
+    - :attr:`PlotType.image` --
+        :func:`plotImage`
+    - :attr:`PlotType.colormesh` --
+        :func:`ppcolormesh_from_meshgrid`
+    - :attr:`PlotType.scatter2d` --
+        matplotlib's `scatter`
+    """
+    cmap = kw.pop('cmap', default_cmap)
+
+    # first we need to check if our grid can be plotted nicely.
+    if style in [PlotType.image, PlotType.colormesh]:
+        x = x.astype(float)
+        y = y.astype(float)
+        z = z.astype(float)
+
+        # first check if we need to fill some masked values in
+        if np.ma.is_masked(x):
+            x = x.filled(np.nan)
+        if np.ma.is_masked(y):
+            y = y.filled(np.nan)
+        if np.ma.is_masked(z):
+            z = z.filled(np.nan)
+
+        # next: try some surgery, if possible
+        if np.all(num.is_invalid(x)) or np.all(num.is_invalid(y)):
+            return None
+        if np.any(np.isnan(x)) or np.any(np.isnan(y)):
+            x, y = interp_meshgrid_2d(x, y)
+        if np.any(num.is_invalid(x)) or np.any(num.is_invalid(y)):
+            x, y, z = num.crop2d(x, y, z)
+
+        # next, check if the resulting grids are even still plottable
+        for g in x, y, z:
+            if g.size == 0:
+                return None
+            elif len(g.shape) < 2:
+                return None
+
+            # special case: if we have a single line, a pcolor-type plot won't work.
+            elif min(g.shape) < 2:
+                style = PlotType.scatter2d
+
+    if style is PlotType.image:
+        im = plotImage(ax, x, y, z, cmap=cmap, **kw)
+    elif style is PlotType.colormesh:
+        im = ppcolormesh_from_meshgrid(ax, x, y, z, cmap=cmap, **kw)
+    elif style is PlotType.scatter2d:
+        im = ax.scatter(x, y, c=z, cmap=cmap, **kw)
+
+    if im is None:
+        return
+
+    cax = attachColorBar(ax, im)
+    ax.set_xlabel(axLabels[0])
+    ax.set_ylabel(axLabels[1])
+    cax.set_ylabel(axLabels[2])
+
+
 def ppcolormesh_from_meshgrid(ax: Axes, x: np.ndarray, y: np.ndarray,
-                              z: np.ndarray, **kw) -> AxesImage:
+                              z: np.ndarray, **kw) -> Union[AxesImage, None]:
     r"""Plot a pcolormesh with some reasonable defaults.
     Input are the corresponding arrays from a 2D ``MeshgridDataDict``.
 
@@ -170,60 +271,36 @@ def ppcolormesh_from_meshgrid(ax: Axes, x: np.ndarray, y: np.ndarray,
     :param x: x component of the meshgrid coordinates
     :param y: y component of the meshgrid coordinates
     :param z: data values
+    :returns: the image returned by `pcolormesh`.
 
-    :keyword arguments:
-        * *cmap* (matplotlib colormap) --
-          colormap to use. Default is ``viridis``.
+    Keywords are passed on to `pcolormesh`.
     """
-    cmap = kw.get('cmap', cm.viridis)
-
-    x = x.astype(float)
-    y = y.astype(float)
-    z = z.astype(float)
-
-    # first check if we need to fill some masked values in
-    if np.ma.is_masked(x):
-        x = x.filled(np.nan)
-    if np.ma.is_masked(y):
-        y = y.filled(np.nan)
-    if np.ma.is_masked(z):
-        z = z.filled(np.nan)
-
-    # next: try some surgery, if possible
-    if np.all(num.is_invalid(x)) or np.all(num.is_invalid(y)):
-        return
-    if np.any(np.isnan(x)) or np.any(np.isnan(y)):
-        x, y = interp_meshgrid_2d(x, y)
-    if np.any(num.is_invalid(x)) or np.any(num.is_invalid(y)):
-        x, y, z = num.crop2d(x, y, z)
-
-    # next, check if the resulting grids are even still plotable
-    for g in x, y, z:
-        if g.size == 0:
-            return
-        elif len(g.shape) < 2:
-            return
-
-        # special case: if we have a single line, a pcolor-type plot won't work.
-        elif min(g.shape) < 2:
-            im = ax.scatter(x, y, c=z)
-            return im
-
-    # and finally: the meshgrid we have describes coordinates, but for plotting
+    # the meshgrid we have describes coordinates, but for plotting
     # with pcolormesh we need vertices.
     try:
         x = centers2edges_2d(x)
         y = centers2edges_2d(y)
     except:
-        return
+        return None
 
-    im = ax.pcolormesh(x, y, z, cmap=cmap, **kw)
+    im = ax.pcolormesh(x, y, z, **kw)
     ax.set_xlim(x.min(), x.max())
     ax.set_ylim(y.min(), y.max())
     return im
 
 
-def plotImage(ax, x, y, z, **kw):
+def plotImage(ax: Axes, x: np.ndarray, y: np.ndarray,
+              z: np.ndarray, **kw) -> AxesImage:
+    """Plot 2d meshgrid data as image.
+
+    :param ax: matplotlib axes to plot the image in.
+    :param x: x coordinates (as meshgrid)
+    :param y: y coordinates
+    :param z: z values
+    :returns: the image object returned by `imshow`
+
+    All keywords are passed to `imshow`.
+    """
     ax.grid(False)
     x0, x1 = x.min(), x.max()
     y0, y1 = y.min(), y.max()
@@ -255,47 +332,71 @@ def plotImage(ax, x, y, z, **kw):
     return im
 
 
-def attachColorBar(ax, im):
+def attachColorBar(ax: Axes, im: AxesImage) -> Axes:
+    """Attach a colorbar to the `AxesImage` `im` that was plotted
+    into `Axes` `ax`.
+
+    :returns: the newly generated color bar axes.
+    """
     div = make_axes_locatable(ax)
     cax = div.append_axes("right", size="5%", pad=0.05)
     cb = plt.colorbar(im, cax=cax)
     return cax
 
 
-def plot1dTrace(ax, x, y, **kw):
+# 1D plot
+def plot1dTrace(ax: Axes, x: np.ndarray, y: np.ndarray,
+                axLabels: Tuple[Union[None, str], Union[None, str]] = (None, None),
+                curveLabel: Union[None, str] = None,
+                addLegend: bool = False, **kw) -> None:
+    """Plot 1D data.
+
+    :param ax: Axes to plot into
+    :param x: x values
+    :param y: y values
+    :param axLabels: labels to set on x and y axes.
+        will not be set if `None`
+    :param curveLabel: legend label
+    :param addLegend: if True, add a legend to `ax`.
+
+    All keywords are passed to matplotlib's `plot` function.
+    """
+
     if isinstance(x, np.ma.MaskedArray):
-        xvals = x.filled(np.nan)
-    else:
-        xvals = x.copy()
-
+        x = x.filled(np.nan)
     if isinstance(y, np.ma.MaskedArray):
-        yvals = y.filled(np.nan)
-    else:
-        yvals = y.copy()
+        y = y.filled(np.nan)
 
-    plot_kw = dict(lw=1, mew=1, mfc='None')
+    plot_kw = dict(lw=1, mew=1, mfc='w')
     plot_kw.update(kw)
-
-    lbl_ = plot_kw.pop('label', None)
-    lbl = None
-    lbl_imag = None
-
     fmt = plot_kw.pop('fmt', 'o-')
 
-    if np.issubsctype(yvals, np.complexfloating):
-        if lbl_ is None:
+    # if we're plotting real and imaginary parts, modify the label
+    lbl = None
+    lbl_imag = None
+    if np.issubsctype(y, np.complexfloating):
+        if curveLabel is None:
             lbl = 'Re'
             lbl_imag = 'Im'
         else:
-            lbl = f"Re({lbl_})"
-            lbl_imag = f"Im({lbl_})"
+            lbl = f"Re({curveLabel})"
+            lbl_imag = f"Im({curveLabel})"
     if lbl is None:
-        lbl = lbl_
+        lbl = curveLabel
 
-    ax.plot(xvals, yvals.real, fmt, label=lbl, **plot_kw)
-    if np.issubsctype(yvals, np.complexfloating):
+    line, = ax.plot(x, y.real, fmt, label=lbl, **plot_kw)
+    if np.issubsctype(y, np.complexfloating):
         plot_kw['dashes'] = [2, 2]
-        ax.plot(xvals, yvals.imag, fmt, label=lbl_imag, **plot_kw)
+        plot_kw['color'] = line.get_color()
+        fmt = 's' + fmt[1:]
+        ax.plot(x, y.imag, fmt, label=lbl_imag, **plot_kw)
+
+    if axLabels[0] is not None:
+        ax.set_xlabel(axLabels[0])
+    if axLabels[1] is not None:
+        ax.set_ylabel(axLabels[1])
+    if addLegend:
+        ax.legend(loc=1, fontsize='small')
 
 
 class MPLPlot(FCanvas):
@@ -629,11 +730,8 @@ class AutoPlot(_MPLPlotWidget):
 
     *1D data* --
 
-    * 1D scatter data (of type ``DataDict``) --
-      Plot will be a simple scatter plot.
-
-    * 1D grid data (of type ``MeshgridDataDict``) --
-      same, but lines connecting the markers.
+    * 1D data (of type ``DataDict``) --
+      Plot will be a simple scatter plot with markers, connected by lines.
 
     For 1D plots the user has the option of plotting all data in the same panel,
     or each dataset in its own panel.
@@ -647,6 +745,10 @@ class AutoPlot(_MPLPlotWidget):
       Either display as image, or as pcolormesh, with colorbar.
 
     For 2D plots, we always create one panel per dataset.
+
+    If the input data is complex, the user has the option to plot real/imaginary
+    parts, or magnitude and phase. Real/Imaginary are plotted in the same panel,
+    whereas magnitude and phase are separated into two panels.
     """
 
     def __init__(self, parent=None):
@@ -810,7 +912,7 @@ class AutoPlot(_MPLPlotWidget):
                                PlotType.colormesh,
                                PlotType.scatter2d]:
             logger.debug(f"Plot 2D data.")
-            self._plot2d()
+            self._colorplot2d()
 
         else:
             logger.info(f"No plot routine defined for {self.plotType}")
@@ -831,14 +933,21 @@ class AutoPlot(_MPLPlotWidget):
         depnames = self.data.dependents()
         depvals = [self.data.data_vals(d) for d in depnames]
 
+        # count the number of panels we need.
         if self.complexRepresentation is ComplexRepresentation.magAndPhase:
             nAxes = 2
         else:
             nAxes = 1
         axes = self._makeAxes(nAxes)
 
-        for yname, yvals in zip(depnames, depvals):
+        if len(depvals) > 1:
+            ylbl = self.data.label(depnames[0])
+            phlbl = f"Arg({depnames[0]})"
+        else:
+            ylbl = None
+            phlbl = None
 
+        for yname, yvals in zip(depnames, depvals):
             # otherwise we sometimes raise ComplexWarning. This is basically just
             # cosmetic.
             if isinstance(yvals, np.ma.MaskedArray):
@@ -846,20 +955,26 @@ class AutoPlot(_MPLPlotWidget):
 
             if self.complexRepresentation in [ComplexRepresentation.real,
                                               ComplexRepresentation.realAndImag]:
-                plot1dTrace(axes[0], xvals, yvals, label=self.data.label(yname))
+                plot1dTrace(axes[0], xvals, yvals,
+                            axLabels=(self.data.label(xname), ylbl),
+                            curveLabel=self.data.label(yname),
+                            addLegend=(yname == depnames[-1]))
 
             elif self.complexRepresentation is ComplexRepresentation.magAndPhase:
                 if self.dataIsComplex(yname):
                     plot1dTrace(axes[0], xvals, np.real(np.abs(yvals)),
-                                label=f"Abs({self.data.label(yname)})")
+                                axLabels=(self.data.label(xname), ylbl),
+                                curveLabel=f"Abs({self.data.label(yname)})",
+                                addLegend=(yname == depnames[-1]))
                     plot1dTrace(axes[1], xvals, np.angle(yvals),
-                                label=f"Arg({yname})")
+                                axLabels=(self.data.label(xname, phlbl)),
+                                curveLabel=f"Arg({yname})",
+                                addLegend=(yname == depnames[-1]))
                 else:
-                    plot1dTrace(axes[0], xvals, yvals, label=self.data.label(yname))
-
-        for ax in axes:
-            ax.set_xlabel(self.data.label(xname))
-            ax.legend(fontsize='small', loc=1)
+                    plot1dTrace(axes[0], xvals, yvals,
+                                axLabels=(self.data.label(xname), ylbl),
+                                curveLabel=self.data.label(yname),
+                                addLegend=(yname == depnames[-1]))
 
     def _plot1dSeparatePanels(self):
         xname = self.data.axes()[0]
@@ -890,30 +1005,27 @@ class AutoPlot(_MPLPlotWidget):
 
             if self.complexRepresentation in [ComplexRepresentation.real,
                                               ComplexRepresentation.realAndImag]:
-                plot1dTrace(axes[iax], xvals, yvals)
-                axes[iax].set_ylabel(self.data.label(yname))
-                if self.dataIsComplex(yname):
-                    hasLegend[iax] = True
+                plot1dTrace(axes[iax], xvals, yvals,
+                            axLabels=(self.data.label(xname), self.data.label(yname)),
+                            addLegend=self.dataIsComplex(yname))
                 iax += 1
 
             elif self.complexRepresentation is ComplexRepresentation.magAndPhase:
                 if self.dataIsComplex(yname):
-                    plot1dTrace(axes[iax], xvals, np.real(np.abs(yvals)))
-                    plot1dTrace(axes[iax+1], xvals, np.angle(yvals))
-                    axes[iax].set_ylabel(f"Abs({self.data.label(yname)})")
-                    axes[iax+1].set_ylabel(f"Arg({yname})")
+                    plot1dTrace(axes[iax], xvals, np.real(np.abs(yvals)),
+                                axLabels=(self.data.label(xname),
+                                          f"Abs({self.data.label(yname)})"))
+                    plot1dTrace(axes[iax+1], xvals, np.angle(yvals),
+                                axLabels=(self.data.label(xname),
+                                          f"Arg({yname})"))
                     iax += 2
                 else:
-                    plot1dTrace(axes[iax], xvals, yvals)
-                    axes[iax].set_ylabel(self.data.label(yname))
+                    plot1dTrace(axes[iax], xvals, yvals,
+                                axLabels=(self.data.label(xname),
+                                          self.data.label(yname)))
                     iax += 1
 
-        for ax, legend in zip(axes, hasLegend):
-            ax.set_xlabel(self.data.label(xname))
-            if legend:
-                ax.legend(fontsize='small', loc=1)
-
-    def _plot2d(self):
+    def _colorplot2d(self):
         xname = self.data.axes()[0]
         yname = self.data.axes()[1]
         xvals = self.data.data_vals(xname)
@@ -932,13 +1044,6 @@ class AutoPlot(_MPLPlotWidget):
                     nAxes += 1
         axes = self._makeAxes(nAxes)
 
-        def doPlot(ax, zvals, zname):
-            im = plotImage(ax, xvals, yvals, zvals)
-            cax = attachColorBar(ax, im)
-            ax.set_xlabel(self.data.label(xname))
-            ax.set_ylabel(self.data.label(yname))
-            cax.set_ylabel(zname)
-
         iax = 0
         for zname, zvals in zip(depnames, depvals):
 
@@ -947,14 +1052,39 @@ class AutoPlot(_MPLPlotWidget):
             if isinstance(zvals, np.ma.MaskedArray):
                 zvals = zvals.filled(np.nan)
 
-            if self.complexRepresentation is ComplexRepresentation.real:
-                doPlot(axes[iax], zvals.real, self.data.label(zname))
+            if self.complexRepresentation is ComplexRepresentation.real \
+                    or not self.dataIsComplex(zname):
+                colorplot2d(axes[iax], xvals, yvals, zvals.real,
+                            self.plotType,
+                            axLabels=(self.data.label(xname),
+                                      self.data.label(yname),
+                                      self.data.label(zname)))
                 iax += 1
+
             elif self.complexRepresentation is ComplexRepresentation.realAndImag:
-                doPlot(axes[iax], zvals.real, f"Re({self.data.label(zname)})")
-                doPlot(axes[iax+1], zvals.imag, f"Im({self.data.label(zname)})")
+                colorplot2d(axes[iax], xvals, yvals, zvals.real,
+                            self.plotType,
+                            axLabels=(self.data.label(xname),
+                                      self.data.label(yname),
+                                      f"Re( {self.data.label(zname)} )"))
+                colorplot2d(axes[iax+1], xvals, yvals, zvals.imag,
+                            self.plotType,
+                            axLabels=(self.data.label(xname),
+                                      self.data.label(yname),
+                                      f"Im( {self.data.label(zname)} )"))
                 iax += 2
+
             elif self.complexRepresentation is ComplexRepresentation.magAndPhase:
-                doPlot(axes[iax], np.abs(zvals), f"Abs({self.data.label(zname)})")
-                doPlot(axes[iax+1], np.angle(zvals), f"Arg({zname})")
+                colorplot2d(axes[iax], xvals, yvals, np.abs(zvals),
+                            self.plotType,
+                            axLabels=(self.data.label(xname),
+                                      self.data.label(yname),
+                                      f"Abs( {self.data.label(zname)} )"))
+                colorplot2d(axes[iax+1], xvals, yvals, np.angle(zvals),
+                            self.plotType,
+                            axLabels=(self.data.label(xname),
+                                      self.data.label(yname),
+                                      f"Arg( {self.data.label(zname)} )"),
+                            norm=SymmetricNorm(), cmap=symmetric_cmap
+                            )
                 iax += 2
