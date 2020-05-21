@@ -18,7 +18,7 @@ underscore pre- and suffix.
 import os
 import time
 from enum import Enum
-from typing import Any, Union
+from typing import Any, Union, Optional
 
 import numpy as np
 import h5py
@@ -50,10 +50,16 @@ def h5ify(obj: Any) -> Any:
     :param obj: input object
     :return: object, converted if necessary
     """
-    if type(obj) == list:
-        obj = np.array(obj)
+    if isinstance(obj, list):
+        all_string = True
+        for elt in obj:
+            if not isinstance(elt, str):
+                all_string = False
+                break
+        if not all_string:
+            obj = np.array(obj)
 
-    if type(obj) == np.ndarray and obj.dtype == np.dtype('<U1'):
+    if type(obj) == np.ndarray and obj.dtype.kind == 'U':
         return np.chararray.encode(obj, encoding='utf8')
 
     return obj
@@ -64,7 +70,7 @@ def deh5ify(obj: Any) -> Any:
     if type(obj) == bytes:
         return obj.decode()
 
-    if type(obj) == np.ndarray and obj.dtype == np.dtype('S1'):
+    if type(obj) == np.ndarray and obj.dtype.kind == 'S':
         return np.chararray.decode(obj)
 
     return obj
@@ -396,37 +402,24 @@ class DDH5Loader(Node):
 
 class DDH5Writer(object):
 
-    def __init__(self, basedir, datadict):
+    # TODO: need an operation mode for not keeping data in memory.
+
+    def __init__(self, basedir, datadict, name: Optional[str] = None):
         self.basedir = basedir
         self.datadict = datadict
-        self.basepath = None
         self.inserted_rows = 0
+        self.name = name
+
+        self.file_base = None  # the file name without the extension
+        self.file_path = None
 
     def __enter__(self):
-        folder = os.path.join(
-            self.basedir,
-            time.strftime("%Y-%m-%d"),
-        )
-        os.makedirs(folder, exist_ok=True)
-        filebase = time.strftime("%Y-%m-%d_")
-
-        files = os.listdir(folder)
-        datafiles = [f for f in files if
-                     ((os.path.splitext(f)[1] == DATAFILEXT)
-                      and (f[:len(filebase)] == filebase))]
-
-        if len(datafiles) > 0:
-            datafiles.sort()
-            idx = int(os.path.splitext(datafiles[-1])[0][-3:]) + 1
-            suffix = f"{idx:03}"
-        else:
-            suffix = '001'
-
-        self.basepath = os.path.join(folder, filebase + suffix)
-        print('Datafile: ', self.basepath)
+        self.file_base = self.create_file_structure()
+        self.file_path = self.file_base + f"{DATAFILEXT}"
+        print('Data location: ', self.file_path)
 
         if self.datadict.nrecords() > 0:
-            datadict_to_hdf5(self.datadict, self.basepath,
+            datadict_to_hdf5(self.datadict, self.file_path,
                              append_mode=AppendMode.none)
             self.inserted_rows = self.datadict.nrecords()
 
@@ -434,6 +427,27 @@ class DDH5Writer(object):
 
     def __exit__(self, exc_type, exc_value, exc_traceback):
         pass
+
+    def create_file_structure(self):
+        day_folder_path = os.path.join(self.basedir, time.strftime("%Y-%m-%d"))
+        os.makedirs(day_folder_path, exist_ok=True)
+
+        filebase = time.strftime("%Y-%m-%d_")
+        existing_datafolders = [ f for f in os.listdir(day_folder_path)
+                                 if f[:len(filebase)] == filebase]
+        prev_idxs = [int(f[len(filebase):len(filebase)+4]) for f in existing_datafolders]
+        if len(prev_idxs) == 0:
+            new_idx = 1
+        else:
+            new_idx = max(prev_idxs) + 1
+        filebase += f"{new_idx:04}"
+        if self.name is not None:
+            filebase += f"_{self.name}"
+
+        data_folder_path = os.path.join(day_folder_path, filebase)
+        os.makedirs(data_folder_path, exist_ok=True)
+
+        return os.path.join(data_folder_path, filebase)
 
     def add_data(self, **kw):
         self.datadict.add_data(**kw)
@@ -444,5 +458,5 @@ class DDH5Writer(object):
             mode = AppendMode.none
 
         if self.datadict.nrecords() > 0:
-            datadict_to_hdf5(self.datadict, self.basepath,
+            datadict_to_hdf5(self.datadict, self.file_path,
                              append_mode=mode)
