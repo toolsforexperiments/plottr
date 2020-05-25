@@ -170,7 +170,8 @@ def test_get_ds_info(experiment):
         'completed time': completed_ts[11:],
         'started date': started_ts[:10],
         'started time': started_ts[11:],
-        'records': 0
+        'records': 0,
+        'guid': 'aaaaaaaa-0d00-0000-0000-000000000000'
     }
 
     ds_info = get_ds_info(dataset, get_structure=False)

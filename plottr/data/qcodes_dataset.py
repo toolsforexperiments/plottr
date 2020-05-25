@@ -105,6 +105,7 @@ def get_ds_info(ds: 'DataSet', get_structure: bool = True) -> Dict[str, str]:
         ret['structure'] = get_ds_structure(ds)
 
     ret['records'] = ds.number_of_results
+    ret['guid'] = ds.guid
 
     return ret
 
