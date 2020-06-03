@@ -14,7 +14,6 @@ are attributes of the dataset (incl., the `unit` and `axes` values). The meta
 data keys are given exactly like in the DataDict, i.e., incl the double
 underscore pre- and suffix.
 """
-
 import os
 import time
 from enum import Enum
@@ -293,9 +292,12 @@ def datadict_from_hdf5(basepath: str, groupname: str = 'data',
                 if not structure_only:
                     entry['values'] = ds[startidx:stopidx]
 
+                entry['__shape__'] = ds[:].shape
+
                 # and now the meta data
                 for attr in ds.attrs:
                     if is_meta_key(attr):
+                        _val = deh5ify(ds.attrs[attr])
                         entry[attr] = deh5ify(ds.attrs[attr])
 
             except:
@@ -360,8 +362,6 @@ class DDH5Loader(Node):
 
         self.groupname = 'data'
         self.nLoadedRecords = 0
-
-    # Properties #
 
     @property
     def filepath(self):
