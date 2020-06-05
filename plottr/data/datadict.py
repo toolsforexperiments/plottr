@@ -8,7 +8,7 @@ import copy as cp
 
 import numpy as np
 from functools import reduce
-from typing import List, Tuple, Dict, Sequence, Union, Any
+from typing import List, Tuple, Dict, Sequence, Union, Any, Iterator
 
 from plottr.utils import num, misc
 
@@ -128,7 +128,7 @@ class DataDictBase(dict):
     def _meta_name_to_key(name):
         return meta_name_to_key(name)
 
-    def data_items(self):
+    def data_items(self) -> Iterator[Tuple[str, Dict[str, Any]]]:
         """
         Generator for data field items.
 
@@ -139,7 +139,7 @@ class DataDictBase(dict):
                 yield k, v
 
     def meta_items(self, data: Union[str, None] = None,
-                   clean_keys: bool = True):
+                   clean_keys: bool = True) -> Iterator[Tuple[str, Dict[str, Any]]]:
         """
         Generator for meta items.
 
@@ -222,6 +222,8 @@ class DataDictBase(dict):
             self[key] = value
         else:
             self[data][key] = value
+
+    set_meta = add_meta
 
     def delete_meta(self, key, data=None):
         """
@@ -367,27 +369,16 @@ class DataDictBase(dict):
 
         if self.validate():
             s = DataDictBase()
-            # shapes = {}
             for n, v in self.data_items():
                 v2 = v.copy()
                 v2.pop('values')
-
-                # if not add_shape and '__shape__' in v2:
-                #     v2.pop('__shape__')
-
                 s[n] = v2
-
-                # if add_shape:
-                #     shapes[n] = np.array(v['values']).shape
 
             if include_meta:
                 for n, v in self.meta_items():
                     s.add_meta(n, v)
             else:
                 s.clear_meta()
-
-            # for n, shp in shapes.items():
-            #     s.add_meta('shape', shp, data=n)
 
             if same_type:
                 s = self.__class__(**s)
@@ -524,9 +515,6 @@ class DataDictBase(dict):
             if type(vals) not in [np.ndarray, np.ma.core.MaskedArray]:
                 vals = np.array(vals)
             v['values'] = vals
-
-            if '__shape__' in v and not self.__class__ == DataDictBase:
-                v['__shape__'] = np.array(v['values']).shape
 
         if msg != '\n':
             raise ValueError(msg)

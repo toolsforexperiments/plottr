@@ -120,6 +120,9 @@ class UpdateToolBar(QtGui.QToolBar):
 
 class AutoPlotMainWindow(PlotWindow):
 
+    #: Signal() -- emitted when the window is closed
+    windowClosed = Signal()
+
     def __init__(self, fc: Flowchart,
                  parent: Union[QtGui.QWidget, None] = None,
                  monitor: bool = False,
@@ -177,6 +180,8 @@ class AutoPlotMainWindow(PlotWindow):
         """
         if self.monitorToolBar is not None:
             self.monitorToolBar.stop()
+        self.windowClosed.emit()
+        return event.accept()
 
     def showTime(self):
         """
@@ -302,23 +307,23 @@ def autoplotQcodesDataset(log: bool = False,
 
 def autoplotDDH5(filepath: str = '', groupname: str = 'data') \
         -> (Flowchart, AutoPlotMainWindow):
+
     fc = linearFlowchart(
         ('Data loader', DDH5Loader),
         ('Data selection', DataSelector),
         ('Grid', DataGridder),
         ('Dimension assignment', XYSelector),
-        ('Subtract average', SubtractAverage),
+        # ('Subtract average', SubtractAverage),
         ('plot', PlotNode)
     )
 
-    win = AutoPlotMainWindow(fc)
+    win = AutoPlotMainWindow(fc, loaderName='Data loader', monitor=True,
+                             monitorInterval=2)
     win.show()
 
     fc.nodes()['Data loader'].filepath = filepath
     fc.nodes()['Data loader'].groupname = groupname
-    if fc.nodes()['Data loader'].nLoadedRecords > 0:
-        win.setDefaults()
-
+    win.refreshData()
     win.setMonitorInterval(2)
 
     return fc, win
