@@ -7,7 +7,7 @@
     <x>0</x>
     <y>0</y>
     <width>935</width>
-    <height>568</height>
+    <height>569</height>
    </rect>
   </property>
   <property name="windowTitle">
@@ -21,8 +21,17 @@
        <enum>Qt::Horizontal</enum>
       </property>
       <widget class="DataFileList" name="fileList">
+       <property name="sizePolicy">
+        <sizepolicy hsizetype="Expanding" vsizetype="Expanding">
+         <horstretch>1</horstretch>
+         <verstretch>0</verstretch>
+        </sizepolicy>
+       </property>
        <property name="alternatingRowColors">
         <bool>false</bool>
+       </property>
+       <property name="uniformRowHeights">
+        <bool>true</bool>
        </property>
        <property name="sortingEnabled">
         <bool>true</bool>
@@ -34,6 +43,24 @@
        </column>
       </widget>
       <widget class="DataFileContent" name="fileContents">
+       <property name="sizePolicy">
+        <sizepolicy hsizetype="Expanding" vsizetype="Expanding">
+         <horstretch>2</horstretch>
+         <verstretch>0</verstretch>
+        </sizepolicy>
+       </property>
+       <property name="contextMenuPolicy">
+        <enum>Qt::CustomContextMenu</enum>
+       </property>
+       <property name="uniformRowHeights">
+        <bool>true</bool>
+       </property>
+       <property name="sortingEnabled">
+        <bool>true</bool>
+       </property>
+       <property name="allColumnsShowFocus">
+        <bool>false</bool>
+       </property>
        <column>
         <property name="text">
          <string>Object</string>
@@ -75,7 +102,19 @@
    <attribute name="toolBarBreak">
     <bool>false</bool>
    </attribute>
+   <addaction name="autoPlotNewAction"/>
   </widget>
+  <action name="autoPlotNewAction">
+   <property name="checkable">
+    <bool>true</bool>
+   </property>
+   <property name="text">
+    <string>Auto-plot new</string>
+   </property>
+   <property name="shortcut">
+    <string>Ctrl+A</string>
+   </property>
+  </action>
  </widget>
  <customwidgets>
   <customwidget>
@@ -83,7 +122,9 @@
    <extends>QTreeWidget</extends>
    <header>monitr.h</header>
    <slots>
+    <signal>plotRequested()</signal>
     <slot>setData()</slot>
+    <slot>onCustomContextMenuRequested()</slot>
    </slots>
   </customwidget>
   <customwidget>
@@ -92,6 +133,8 @@
    <header>monitr.h</header>
    <slots>
     <signal>dataFileSelected()</signal>
+    <signal>newDataFilesFound()</signal>
+    <slot>processSelection()</slot>
    </slots>
   </customwidget>
   <customwidget>
@@ -134,9 +177,75 @@
     </hint>
    </hints>
   </connection>
+  <connection>
+   <sender>fileContents</sender>
+   <signal>customContextMenuRequested(QPoint)</signal>
+   <receiver>fileContents</receiver>
+   <slot>onCustomContextMenuRequested()</slot>
+   <hints>
+    <hint type="sourcelabel">
+     <x>626</x>
+     <y>298</y>
+    </hint>
+    <hint type="destinationlabel">
+     <x>745</x>
+     <y>406</y>
+    </hint>
+   </hints>
+  </connection>
+  <connection>
+   <sender>fileContents</sender>
+   <signal>plotRequested()</signal>
+   <receiver>MainWindow</receiver>
+   <slot>plotSelected()</slot>
+   <hints>
+    <hint type="sourcelabel">
+     <x>529</x>
+     <y>406</y>
+    </hint>
+    <hint type="destinationlabel">
+     <x>449</x>
+     <y>539</y>
+    </hint>
+   </hints>
+  </connection>
+  <connection>
+   <sender>fileList</sender>
+   <signal>itemSelectionChanged()</signal>
+   <receiver>fileList</receiver>
+   <slot>processSelection()</slot>
+   <hints>
+    <hint type="sourcelabel">
+     <x>154</x>
+     <y>318</y>
+    </hint>
+    <hint type="destinationlabel">
+     <x>355</x>
+     <y>256</y>
+    </hint>
+   </hints>
+  </connection>
+  <connection>
+   <sender>fileList</sender>
+   <signal>newDataFilesFound()</signal>
+   <receiver>MainWindow</receiver>
+   <slot>onNewDataFilesFound()</slot>
+   <hints>
+    <hint type="sourcelabel">
+     <x>135</x>
+     <y>235</y>
+    </hint>
+    <hint type="destinationlabel">
+     <x>90</x>
+     <y>56</y>
+    </hint>
+   </hints>
+  </connection>
  </connections>
  <slots>
   <signal>dataFileSelected()</signal>
   <slot>processFileSelection()</slot>
+  <slot>plotSelected()</slot>
+  <slot>onNewDataFilesFound()</slot>
  </slots>
 </ui>

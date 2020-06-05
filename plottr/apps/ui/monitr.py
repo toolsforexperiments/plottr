@@ -24,16 +24,34 @@ def findFilesByExtension(path: str, extensions: List[str]) -> Optional[Dict[str,
 
 class DataFileContent(QtWidgets.QTreeWidget):
 
-    def _strings(self):
-        return ['' for i in range(self.columnCount())]
+    #: Signal(str) -- Emitted when the user requests a plot for datadict
+    #: Arguments:
+    #:   - name of the group within the currently selected file
+    plotRequested = Signal(str)
+
+    def __init__(self, parent=None):
+        super().__init__(parent)
+
+        self.data = {}
+        self.groupItems = []
+        self.selectedGroup = None
+
+        self.dataPopup = QtWidgets.QMenu('Data actions', self)
+        self.plotAction = self.dataPopup.addAction("Plot")
+        self.plotAction.triggered.connect(self.onPlotActionTriggered)
+
 
     @Slot(object)
     def setData(self, data: Dict[str, DataDict]):
         """Set the data to display."""
         self.clear()
+        self.data = {}
+        self.groupItems = []
 
         for grpName, grpData in data.items():
+            self.data[grpName] = data[grpName]
             grpItem = QtWidgets.QTreeWidgetItem(self, [grpName])
+            self.groupItems.append(grpItem)
             self.addTopLevelItem(grpItem)
             dataParent = QtWidgets.QTreeWidgetItem(grpItem, ['[DATA]'])
             metaParent = QtWidgets.QTreeWidgetItem(grpItem, ['[META]'])
@@ -41,9 +59,9 @@ class DataFileContent(QtWidgets.QTreeWidget):
             for dn, dv in grpData.data_items():
                 vals = [grpData.label(dn), str(grpData.meta_val('shape', dn))]
                 if dn in grpData.dependents():
-                    vals.append(f'Dependent data {tuple(grpData.axes(dn))}')
+                    vals.append(f'Data (depends on {str(tuple(grpData.axes(dn)))[1:]}')
                 else:
-                    vals.append('Independent data')
+                    vals.append('Data (independent)')
                 ditem = QtWidgets.QTreeWidgetItem(dataParent, vals)
 
                 for mn, mv in grpData.meta_items(dn):
@@ -56,6 +74,23 @@ class DataFileContent(QtWidgets.QTreeWidget):
 
             grpItem.setExpanded(True)
             dataParent.setExpanded(True)
+
+        for i in range(self.columnCount()-1):
+            self.resizeColumnToContents(i)
+
+    @Slot(QtCore.QPoint)
+    def onCustomContextMenuRequested(self, pos):
+        item = self.itemAt(pos)
+        if item not in self.groupItems:
+            return
+
+        self.selectedGroup = item.text(0)
+        self.plotAction.setText(f"Plot '{item.text(0)}'")
+        self.dataPopup.exec(self.mapToGlobal(pos))
+
+    @Slot()
+    def onPlotActionTriggered(self):
+        self.plotRequested.emit(self.selectedGroup)
 
 
 class DataFileList(QtWidgets.QTreeWidget):
@@ -70,12 +105,14 @@ class DataFileList(QtWidgets.QTreeWidget):
     #:   - the absolute path of the data file
     dataFileSelected = Signal(str)
 
+    #: Signal(list) -- emitted when new files have been found
+    newDataFilesFound = Signal(list)
+
     def __init__(self, parent=None):
         super().__init__(parent)
 
         self.files = []
         self.path = None
-        self.itemSelectionChanged.connect(self.processSelection)
 
     @staticmethod
     def find(parent, name):
@@ -153,12 +190,11 @@ class DataFileList(QtWidgets.QTreeWidget):
             return
         remove(item)
 
-    def loadFromPath(self, path: str):
+    def loadFromPath(self, path: str, emitNew: bool = False):
         self.path = path
         files = findFilesByExtension(path, self.fileExtensions)
         newFiles = [f for f in files if f not in self.files]
         removedFiles = [f for f in self.files if f not in files]
-        self.files = files
 
         for f in newFiles:
             self.addItemByPath(f)
@@ -166,6 +202,11 @@ class DataFileList(QtWidgets.QTreeWidget):
         for f in removedFiles:
             self.removeItemByPath(f)
 
+        self.files = files
+        if len(newFiles) > 0 and emitNew:
+            self.newDataFilesFound.emit(newFiles)
+
+    @Slot()
     def processSelection(self):
         selected = self.selectedItems()
         if len(selected) == 0:
