@@ -967,7 +967,7 @@ class AutoPlot(_MPLPlotWidget):
                                 curveLabel=f"Abs({self.data.label(yname)})",
                                 addLegend=(yname == depnames[-1]))
                     plot1dTrace(axes[1], xvals, np.angle(yvals),
-                                axLabels=(self.data.label(xname, phlbl)),
+                                axLabels=(self.data.label(xname), phlbl),
                                 curveLabel=f"Arg({yname})",
                                 addLegend=(yname == depnames[-1]))
                 else:
