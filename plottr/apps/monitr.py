@@ -1,16 +1,14 @@
 """ plottr.monitr -- a GUI tool for monitoring data files.
 """
+import sys
 import os
 import time
-from typing import Dict, Any, Optional, List
-from types import MethodType
-from functools import partial, partialmethod
-
-import h5py
+import argparse
+from typing import List
+from functools import partial
 
 from .. import QtCore, QtWidgets, Signal, Slot
-from ..data.datadict import DataDict
-from ..data.datadict_storage import datadict_from_hdf5, all_datadicts_from_hdf5
+from ..data.datadict_storage import all_datadicts_from_hdf5
 from ..apps.autoplot import autoplotDDH5
 
 from .ui.Monitr_UI import Ui_MainWindow
@@ -102,3 +100,20 @@ class Monitr(QtWidgets.QMainWindow):
         self.plotDialogs.pop(plotId, None)
 
 
+def script():
+    parser = argparse.ArgumentParser(description='Monitr main application')
+    parser.add_argument("path", help="path to monitor for data", default=None)
+    parser.add_argument("-r", "--refresh_interval", default=2,
+                        help="interval at which to look for changes in the "
+                             "monitored path (in seconds)")
+    args = parser.parse_args()
+
+    path = os.path.abspath(args.path)
+    if not (os.path.exists(path) and os.path.isdir(path)):
+        print('Invalid path.')
+        sys.exit()
+
+    app = QtWidgets.QApplication([])
+    win = Monitr(path, args.refresh_interval)
+    win.show()
+    return app.exec_()
