@@ -223,6 +223,8 @@ class DataDictBase(dict):
         else:
             self[data][key] = value
 
+    set_meta = add_meta
+
     def delete_meta(self, key, data=None):
         """
         Remove meta data.
