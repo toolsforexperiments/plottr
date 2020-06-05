@@ -9,6 +9,11 @@ https://plottr.readthedocs.io (work in progress...)
 
 ## Recent changes:
 
+### 2020-06-05
+
+#### Added
+- Usable version of hdf5 file support. can use the apps/monitr.py script to launch a tool that allows easy (live) plotting.
+
 ### 2020-04-24
 
 #### Fixed
