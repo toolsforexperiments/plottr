@@ -1,5 +1,5 @@
 """
-plottr/plot/mpl.py : Tools for plotting with matplotlib.
+plottr/plot/mpl : Tools for plotting with matplotlib.
 """
 
 import logging
@@ -20,14 +20,13 @@ from matplotlib.backends.backend_qt5agg import (
 from matplotlib.figure import Figure
 from mpl_toolkits.axes_grid1 import make_axes_locatable
 
-from .base import PlotWidget
-from .. import QtGui, QtCore, Signal, Slot
-from ..utils import num
-from ..utils.num import interp_meshgrid_2d, centers2edges_2d
-from ..data.datadict import DataDictBase, DataDict, MeshgridDataDict
-
+from plottr import QtGui, QtCore, Signal, Slot
+from plottr.utils import num
+from plottr.utils.num import interp_meshgrid_2d, centers2edges_2d
+from plottr.data.datadict import DataDictBase, DataDict, MeshgridDataDict
 from plottr.icons import (singleTracePlotIcon, multiTracePlotIcon, imagePlotIcon,
                           colormeshPlotIcon, scatterPlot2dIcon)
+from ..base import PlotWidget
 
 
 __author__ = 'Wolfgang Pfaff'
@@ -148,9 +147,9 @@ def determinePlotDataType(data: DataDictBase) -> PlotDataType:
 
 
 # matplotlib tools and settings
-default_prop_cycle = rcParams['axes.prop_cycle']
-default_cmap = cm.get_cmap('magma')
-symmetric_cmap = cm.get_cmap('bwr')
+# default_prop_cycle = rcParams['axes.prop_cycle']
+# default_cmap = cm.get_cmap('magma')
+# symmetric_cmap = cm.get_cmap('bwr')
 
 
 class SymmetricNorm(colors.Normalize):
@@ -164,26 +163,6 @@ class SymmetricNorm(colors.Normalize):
         self.vmax = vlim+self.vcenter
         self.vmin = -vlim+self.vcenter
         return super().__call__(value, clip)
-
-
-def setMplDefaults():
-    """Set some reasonable matplotlib defaults for appearance."""
-
-    rcParams['figure.dpi'] = 300
-    rcParams['figure.figsize'] = (4.5, 3)
-    rcParams['savefig.dpi'] = 300
-    rcParams['axes.grid'] = True
-    rcParams['grid.linewidth'] = 0.5
-    rcParams['grid.linestyle'] = ':'
-    rcParams['font.family'] = 'Arial', 'Helvetica', 'DejaVu Sans'
-    rcParams['font.size'] = 6
-    rcParams['lines.markersize'] = 3
-    rcParams['lines.linestyle'] = '-'
-    rcParams['savefig.transparent'] = False
-    rcParams['figure.subplot.bottom'] = 0.15
-    rcParams['figure.subplot.top'] = 0.85
-    rcParams['figure.subplot.left'] = 0.15
-    rcParams['figure.subplot.right'] = 0.9
 
 
 # 2D plots
@@ -967,7 +946,7 @@ class AutoPlot(_MPLPlotWidget):
                                 curveLabel=f"Abs({self.data.label(yname)})",
                                 addLegend=(yname == depnames[-1]))
                     plot1dTrace(axes[1], xvals, np.angle(yvals),
-                                axLabels=(self.data.label(xname), phlbl),
+                                axLabels=(self.data.label(xname, phlbl)),
                                 curveLabel=f"Arg({yname})",
                                 addLegend=(yname == depnames[-1]))
                 else:
