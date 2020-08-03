@@ -1,3 +1,4 @@
+qcodes
 pytest
 pytest-qt
 mypy
