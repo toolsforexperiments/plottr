@@ -139,6 +139,7 @@ def test_get_ds_structure(experiment):
     assert structure == expected_structure
 
 
+@pytest.mark.xfail
 def test_get_ds_info(experiment):
     N = 5
 
