@@ -5,10 +5,10 @@ A node and widget for subselecting from a dataset.
 """
 from typing import List, Tuple, Dict, Any
 
-from plottr import QtGui, QtCore
 from .node import Node, NodeWidget, updateOption
-from ..data.datadict import DataDictBase
+from ..data.datadict import DataDictBase, DataDict
 from ..gui.data_display import DataSelectionWidget
+from plottr.icons import dataColumnsIcon
 from ..utils import num
 
 __author__ = 'Wolfgang Pfaff'
@@ -19,6 +19,8 @@ class DataDisplayWidget(NodeWidget):
     """
     Simple Tree widget to show data and their dependencies in the node data.
     """
+
+    icon = dataColumnsIcon
 
     def __init__(self, node: Node = None):
         super().__init__(embedWidgetClass=DataSelectionWidget)
@@ -49,7 +51,7 @@ class DataDisplayWidget(NodeWidget):
 
     def _updateOptions(self, selected):
         ds = self.widget._dataStructure
-        for n, w in self.widget.checkBoxes.items():
+        for n, w in self.widget.dataItems.items():
             if selected != [] and ds[n]['axes'] != ds[selected[0]]['axes']:
                 self.widget.setItemEnabled(n, False)
             else:
@@ -156,6 +158,14 @@ class DataSelector(Node):
         data = self._reduceData(data)
         if data is None:
             return None
+
+        # it is possible at this stage that we have data in DataDictBase format
+        # which we cannot process further down the line.
+        # But after extraction of compatible date we can now convert.
+        if isinstance(data, DataDictBase):
+            data = DataDict(**data)
+            if not data.validate():
+                return None
 
         return dict(dataOut=data)
 

@@ -8,7 +8,7 @@ import copy as cp
 
 import numpy as np
 from functools import reduce
-from typing import List, Tuple, Dict, Sequence, Union, Any
+from typing import List, Tuple, Dict, Sequence, Union, Any, Iterator
 
 from plottr.utils import num, misc
 
@@ -128,7 +128,7 @@ class DataDictBase(dict):
     def _meta_name_to_key(name):
         return meta_name_to_key(name)
 
-    def data_items(self):
+    def data_items(self) -> Iterator[Tuple[str, Dict[str, Any]]]:
         """
         Generator for data field items.
 
@@ -139,7 +139,7 @@ class DataDictBase(dict):
                 yield k, v
 
     def meta_items(self, data: Union[str, None] = None,
-                   clean_keys: bool = True):
+                   clean_keys: bool = True) -> Iterator[Tuple[str, Dict[str, Any]]]:
         """
         Generator for meta items.
 
@@ -222,6 +222,8 @@ class DataDictBase(dict):
             self[key] = value
         else:
             self[data][key] = value
+
+    set_meta = add_meta
 
     def delete_meta(self, key, data=None):
         """
@@ -367,27 +369,16 @@ class DataDictBase(dict):
 
         if self.validate():
             s = DataDictBase()
-            # shapes = {}
             for n, v in self.data_items():
                 v2 = v.copy()
                 v2.pop('values')
-
-                # if not add_shape and '__shape__' in v2:
-                #     v2.pop('__shape__')
-
                 s[n] = v2
-
-                # if add_shape:
-                #     shapes[n] = np.array(v['values']).shape
 
             if include_meta:
                 for n, v in self.meta_items():
                     s.add_meta(n, v)
             else:
                 s.clear_meta()
-
-            # for n, shp in shapes.items():
-            #     s.add_meta('shape', shp, data=n)
 
             if same_type:
                 s = self.__class__(**s)
@@ -524,9 +515,6 @@ class DataDictBase(dict):
             if type(vals) not in [np.ndarray, np.ma.core.MaskedArray]:
                 vals = np.array(vals)
             v['values'] = vals
-
-            if '__shape__' in v and not self.__class__ == DataDictBase:
-                v['__shape__'] = np.array(v['values']).shape
 
         if msg != '\n':
             raise ValueError(msg)
@@ -1087,19 +1075,19 @@ def datadict_to_meshgrid(data: DataDict,
 
     :param data: input DataDict.
     :param target_shape: target shape. if ``None`` we use
-                         ``guess_shape_from_datadict`` to infer.
+        ``guess_shape_from_datadict`` to infer.
     :param inner_axis_order: if axes of the datadict are not specified in the
-                             'C' order (1st the slowest, last the fastest axis)
-                             then the 'true' inner order can be specified as
-                             a list of axes names, which has to match the
-                             specified axes in all but order.
-                             The data is then transposed to conform to the
-                             specified order.
+        'C' order (1st the slowest, last the fastest axis) then the
+        'true' inner order can be specified as a list of axes names, which has
+        to match the specified axes in all but order. The data is then
+        transposed to conform to the specified order.
+        **Note**: if this is given, then `target_shape` needs to be given in
+        in the order of this inner_axis_order. The output data will keep the
+        axis ordering specified in the `axes` property.
     :param use_existing_shape: if ``True``, simply use the shape that the data
-                               already has. For numpy-array data, this might
-                               already be present.
-                               if ``False``, flatten and reshape.
-    :return: the generated ``MeshgridDataDict``.
+        already has. For numpy-array data, this might already be present.
+        if ``False``, flatten and reshape.
+    :returns: the generated ``MeshgridDataDict``.
     """
 
     # if the data is empty, return empty MeshgridData
@@ -1195,18 +1183,20 @@ def combine_datadicts(*dicts: DataDict) -> Union[DataDictBase, DataDict]:
     Try to make one datadict out of multiple.
 
     Basic rules:
+
     - we try to maintain the input type
     - return type is 'downgraded' to DataDictBase if the contents are not
       compatible (i.e., different numbers of records in the inputs)
 
     :returns: combined data
-
-    TODO: deal correctly with MeshGridData when combined with other types
-    TODO: should we strictly copy all values?
-    TODO: we should try to consolidate axes as much as possible. Currently
-          axes in the return can be separated even if they match (caused
-          by earlier mismatches)
     """
+
+    # TODO: deal correctly with MeshGridData when combined with other types
+    # TODO: should we strictly copy all values?
+    # TODO: we should try to consolidate axes as much as possible. Currently
+    #   axes in the return can be separated even if they match (caused
+    #   by earlier mismatches)
+
     ret = None
     rettype = None
 

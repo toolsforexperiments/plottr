@@ -10,8 +10,10 @@ Welcome to plottr's documentation!
    :maxdepth: 2
    :caption: Contents:
 
-   dataformat
-   nodes
+   concepts/index
+   nodes/index
+   plotnode
+   api/index
 
 
 
