@@ -5,6 +5,7 @@ plottr/apps/autoplot.py : tools for simple automatic plotting.
 import logging
 import os
 import time
+import argparse
 from typing import Union, Tuple
 
 from .. import QtGui, QtCore, Flowchart, Signal, Slot
@@ -327,3 +328,23 @@ def autoplotDDH5(filepath: str = '', groupname: str = 'data') \
     win.setMonitorInterval(2)
 
     return fc, win
+
+
+def main(f, g):
+    app = QtGui.QApplication([])
+    fc, win = autoplotDDH5(f, g)
+
+    return app.exec_()
+
+
+def script():
+    parser = argparse.ArgumentParser(
+        description='plottr autoplot .dd.h5 files.'
+    )
+    parser.add_argument('--filepath', help='path to .dd.h5 file',
+                        default='')
+    parser.add_argument('--groupname', help='group in the hdf5 file',
+                        default='data')
+    args = parser.parse_args()
+
+    main(args.filepath, args.groupname)

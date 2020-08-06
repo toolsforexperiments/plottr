@@ -20,6 +20,8 @@ setup(
     entry_points={
         "console_scripts": [
             "plottr-monitr = plottr.apps.monitr:script",
+            "plottr-inspectr = plottr.apps.inspectr:script",
+            "plottr-autoplot-ddh5 = plottr.apps.autoplot:script",
         ],
     }
 )
