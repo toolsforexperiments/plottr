@@ -9,6 +9,13 @@ https://plottr.readthedocs.io (work in progress...)
 
 ## Recent changes:
 
+## 2020-08-06
+
+#### Added
+- Entry points for inspectr (plottr-inspectr) and autoplot (plottr-autoplot-ddh5) 
+- LICENSE file has been added (no change to license of the code)
+- setup.py has been tweeked to ensure that sdist and bdist_wheel packages are generated correctly
+
 ### 2020-06-05
 
 #### Added
@@ -32,14 +39,18 @@ https://plottr.readthedocs.io (work in progress...)
 
 ## Installation
 
-In brief: clone the repo, and install using `pip install -e`
+Plottr is installable from pypi with `pip install plottr`
+
+To install from source: clone the repo, and install using `pip install -e`
 
 ## inspectr: QCoDeS dataset inspection and (live) plotting
 
 You can use the `inspectr` tool to get a simple overview over QCoDeS database
 files, and plot datasets contained in the database.
 
-To use: from the root of the cloned plottr repository, run `python apps/inspectr.py [--dbpath <path to your .db file>]`
+To use: run `plottr-inspectr [--dbpath <path to your .db file>]` 
+ 
+As an alternative from the root of the cloned plottr repository, run `python apps/inspectr.py [--dbpath <path to your .db file>]`
 
 For basic instructions, check out the Notebook *Live plotting qcodes data* under `/doc/examples`.
 
@@ -54,7 +65,3 @@ You might want to install freshly if you still use the old version.
 * pandas >= 0.22
 * xarray
 * pyqtgraph >= 0.10.0
-
-## python package
-
-clone the repo, and install using `pip install -e plottr/`.
