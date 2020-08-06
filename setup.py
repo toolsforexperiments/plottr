@@ -1,11 +1,14 @@
 from setuptools import setup, find_packages
 
+import versioneer
+
 with open("README.md", "r") as fh:
     long_description = fh.read()
 
 setup(
     name='plottr',
-    version='0.1.0',
+    version=versioneer.get_version(),
+    cmdclass=versioneer.get_cmdclass(),
     description='A tool for live plotting and processing data',
     long_description=long_description,
     long_description_content_type="text/markdown",
