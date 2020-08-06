@@ -12,7 +12,8 @@ setup(
     author='Wolfgang Pfaff',
     author_email='wolfgangpfff@gmail.com',
     url='https://github.com/toolsforexperiments/plottr',
-    packages=find_packages(),
+    packages=find_packages(include=("plottr*",)),
+    package_data={'plottr': ['resource/gfx/*']},
     install_requires=[
         'pandas>=0.22',
         'xarray',
