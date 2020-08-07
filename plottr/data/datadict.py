@@ -52,8 +52,10 @@ class DataDictBase(dict):
     def __init__(self, **kw):
         super().__init__(self, **kw)
 
-    def __eq__(self, other: 'DataDictBase'):
+    def __eq__(self, other: object):
         """Check for content equality of two datadicts."""
+        if not isinstance(other, DataDictBase):
+            return NotImplemented
 
         if not self.same_structure(self, other):
             # print('structure')
