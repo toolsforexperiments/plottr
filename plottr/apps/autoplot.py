@@ -36,7 +36,7 @@ def logger():
 
 
 def autoplot(inputData: Union[None, DataDictBase] = None) \
-        -> (Flowchart, 'AutoPlotMainWindow'):
+        -> Tuple[Flowchart, 'AutoPlotMainWindow']:
     """
     Sets up a simple flowchart consisting of a data selector, gridder,
     an xy-axes selector, and creates a GUI together with an autoplot
@@ -269,10 +269,9 @@ class QCAutoPlotMainWindow(AutoPlotMainWindow):
             self._initialized = True
 
 
-
 def autoplotQcodesDataset(log: bool = False,
                           pathAndId: Union[Tuple[str, int], None] = None) \
-        -> (Flowchart, QCAutoPlotMainWindow):
+        -> Tuple[Flowchart, QCAutoPlotMainWindow]:
     """
     Sets up a simple flowchart consisting of a data selector,
     an xy-axes selector, and creates a GUI together with an autoplot
@@ -307,7 +306,7 @@ def autoplotQcodesDataset(log: bool = False,
 
 
 def autoplotDDH5(filepath: str = '', groupname: str = 'data') \
-        -> (Flowchart, AutoPlotMainWindow):
+        -> Tuple[Flowchart, AutoPlotMainWindow]:
 
     fc = linearFlowchart(
         ('Data loader', DDH5Loader),

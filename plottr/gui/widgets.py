@@ -176,7 +176,7 @@ class PlotWindow(QtGui.QMainWindow):
 
 
 def makeFlowchartWithPlotWindow(nodes: List[Tuple[str, Type[Node]]], **kwargs) \
-        -> (PlotWindow, Flowchart):
+        -> Tuple[PlotWindow, Flowchart]:
     nodes.append(('plot', PlotNode))
     fc = linearFlowchart(*nodes)
     win = PlotWindow(fc=fc, plotNode='plot', **kwargs)
