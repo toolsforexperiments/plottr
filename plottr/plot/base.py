@@ -2,7 +2,7 @@
 plottr/plot/base.py : Contains the base classes for plotting nodes and widgets.
 """
 
-from typing import Dict, List, Type, Tuple
+from typing import Dict, List, Type, Tuple, Optional
 
 from .. import QtGui, Signal, Flowchart
 from ..data.datadict import DataDictBase
@@ -29,7 +29,7 @@ class PlotNode(Node):
     def __init__(self, name: str):
         """Constructor for :class:`PlotNode`. """
         super().__init__(name=name)
-        self.plotWidgetContainer = None
+        self.plotWidgetContainer: Optional['PlotWidgetContainer'] = None
 
     def setPlotWidgetContainer(self, w: 'PlotWidgetContainer'):
         """Set the plot widget container.
@@ -68,8 +68,8 @@ class PlotWidgetContainer(QtGui.QWidget):
         """Constructor for :class:`PlotWidgetContainer`. """
         super().__init__(parent=parent)
 
-        self.plotWidget = None
-        self.data = None
+        self.plotWidget: Optional["PlotWidget"] = None
+        self.data: Optional[DataDictBase] = None
 
         self.layout = QtGui.QVBoxLayout(self)
         self.layout.setContentsMargins(0, 0, 0, 0)
@@ -120,7 +120,7 @@ class PlotWidget(QtGui.QWidget):
 
         self.data = None
 
-    def setData(self, data: DataDictBase):
+    def setData(self, data: Optional[DataDictBase]):
         """Set data. Use this to trigger plotting.
 
         :param data: data to be plotted.
