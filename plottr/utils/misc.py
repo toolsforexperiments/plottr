@@ -6,7 +6,7 @@ Various utility functions.
 from typing import List, Tuple
 
 
-def reorder_indices(lst: List, target: List) -> Tuple[int]:
+def reorder_indices(lst: List, target: List) -> Tuple[int, ...]:
     """
     Determine how to bring a list with unique entries to a different order.
 
@@ -32,7 +32,7 @@ def reorder_indices(lst: List, target: List) -> Tuple[int]:
 
 
 def reorder_indices_from_new_positions(lst: List[str], **pos: int) \
-        -> Tuple[int]:
+        -> Tuple[int, ...]:
     """
     Determine how to bring a list with unique entries to a different order.
 
