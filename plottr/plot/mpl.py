@@ -5,7 +5,7 @@ plottr/plot/mpl.py : Tools for plotting with matplotlib.
 import logging
 import io
 from enum import Enum, unique, auto
-from typing import Dict, List, Tuple, Union
+from typing import Dict, List, Tuple, Union, cast, Optional
 from collections import OrderedDict
 
 # standard scientific computing imports
@@ -101,7 +101,7 @@ class ComplexRepresentation(Enum):
     magAndPhase = auto()
 
 
-def determinePlotDataType(data: DataDictBase) -> PlotDataType:
+def determinePlotDataType(data: Optional[DataDictBase]) -> PlotDataType:
     """
     Analyze input data and determine most likely :class:`PlotDataType`.
 
@@ -369,7 +369,7 @@ def plot1dTrace(ax: Axes, x: np.ndarray, y: np.ndarray,
 
     plot_kw = dict(lw=1, mew=1, mfc='w')
     plot_kw.update(kw)
-    fmt = plot_kw.pop('fmt', 'o-')
+    fmt = cast(str, plot_kw.pop('fmt', 'o-'))
 
     # if we're plotting real and imaginary parts, modify the label
     lbl = None
@@ -425,7 +425,7 @@ class MPLPlot(FCanvas):
         self.fig = Figure(figsize=(width, height), dpi=dpi)
         super().__init__(self.fig)
 
-        self.axes = []
+        self.axes: List[Axes] = []
         self._tightLayout = False
         self._showInfo = False
         self._infoArtist = None
@@ -662,7 +662,7 @@ class _AutoPlotToolBar(QtGui.QToolBar):
         })
 
         self._currentPlotType = PlotType.empty
-        self._currentlyAllowedPlotTypes = []
+        self._currentlyAllowedPlotTypes: Tuple[PlotType, ...] = ()
 
     def selectPlotType(self, plotType: PlotType):
         """makes sure that the selected `plotType` is active (checked), all
@@ -779,7 +779,7 @@ class AutoPlot(_MPLPlotWidget):
 
         self.setMinimumSize(640, 480)
 
-    def _analyzeData(self, data: DataDictBase) -> Dict[str, bool]:
+    def _analyzeData(self, data: Optional[DataDictBase]) -> Dict[str, bool]:
         """checks data and compares with previous properties."""
         dataType = type(data)
 
@@ -827,7 +827,7 @@ class AutoPlot(_MPLPlotWidget):
 
         return False
 
-    def setData(self, data: DataDictBase):
+    def setData(self, data: Optional[DataDictBase]):
         """Analyses data and determines whether/what to plot.
 
         :param data: input data
