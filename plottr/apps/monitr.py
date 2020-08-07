@@ -4,7 +4,7 @@ import sys
 import os
 import time
 import argparse
-from typing import List
+from typing import List, Optional, Dict
 from functools import partial
 
 from .. import QtCore, QtWidgets, Signal, Slot
@@ -28,9 +28,9 @@ class Monitr(QtWidgets.QMainWindow):
         self.ui = Ui_MainWindow()
         self.ui.setupUi(self)
 
-        self.plotDialogs = {}
-        self.selectedFile = None
-        self.newFiles = []
+        self.plotDialogs: Dict[float, dict] = {}
+        self.selectedFile: Optional[str] = None
+        self.newFiles: List[str] = []
 
         self.monitorPath = os.path.abspath(monitorPath)
         self.refreshInterval = refreshInterval
@@ -78,6 +78,8 @@ class Monitr(QtWidgets.QMainWindow):
 
     @Slot(str)
     def plotSelected(self, group: str):
+        if self.selectedFile is None:
+            raise RuntimeError("No file selected")
         self.plot(self.selectedFile, group)
 
     def plot(self, filePath: str, group: str):
