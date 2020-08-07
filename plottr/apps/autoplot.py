@@ -6,7 +6,7 @@ import logging
 import os
 import time
 import argparse
-from typing import Union, Tuple
+from typing import Union, Tuple, Optional, Type, List
 
 from .. import QtGui, QtCore, Flowchart, Signal, Slot
 from .. import log as plottrlog
@@ -20,6 +20,7 @@ from ..node.dim_reducer import XYSelector
 from ..node.filter.correct_offset import SubtractAverage
 from ..node.grid import DataGridder, GridOption
 from ..node.tools import linearFlowchart
+from ..node.node import Node
 from ..plot import PlotNode, makeFlowchartWithPlot
 
 __author__ = 'Wolfgang Pfaff'
@@ -45,7 +46,7 @@ def autoplot(inputData: Union[None, DataDictBase] = None) \
     :returns: the flowchart object and the dialog widget
     """
 
-    nodes = [
+    nodes: List[Tuple[str, Type[Node]]] = [
         ('Data selection', DataSelector),
         ('Grid', DataGridder),
         ('Dimension assignment', XYSelector),
@@ -162,7 +163,7 @@ class AutoPlotMainWindow(PlotWindow):
 
         # add monitor if needed
         if monitor:
-            self.monitorToolBar = UpdateToolBar('Monitor data')
+            self.monitorToolBar: Optional[UpdateToolBar] = UpdateToolBar('Monitor data')
             self.addToolBar(self.monitorToolBar)
             self.monitorToolBar.trigger.connect(self.refreshData)
             if monitorInterval is not None:
@@ -236,6 +237,8 @@ class AutoPlotMainWindow(PlotWindow):
         self.fc.nodes()['Data selection'].selectedData = selected
         self.fc.nodes()['Grid'].grid = GridOption.guessShape, {}
         self.fc.nodes()['Dimension assignment'].dimensionRoles = drs
+        if self.plotWidget is None:
+            raise RuntimeError()
         self.plotWidget.plot.draw()
 
 
