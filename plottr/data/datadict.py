@@ -8,7 +8,7 @@ import copy as cp
 
 import numpy as np
 from functools import reduce
-from typing import List, Tuple, Dict, Sequence, Union, Any, Iterator
+from typing import List, Tuple, Dict, Sequence, Union, Any, Iterator, Optional
 
 from plottr.utils import num, misc
 
@@ -52,8 +52,10 @@ class DataDictBase(dict):
     def __init__(self, **kw):
         super().__init__(self, **kw)
 
-    def __eq__(self, other: 'DataDictBase'):
+    def __eq__(self, other: object):
         """Check for content equality of two datadicts."""
+        if not isinstance(other, DataDictBase):
+            return NotImplemented
 
         if not self.same_structure(self, other):
             # print('structure')
@@ -348,7 +350,7 @@ class DataDictBase(dict):
 
     def structure(self, add_shape: bool = False,
                   include_meta: bool = True,
-                  same_type: bool = False) -> 'DataDictBase':
+                  same_type: bool = False) -> Optional['DataDictBase']:
         """
         Get the structure of the DataDict.
 
@@ -384,8 +386,9 @@ class DataDictBase(dict):
                 s = self.__class__(**s)
 
             return s
+        return None
 
-    def label(self, name: str) -> str:
+    def label(self, name: str) -> Optional[str]:
         """
         Get a label for a data field.
 
@@ -404,6 +407,7 @@ class DataDictBase(dict):
                 n += ' ({})'.format(self[name]['unit'])
 
             return n
+        return None
 
     def axes_are_compatible(self) -> bool:
         """
@@ -422,7 +426,7 @@ class DataDictBase(dict):
                     return False
         return True
 
-    def axes(self, data: Union[str, None] = None) -> List[str]:
+    def axes(self, data: Union[Sequence[str], str, None] = None) -> List[str]:
         """
         Return a list of axes.
 
@@ -439,8 +443,10 @@ class DataDictBase(dict):
                             lst.append(n)
         else:
             if isinstance(data, str):
-                data = [data]
-            for n in data:
+                dataseq: Sequence[str] = (data,)
+            else:
+                dataseq = data
+            for n in dataseq:
                 if 'axes' not in self[n]:
                     continue
                 for m in self[n]['axes']:
@@ -559,7 +565,7 @@ class DataDictBase(dict):
     # axes order tools
 
     def reorder_axes_indices(self, name: str,
-                             **pos: int) -> Tuple[Tuple[int], List[str]]:
+                             **pos: int) -> Tuple[Tuple[int, ...], List[str]]:
         """
         Get the indices that can reorder axes in a given way.
 
@@ -719,6 +725,8 @@ class DataDict(DataDictBase):
         :return: None
         """
         dd = self.structure(same_type=True)
+        if dd is None:
+            raise RuntimeError()
         for k, v in kw.items():
             if isinstance(v, list):
                 dd[k]['values'] = np.array(v)

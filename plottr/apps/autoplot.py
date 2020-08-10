@@ -5,6 +5,7 @@ plottr/apps/autoplot.py : tools for simple automatic plotting.
 import logging
 import os
 import time
+import argparse
 from typing import Union, Tuple
 
 from .. import QtGui, QtCore, Flowchart, Signal, Slot
@@ -35,7 +36,7 @@ def logger():
 
 
 def autoplot(inputData: Union[None, DataDictBase] = None) \
-        -> (Flowchart, 'AutoPlotMainWindow'):
+        -> Tuple[Flowchart, 'AutoPlotMainWindow']:
     """
     Sets up a simple flowchart consisting of a data selector, gridder,
     an xy-axes selector, and creates a GUI together with an autoplot
@@ -268,10 +269,9 @@ class QCAutoPlotMainWindow(AutoPlotMainWindow):
             self._initialized = True
 
 
-
 def autoplotQcodesDataset(log: bool = False,
                           pathAndId: Union[Tuple[str, int], None] = None) \
-        -> (Flowchart, QCAutoPlotMainWindow):
+        -> Tuple[Flowchart, QCAutoPlotMainWindow]:
     """
     Sets up a simple flowchart consisting of a data selector,
     an xy-axes selector, and creates a GUI together with an autoplot
@@ -306,7 +306,7 @@ def autoplotQcodesDataset(log: bool = False,
 
 
 def autoplotDDH5(filepath: str = '', groupname: str = 'data') \
-        -> (Flowchart, AutoPlotMainWindow):
+        -> Tuple[Flowchart, AutoPlotMainWindow]:
 
     fc = linearFlowchart(
         ('Data loader', DDH5Loader),
@@ -327,3 +327,23 @@ def autoplotDDH5(filepath: str = '', groupname: str = 'data') \
     win.setMonitorInterval(2)
 
     return fc, win
+
+
+def main(f, g):
+    app = QtGui.QApplication([])
+    fc, win = autoplotDDH5(f, g)
+
+    return app.exec_()
+
+
+def script():
+    parser = argparse.ArgumentParser(
+        description='plottr autoplot .dd.h5 files.'
+    )
+    parser.add_argument('--filepath', help='path to .dd.h5 file',
+                        default='')
+    parser.add_argument('--groupname', help='group in the hdf5 file',
+                        default='data')
+    args = parser.parse_args()
+
+    main(args.filepath, args.groupname)
