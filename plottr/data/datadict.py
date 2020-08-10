@@ -756,7 +756,7 @@ class DataDict(DataDictBase):
             return len(v['values'])
         return None
 
-    def _inner_shapes(self) -> Dict[str, Tuple[int]]:
+    def _inner_shapes(self) -> Dict[str, Tuple[int, ...]]:
         shapes = self.shapes()
         return {k: v[1:] for k, v in shapes.items()}
 
@@ -972,7 +972,7 @@ class MeshgridDataDict(DataDictBase):
     The function ``datadict_to_meshgrid`` provides options for that.
     """
 
-    def shape(self) -> Union[None, Tuple[int]]:
+    def shape(self) -> Union[None, Tuple[int, ...]]:
         """
         Return the shape of the meshgrid.
 
