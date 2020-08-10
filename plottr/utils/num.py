@@ -104,7 +104,8 @@ def arrays_equal(a: np.ndarray, b: np.ndarray,
     return np.all(equal | close | invalid)
 
 
-def array1d_to_meshgrid(arr: Sequence, target_shape: Tuple[int, ...],
+def array1d_to_meshgrid(arr: Union[List, np.ndarray],
+                        target_shape: Tuple[int, ...],
                         copy: bool = True) -> np.ndarray:
     """
     reshape an array to a target shape.
@@ -119,22 +120,25 @@ def array1d_to_meshgrid(arr: Sequence, target_shape: Tuple[int, ...],
     :return: re-shaped array.
     """
     if not isinstance(arr, np.ndarray):
-        arr = np.array(arr)
+        localarr = np.array(arr)
+    else:
+        localarr = arr
+
     if copy:
-        arr = arr.copy()
-    arr = arr.reshape(-1)
+        localarr = localarr.copy()
+    localarr = localarr.reshape(-1)
 
     newsize = np.prod(target_shape)
-    if newsize < arr.size:
-        arr = arr[:newsize]
-    elif newsize > arr.size:
-        if arr.dtype in FLOATTYPES:
-            fill = np.zeros(newsize - arr.size) * np.nan
+    if newsize < localarr.size:
+        localarr = localarr[:newsize]
+    elif newsize > localarr.size:
+        if localarr.dtype in FLOATTYPES:
+            fill = np.zeros(newsize - localarr.size) * np.nan
         else:
-            fill = np.array((newsize - arr.size) * [None])
-        arr = np.append(arr, fill)
+            fill = np.array((newsize - localarr.size) * [None])
+        localarr = np.append(localarr, fill)
 
-    return arr.reshape(target_shape)
+    return localarr.reshape(target_shape)
 
 
 def _find_switches(arr, rth=25, ztol=1e-15):
