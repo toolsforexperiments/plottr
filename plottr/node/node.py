@@ -333,7 +333,7 @@ class NodeWidget(QtGui.QWidget):
     allOptionsToNode = QtCore.pyqtSignal(object)
 
     def __init__(self, parent: QtGui.QWidget = None,
-                 embedWidgetClass: QtGui.QWidget = None,
+                 embedWidgetClass: Type[QtGui.QWidget] = None,
                  node: Node = None):
         super().__init__(parent)
 
@@ -343,7 +343,7 @@ class NodeWidget(QtGui.QWidget):
 
         self._emitGuiChange = True
 
-        self.widget = None
+        self.widget: Optional[QtGui.QWidget] = None
         if embedWidgetClass is not None:
             layout = QtGui.QVBoxLayout()
             layout.setContentsMargins(0, 0, 0, 0)
