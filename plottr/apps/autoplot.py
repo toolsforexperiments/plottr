@@ -22,6 +22,7 @@ from ..node.grid import DataGridder, GridOption
 from ..node.tools import linearFlowchart
 from ..node.node import Node
 from ..plot import PlotNode, makeFlowchartWithPlot
+from ..utils.misc import unwrap_optional
 
 __author__ = 'Wolfgang Pfaff'
 __license__ = 'MIT'
@@ -237,9 +238,7 @@ class AutoPlotMainWindow(PlotWindow):
         self.fc.nodes()['Data selection'].selectedData = selected
         self.fc.nodes()['Grid'].grid = GridOption.guessShape, {}
         self.fc.nodes()['Dimension assignment'].dimensionRoles = drs
-        if self.plotWidget is None:
-            raise RuntimeError()
-        self.plotWidget.plot.draw()
+        unwrap_optional(self.plotWidget).plot.draw()
 
 
 class QCAutoPlotMainWindow(AutoPlotMainWindow):

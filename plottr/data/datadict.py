@@ -673,9 +673,7 @@ class DataDict(DataDictBase):
         """
 
         # FIXME: remove shape
-        s = self.structure(add_shape=False)
-        if s is None:
-            raise RuntimeError
+        s = misc.unwrap_optional(self.structure(add_shape=False))
         if DataDictBase.same_structure(self, newdata):
             for k, v in self.data_items():
                 val0 = self[k]['values']
@@ -726,9 +724,7 @@ class DataDict(DataDictBase):
         :param kw: one array per data field (none can be omitted).
         :return: None
         """
-        dd = self.structure(same_type=True)
-        if dd is None:
-            raise RuntimeError()
+        dd = misc.unwrap_optional(self.structure(same_type=True))
         for k, v in kw.items():
             if isinstance(v, list):
                 dd[k]['values'] = np.array(v)
