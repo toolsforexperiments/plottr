@@ -1058,7 +1058,7 @@ class MeshgridDataDict(DataDictBase):
 # Tools for converting between different data types
 
 def guess_shape_from_datadict(data: DataDict) -> \
-        Dict[str, Union[None, Tuple[List[str], Tuple[int]]]]:
+        Dict[str, Union[None, Tuple[List[str], Tuple[int, ...]]]]:
     """
     Try to guess the shape of the datadict dependents from the axes values.
 
