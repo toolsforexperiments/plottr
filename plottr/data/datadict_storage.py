@@ -127,7 +127,7 @@ def init_path(filepath: str):
 
 
 def datadict_to_hdf5(datadict: DataDict,
-                     basepath: str = None,
+                     basepath: str,
                      groupname: str = 'data',
                      append_mode: AppendMode = AppendMode.new,
                      swmr_mode: bool = True):
