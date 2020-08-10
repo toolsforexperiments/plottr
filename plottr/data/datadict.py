@@ -674,6 +674,8 @@ class DataDict(DataDictBase):
 
         # FIXME: remove shape
         s = self.structure(add_shape=False)
+        if s is None:
+            raise RuntimeError
         if DataDictBase.same_structure(self, newdata):
             for k, v in self.data_items():
                 val0 = self[k]['values']
@@ -739,19 +741,20 @@ class DataDict(DataDictBase):
             if self.nrecords() > 0:
                 self.append(dd)
             else:
-                for k, v in dd.data_items():
-                    self[k]['values'] = v['values']
+                for key, val in dd.data_items():
+                    self[key]['values'] = val['values']
             self.validate()
 
     # shape information and expansion
 
-    def nrecords(self) -> int:
+    def nrecords(self) -> Optional[int]:
         """
         :return: The number of records in the dataset.
         """
         self.validate()
         for _, v in self.data_items():
             return len(v['values'])
+        return None
 
     def _inner_shapes(self) -> Dict[str, Tuple[int]]:
         shapes = self.shapes()
