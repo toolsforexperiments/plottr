@@ -4,7 +4,7 @@ widgets.py
 Common GUI widgets that are re-used across plottr.
 """
 
-from typing import Union, List, Tuple, Optional, Type
+from typing import Union, List, Tuple, Optional, Type, Sequence, Dict
 
 from .tools import dictToTreeWidgetItems
 from plottr import QtGui, QtCore, Flowchart
@@ -78,12 +78,12 @@ class PlotWindow(QtGui.QMainWindow):
 
         self.plot = PlotWidgetContainer(parent=self)
         self.setCentralWidget(self.plot)
-        self.plotWidget = None
+        self.plotWidget: Optional[MPLAutoPlot] = None
 
         self.nodeToolBar = QtGui.QToolBar('Node control', self)
         self.addToolBar(self.nodeToolBar)
 
-        self.nodeWidgets = {}
+        self.nodeWidgets: Dict[str, QtGui.QDockWidget] = {}
         if fc is not None:
             self.addNodeWidgetsFromFlowchart(fc, **kw)
 
@@ -136,7 +136,7 @@ class PlotWindow(QtGui.QMainWindow):
                 d.close()
 
     def addNodeWidgetsFromFlowchart(self, fc: Flowchart,
-                                    exclude: List[str] = [],
+                                    exclude: Sequence[str] = (),
                                     plotNode: str = 'plot',
                                     makePlotWidget: bool = True,
                                     **kwargs):
@@ -158,7 +158,7 @@ class PlotWindow(QtGui.QMainWindow):
               the options will be passed to :meth:`addNodeWidget` as keyword
               arguments.
         """
-        exclude += ['Input', 'Output']
+        exclude = tuple(exclude) + ('Input', 'Output')
 
         opts = kwargs.get('widgetOptions', dict())
 
