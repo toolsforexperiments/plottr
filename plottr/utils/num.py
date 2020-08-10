@@ -213,7 +213,7 @@ def find_direction_period(vals: np.ndarray, ignore_last: bool = False) \
 
 
 def guess_grid_from_sweep_direction(**axes: np.ndarray) \
-        -> Union[None, Tuple[List[str], Tuple[int]]]:
+        -> Union[None, Tuple[List[str], Tuple[int, ...]]]:
     """
     Try to determine order and shape of a set of axes data
     (such as flattened meshgrid data).
