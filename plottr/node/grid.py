@@ -8,7 +8,7 @@ from enum import Enum, unique
 
 from typing import Tuple, Dict, Any, List, Union
 
-from plottr import QtGui, Signal, Slot
+from plottr import QtGui, Signal, Slot, QtWidgets
 from .node import Node, NodeWidget, updateOption, updateGuiFromNode
 from ..data import datadict as dd
 from ..data.datadict import DataDict, MeshgridDataDict, DataDictBase
@@ -36,7 +36,7 @@ class GridOption(Enum):
     specifyShape = 2
 
 
-class ShapeSpecificationWidget(QtGui.QWidget):
+class ShapeSpecificationWidget(QtWidgets.QWidget):
     """A widget that allows the user to specify a grid shape.
 
     Note that this widget in this form knows nothing about any underlying data,
@@ -55,8 +55,8 @@ class ShapeSpecificationWidget(QtGui.QWidget):
         self._widgets = {}
         self._processChanges = True
 
-        self.layout = QtGui.QFormLayout()
-        self.confirm = QtGui.QPushButton('set')
+        self.layout = QtWidgets.QFormLayout()
+        self.confirm = QtWidgets.QPushButton('set')
         self.layout.addRow(self.confirm)
         self.setLayout(self.layout)
 
@@ -67,12 +67,12 @@ class ShapeSpecificationWidget(QtGui.QWidget):
         self.newShapeNotification.emit(self.getShape())
 
     def _addAxis(self, idx, name):
-        nameWidget = QtGui.QComboBox()
+        nameWidget = QtWidgets.QComboBox()
         for j, bx in enumerate(self._axes):
             nameWidget.addItem(bx)
         nameWidget.setCurrentText(name)
 
-        dimLenWidget = QtGui.QSpinBox()
+        dimLenWidget = QtWidgets.QSpinBox()
         dimLenWidget.setMinimum(1)
         dimLenWidget.setMaximum(999999)
         self._widgets[idx] = {
@@ -178,13 +178,13 @@ class GridOptionWidget(QtGui.QWidget):
 
         #  make radio buttons and layout
         self.buttons = {
-            GridOption.noGrid: QtGui.QRadioButton('No grid'),
-            GridOption.guessShape: QtGui.QRadioButton('Guess shape'),
-            GridOption.specifyShape: QtGui.QRadioButton('Specify shape'),
+            GridOption.noGrid: QtWidgets.QRadioButton('No grid'),
+            GridOption.guessShape: QtWidgets.QRadioButton('Guess shape'),
+            GridOption.specifyShape: QtWidgets.QRadioButton('Specify shape'),
         }
 
-        btnLayout = QtGui.QVBoxLayout()
-        self.btnGroup = QtGui.QButtonGroup(self)
+        btnLayout = QtWidgets.QVBoxLayout()
+        self.btnGroup = QtWidgets.QButtonGroup(self)
 
         for opt in GridOption:
             btn = self.buttons[opt]
@@ -193,13 +193,13 @@ class GridOptionWidget(QtGui.QWidget):
 
         # make shape spec widget
         self.shapeSpec = ShapeSpecificationWidget()
-        shapeLayout = QtGui.QVBoxLayout()
+        shapeLayout = QtWidgets.QVBoxLayout()
         shapeLayout.addWidget(self.shapeSpec)
-        shapeBox = QtGui.QGroupBox()
+        shapeBox = QtWidgets.QGroupBox()
         shapeBox.setLayout(shapeLayout)
 
         # Widget layout
-        layout = QtGui.QVBoxLayout()
+        layout = QtWidgets.QVBoxLayout()
         layout.addLayout(btnLayout)
         layout.addWidget(shapeBox)
         layout.addStretch()
@@ -249,8 +249,8 @@ class GridOptionWidget(QtGui.QWidget):
 
         self._emitUpdate = True
 
-    @Slot(QtGui.QAbstractButton, bool)
-    def gridButtonSelected(self, btn: QtGui.QAbstractButton, checked: bool):
+    @Slot(QtWidgets.QAbstractButton, bool)
+    def gridButtonSelected(self, btn: QtWidgets.QAbstractButton, checked: bool):
         """Process a change in grid option radio box selection.
         Only has an effect when the change was done manually, and is not
         coming from the node.

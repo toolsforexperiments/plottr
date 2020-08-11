@@ -4,7 +4,7 @@ plottr/plot/base.py : Contains the base classes for plotting nodes and widgets.
 
 from typing import Dict, List, Type, Tuple, Optional
 
-from .. import QtGui, Signal, Flowchart
+from .. import Signal, Flowchart, QtWidgets
 from ..data.datadict import DataDictBase
 from ..node import Node, linearFlowchart
 
@@ -52,7 +52,7 @@ class PlotNode(Node):
         return dict(dataOut=dataIn)
 
 
-class PlotWidgetContainer(QtGui.QWidget):
+class PlotWidgetContainer(QtWidgets.QWidget):
     """
     This is the base widget for Plots, derived from `QWidget`.
 
@@ -64,14 +64,14 @@ class PlotWidgetContainer(QtGui.QWidget):
     added to this container.
     """
 
-    def __init__(self, parent: QtGui.QWidget = None):
+    def __init__(self, parent: QtWidgets.QWidget = None):
         """Constructor for :class:`PlotWidgetContainer`. """
         super().__init__(parent=parent)
 
         self.plotWidget: Optional["PlotWidget"] = None
         self.data: Optional[DataDictBase] = None
 
-        self.layout = QtGui.QVBoxLayout(self)
+        self.layout = QtWidgets.QVBoxLayout(self)
         self.layout.setContentsMargins(0, 0, 0, 0)
 
     def setPlotWidget(self, widget: "PlotWidget"):
@@ -107,7 +107,7 @@ class PlotWidgetContainer(QtGui.QWidget):
             self.plotWidget.setData(self.data)
 
 
-class PlotWidget(QtGui.QWidget):
+class PlotWidget(QtWidgets.QWidget):
     """
     Base class for Plot Widgets, this just defines the API. Derived from
     `QWidget`.

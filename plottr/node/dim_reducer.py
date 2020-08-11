@@ -10,7 +10,7 @@ import numpy as np
 
 from .node import Node, updateOption, NodeWidget
 from ..data.datadict import MeshgridDataDict, DataDict, DataDictBase
-from .. import QtGui, QtCore
+from .. import QtGui, QtCore, QtWidgets
 from plottr.icons import xySelectIcon
 
 __author__ = 'Wolfgang Pfaff'
@@ -61,7 +61,7 @@ reductionFunc = {
     ReductionMethod.average: np.mean,
 }
 
-class DimensionAssignmentWidget(QtGui.QTreeWidget):
+class DimensionAssignmentWidget(QtWidgets.QTreeWidget):
     """
     A Widget that allows to assign options ('roles') to dimensions of a
     dataset.
@@ -151,10 +151,10 @@ class DimensionAssignmentWidget(QtGui.QTreeWidget):
 
         :param name: name of the dimension.
         """
-        item = QtGui.QTreeWidgetItem([name, '', '', ''])
+        item = QtWidgets.QTreeWidgetItem([name, '', '', ''])
         self.addTopLevelItem(item)
 
-        combo = QtGui.QComboBox()
+        combo = QtWidgets.QComboBox()
         for t, opts in self.availableChoices.items():
             if t == self._dataType or issubclass(self._dataType, t):
                 for o in opts:
@@ -304,13 +304,13 @@ class DimensionReductionAssignmentWidget(DimensionAssignmentWidget):
             self._setElementSelectionInfo(dim)
 
     def elementSelectionSlider(self, nvals: int, value: int = 0):
-        w = QtGui.QSlider(0x01)
+        w = QtWidgets.QSlider(0x01)
         w.setMinimum(0)
         w.setMaximum(nvals - 1)
         w.setSingleStep(1)
         w.setPageStep(1)
         w.setTickInterval(max(1, nvals//10))
-        w.setTickPosition(QtGui.QSlider.TicksBelow)
+        w.setTickPosition(QtWidgets.QSlider.TicksBelow)
         w.setValue(value)
         return w
 

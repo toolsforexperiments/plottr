@@ -21,7 +21,7 @@ from matplotlib.figure import Figure
 from mpl_toolkits.axes_grid1 import make_axes_locatable
 
 from .base import PlotWidget
-from .. import QtGui, QtCore, Signal, Slot
+from .. import QtGui, QtCore, Signal, Slot, QtWidgets
 from ..utils import num
 from ..utils.num import interp_meshgrid_2d, centers2edges_2d
 from ..data.datadict import DataDictBase, DataDict, MeshgridDataDict
@@ -408,7 +408,7 @@ class MPLPlot(FCanvas):
     It can be used as any QT widget.
     """
 
-    def __init__(self, parent: QtGui.QWidget = None, width: float = 4.0,
+    def __init__(self, parent: QtWidgets.QWidget = None, width: float = 4.0,
                  height: float = 3.0, dpi: int = 150, nrows: int = 1,
                  ncols: int = 1):
         """
@@ -521,7 +521,7 @@ class MPLPlot(FCanvas):
         buf = io.BytesIO()
         self.fig.savefig(buf, dpi=300, facecolor='w', format='png',
                          transparent=True)
-        QtGui.QApplication.clipboard().setImage(
+        QtWidgets.QApplication.clipboard().setImage(
             QtGui.QImage.fromData(buf.getvalue()))
         buf.close()
 
@@ -567,7 +567,7 @@ class _MPLPlotWidget(PlotWidget):
         self.addMplBarOptions()
         self.mplBar.setIconSize(QtCore.QSize(16,16))
 
-        self.layout = QtGui.QVBoxLayout(self)
+        self.layout = QtWidgets.QVBoxLayout(self)
         self.layout.addWidget(self.plot)
         self.layout.addWidget(self.mplBar)
 
@@ -579,10 +579,10 @@ class _MPLPlotWidget(PlotWidget):
             self.plot.setFigureInfo(data.meta_val('info'))
 
     def addMplBarOptions(self):
-        tlCheck = QtGui.QCheckBox('Tight layout')
+        tlCheck = QtWidgets.QCheckBox('Tight layout')
         tlCheck.toggled.connect(self.plot.setTightLayout)
 
-        infoCheck = QtGui.QCheckBox('Info')
+        infoCheck = QtWidgets.QCheckBox('Info')
         infoCheck.toggled.connect(self.plot.setShowInfo)
 
         self.mplBar.addSeparator()
@@ -594,7 +594,7 @@ class _MPLPlotWidget(PlotWidget):
 
 
 # A toolbar for setting options on the MPL autoplot
-class _AutoPlotToolBar(QtGui.QToolBar):
+class _AutoPlotToolBar(QtWidgets.QToolBar):
     """
     A toolbar that allows the user to configure AutoPlot.
 
@@ -609,7 +609,7 @@ class _AutoPlotToolBar(QtGui.QToolBar):
     complexPolarSelected = Signal(bool)
 
 
-    def __init__(self, name: str, parent: QtGui.QWidget = None):
+    def __init__(self, name: str, parent: QtWidgets.QWidget = None):
         """Constructor for :class:`AutoPlotToolBar`"""
 
         super().__init__(name, parent=parent)

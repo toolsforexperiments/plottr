@@ -22,7 +22,7 @@ from typing import Any, Union, Optional, List
 import numpy as np
 import h5py
 
-from plottr import QtGui, Signal, Slot
+from plottr import QtGui, Signal, Slot, QtWidgets
 
 from ..node import (
     Node, NodeWidget, updateOption, updateGuiFromNode,
@@ -387,9 +387,9 @@ class DDH5LoaderWidget(NodeWidget):
     def __init__(self, node: Node = None):
         super().__init__(node=node)
 
-        self.fileinput = QtGui.QLineEdit()
-        self.groupinput = QtGui.QLineEdit('data')
-        self.reload = QtGui.QPushButton('Reload')
+        self.fileinput = QtWidgets.QLineEdit()
+        self.groupinput = QtWidgets.QLineEdit('data')
+        self.reload = QtWidgets.QPushButton('Reload')
 
         self.optSetters = {
             'filepath': self.fileinput.setText,
@@ -400,11 +400,11 @@ class DDH5LoaderWidget(NodeWidget):
             'groupname': self.groupinput.text,
         }
 
-        flayout = QtGui.QFormLayout()
+        flayout = QtWidgets.QFormLayout()
         flayout.addRow('File path:', self.fileinput)
         flayout.addRow('Group:', self.groupinput)
 
-        vlayout = QtGui.QVBoxLayout()
+        vlayout = QtWidgets.QVBoxLayout()
         vlayout.addLayout(flayout)
         vlayout.addWidget(self.reload)
 

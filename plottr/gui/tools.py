@@ -3,17 +3,17 @@
 helpers and tools for creating GUI elements.
 """
 
-from .. import QtGui
+from .. import QtWidgets
 
 __author__ = 'Wolfgang Pfaff'
 __license__ = 'MIT'
 
 
-def widgetDialog(widget: QtGui.QWidget, title: str = '',
-                 show: bool = True) -> QtGui.QDialog:
-    win = QtGui.QDialog()
+def widgetDialog(widget: QtWidgets.QWidget, title: str = '',
+                 show: bool = True) -> QtWidgets.QDialog:
+    win = QtWidgets.QDialog()
     win.setWindowTitle('plottr ' + title)
-    layout = QtGui.QVBoxLayout()
+    layout = QtWidgets.QVBoxLayout()
     layout.addWidget(widget)
     win.setLayout(layout)
     if show:
@@ -26,9 +26,9 @@ def dictToTreeWidgetItems(d):
     items = []
     for k, v in d.items():
         if not isinstance(v, dict):
-            item = QtGui.QTreeWidgetItem([str(k), str(v)])
+            item = QtWidgets.QTreeWidgetItem([str(k), str(v)])
         else:
-            item = QtGui.QTreeWidgetItem([k, ''])
+            item = QtWidgets.QTreeWidgetItem([k, ''])
             for child in dictToTreeWidgetItems(v):
                 item.addChild(child)
         items.append(item)

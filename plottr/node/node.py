@@ -10,7 +10,7 @@ from functools import wraps
 from typing import Any, Union, Tuple, Dict, Optional, Type, List
 
 from .. import NodeBase
-from .. import QtGui, QtCore, Signal, Slot
+from .. import QtGui, QtCore, Signal, Slot, QtWidgets
 from ..data.datadict import DataDictBase, MeshgridDataDict
 from .. import log
 
@@ -181,7 +181,7 @@ class Node(NodeBase):
         self.ui.allOptionsToNode.connect(self.setOptions)
         self.optionChangeNotification.connect(self.ui.setOptionsFromNode)
 
-    def ctrlWidget(self) -> Union[QtGui.QWidget, None]:
+    def ctrlWidget(self) -> Union[QtWidgets.QWidget, None]:
         """Returns the node widget, if it exists.
         """
         return self.ui
@@ -310,7 +310,7 @@ class Node(NodeBase):
         return dict(dataOut=dataIn)
 
 
-class NodeWidget(QtGui.QWidget):
+class NodeWidget(QtWidgets.QWidget):
     """
     Base class for Node control widgets.
 
@@ -332,8 +332,8 @@ class NodeWidget(QtGui.QWidget):
     #: signal (args: (object)) all options to the node.
     allOptionsToNode = QtCore.pyqtSignal(object)
 
-    def __init__(self, parent: QtGui.QWidget = None,
-                 embedWidgetClass: Type[QtGui.QWidget] = None,
+    def __init__(self, parent: QtWidgets.QWidget = None,
+                 embedWidgetClass: Type[QtWidgets.QWidget] = None,
                  node: Node = None):
         super().__init__(parent)
 
@@ -343,9 +343,10 @@ class NodeWidget(QtGui.QWidget):
 
         self._emitGuiChange = True
 
-        self.widget: Optional[QtGui.QWidget] = None
+        self.widget: Optional[QtWidgets.QWidget] = None
+
         if embedWidgetClass is not None:
-            layout = QtGui.QVBoxLayout()
+            layout = QtWidgets.QVBoxLayout()
             layout.setContentsMargins(0, 0, 0, 0)
             self.widget = embedWidgetClass()
             layout.addWidget(self.widget)

@@ -17,7 +17,7 @@ import time
 import sys
 import argparse
 
-from pyqtgraph.Qt import QtGui, QtCore
+from plottr import QtGui, QtCore, QtWidgets
 
 from .. import log as plottrlog
 from ..data.qcodes_dataset import (get_runs_from_db_as_dataframe,
@@ -38,7 +38,7 @@ def logger():
 
 ### Database inspector tool
 
-class DateList(QtGui.QListWidget):
+class DateList(QtWidgets.QListWidget):
     """Displays a list of dates for which there are runs in the database."""
 
     datesSelected = QtCore.pyqtSignal(list)
@@ -50,7 +50,7 @@ class DateList(QtGui.QListWidget):
         self.setAcceptDrops(True)
         self.setDefaultDropAction(QtCore.Qt.CopyAction)
 
-        self.setSelectionMode(QtGui.QListView.ExtendedSelection)
+        self.setSelectionMode(QtWidgets.QListView.ExtendedSelection)
         self.itemSelectionChanged.connect(self.sendSelectedDates)
 
     @QtCore.pyqtSlot(list)
@@ -101,7 +101,7 @@ class DateList(QtGui.QListWidget):
     ])
 
 
-class SortableTreeWidgetItem(QtGui.QTreeWidgetItem):
+class SortableTreeWidgetItem(QtWidgets.QTreeWidgetItem):
     """
     QTreeWidgetItem with an overridden comparator that sorts numerical values
     as numbers instead of sorting them alphabetically.
@@ -119,7 +119,7 @@ class SortableTreeWidgetItem(QtGui.QTreeWidgetItem):
             return text1 < text2
 
 
-class RunList(QtGui.QTreeWidget):
+class RunList(QtWidgets.QTreeWidget):
     """Shows the list of runs for a given date selection."""
 
     cols = ['Run ID', 'Experiment', 'Sample', 'Name', 'Started', 'Completed', 'Records', 'GUID']
@@ -172,13 +172,13 @@ class RunList(QtGui.QTreeWidget):
         runId = int(selection[0].text(0))
         self.runSelected.emit(runId)
 
-    @QtCore.pyqtSlot(QtGui.QTreeWidgetItem, int)
+    @QtCore.pyqtSlot(QtWidgets.QTreeWidgetItem, int)
     def activateRun(self, item, column):
         runId = int(item.text(0))
         self.runActivated.emit(runId)
 
 
-class RunInfo(QtGui.QTreeWidget):
+class RunInfo(QtWidgets.QTreeWidget):
     """widget that shows some more details on a selected run.
 
     When sending information in form of a dictionary, it will create
@@ -223,7 +223,7 @@ class LoadDBProcess(QtCore.QObject):
         self.dbdfLoaded.emit(dbdf)
 
 
-class QCodesDBInspector(QtGui.QMainWindow):
+class QCodesDBInspector(QtWidgets.QMainWindow):
     """
     Main window of the inspectr tool.
     """
@@ -261,12 +261,12 @@ class QCodesDBInspector(QtGui.QMainWindow):
         self.runList = RunList()
         self.runInfo = RunInfo()
 
-        rightSplitter = QtGui.QSplitter(QtCore.Qt.Vertical)
+        rightSplitter = QtWidgets.QSplitter(QtCore.Qt.Vertical)
         rightSplitter.addWidget(self.runList)
         rightSplitter.addWidget(self.runInfo)
         rightSplitter.setSizes([400, 200])
 
-        splitter = QtGui.QSplitter()
+        splitter = QtWidgets.QSplitter()
         splitter.addWidget(self.dateList)
         splitter.addWidget(rightSplitter)
         splitter.setSizes([100, 500])
@@ -274,7 +274,7 @@ class QCodesDBInspector(QtGui.QMainWindow):
         self.setCentralWidget(splitter)
 
         # status bar
-        self.status = QtGui.QStatusBar()
+        self.status = QtWidgets.QStatusBar()
         self.setStatusBar(self.status)
 
         # toolbar
@@ -290,7 +290,7 @@ class QCodesDBInspector(QtGui.QMainWindow):
 
         # toolbar item: auto-launch plotting
         self.autoLaunchPlots = FormLayoutWrapper([
-            ('Auto-plot new', QtGui.QCheckBox())
+            ('Auto-plot new', QtWidgets.QCheckBox())
         ])
         tt = "If checked, and automatic refresh is running, "
         tt += " launch plotting window for new datasets automatically."
@@ -302,13 +302,13 @@ class QCodesDBInspector(QtGui.QMainWindow):
         fileMenu = menu.addMenu('&File')
 
         # action: load db file
-        loadAction = QtGui.QAction('&Load', self)
+        loadAction = QtWidgets.QAction('&Load', self)
         loadAction.setShortcut('Ctrl+L')
         loadAction.triggered.connect(self.loadDB)
         fileMenu.addAction(loadAction)
 
         # action: updates from the db file
-        refreshAction = QtGui.QAction('&Refresh', self)
+        refreshAction = QtWidgets.QAction('&Refresh', self)
         refreshAction.setShortcut('R')
         refreshAction.triggered.connect(self.refreshDB)
         fileMenu.addAction(refreshAction)
@@ -373,7 +373,7 @@ class QCodesDBInspector(QtGui.QMainWindow):
         else:
             curdir = os.getcwd()
 
-        path, _fltr = QtGui.QFileDialog.getOpenFileName(
+        path, _fltr = QtWidgets.QFileDialog.getOpenFileName(
             self,
             'Open qcodes .db file',
             curdir,
@@ -483,14 +483,14 @@ def inspectr(dbPath: str = None):
 
 
 def main(dbPath):
-    app = QtGui.QApplication([])
+    app = QtWidgets.QApplication([])
     plottrlog.enableStreamHandler(True)
 
     win = inspectr(dbPath=dbPath)
     win.show()
 
     if (sys.flags.interactive != 1) or not hasattr(QtCore, 'PYQT_VERSION'):
-        QtGui.QApplication.instance().exec_()
+        QtWidgets.QApplication.instance().exec_()
 
 
 def script():
