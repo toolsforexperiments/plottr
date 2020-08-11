@@ -90,7 +90,7 @@ class DataSelector(Node):
     def selectedData(self) -> List[str]:
         return self._selectedData
 
-    @selectedData.setter
+    @selectedData.setter  # type: ignore[misc]
     @updateOption('selectedData')
     def selectedData(self, val: List[str]):
         if isinstance(val, str):

@@ -1,4 +1,4 @@
-from typing import List
+from typing import Sequence
 
 from plottr import QtGui, Signal, Slot
 from plottr.node import Node, NodeWidget, updateOption
@@ -23,7 +23,9 @@ class DimensionCombo(QtGui.QComboBox):
 
         self.currentTextChanged.connect(self.signalDimensionSelection)
 
-    def connectNode(self, node: Node = None):
+    def connectNode(self, node: Node = None) -> None:
+        if node is None:
+            raise RuntimeError
         self.node = node
         if self.dimensionType == 'axes':
             self.node.dataAxesChanged.connect(self.setDimensions)
@@ -31,7 +33,7 @@ class DimensionCombo(QtGui.QComboBox):
             raise NotImplementedError('Only Axes supported ATM.')
 
     @updateGuiQuietly
-    def setDimensions(self, dims: List[str]):
+    def setDimensions(self, dims: Sequence[str]) -> None:
         self.clear()
         allDims = self.entries + dims
         for d in allDims:
@@ -39,7 +41,7 @@ class DimensionCombo(QtGui.QComboBox):
 
     @Slot(str)
     @emitGuiUpdate('dimensionSelected')
-    def signalDimensionSelection(self, val: str):
+    def signalDimensionSelection(self, val: str) -> str:
         return val
 
 
@@ -56,6 +58,8 @@ class SubtractAverageWidget(NodeWidget):
 
     def __init__(self, node: Node = None):
         super().__init__(node=node, embedWidgetClass=AxisSelector)
+        if self.widget is None:
+            raise RuntimeError
 
         self.optSetters = {
             'averagingAxis': self.setAvgAxis,
@@ -90,7 +94,7 @@ class SubtractAverage(Node):
     def averagingAxis(self):
         return self._averagingAxis
 
-    @averagingAxis.setter
+    @averagingAxis.setter  # type: ignore[misc]
     @updateOption('averagingAxis')
     def averagingAxis(self, value):
         self._averagingAxis = value

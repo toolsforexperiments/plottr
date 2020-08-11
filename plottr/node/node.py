@@ -7,7 +7,7 @@ import traceback
 from logging import Logger
 
 from functools import wraps
-from typing import Any, Union, Tuple, Dict
+from typing import Any, Union, Tuple, Dict, Optional, Type
 
 from .. import NodeBase
 from .. import QtGui, QtCore, Signal, Slot
@@ -111,7 +111,7 @@ class Node(NodeBase):
 
     #: UI node widget class. If not None, and ``useUi`` is ``True``, an
     #: instance of the widget is created, and signal/slots are connected.
-    uiClass = None
+    uiClass: Optional[Type["NodeWidget"]] = None
 
     #: Whether or not to automatically set up a UI widget.
     useUi = True

@@ -10,6 +10,7 @@ from functools import partial
 from .. import QtCore, QtWidgets, Signal, Slot
 from ..data.datadict_storage import all_datadicts_from_hdf5
 from ..apps.autoplot import autoplotDDH5
+from ..utils.misc import unwrap_optional
 
 from .ui.Monitr_UI import Ui_MainWindow
 
@@ -78,9 +79,7 @@ class Monitr(QtWidgets.QMainWindow):
 
     @Slot(str)
     def plotSelected(self, group: str):
-        if self.selectedFile is None:
-            raise RuntimeError("No file selected")
-        self.plot(self.selectedFile, group)
+        self.plot(unwrap_optional(self.selectedFile), group)
 
     def plot(self, filePath: str, group: str):
         fc, win = autoplotDDH5(filePath, group)

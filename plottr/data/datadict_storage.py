@@ -127,7 +127,7 @@ def init_path(filepath: str):
 
 
 def datadict_to_hdf5(datadict: DataDict,
-                     basepath: str = None,
+                     basepath: str,
                      groupname: str = 'data',
                      append_mode: AppendMode = AppendMode.new,
                      swmr_mode: bool = True):
@@ -439,7 +439,7 @@ class DDH5Loader(Node):
     def filepath(self):
         return self._filepath
 
-    @filepath.setter
+    @filepath.setter  # type: ignore[misc]
     @updateOption('filepath')
     def filepath(self, val):
         self._filepath = val
@@ -448,7 +448,7 @@ class DDH5Loader(Node):
     def groupname(self):
         return self._groupname
 
-    @groupname.setter
+    @groupname.setter  # type: ignore[misc]
     @updateOption('groupname')
     def groupname(self, val):
         self._groupname = val

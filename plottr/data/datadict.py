@@ -673,7 +673,7 @@ class DataDict(DataDictBase):
         """
 
         # FIXME: remove shape
-        s = self.structure(add_shape=False)
+        s = misc.unwrap_optional(self.structure(add_shape=False))
         if DataDictBase.same_structure(self, newdata):
             for k, v in self.data_items():
                 val0 = self[k]['values']
@@ -724,9 +724,7 @@ class DataDict(DataDictBase):
         :param kw: one array per data field (none can be omitted).
         :return: None
         """
-        dd = self.structure(same_type=True)
-        if dd is None:
-            raise RuntimeError()
+        dd = misc.unwrap_optional(self.structure(same_type=True))
         for k, v in kw.items():
             if isinstance(v, list):
                 dd[k]['values'] = np.array(v)
@@ -739,21 +737,22 @@ class DataDict(DataDictBase):
             if self.nrecords() > 0:
                 self.append(dd)
             else:
-                for k, v in dd.data_items():
-                    self[k]['values'] = v['values']
+                for key, val in dd.data_items():
+                    self[key]['values'] = val['values']
             self.validate()
 
     # shape information and expansion
 
-    def nrecords(self) -> int:
+    def nrecords(self) -> Optional[int]:
         """
         :return: The number of records in the dataset.
         """
         self.validate()
         for _, v in self.data_items():
             return len(v['values'])
+        return None
 
-    def _inner_shapes(self) -> Dict[str, Tuple[int]]:
+    def _inner_shapes(self) -> Dict[str, Tuple[int, ...]]:
         shapes = self.shapes()
         return {k: v[1:] for k, v in shapes.items()}
 
@@ -969,7 +968,7 @@ class MeshgridDataDict(DataDictBase):
     The function ``datadict_to_meshgrid`` provides options for that.
     """
 
-    def shape(self) -> Union[None, Tuple[int]]:
+    def shape(self) -> Union[None, Tuple[int, ...]]:
         """
         Return the shape of the meshgrid.
 
@@ -1055,7 +1054,7 @@ class MeshgridDataDict(DataDictBase):
 # Tools for converting between different data types
 
 def guess_shape_from_datadict(data: DataDict) -> \
-        Dict[str, Union[None, Tuple[List[str], Tuple[int]]]]:
+        Dict[str, Union[None, Tuple[List[str], Tuple[int, ...]]]]:
     """
     Try to guess the shape of the datadict dependents from the axes values.
 
