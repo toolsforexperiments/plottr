@@ -428,7 +428,6 @@ class DDH5Loader(Node):
 
     def __init__(self, name: str):
         self._filepath = None
-        self._groupname = None
 
         super().__init__(name)
 

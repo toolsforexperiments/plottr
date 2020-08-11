@@ -803,7 +803,8 @@ class DataDict(DataDictBase):
         self.validate()
         if not self.is_expandable():
             raise ValueError('Data cannot be expanded.')
-        ret = DataDict(**self.structure(add_shape=False))
+        struct = misc.unwrap_optional(self.structure(add_shape=False))
+        ret = DataDict(**struct)
 
         if self.is_expanded():
             return self.copy()
@@ -1124,7 +1125,7 @@ def datadict_to_meshgrid(data: DataDict,
         inner_axis_order, target_shape = ret
 
     # construct new data
-    newdata = MeshgridDataDict(**data.structure(add_shape=False))
+    newdata = MeshgridDataDict(**misc.unwrap_optional(data.structure(add_shape=False)))
     axlist = data.axes(data.dependents()[0])
 
     for k, v in data.data_items():
@@ -1151,7 +1152,7 @@ def meshgrid_to_datadict(data: MeshgridDataDict) -> DataDict:
     :param data: input ``MeshgridDataDict``
     :return: flattened ``DataDict``
     """
-    newdata = DataDict(**data.structure(add_shape=False))
+    newdata = DataDict(**misc.unwrap_optional(data.structure(add_shape=False)))
     for k, v in data.data_items():
         val = v['values'].copy().reshape(-1)
         newdata[k]['values'] = val
