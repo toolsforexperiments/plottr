@@ -438,44 +438,43 @@ class DataGridder(Node):
         #   don't get that information from the guess function, and it is also
         #   not reflected in the resulting data.
 
-        data = dataIn
-        if data is None:
+        if dataIn is None:
             return None
 
         data = super().process(dataIn=dataIn)
         if data is None:
             return None
-        data = data['dataOut'].copy()
+        dataOut = data['dataOut'].copy()
         self.axesList.emit(data.axes())
 
         dout = None
         method, opts = self._grid
-        order = opts.get('order', data.axes())
+        order = opts.get('order', dataOut.axes())
 
-        if isinstance(data, DataDict):
+        if isinstance(dataOut, DataDict):
             if method is GridOption.noGrid:
-                dout = data.expand()
+                dout = dataOut.expand()
             elif method is GridOption.guessShape:
-                dout = dd.datadict_to_meshgrid(data)
+                dout = dd.datadict_to_meshgrid(dataOut)
             elif method is GridOption.specifyShape:
                 dout = dd.datadict_to_meshgrid(
-                    data, target_shape=opts['shape'],
+                    dataOut, target_shape=opts['shape'],
                     inner_axis_order=order,
                 )
 
-        elif isinstance(data, MeshgridDataDict):
+        elif isinstance(dataOut, MeshgridDataDict):
             if method is GridOption.noGrid:
-                dout = dd.meshgrid_to_datadict(data)
+                dout = dd.meshgrid_to_datadict(dataOut)
             elif method is GridOption.guessShape:
-                dout = data
+                dout = dataOut
             elif method is GridOption.specifyShape:
                 self.logger().warning(
                     f"Data is already on grid. Ignore shape.")
-                dout = data
+                dout = dataOut
 
         else:
             self.logger().error(
-                f"Unknown data type {type(data)}.")
+                f"Unknown data type {type(dataOut)}.")
             return None
 
         if dout is None:
