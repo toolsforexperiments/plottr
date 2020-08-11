@@ -1,14 +1,14 @@
 import os
 from enum import Enum
-from typing import List, Any, Optional, Dict
+from typing import List, Any, Optional, Dict, Sequence
 from pprint import pprint
 
 from plottr import QtCore, QtGui, QtWidgets, Slot, Signal
 from plottr.data.datadict import DataDict
 
 
-def findFilesByExtension(path: str, extensions: List[str]) -> Optional[Dict[str, Any]]:
-    ret = []
+def findFilesByExtension(path: str, extensions: Sequence[str]) -> List[str]:
+    ret: List[str] = []
     contents = os.listdir(path)
     for c in sorted(contents):
         abspath = os.path.abspath(os.path.join(path, c))

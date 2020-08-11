@@ -7,7 +7,7 @@ import traceback
 from logging import Logger
 
 from functools import wraps
-from typing import Any, Union, Tuple, Dict, Optional, Type
+from typing import Any, Union, Tuple, Dict, Optional, Type, List
 
 from .. import NodeBase
 from .. import QtGui, QtCore, Signal, Slot
@@ -155,14 +155,14 @@ class Node(NodeBase):
         super().__init__(name, terminals=self.__class__.terminals)
 
         self.signalUpdate = True
-        self.dataAxes = None
-        self.dataDependents = None
-        self.dataType = None
-        self.dataShapes = None
-        self.dataStructure = None
+        self.dataAxes: Optional[List[str]] = None
+        self.dataDependents: Optional[List[str]] = None
+        self.dataType: Optional[Type[DataDictBase]] = None
+        self.dataShapes: Optional[Dict[str, Tuple[int, ...]]] = None
+        self.dataStructure: Optional[DataDictBase] = None
 
         if self.useUi and self.__class__.uiClass is not None:
-            self.ui = self.__class__.uiClass(node=self)
+            self.ui: Optional["NodeWidget"] = self.__class__.uiClass(node=self)
             self.setupUi()
         else:
             self.ui = None
@@ -333,17 +333,17 @@ class NodeWidget(QtGui.QWidget):
     allOptionsToNode = QtCore.pyqtSignal(object)
 
     def __init__(self, parent: QtGui.QWidget = None,
-                 embedWidgetClass: QtGui.QWidget = None,
+                 embedWidgetClass: Type[QtGui.QWidget] = None,
                  node: Node = None):
         super().__init__(parent)
 
-        self.optGetters = {}
-        self.optSetters = {}
+        self.optGetters: Dict[str, Any] = {}
+        self.optSetters: Dict[str, Any] = {}
         self.node = node
 
         self._emitGuiChange = True
 
-        self.widget = None
+        self.widget: Optional[QtGui.QWidget] = None
         if embedWidgetClass is not None:
             layout = QtGui.QVBoxLayout()
             layout.setContentsMargins(0, 0, 0, 0)

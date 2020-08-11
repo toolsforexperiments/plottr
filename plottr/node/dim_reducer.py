@@ -218,14 +218,14 @@ class DimensionAssignmentWidget(QtGui.QTreeWidget):
                 'options' : {},
             }
 
-    def getRole(self, name: str) -> Tuple[str, Any]:
+    def getRole(self, name: str) -> Tuple[str, Dict]:
         """
         Get the current role and its options for a dimension.
         :param name: 
         :return: 
         """
         role = self.choices[name]['roleSelectionWidget'].currentText()
-        opts = {}
+        opts: Dict = {}
         return role, opts
 
     def getRoles(self) -> Dict[str, Dict[str, Any]]:
