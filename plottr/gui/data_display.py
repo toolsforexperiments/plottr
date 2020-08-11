@@ -3,7 +3,7 @@
 UI elements for inspecting data structure and content.
 """
 
-from typing import Union, List, Tuple, Dict
+from typing import Union, List, Tuple, Dict, Any
 
 from .. import QtCore, QtWidgets, Signal, Slot
 from ..data.datadict import DataDictBase
@@ -20,10 +20,10 @@ class DataSelectionWidget(QtWidgets.QTreeWidget):
 
         self.setColumnCount(3)
         self.setHeaderLabels(['Name', 'Dependencies', 'Size'])
-        self.dataItems = {}
+        self.dataItems: Dict[str, Any] = {}
 
         self._dataStructure = DataDictBase()
-        self._dataShapes = {}
+        self._dataShapes: Dict[str, Tuple[int, ...]] = {}
         self._readonly = readonly
 
         self.setSelectionMode(self.MultiSelection)

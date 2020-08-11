@@ -117,7 +117,7 @@ class PlotWindow(QtWidgets.QMainWindow):
               an icon to use for the toolbar
         """
 
-        if node.ui is not None and node.useUi and node.uiClass is not None:
+        if node.useUi and node.ui is not None and node.uiClass is not None:
             dockArea = kwargs.get('dockArea', node.ui.preferredDockWidgetArea)
             visible = kwargs.get('visible', node.uiVisibleByDefault)
             icon = kwargs.get('icon', node.ui.icon)
