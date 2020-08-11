@@ -2,10 +2,12 @@
 
 Tools for numerical operations.
 """
-from typing import Sequence, Tuple, Union, List
+from typing import Sequence, Tuple, Union, List, Optional
 
 import numpy as np
 import pandas as pd
+
+from ..utils.misc import unwrap_optional
 
 INTTYPES = [int, np.int, np.int16, np.int32, np.int64]
 FLOATTYPES = [float, np.float, np.float16, np.float32, np.float64,
@@ -227,10 +229,10 @@ def guess_grid_from_sweep_direction(**axes: np.ndarray) \
              Sorted list of axes names, and shape tuple for the dataset.
     :raises: `ValueError` for incorrect input
     """
-    periods = []
+    periods_list = []
     sorting = []
-    names = []
-    size = None
+    names_list = []
+    size: Optional[int] = None
 
     if len(axes) < 1:
         raise ValueError("Empty input.")
@@ -249,8 +251,8 @@ def guess_grid_from_sweep_direction(**axes: np.ndarray) \
         # record for each dimension in which interval it repeats.
         period = find_direction_period(vals, ignore_last=True)
         if period is not None:
-            names.append(name)
-            periods.append(period)
+            names_list.append(name)
+            periods_list.append(period)
 
             # some dimensions will likely not have a finite period (because
             # there have been no repetitions (yet).
@@ -273,11 +275,13 @@ def guess_grid_from_sweep_direction(**axes: np.ndarray) \
         else:
             return None
 
+    size = unwrap_optional(size)
+
     # invert the order. we work from fastest to slowest repetition period.
     order = np.argsort(sorting)
-    periods = np.array(periods)[order]
+    periods = np.array(periods_list)[order]
     shape = periods.copy()
-    names = np.array(names)[order]
+    names = np.array(names_list)[order]
 
     divisor = 1
     for i, p in enumerate(periods):
@@ -380,7 +384,8 @@ def crop2d(x: np.ndarray, y: np.ndarray, *arr: np.ndarray) \
     :return: all arrays (incl. x and y), cropped.
     """
     xs, ys = joint_crop2d_rows_cols(x, y)
-    allarrs = [] + [x, y] + [a for a in arr]
+    empty_list: List[np.ndarray] = []
+    allarrs: List[np.ndarray] = empty_list + [x, y] + [a for a in arr]
     ret = [crop2d_from_xy(a, xs, ys) for a in allarrs]
     return tuple(ret)
 
