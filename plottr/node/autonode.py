@@ -1,11 +1,13 @@
-from typing import Dict, Any
+from typing import Dict, Any, Callable
 
 from .. import QtGui, QtWidgets
 from .node import Node, NodeWidget, updateOption
 
+connectCallableType = Callable[['AutoNodeGuiTemplate', str, Dict[str, Any], bool], None]
+
 
 class AutoNodeGuiTemplate(NodeWidget):
-    widgetConnection = dict()
+    widgetConnection: Dict[type, connectCallableType] = dict()
 
 
 def connectIntegerSpinbox(
