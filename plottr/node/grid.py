@@ -308,6 +308,8 @@ class DataGridderNodeWidget(NodeWidget):
         self.optGetters = {
             'grid': self.getGrid,
         }
+        if self.widget is None:
+            raise RuntimeError
         self.widget.optionSelected.connect(
             lambda x: self.signalOption('grid')
         )
@@ -430,7 +432,7 @@ class DataGridder(Node):
 
         return True
 
-    def process(self, dataIn: DataDict = None):
+    def process(self, dataIn: Optional[DataDictBase] = None):
         """Process the data."""
 
         # TODO: what would be nice is to change the correct inner axis order
@@ -482,7 +484,7 @@ class DataGridder(Node):
 
         if hasattr(dout, 'shape'):
             self.shapeDetermined.emit({'order': order,
-                                       'shape': dout.shape()})
+                                       'shape': dout.shape()})  # type: ignore[attr-defined]
 
         return dict(dataOut=dout)
 
