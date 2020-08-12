@@ -26,13 +26,7 @@ jobs:
       uses: actions/setup-python@v2
       with:
         python-version: ${{ matrix.python-version }}
-    - name: Install dependencies
-      run: |
-        python -m pip install --upgrade pip setuptools wheel
-        pip install -r requirements.txt
-        pip install -r test_requirements.txt
-        pip install pyqt5
-        pip install -e .
+    - uses: ./.github/actions/install-dependencies-and-plottr
     - name: Test with pytest
       run: |
         pytest test/pytest
