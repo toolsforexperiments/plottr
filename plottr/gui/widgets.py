@@ -7,7 +7,7 @@ Common GUI widgets that are re-used across plottr.
 from typing import Union, List, Tuple, Optional, Type, Sequence, Dict
 
 from .tools import dictToTreeWidgetItems
-from plottr import QtGui, QtCore, Flowchart
+from plottr import QtCore, Flowchart, QtWidgets
 from plottr.node import Node, linearFlowchart
 from ..plot import PlotNode, PlotWidgetContainer, MPLAutoPlot
 
@@ -15,7 +15,7 @@ __author__ = 'Wolfgang Pfaff'
 __license__ = 'MIT'
 
 
-class FormLayoutWrapper(QtGui.QWidget):
+class FormLayoutWrapper(QtWidgets.QWidget):
     """
     Simple wrapper widget for forms.
     Expects a list of tuples of the form (label, widget),
@@ -23,13 +23,13 @@ class FormLayoutWrapper(QtGui.QWidget):
     Labels have to be unique.
     """
 
-    def __init__(self, elements: List[Tuple[str, QtGui.QWidget]],
-                 parent: Union[None, QtGui.QWidget] = None):
+    def __init__(self, elements: List[Tuple[str, QtWidgets.QWidget]],
+                 parent: Union[None, QtWidgets.QWidget] = None):
         super().__init__(parent)
 
         self.elements = {}
 
-        layout = QtGui.QFormLayout()
+        layout = QtWidgets.QFormLayout()
         for lbl, widget in elements:
             self.elements[lbl] = widget
             layout.addRow(lbl, widget)
@@ -37,7 +37,7 @@ class FormLayoutWrapper(QtGui.QWidget):
         self.setLayout(layout)
 
 
-class MonitorIntervalInput(QtGui.QWidget):
+class MonitorIntervalInput(QtWidgets.QWidget):
     """
     Simple form-like widget for entering a monitor/refresh interval.
     Only has a label and a spin-box as input.
@@ -51,8 +51,8 @@ class MonitorIntervalInput(QtGui.QWidget):
     def __init__(self, parent=None):
         super().__init__(parent)
 
-        self.spin = QtGui.QSpinBox()
-        layout = QtGui.QFormLayout()
+        self.spin = QtWidgets.QSpinBox()
+        layout = QtWidgets.QFormLayout()
         layout.addRow('Refresh interval (s)', self.spin)
         self.setLayout(layout)
 
@@ -63,7 +63,7 @@ class MonitorIntervalInput(QtGui.QWidget):
         self.intervalChanged.emit(val)
 
 
-class PlotWindow(QtGui.QMainWindow):
+class PlotWindow(QtWidgets.QMainWindow):
     """
     Simple MainWindow class for embedding flowcharts and plots.
 
@@ -80,10 +80,10 @@ class PlotWindow(QtGui.QMainWindow):
         self.setCentralWidget(self.plot)
         self.plotWidget: Optional[MPLAutoPlot] = None
 
-        self.nodeToolBar = QtGui.QToolBar('Node control', self)
+        self.nodeToolBar = QtWidgets.QToolBar('Node control', self)
         self.addToolBar(self.nodeToolBar)
 
-        self.nodeWidgets: Dict[str, QtGui.QDockWidget] = {}
+        self.nodeWidgets: Dict[str, QtWidgets.QDockWidget] = {}
         if fc is not None:
             self.addNodeWidgetsFromFlowchart(fc, **kw)
 
@@ -117,12 +117,12 @@ class PlotWindow(QtGui.QMainWindow):
               an icon to use for the toolbar
         """
 
-        if node.useUi and node.uiClass is not None:
+        if node.ui is not None and node.useUi and node.uiClass is not None:
             dockArea = kwargs.get('dockArea', node.ui.preferredDockWidgetArea)
             visible = kwargs.get('visible', node.uiVisibleByDefault)
             icon = kwargs.get('icon', node.ui.icon)
 
-            d = QtGui.QDockWidget(node.name(), self)
+            d = QtWidgets.QDockWidget(node.name(), self)
             d.setWidget(node.ui)
             self.nodeWidgets[node.name()] = d
             self.addDockWidget(dockArea, d)
@@ -183,7 +183,7 @@ def makeFlowchartWithPlotWindow(nodes: List[Tuple[str, Type[Node]]], **kwargs) \
     return win, fc
 
 
-class SnapshotWidget(QtGui.QTreeWidget):
+class SnapshotWidget(QtWidgets.QTreeWidget):
 
     def __init__(self, parent=None):
         super().__init__(parent)

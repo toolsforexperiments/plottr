@@ -1,7 +1,6 @@
 import os
 
-from pyqtgraph import QtCore, QtGui
-QtWidgets = QtGui
+from pyqtgraph.Qt import QtCore, QtGui, QtWidgets
 Signal = QtCore.pyqtSignal
 Slot = QtCore.pyqtSlot
 

@@ -1,6 +1,6 @@
 from typing import Dict, Any
 
-from .. import QtGui
+from .. import QtGui, QtWidgets
 from .node import Node, NodeWidget, updateOption
 
 
@@ -14,7 +14,7 @@ def connectIntegerSpinbox(
         specs: Dict[str, Any],
         confirm: bool):
 
-    widget = QtGui.QSpinBox()
+    widget = QtWidgets.QSpinBox()
     widget.setValue(specs.get('initialValue', 1))
     if not confirm:
         widget.valueChanged.connect(lambda x: gui.signalOption(optionName))
@@ -30,7 +30,7 @@ def connectFloatSpinbox(
         specs: Dict[str, Any],
         confirm: bool):
 
-    widget = QtGui.QDoubleSpinBox()
+    widget = QtWidgets.QDoubleSpinBox()
     widget.setValue(specs.get('initialValue', 1))
     if not confirm:
         widget.valueChanged.connect(lambda x: gui.signalOption(optionName))
@@ -50,7 +50,7 @@ class AutoNodeGui(AutoNodeGuiTemplate):
 
     def __init__(self, parent=None, node=None):
         super().__init__(parent)
-        self.layout = QtGui.QFormLayout()
+        self.layout = QtWidgets.QFormLayout()
         self.setLayout(self.layout)
 
     def addOption(self, name: str, specs: Dict[str, Any], confirm: bool):
@@ -63,7 +63,7 @@ class AutoNodeGui(AutoNodeGuiTemplate):
         self.layout.addRow(name, widget)
 
     def addConfirm(self):
-        widget = QtGui.QPushButton('Confirm')
+        widget = QtWidgets.QPushButton('Confirm')
         widget.pressed.connect(self.signalAllOptions)
         self.layout.addRow('', widget)
 

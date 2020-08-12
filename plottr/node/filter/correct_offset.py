@@ -1,13 +1,13 @@
 from typing import Sequence
 
-from plottr import QtGui, Signal, Slot
+from plottr import Signal, Slot, QtWidgets
 from plottr.node import Node, NodeWidget, updateOption
 from plottr.node.node import updateGuiQuietly, emitGuiUpdate
 from plottr.gui.widgets import FormLayoutWrapper
 from plottr.data.datadict import DataDictBase, MeshgridDataDict
 
 
-class DimensionCombo(QtGui.QComboBox):
+class DimensionCombo(QtWidgets.QComboBox):
     dimensionSelected = Signal(str)
 
     def __init__(self, parent=None, dimensionType='axes'):

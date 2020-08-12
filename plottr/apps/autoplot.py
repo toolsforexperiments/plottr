@@ -8,7 +8,7 @@ import time
 import argparse
 from typing import Union, Tuple, Optional, Type, List
 
-from .. import QtGui, QtCore, Flowchart, Signal, Slot
+from .. import QtCore, Flowchart, Signal, Slot, QtWidgets
 from .. import log as plottrlog
 from ..data.datadict import DataDictBase
 from ..data.datadict_storage import DDH5Loader
@@ -70,7 +70,7 @@ def autoplot(inputData: Union[None, DataDictBase] = None) \
     return fc, win
 
 
-class UpdateToolBar(QtGui.QToolBar):
+class UpdateToolBar(QtWidgets.QToolBar):
     """
     A very simple toolbar to enable monitoring or triggering based on a timer.
     Contains a timer whose interval can be set.
@@ -127,7 +127,7 @@ class AutoPlotMainWindow(PlotWindow):
     windowClosed = Signal()
 
     def __init__(self, fc: Flowchart,
-                 parent: Union[QtGui.QWidget, None] = None,
+                 parent: Union[QtWidgets.QWidget, None] = None,
                  monitor: bool = False,
                  monitorInterval: Union[int, None] = None,
                  loaderName: str = None,
@@ -149,7 +149,7 @@ class AutoPlotMainWindow(PlotWindow):
         self.setWindowTitle(windowTitle)
 
         # status bar
-        self.status = QtGui.QStatusBar()
+        self.status = QtWidgets.QStatusBar()
         self.setStatusBar(self.status)
 
         # menu bar
@@ -157,7 +157,7 @@ class AutoPlotMainWindow(PlotWindow):
         self.fileMenu = self.menu.addMenu('&Data')
 
         if self.loaderNode is not None:
-            refreshAction = QtGui.QAction('&Refresh', self)
+            refreshAction = QtWidgets.QAction('&Refresh', self)
             refreshAction.setShortcut('R')
             refreshAction.triggered.connect(self.refreshData)
             self.fileMenu.addAction(refreshAction)
@@ -251,7 +251,7 @@ class QCAutoPlotMainWindow(AutoPlotMainWindow):
     """
 
     def __init__(self, fc: Flowchart,
-                 parent: Union[QtGui.QWidget, None] = None,
+                 parent: Union[QtWidgets.QWidget, None] = None,
                  pathAndId: Union[Tuple[str, int], None] = None, **kw):
 
         super().__init__(fc, parent, **kw)
@@ -332,7 +332,7 @@ def autoplotDDH5(filepath: str = '', groupname: str = 'data') \
 
 
 def main(f, g):
-    app = QtGui.QApplication([])
+    app = QtWidgets.QApplication([])
     fc, win = autoplotDDH5(f, g)
 
     return app.exec_()
