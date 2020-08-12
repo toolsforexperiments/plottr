@@ -351,7 +351,7 @@ class DimensionReducerNodeWidget(NodeWidget):
 
     def __init__(self, node: Node = None):
         super().__init__(embedWidgetClass=DimensionReductionAssignmentWidget)
-
+        assert self.widget is not None
         self.optSetters = {
             'reductions': self.setReductions,
         }
@@ -603,6 +603,7 @@ class XYSelectorNodeWidget(NodeWidget):
 
     def __init__(self, node: Node = None):
         super().__init__(embedWidgetClass=XYSelectionWidget)
+        assert self.widget is not None
 
         self.optSetters = {
             'dimensionRoles': self.setRoles,
