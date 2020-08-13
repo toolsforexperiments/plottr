@@ -876,12 +876,12 @@ class AutoPlot(_MPLPlotWidget):
 
         self._plotData(adjustSize=True)
 
-    def _makeAxes(self, nAxes: int) -> Axes:
+    def _makeAxes(self, nAxes: int) -> List[Axes]:
         """Create a grid of axes.
         We try to keep the grid as square as possible.
         """
         nrows = int(nAxes ** .5 + .5)
-        ncols = np.ceil(nAxes / nrows)
+        ncols = int(np.ceil(nAxes / nrows))
         axes = self.plot.clearFig(nrows, ncols, nAxes)
         return axes
 
