@@ -881,7 +881,7 @@ class AutoPlot(_MPLPlotWidget):
         We try to keep the grid as square as possible.
         """
         nrows = int(nAxes ** .5 + .5)
-        ncols = np.ceil(nAxes / nrows)
+        ncols = int(np.ceil(nAxes / nrows))
         axes = self.plot.clearFig(nrows, ncols, nAxes)
         return axes
 
