@@ -876,7 +876,7 @@ class AutoPlot(_MPLPlotWidget):
 
         self._plotData(adjustSize=True)
 
-    def _makeAxes(self, nAxes: int) -> Axes:
+    def _makeAxes(self, nAxes: int) -> List[Axes]:
         """Create a grid of axes.
         We try to keep the grid as square as possible.
         """
