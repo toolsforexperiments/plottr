@@ -8,6 +8,10 @@ if QT_LIB == 'PyQt5':
 elif QT_LIB == 'PySide2':
     Signal = QtCore.Signal
     Slot = QtCore.Slot
+else:
+    raise RuntimeError("Unsupported Qt backend. "
+                       "Plottr supports PyQt5 and PySide2. Got: "
+                       f"{QT_LIB} which is not supported.")
 
 from pyqtgraph.flowchart import Flowchart as pgFlowchart, Node as pgNode
 Flowchart = pgFlowchart
