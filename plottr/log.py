@@ -12,7 +12,7 @@ widget will capture the log and display it.
 # TODO: unify with the one from instrumentserver. should maybe go into labcore?
 
 import sys
-from PyQt5 import QtWidgets, QtGui
+from plottr import QtWidgets, QtGui
 import logging
 
 __author__ = 'Wolfgang Pfaff'
