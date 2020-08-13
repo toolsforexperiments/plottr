@@ -17,7 +17,7 @@ import time
 import sys
 import argparse
 
-from plottr import QtGui, QtCore, QtWidgets
+from plottr import QtCore, QtWidgets, Signal, Slot
 
 from .. import log as plottrlog
 from ..data.qcodes_dataset import (get_runs_from_db_as_dataframe,
@@ -41,8 +41,8 @@ def logger():
 class DateList(QtWidgets.QListWidget):
     """Displays a list of dates for which there are runs in the database."""
 
-    datesSelected = QtCore.pyqtSignal(list)
-    fileDropped = QtCore.pyqtSignal(str)
+    datesSelected = Signal(list)
+    fileDropped = Signal(str)
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -53,7 +53,7 @@ class DateList(QtWidgets.QListWidget):
         self.setSelectionMode(QtWidgets.QListView.ExtendedSelection)
         self.itemSelectionChanged.connect(self.sendSelectedDates)
 
-    @QtCore.pyqtSlot(list)
+    @Slot(list)
     def updateDates(self, dates):
         for d in dates:
             if len(self.findItems(d, QtCore.Qt.MatchExactly)) == 0:
@@ -72,7 +72,7 @@ class DateList(QtWidgets.QListWidget):
 
         self.sortItems(QtCore.Qt.DescendingOrder)
 
-    @QtCore.pyqtSlot()
+    @Slot()
     def sendSelectedDates(self):
         selection = [item.text() for item in self.selectedItems()]
         self.datesSelected.emit(selection)
@@ -124,8 +124,8 @@ class RunList(QtWidgets.QTreeWidget):
 
     cols = ['Run ID', 'Experiment', 'Sample', 'Name', 'Started', 'Completed', 'Records', 'GUID']
 
-    runSelected = QtCore.pyqtSignal(int)
-    runActivated = QtCore.pyqtSignal(int)
+    runSelected = Signal(int)
+    runActivated = Signal(int)
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -163,7 +163,7 @@ class RunList(QtWidgets.QTreeWidget):
         for i in range(len(self.cols)):
             self.resizeColumnToContents(i)
 
-    @QtCore.pyqtSlot()
+    @Slot()
     def selectRun(self):
         selection = self.selectedItems()
         if len(selection) == 0:
@@ -172,7 +172,7 @@ class RunList(QtWidgets.QTreeWidget):
         runId = int(selection[0].text(0))
         self.runSelected.emit(runId)
 
-    @QtCore.pyqtSlot(QtWidgets.QTreeWidgetItem, int)
+    @Slot(QtWidgets.QTreeWidgetItem, int)
     def activateRun(self, item, column):
         runId = int(item.text(0))
         self.runActivated.emit(runId)
@@ -191,7 +191,7 @@ class RunInfo(QtWidgets.QTreeWidget):
         self.setHeaderLabels(['Key', 'Value'])
         self.setColumnCount(2)
 
-    @QtCore.pyqtSlot(dict)
+    @Slot(dict)
     def setInfo(self, infoDict):
         self.clear()
 
@@ -211,8 +211,8 @@ class LoadDBProcess(QtCore.QObject):
     It's good to have this in a separate thread because it can be a bit slow
     for large databases.
     """
-    dbdfLoaded = QtCore.pyqtSignal(object)
-    pathSet = QtCore.pyqtSignal()
+    dbdfLoaded = Signal(object)
+    pathSet = Signal()
 
     def setPath(self, path: str):
         self.path = path
@@ -230,11 +230,11 @@ class QCodesDBInspector(QtWidgets.QMainWindow):
 
     #: `Signal ()` -- Emitted when when there's an update to the internally
     #: cached data (the *data base data frame* :)).
-    dbdfUpdated = QtCore.pyqtSignal()
+    dbdfUpdated = Signal()
 
     #: Signal (`dict`) -- emitted to communicate information about a given
     #: run to the widget that displays the information
-    _sendInfo = QtCore.pyqtSignal(dict)
+    _sendInfo = Signal(dict)
 
     def __init__(self, parent=None, dbPath=None):
         """Constructor for :class:`QCodesDBInspector`."""
@@ -355,14 +355,14 @@ class QCodesDBInspector(QtWidgets.QMainWindow):
         for runId, info in self._plotWindows.items():
             info['window'].close()
 
-    @QtCore.pyqtSlot()
+    @Slot()
     def showDBPath(self):
         tstamp = time.strftime("%Y-%m-%d %H:%M:%S")
         path = os.path.abspath(self.filepath)
         self.status.showMessage(f"{path} (loaded: {tstamp})")
 
     ### loading the DB and populating the widgets
-    @QtCore.pyqtSlot()
+    @Slot()
     def loadDB(self):
         """
         Open a file dialog that allows selecting a .db file for loading.
@@ -414,14 +414,14 @@ class QCodesDBInspector(QtWidgets.QMainWindow):
 
 
 
-    @QtCore.pyqtSlot()
+    @Slot()
     def updateDates(self):
         if self.dbdf.size > 0:
             dates = list(self.dbdf.groupby('started date').indices.keys())
             self.dateList.updateDates(dates)
 
     ### reloading the db
-    @QtCore.pyqtSlot()
+    @Slot()
     def refreshDB(self):
         if self.filepath is not None:
             if self.dbdf is not None and self.dbdf.size > 0:
@@ -431,7 +431,7 @@ class QCodesDBInspector(QtWidgets.QMainWindow):
 
             self.loadFullDB()
 
-    @QtCore.pyqtSlot(int)
+    @Slot(int)
     def setMonitorInterval(self, val):
         self.monitor.stop()
         if val > 0:
@@ -439,13 +439,13 @@ class QCodesDBInspector(QtWidgets.QMainWindow):
 
         self.monitorInput.spin.setValue(val)
 
-    @QtCore.pyqtSlot()
+    @Slot()
     def monitorTriggered(self):
         logger().debug('Refreshing DB')
         self.refreshDB()
 
     ### handling user selections
-    @QtCore.pyqtSlot(list)
+    @Slot(list)
     def setDateSelection(self, dates):
         if len(dates) > 0:
             selection = self.dbdf.loc[self.dbdf['started date'].isin(dates)].sort_index(ascending=False)
@@ -453,7 +453,7 @@ class QCodesDBInspector(QtWidgets.QMainWindow):
         else:
             self.runList.clear()
 
-    @QtCore.pyqtSlot(int)
+    @Slot(int)
     def setRunSelection(self, runId):
         ds = load_dataset_from(self.filepath, runId)
         snap = None
@@ -467,7 +467,7 @@ class QCodesDBInspector(QtWidgets.QMainWindow):
                        'QCoDeS Snapshot': snap}
         self._sendInfo.emit(contentInfo)
 
-    @QtCore.pyqtSlot(int)
+    @Slot(int)
     def plotRun(self, runId):
         fc, win = autoplotQcodesDataset(pathAndId=(self.filepath, runId))
         self._plotWindows[runId] = {

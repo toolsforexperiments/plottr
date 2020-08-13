@@ -10,7 +10,7 @@ import numpy as np
 
 from .node import Node, updateOption, NodeWidget
 from ..data.datadict import MeshgridDataDict, DataDict, DataDictBase
-from .. import QtGui, QtCore, QtWidgets
+from .. import QtCore, QtWidgets, Signal, Slot
 from plottr.icons import xySelectIcon
 
 __author__ = 'Wolfgang Pfaff'
@@ -69,7 +69,7 @@ class DimensionAssignmentWidget(QtWidgets.QTreeWidget):
     This needs to be done by inheriting classes.
     """
 
-    rolesChanged = QtCore.pyqtSignal(object)
+    rolesChanged = Signal(object)
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -242,7 +242,7 @@ class DimensionAssignmentWidget(QtWidgets.QTreeWidget):
             }
         return ret
 
-    @QtCore.pyqtSlot(str, str)
+    @Slot(str, str)
     def setDimInfo(self, dim: str, info: str = ''):
         try:
             item = self.findItems(dim, QtCore.Qt.MatchExactly, 0)[0]
@@ -250,7 +250,7 @@ class DimensionAssignmentWidget(QtWidgets.QTreeWidget):
         except IndexError:
             pass
 
-    @QtCore.pyqtSlot(dict)
+    @Slot(dict)
     def setDimInfos(self, infos: Dict[str, str]):
         for ax, info in infos.items():
             self.setInfo(ax, info)
@@ -420,7 +420,7 @@ class DimensionReducer(Node):
 
     #: A signal that emits (structure, shapes, type) when data structure has
     #: changed.
-    newDataStructure = QtCore.pyqtSignal(object, object, object)
+    newDataStructure = Signal(object, object, object)
 
     def __init__(self, *arg, **kw):
         self._reductions = {}

@@ -166,7 +166,7 @@ class ShapeSpecificationWidget(QtWidgets.QWidget):
         self.confirm.setEnabled(enable)
 
 
-class GridOptionWidget(QtGui.QWidget):
+class GridOptionWidget(QtWidgets.QWidget):
     """A widget that allows the user to specify how to grid data."""
 
     optionSelected = Signal(object)

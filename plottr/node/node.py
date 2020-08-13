@@ -121,7 +121,7 @@ class Node(NodeBase):
 
     #: A signal to notify the UI of option changes
     #: arguments is a dictionary of options and new values.
-    optionChangeNotification = QtCore.pyqtSignal(dict)
+    optionChangeNotification = Signal(dict)
 
     #: signal emitted when available data axes change
     #: emits a the list of names of new axes
@@ -141,7 +141,7 @@ class Node(NodeBase):
     dataShapesChanged = Signal(dict)
 
     #: when data structure changes, emits (structure, shapes, type)
-    newDataStructure = QtCore.pyqtSignal(object, object, object)
+    newDataStructure = Signal(object, object, object)
 
     #: developer flag for whether we actually want to raise of use the logging
     #: system
@@ -327,10 +327,10 @@ class NodeWidget(QtWidgets.QWidget):
 
     #: signal (args: object)) to emit to notify the node of a (changed)
     #: user option.
-    optionToNode = QtCore.pyqtSignal(object)
+    optionToNode = Signal(object)
 
     #: signal (args: (object)) all options to the node.
-    allOptionsToNode = QtCore.pyqtSignal(object)
+    allOptionsToNode = Signal(object)
 
     def __init__(self, parent: QtWidgets.QWidget = None,
                  embedWidgetClass: Type[QtWidgets.QWidget] = None,
@@ -372,7 +372,7 @@ class NodeWidget(QtWidgets.QWidget):
         """
         self.optSetters[opt](value)
 
-    @QtCore.pyqtSlot(dict)
+    @Slot(dict)
     def setOptionsFromNode(self, opts: Dict[str, Any]):
         """Set all options without triggering updates back to the node."""
         for opt, val in opts.items():
