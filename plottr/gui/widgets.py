@@ -7,7 +7,7 @@ Common GUI widgets that are re-used across plottr.
 from typing import Union, List, Tuple, Optional, Type, Sequence, Dict
 
 from .tools import dictToTreeWidgetItems
-from plottr import QtCore, Flowchart, QtWidgets
+from plottr import QtCore, Flowchart, QtWidgets, Signal, Slot
 from plottr.node import Node, linearFlowchart
 from ..plot import PlotNode, PlotWidgetContainer, MPLAutoPlot
 
@@ -46,7 +46,7 @@ class MonitorIntervalInput(QtWidgets.QWidget):
     of the spinbox has changed.
     """
 
-    intervalChanged = QtCore.pyqtSignal(int)
+    intervalChanged = Signal(int)
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -58,7 +58,7 @@ class MonitorIntervalInput(QtWidgets.QWidget):
 
         self.spin.valueChanged.connect(self.spinValueChanged)
 
-    @QtCore.pyqtSlot(int)
+    @Slot(int)
     def spinValueChanged(self, val):
         self.intervalChanged.emit(val)
 

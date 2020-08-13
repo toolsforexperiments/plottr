@@ -5,7 +5,7 @@ UI elements for inspecting data structure and content.
 
 from typing import Union, List, Tuple, Dict
 
-from .. import QtCore, QtWidgets
+from .. import QtCore, QtWidgets, Signal, Slot
 from ..data.datadict import DataDictBase
 
 
@@ -13,7 +13,7 @@ class DataSelectionWidget(QtWidgets.QTreeWidget):
     """A simple tree widget to show data fields and dependencies."""
 
     #: signal (List[str]) that is emitted when the selection is modified.
-    dataSelectionMade = QtCore.pyqtSignal(list)
+    dataSelectionMade = Signal(list)
 
     def __init__(self, parent: QtWidgets.QWidget = None, readonly: bool = False):
         super().__init__(parent)
@@ -46,7 +46,7 @@ class DataSelectionWidget(QtWidgets.QTreeWidget):
             label, deps, str(shape)
         ])
 
-    @QtCore.pyqtSlot(int)
+    @Slot(int)
     def _processCbChange(self, _):
         self.emitSelection()
 
