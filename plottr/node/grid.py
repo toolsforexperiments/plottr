@@ -6,7 +6,7 @@ A node and widget for placing data onto a grid (or not).
 
 from enum import Enum, unique
 
-from typing import Tuple, Dict, Any, List, Union
+from typing import Tuple, Dict, Any, List, Union, Optional
 
 from plottr import QtGui, Signal, Slot, QtWidgets
 from .node import Node, NodeWidget, updateOption, updateGuiFromNode
@@ -308,6 +308,7 @@ class DataGridderNodeWidget(NodeWidget):
         self.optGetters = {
             'grid': self.getGrid,
         }
+        assert self.widget is not None
         self.widget.optionSelected.connect(
             lambda x: self.signalOption('grid')
         )
@@ -430,7 +431,7 @@ class DataGridder(Node):
 
         return True
 
-    def process(self, dataIn: DataDict = None):
+    def process(self, dataIn: Optional[DataDictBase] = None):
         """Process the data."""
 
         # TODO: what would be nice is to change the correct inner axis order
@@ -438,8 +439,7 @@ class DataGridder(Node):
         #   don't get that information from the guess function, and it is also
         #   not reflected in the resulting data.
 
-        data = dataIn
-        if data is None:
+        if dataIn is None:
             return None
 
         data = super().process(dataIn=dataIn)
@@ -448,7 +448,7 @@ class DataGridder(Node):
         data = data['dataOut'].copy()
         self.axesList.emit(data.axes())
 
-        dout = None
+        dout: Optional[DataDictBase] = None
         method, opts = self._grid
         order = opts.get('order', data.axes())
 
@@ -483,7 +483,7 @@ class DataGridder(Node):
 
         if hasattr(dout, 'shape'):
             self.shapeDetermined.emit({'order': order,
-                                       'shape': dout.shape()})
+                                       'shape': dout.shape()})  # type: ignore[attr-defined]
 
         return dict(dataOut=dout)
 

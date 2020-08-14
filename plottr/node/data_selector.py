@@ -24,7 +24,7 @@ class DataDisplayWidget(NodeWidget):
 
     def __init__(self, node: Node = None):
         super().__init__(embedWidgetClass=DataSelectionWidget)
-
+        assert self.widget is not None
         self.optSetters = {
             'selectedData': self.setSelected,
         }
@@ -36,17 +36,21 @@ class DataDisplayWidget(NodeWidget):
             lambda x: self.signalOption('selectedData'))
 
     def setSelected(self, vals: List[str]):
+        assert self.widget is not None
         self.widget.setSelectedData(vals)
         self._updateOptions(vals)
 
     def getSelected(self) -> List[str]:
+        assert self.widget is not None
         return self.widget.getSelectedData()
 
     def setData(self, structure: DataDictBase,
                 shapes: Dict[str, Tuple[int, ...]], _: Any):
+        assert self.widget is not None
         self.widget.setData(structure, shapes)
 
     def setShape(self, shapes: Dict[str, Tuple[int, ...]]):
+        assert self.widget is not None
         self.widget.setShape(shapes)
 
     def _updateOptions(self, selected):

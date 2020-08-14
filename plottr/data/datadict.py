@@ -23,21 +23,21 @@ __license__ = 'MIT'
 # TODO: feature to compare if datadicts are equal not fully tested yet.
 
 
-def is_meta_key(key):
+def is_meta_key(key: str) -> bool:
     if key[:2] == '__' and key[-2:] == '__':
         return True
     else:
         return False
 
 
-def meta_key_to_name(key):
+def meta_key_to_name(key: str) -> str:
     if is_meta_key(key):
         return key[2:-2]
     else:
         raise ValueError(f'{key} is not a meta key.')
 
 
-def meta_name_to_key(name):
+def meta_name_to_key(name: str) -> str:
     return '__' + name + '__'
 
 
@@ -52,7 +52,7 @@ class DataDictBase(dict):
     def __init__(self, **kw):
         super().__init__(self, **kw)
 
-    def __eq__(self, other: object):
+    def __eq__(self, other: object) -> bool:
         """Check for content equality of two datadicts."""
         if not isinstance(other, DataDictBase):
             return NotImplemented
@@ -119,15 +119,15 @@ class DataDictBase(dict):
     # Assignment and retrieval of data and meta data
 
     @staticmethod
-    def _is_meta_key(key):
+    def _is_meta_key(key: str) -> bool:
         return is_meta_key(key)
 
     @staticmethod
-    def _meta_key_to_name(key):
+    def _meta_key_to_name(key: str) -> str:
         return meta_key_to_name(key)
 
     @staticmethod
-    def _meta_name_to_key(name):
+    def _meta_name_to_key(name: str) -> str:
         return meta_name_to_key(name)
 
     def data_items(self) -> Iterator[Tuple[str, Dict[str, Any]]]:
@@ -207,7 +207,7 @@ class DataDictBase(dict):
         else:
             return self[data][k]
 
-    def add_meta(self, key: str, value: Any, data: Union[str, None] = None):
+    def add_meta(self, key: str, value: Any, data: Union[str, None] = None) -> None:
         """
         Add meta info to the dataset.
 
@@ -227,7 +227,7 @@ class DataDictBase(dict):
 
     set_meta = add_meta
 
-    def delete_meta(self, key, data=None):
+    def delete_meta(self, key: str, data: Union[str, None] = None) -> None:
         """
         Remove meta data.
 
@@ -242,7 +242,7 @@ class DataDictBase(dict):
         else:
             del self[data][key]
 
-    def clear_meta(self, data: Union[str, None] = None):
+    def clear_meta(self, data: Union[str, None] = None) -> None:
         """
         Delete meta information.
 
@@ -483,7 +483,7 @@ class DataDictBase(dict):
 
     # validation and sanitizing
 
-    def validate(self):
+    def validate(self) -> bool:
         """
         Check the validity of the dataset.
 
@@ -687,7 +687,7 @@ class DataDict(DataDictBase):
         else:
             raise ValueError('Incompatible data structures.')
 
-    def append(self, newdata):
+    def append(self, newdata: "DataDict") -> None:
         """
         Append a datadict to this one by appending data values.
 
@@ -713,7 +713,7 @@ class DataDict(DataDictBase):
         for k, v in newvals.items():
             self[k]['values'] = v
 
-    def add_data(self, **kw: Sequence):
+    def add_data(self, **kw: Sequence) -> None:
         # TODO: fill non-given data with nan or none
         """
         Add data to all values. new data must be valid in itself.
@@ -803,7 +803,8 @@ class DataDict(DataDictBase):
         self.validate()
         if not self.is_expandable():
             raise ValueError('Data cannot be expanded.')
-        ret = DataDict(**self.structure(add_shape=False))
+        struct = misc.unwrap_optional(self.structure(add_shape=False))
+        ret = DataDict(**struct)
 
         if self.is_expanded():
             return self.copy()
@@ -1124,7 +1125,7 @@ def datadict_to_meshgrid(data: DataDict,
         inner_axis_order, target_shape = ret
 
     # construct new data
-    newdata = MeshgridDataDict(**data.structure(add_shape=False))
+    newdata = MeshgridDataDict(**misc.unwrap_optional(data.structure(add_shape=False)))
     axlist = data.axes(data.dependents()[0])
 
     for k, v in data.data_items():
@@ -1151,7 +1152,7 @@ def meshgrid_to_datadict(data: MeshgridDataDict) -> DataDict:
     :param data: input ``MeshgridDataDict``
     :return: flattened ``DataDict``
     """
-    newdata = DataDict(**data.structure(add_shape=False))
+    newdata = DataDict(**misc.unwrap_optional(data.structure(add_shape=False)))
     for k, v in data.data_items():
         val = v['values'].copy().reshape(-1)
         newdata[k]['values'] = val
