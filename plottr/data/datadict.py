@@ -675,6 +675,7 @@ class DataDict(DataDictBase):
 
         # FIXME: remove shape
         s = misc.unwrap_optional(self.structure(add_shape=False))
+        assert isinstance(s, DataDict)
         if DataDictBase.same_structure(self, newdata):
             for k, v in self.data_items():
                 val0 = self[k]['values']
@@ -726,6 +727,7 @@ class DataDict(DataDictBase):
         :return: None
         """
         dd = misc.unwrap_optional(self.structure(same_type=True))
+        assert isinstance(dd, DataDict)
         for k, v in kw.items():
             if isinstance(v, list):
                 dd[k]['values'] = np.array(v)
@@ -735,7 +737,8 @@ class DataDict(DataDictBase):
                 dd[k]['values'] = np.array([v])
 
         if dd.validate():
-            if self.nrecords() > 0:
+            records = self.nrecords()
+            if records is not None and records > 0:
                 self.append(dd)
             else:
                 for key, val in dd.data_items():
@@ -808,7 +811,9 @@ class DataDict(DataDictBase):
         ret = DataDict(**struct)
 
         if self.is_expanded():
-            return self.copy()
+            copy = self.copy()
+            assert isinstance(copy, DataDict)
+            return copy
 
         ishp = self._inner_shapes()
         size = max([np.prod(s) for s in ishp.values()])
@@ -869,6 +874,7 @@ class DataDict(DataDictBase):
         :return: sanitized DataDict
         """
         ret = super().sanitize()
+        assert isinstance(ret, DataDict)
         return ret.remove_invalid_entries()
 
     def remove_invalid_entries(self) -> 'DataDict':
@@ -881,6 +887,7 @@ class DataDict(DataDictBase):
         idxs = []
 
         ret = self.copy()
+        assert isinstance(ret, DataDict)
 
         # collect rows that are completely invalid
         for d in self.dependents():
@@ -1255,6 +1262,6 @@ def combine_datadicts(*dicts: DataDict) -> Union[DataDictBase, DataDict]:
                 dep_axes = [ax_map[ax] for ax in d[d_dep]['axes']]
                 ret[newdep] = d[d_dep]
                 ret[newdep]['axes'] = dep_axes
-
+    assert ret is not None
     ret.validate()
     return ret
