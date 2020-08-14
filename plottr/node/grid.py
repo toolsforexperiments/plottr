@@ -440,43 +440,44 @@ class DataGridder(Node):
         #   don't get that information from the guess function, and it is also
         #   not reflected in the resulting data.
 
-        if dataIn is None:
+        data = dataIn
+        if data is None:
             return None
 
         data = super().process(dataIn=dataIn)
         if data is None:
             return None
-        dataOut = data['dataOut'].copy()
+        data = data['dataOut'].copy()
         self.axesList.emit(data.axes())
 
         dout: Optional[DataDictBase] = None
         method, opts = self._grid
-        order = opts.get('order', dataOut.axes())
+        order = opts.get('order', data.axes())
 
-        if isinstance(dataOut, DataDict):
+        if isinstance(data, DataDict):
             if method is GridOption.noGrid:
-                dout = dataOut.expand()
+                dout = data.expand()
             elif method is GridOption.guessShape:
-                dout = dd.datadict_to_meshgrid(dataOut)
+                dout = dd.datadict_to_meshgrid(data)
             elif method is GridOption.specifyShape:
                 dout = dd.datadict_to_meshgrid(
-                    dataOut, target_shape=opts['shape'],
+                    data, target_shape=opts['shape'],
                     inner_axis_order=order,
                 )
 
-        elif isinstance(dataOut, MeshgridDataDict):
+        elif isinstance(data, MeshgridDataDict):
             if method is GridOption.noGrid:
-                dout = dd.meshgrid_to_datadict(dataOut)
+                dout = dd.meshgrid_to_datadict(data)
             elif method is GridOption.guessShape:
-                dout = dataOut
+                dout = data
             elif method is GridOption.specifyShape:
                 self.logger().warning(
                     f"Data is already on grid. Ignore shape.")
-                dout = dataOut
+                dout = data
 
         else:
             self.logger().error(
-                f"Unknown data type {type(dataOut)}.")
+                f"Unknown data type {type(data)}.")
             return None
 
         if dout is None:

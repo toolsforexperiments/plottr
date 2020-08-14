@@ -41,7 +41,7 @@ class PlotNode(Node):
         self.plotWidgetContainer = w
         self.newPlotData.connect(self.plotWidgetContainer.setData)
 
-    def process(self, dataIn: DataDictBase = None) -> Dict[str, Optional[DataDictBase]]:
+    def process(self, dataIn: DataDictBase = None) -> Dict[str, DataDictBase]:
         """Emits the :attr:`newPlotData` signal when called.
         Note: does not call the parent method :meth:`plottr.node.node.Node.process`.
 
