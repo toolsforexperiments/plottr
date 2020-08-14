@@ -1,7 +1,7 @@
 import sys
 import logging
 
-from pyqtgraph.Qt import QtCore, QtGui
+from plottr import QtCore, QtGui
 
 from plottr.utils import testdata
 from plottr.apps.autoplot import autoplot
