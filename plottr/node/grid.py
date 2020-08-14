@@ -308,8 +308,7 @@ class DataGridderNodeWidget(NodeWidget):
         self.optGetters = {
             'grid': self.getGrid,
         }
-        if self.widget is None:
-            raise RuntimeError
+        assert self.widget is not None
         self.widget.optionSelected.connect(
             lambda x: self.signalOption('grid')
         )
