@@ -439,8 +439,7 @@ class DataGridder(Node):
         #   don't get that information from the guess function, and it is also
         #   not reflected in the resulting data.
 
-        data = dataIn
-        if data is None:
+        if dataIn is None:
             return None
 
         data = super().process(dataIn=dataIn)
