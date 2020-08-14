@@ -227,7 +227,7 @@ class DataDictBase(dict):
 
     set_meta = add_meta
 
-    def delete_meta(self, key: str, data=None) -> None:
+    def delete_meta(self, key: str, data: Union[str, None] = None) -> None:
         """
         Remove meta data.
 

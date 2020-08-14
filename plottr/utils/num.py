@@ -384,8 +384,7 @@ def crop2d(x: np.ndarray, y: np.ndarray, *arr: np.ndarray) \
     :return: all arrays (incl. x and y), cropped.
     """
     xs, ys = joint_crop2d_rows_cols(x, y)
-    empty_list: List[np.ndarray] = []
-    allarrs: List[np.ndarray] = empty_list + [x, y] + [a for a in arr]
+    allarrs = [x, y] + [a for a in arr]
     ret = [crop2d_from_xy(a, xs, ys) for a in allarrs]
     return tuple(ret)
 
