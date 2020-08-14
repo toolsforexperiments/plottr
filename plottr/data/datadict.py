@@ -49,7 +49,7 @@ class DataDictBase(dict):
     values. This is implemented in inheriting classes.
     """
 
-    def __init__(self, **kw):
+    def __init__(self, **kw: Any):
         super().__init__(self, **kw)
 
     def __eq__(self, other: object) -> bool:
@@ -332,8 +332,9 @@ class DataDictBase(dict):
         if len(data) < 2:
             return True
 
-        def empty_structure(d):
+        def empty_structure(d: 'DataDictBase') -> 'DataDictBase':
             s = d.structure(include_meta=False, add_shape=check_shape)
+            assert s is not None
             for k, v in s.data_items():
                 if 'values' in v:
                     del s[k]['values']
@@ -613,7 +614,7 @@ class DataDictBase(dict):
         """
         return cp.deepcopy(self)
 
-    def astype(self, dtype) -> 'DataDictBase':
+    def astype(self, dtype: np.dtype) -> 'DataDictBase':
         """
         Convert all data values to given dtype.
 
@@ -979,7 +980,7 @@ class MeshgridDataDict(DataDictBase):
             return np.array(self.data_vals(d)).shape
         return None
 
-    def validate(self):
+    def validate(self) -> bool:
         """
         Validation of the dataset.
 
@@ -1025,7 +1026,7 @@ class MeshgridDataDict(DataDictBase):
 
         return True
 
-    def reorder_axes(self, **pos) -> 'MeshgridDataDict':
+    def reorder_axes(self, **pos: int) -> 'MeshgridDataDict':
         """
         Reorder the axes for all data.
 
