@@ -1,7 +1,7 @@
 import sys
 import logging
 
-from pyqtgraph.Qt import QtCore, QtGui
+from plottr import QtCore, QtWidgets
 
 from plottr.utils import testdata
 from plottr.apps.autoplot import autoplot
@@ -18,11 +18,11 @@ def main():
     plottrlog.LEVEL = logging.DEBUG
     data = make_data()
 
-    app = QtGui.QApplication([])
+    app = QtWidgets.QApplication([])
     fc, win = autoplot(inputData=data)
 
     if (sys.flags.interactive != 1) or not hasattr(QtCore, 'PYQT_VERSION'):
-        QtGui.QApplication.instance().exec_()
+        QtWidgets.QApplication.instance().exec_()
 
 
 if __name__ == '__main__':

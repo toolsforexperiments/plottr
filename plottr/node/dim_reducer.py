@@ -304,7 +304,7 @@ class DimensionReductionAssignmentWidget(DimensionAssignmentWidget):
             self._setElementSelectionInfo(dim)
 
     def elementSelectionSlider(self, nvals: int, value: int = 0):
-        w = QtWidgets.QSlider(0x01)
+        w = QtWidgets.QSlider(QtCore.Qt.Horizontal)
         w.setMinimum(0)
         w.setMaximum(nvals - 1)
         w.setSingleStep(1)

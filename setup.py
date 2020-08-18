@@ -25,6 +25,7 @@ setup(
         'numpy',
         'lmfit',
         'h5py>=2.10.0',
+        'qtpy>=1.9.0'
     ],
     classifiers=[
         'Development Status :: 3 - Alpha',
@@ -37,7 +38,7 @@ setup(
         'Topic :: Scientific/Engineering'
     ],
     python_requires='>=3.6',
-    extras_require={'PyQt5': "PyQt5"},
+    extras_require={'PyQt5': "PyQt5", "PySide2": "PySide2"},
     entry_points={
         "console_scripts": [
             "plottr-monitr = plottr.apps.monitr:script",

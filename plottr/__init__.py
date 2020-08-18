@@ -1,8 +1,9 @@
 import os
 
-from pyqtgraph.Qt import QtCore, QtGui, QtWidgets
-Signal = QtCore.pyqtSignal
-Slot = QtCore.pyqtSlot
+from qtpy import QtCore, QtGui, QtWidgets
+
+Signal = QtCore.Signal
+Slot = QtCore.Slot
 
 from pyqtgraph.flowchart import Flowchart as pgFlowchart, Node as pgNode
 Flowchart = pgFlowchart
