@@ -793,6 +793,7 @@ class AutoPlot(_MPLPlotWidget):
             dataLimits = {}
             for n in data.axes() + data.dependents():
                 vals = data.data_vals(n)
+                assert isinstance(vals, np.ndarray)
                 dataLimits[n] = vals.min(), vals.max()
 
         result = {
