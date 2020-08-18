@@ -896,15 +896,17 @@ class DataDict(DataDictBase):
             if len(ishp[d]) == 0:
                 rows = self.data_vals(d)
             else:
-                rows = self.data_vals(d).reshape(-1, np.prod(ishp[d]))
+                datavals = self.data_vals(d)
+                assert isinstance(datavals, np.ndarray)
+                rows = datavals.reshape(-1, np.prod(ishp[d]))
 
             _idxs = np.array([])
 
             # get indices of all rows that are fully None
             if len(ishp[d]) == 0:
-                _newidxs = np.where(rows == None)[0]
+                _newidxs = np.where(rows is None)[0]
             else:
-                _newidxs = np.where(np.all(rows == None, axis=-1))[0]
+                _newidxs = np.where(np.all(rows is None, axis=-1))[0]
             _idxs = np.append(_idxs, _newidxs)
 
             # get indices for all rows that are fully NaN. works only
