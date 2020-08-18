@@ -358,7 +358,7 @@ def datadict_from_hdf5(basepath: str,
     return dd
 
 
-def all_datadicts_from_hdf5(basepath: str, *args, **kwargs):
+def all_datadicts_from_hdf5(basepath: str, **kwargs):
     if len(basepath) > len(DATAFILEXT) and \
             basepath[-len(DATAFILEXT):] == DATAFILEXT:
         filepath = basepath
@@ -375,7 +375,7 @@ def all_datadicts_from_hdf5(basepath: str, *args, **kwargs):
             keys = [k for k in f.keys()]
 
         for k in keys:
-            ret[k] = datadict_from_hdf5(basepath, groupname=k, *args, **kwargs)
+            ret[k] = datadict_from_hdf5(basepath=basepath, groupname=k, **kwargs)
 
     return ret
 
