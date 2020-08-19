@@ -364,7 +364,9 @@ class DataDictBase(dict):
         :param same_type: if `True`, return type will be the one of the
                           object this is called on. Else, DataDictBase.
 
-        :return: The DataDictBase containing the structure only.
+        :return: The DataDict containing the structure only. The exact type
+                     is the same as the type of ``self``
+
         """
         if add_shape:
             warnings.warn("'add_shape' is deprecated and will be ignored",
