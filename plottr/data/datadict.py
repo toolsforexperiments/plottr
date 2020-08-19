@@ -613,8 +613,7 @@ class DataDictBase(dict):
 
         :return: A copy of the dataset.
         """
-        data = cp.deepcopy(self)
-        return data
+        return cp.deepcopy(self)
 
     def astype(self: T, dtype: np.dtype) -> T:
         """
