@@ -676,7 +676,7 @@ class DataDict(DataDictBase):
         """
 
         # FIXME: remove shape
-        s: "DataDict" = misc.unwrap_optional(self.structure(add_shape=False))
+        s = misc.unwrap_optional(self.structure(add_shape=False))
         if DataDictBase.same_structure(self, newdata):
             for k, v in self.data_items():
                 val0 = self[k]['values']
@@ -727,7 +727,7 @@ class DataDict(DataDictBase):
         :param kw: one array per data field (none can be omitted).
         :return: None
         """
-        dd: "DataDict" = misc.unwrap_optional(self.structure(same_type=True))
+        dd = misc.unwrap_optional(self.structure(same_type=True))
         for k, v in kw.items():
             if isinstance(v, list):
                 dd[k]['values'] = np.array(v)
@@ -811,7 +811,7 @@ class DataDict(DataDictBase):
         ret = DataDict(**struct)
 
         if self.is_expanded():
-            copy: "DataDict" = self.copy()
+            copy = self.copy()
             return copy
 
         ishp = self._inner_shapes()
@@ -872,7 +872,7 @@ class DataDict(DataDictBase):
 
         :return: sanitized DataDict
         """
-        ret: "DataDict" = super().sanitize()
+        ret = super().sanitize()
         return ret.remove_invalid_entries()
 
     def remove_invalid_entries(self) -> 'DataDict':
@@ -884,7 +884,7 @@ class DataDict(DataDictBase):
         ishp = self._inner_shapes()
         idxs = []
 
-        ret: "DataDict" = self.copy()
+        ret = self.copy()
 
         # collect rows that are completely invalid
         for d in self.dependents():
