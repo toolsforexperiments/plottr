@@ -1080,7 +1080,11 @@ def guess_shape_from_datadict(data: DataDict) -> \
     shapes = {}
     for d in data.dependents():
         axnames = data.axes(d)
-        axes = {a: data.data_vals(a) for a in axnames}
+        axes: Dict[str, np.ndarray] = {}
+        for a in axnames:
+            axdata = data.data_vals(a)
+            assert isinstance(axdata, np.ndarray)
+            axes[a] = axdata
         shapes[d] = num.guess_grid_from_sweep_direction(**axes)
 
     return shapes
@@ -1121,12 +1125,15 @@ def datadict_to_meshgrid(data: DataDict,
     if not use_existing_shape and data.is_expandable():
         data = data.expand()
     elif use_existing_shape:
-        target_shape = data.dependents()[0].shape
+        target_shape = list(data.shapes().values())[0]
 
     # guess what the shape likely is.
     if target_shape is None:
         shp_specs = guess_shape_from_datadict(data)
-        shps = [shape for (order, shape) in shp_specs.values()]
+        shps = []
+        for order_shape in shp_specs.values():
+            assert order_shape is not None
+            shps.append(order_shape[1])
         if len(set(shps)) > 1:
             raise ValueError('Cannot determine unique shape for all data.')
 
