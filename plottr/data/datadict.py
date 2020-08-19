@@ -8,7 +8,7 @@ import copy as cp
 
 import numpy as np
 from functools import reduce
-from typing import List, Tuple, Dict, Sequence, Union, Any, Iterator, Optional
+from typing import List, Tuple, Dict, Sequence, Union, Any, Iterator, Optional, TypeVar, cast
 
 from plottr.utils import num, misc
 
@@ -40,6 +40,8 @@ def meta_key_to_name(key: str) -> str:
 def meta_name_to_key(name: str) -> str:
     return '__' + name + '__'
 
+
+T = TypeVar('T', bound='DataDictBase')
 
 class DataDictBase(dict):
     """
@@ -266,7 +268,7 @@ class DataDictBase(dict):
                 self.delete_meta(m, data)
 
     def extract(self, data: List[str], include_meta: bool = True,
-                copy: bool = True, sanitize: bool = True) -> 'DataDictBase':
+                copy: bool = True, sanitize: bool = True) -> T:
         """
         Extract data from a dataset.
 
@@ -293,7 +295,7 @@ class DataDictBase(dict):
                 if a not in data:
                     data.append(a)
 
-        ret = self.__class__()
+        ret = cast(T, self.__class__())
         for d in data:
             if copy:
                 ret[d] = cp.deepcopy(self[d])
@@ -316,7 +318,7 @@ class DataDictBase(dict):
     # info about structure
 
     @staticmethod
-    def same_structure(*data: 'DataDictBase',
+    def same_structure(*data: T,
                        check_shape: bool = False) -> bool:
         """
         Check if all supplied DataDicts share the same data structure
@@ -333,8 +335,7 @@ class DataDictBase(dict):
             return True
 
         def empty_structure(d: 'DataDictBase') -> 'DataDictBase':
-            s = d.structure(include_meta=False, add_shape=check_shape)
-            assert s is not None
+            s: T = misc.unwrap_optional(d.structure(include_meta=False, add_shape=check_shape))
             for k, v in s.data_items():
                 if 'values' in v:
                     del s[k]['values']
@@ -351,7 +352,7 @@ class DataDictBase(dict):
 
     def structure(self, add_shape: bool = False,
                   include_meta: bool = True,
-                  same_type: bool = False) -> Optional['DataDictBase']:
+                  same_type: bool = False) -> Optional[T]:
         """
         Get the structure of the DataDict.
 
@@ -371,7 +372,7 @@ class DataDictBase(dict):
         add_shape = False
 
         if self.validate():
-            s = DataDictBase()
+            s = cast(T, self.__class__())
             for n, v in self.data_items():
                 v2 = v.copy()
                 v2.pop('values')
@@ -384,7 +385,7 @@ class DataDictBase(dict):
                 s.clear_meta()
 
             if same_type:
-                s = self.__class__(**s)
+                s = cast(T, self.__class__(**s))
 
             return s
         return None
@@ -528,7 +529,7 @@ class DataDictBase(dict):
 
         return True
 
-    def remove_unused_axes(self) -> 'DataDictBase':
+    def remove_unused_axes(self) -> T:
         """
         Removes axes not associated with dependents.
 
@@ -536,7 +537,7 @@ class DataDictBase(dict):
         """
         dependents = self.dependents()
         unused = []
-        ret = self.copy()
+        ret: T = self.copy()
 
         for n, v in self.data_items():
             used = False
@@ -554,7 +555,7 @@ class DataDictBase(dict):
 
         return ret
 
-    def sanitize(self) -> 'DataDictBase':
+    def sanitize(self) -> T:
         """
         Clean-up tasks:
         * removes unused axes.
@@ -581,8 +582,8 @@ class DataDictBase(dict):
         order = misc.reorder_indices_from_new_positions(axlist, **pos)
         return order, [axlist[i] for i in order]
 
-    def reorder_axes(self, data_names: Union[str, List[str], None] = None,
-                     **pos: int) -> 'DataDictBase':
+    def reorder_axes(self, data_names: Union[str, Sequence[str], None] = None,
+                     **pos: int) -> T:
         """
         Reorder data axes.
 
@@ -598,7 +599,7 @@ class DataDictBase(dict):
         if isinstance(data_names, str):
             data_names = [data_names]
 
-        ret = self.copy()
+        ret: T = self.copy()
         for n in data_names:
             neworder, newaxes = self.reorder_axes_indices(n, **pos)
             ret[n]['axes'] = newaxes
@@ -606,22 +607,23 @@ class DataDictBase(dict):
         ret.validate()
         return ret
 
-    def copy(self) -> 'DataDictBase':
+    def copy(self) -> T:
         """
         Make a copy of the dataset.
 
         :return: A copy of the dataset.
         """
-        return cp.deepcopy(self)
+        data = cast(T, cp.deepcopy(self))
+        return data
 
-    def astype(self, dtype: np.dtype) -> 'DataDictBase':
+    def astype(self, dtype: np.dtype) -> T:
         """
         Convert all data values to given dtype.
 
         :param dtype: np dtype.
         :return: copy of the dataset, with values as given type.
         """
-        ret = self.copy()
+        ret: T = self.copy()
         for k, v in ret.data_items():
             vals = v['values']
             if type(v['values']) not in [np.ndarray, np.ma.core.MaskedArray]:
@@ -630,12 +632,12 @@ class DataDictBase(dict):
 
         return ret
 
-    def mask_invalid(self) -> 'DataDictBase':
+    def mask_invalid(self) -> T:
         """
         Mask all invalid data in all values.
         :return: copy of the dataset with invalid entries (nan/None) masked.
         """
-        ret = self.copy()
+        ret: T = self.copy()
         for d, _ in self.data_items():
             arr = self.data_vals(d)
             vals = np.ma.masked_where(num.is_invalid(arr), arr, copy=True)
@@ -674,8 +676,7 @@ class DataDict(DataDictBase):
         """
 
         # FIXME: remove shape
-        s = misc.unwrap_optional(self.structure(add_shape=False))
-        assert isinstance(s, DataDict)
+        s: "DataDict" = misc.unwrap_optional(self.structure(add_shape=False))
         if DataDictBase.same_structure(self, newdata):
             for k, v in self.data_items():
                 val0 = self[k]['values']
@@ -726,8 +727,7 @@ class DataDict(DataDictBase):
         :param kw: one array per data field (none can be omitted).
         :return: None
         """
-        dd = misc.unwrap_optional(self.structure(same_type=True))
-        assert isinstance(dd, DataDict)
+        dd: "DataDict" = misc.unwrap_optional(self.structure(same_type=True))
         for k, v in kw.items():
             if isinstance(v, list):
                 dd[k]['values'] = np.array(v)
@@ -807,12 +807,11 @@ class DataDict(DataDictBase):
         self.validate()
         if not self.is_expandable():
             raise ValueError('Data cannot be expanded.')
-        struct = misc.unwrap_optional(self.structure(add_shape=False))
+        struct: DataDict = misc.unwrap_optional(self.structure(add_shape=False))
         ret = DataDict(**struct)
 
         if self.is_expanded():
-            copy = self.copy()
-            assert isinstance(copy, DataDict)
+            copy: "DataDict" = self.copy()
             return copy
 
         ishp = self._inner_shapes()
@@ -864,7 +863,7 @@ class DataDict(DataDictBase):
 
         return True
 
-    def sanitize(self) -> 'DataDict':
+    def sanitize(self) -> "DataDict":
         """
         Clean-up.
 
@@ -873,8 +872,7 @@ class DataDict(DataDictBase):
 
         :return: sanitized DataDict
         """
-        ret = super().sanitize()
-        assert isinstance(ret, DataDict)
+        ret: "DataDict" = super().sanitize()
         return ret.remove_invalid_entries()
 
     def remove_invalid_entries(self) -> 'DataDict':
@@ -886,8 +884,7 @@ class DataDict(DataDictBase):
         ishp = self._inner_shapes()
         idxs = []
 
-        ret = self.copy()
-        assert isinstance(ret, DataDict)
+        ret: "DataDict" = self.copy()
 
         # collect rows that are completely invalid
         for d in self.dependents():
@@ -1035,7 +1032,8 @@ class MeshgridDataDict(DataDictBase):
 
         return True
 
-    def reorder_axes(self, **pos: int) -> 'MeshgridDataDict':
+    def reorder_axes(self, data_names: Union[str, Sequence[str], None] = None,
+                     **pos: int) -> 'MeshgridDataDict':
         """
         Reorder the axes for all data.
 
@@ -1046,10 +1044,15 @@ class MeshgridDataDict(DataDictBase):
 
         :return: Dataset with re-ordered axes.
         """
-        transposed = []
-        ret = self.copy()
+        if data_names is None:
+            data_names = self.dependents()
+        if isinstance(data_names, str):
+            data_names = [data_names]
 
-        for n in self.dependents():
+        transposed = []
+        ret: "MeshgridDataDict" = self.copy()
+
+        for n in data_names:
             neworder, newaxes = self.reorder_axes_indices(n, **pos)
             ret[n]['axes'] = newaxes
             ret[n]['values'] = self[n]['values'].transpose(neworder)
