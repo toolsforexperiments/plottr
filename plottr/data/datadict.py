@@ -808,12 +808,11 @@ class DataDict(DataDictBase):
         self.validate()
         if not self.is_expandable():
             raise ValueError('Data cannot be expanded.')
-        struct: DataDict = misc.unwrap_optional(self.structure(add_shape=False))
+        struct = misc.unwrap_optional(self.structure(add_shape=False))
         ret = DataDict(**struct)
 
         if self.is_expanded():
-            copy = self.copy()
-            return copy
+            return self.copy()
 
         ishp = self._inner_shapes()
         size = max([np.prod(s) for s in ishp.values()])
