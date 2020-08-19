@@ -8,7 +8,7 @@ import copy as cp
 
 import numpy as np
 from functools import reduce
-from typing import List, Tuple, Dict, Sequence, Union, Any, Iterator, Optional, TypeVar, cast
+from typing import List, Tuple, Dict, Sequence, Union, Any, Iterator, Optional, TypeVar
 
 from plottr.utils import num, misc
 
@@ -267,7 +267,7 @@ class DataDictBase(dict):
             for m, _ in self.meta_items(data):
                 self.delete_meta(m, data)
 
-    def extract(self, data: List[str], include_meta: bool = True,
+    def extract(self: T, data: List[str], include_meta: bool = True,
                 copy: bool = True, sanitize: bool = True) -> T:
         """
         Extract data from a dataset.
@@ -295,7 +295,7 @@ class DataDictBase(dict):
                 if a not in data:
                     data.append(a)
 
-        ret = cast(T, self.__class__())
+        ret = self.__class__()
         for d in data:
             if copy:
                 ret[d] = cp.deepcopy(self[d])
@@ -334,8 +334,8 @@ class DataDictBase(dict):
         if len(data) < 2:
             return True
 
-        def empty_structure(d: 'DataDictBase') -> 'DataDictBase':
-            s: T = misc.unwrap_optional(d.structure(include_meta=False, add_shape=check_shape))
+        def empty_structure(d: T) -> T:
+            s = misc.unwrap_optional(d.structure(include_meta=False, add_shape=check_shape))
             for k, v in s.data_items():
                 if 'values' in v:
                     del s[k]['values']
@@ -350,7 +350,7 @@ class DataDictBase(dict):
 
         return True
 
-    def structure(self, add_shape: bool = False,
+    def structure(self: T, add_shape: bool = False,
                   include_meta: bool = True,
                   same_type: bool = False) -> Optional[T]:
         """
@@ -372,7 +372,7 @@ class DataDictBase(dict):
         add_shape = False
 
         if self.validate():
-            s = cast(T, self.__class__())
+            s = self.__class__()
             for n, v in self.data_items():
                 v2 = v.copy()
                 v2.pop('values')
@@ -385,7 +385,7 @@ class DataDictBase(dict):
                 s.clear_meta()
 
             if same_type:
-                s = cast(T, self.__class__(**s))
+                s = self.__class__(**s)
 
             return s
         return None
@@ -529,7 +529,7 @@ class DataDictBase(dict):
 
         return True
 
-    def remove_unused_axes(self) -> T:
+    def remove_unused_axes(self: T) -> T:
         """
         Removes axes not associated with dependents.
 
@@ -537,7 +537,7 @@ class DataDictBase(dict):
         """
         dependents = self.dependents()
         unused = []
-        ret: T = self.copy()
+        ret = self.copy()
 
         for n, v in self.data_items():
             used = False
@@ -555,7 +555,7 @@ class DataDictBase(dict):
 
         return ret
 
-    def sanitize(self) -> T:
+    def sanitize(self: T) -> T:
         """
         Clean-up tasks:
         * removes unused axes.
@@ -582,7 +582,7 @@ class DataDictBase(dict):
         order = misc.reorder_indices_from_new_positions(axlist, **pos)
         return order, [axlist[i] for i in order]
 
-    def reorder_axes(self, data_names: Union[str, Sequence[str], None] = None,
+    def reorder_axes(self: T, data_names: Union[str, Sequence[str], None] = None,
                      **pos: int) -> T:
         """
         Reorder data axes.
@@ -599,7 +599,7 @@ class DataDictBase(dict):
         if isinstance(data_names, str):
             data_names = [data_names]
 
-        ret: T = self.copy()
+        ret = self.copy()
         for n in data_names:
             neworder, newaxes = self.reorder_axes_indices(n, **pos)
             ret[n]['axes'] = newaxes
@@ -607,23 +607,23 @@ class DataDictBase(dict):
         ret.validate()
         return ret
 
-    def copy(self) -> T:
+    def copy(self: T) -> T:
         """
         Make a copy of the dataset.
 
         :return: A copy of the dataset.
         """
-        data = cast(T, cp.deepcopy(self))
+        data = cp.deepcopy(self)
         return data
 
-    def astype(self, dtype: np.dtype) -> T:
+    def astype(self: T, dtype: np.dtype) -> T:
         """
         Convert all data values to given dtype.
 
         :param dtype: np dtype.
         :return: copy of the dataset, with values as given type.
         """
-        ret: T = self.copy()
+        ret = self.copy()
         for k, v in ret.data_items():
             vals = v['values']
             if type(v['values']) not in [np.ndarray, np.ma.core.MaskedArray]:
@@ -632,12 +632,12 @@ class DataDictBase(dict):
 
         return ret
 
-    def mask_invalid(self) -> T:
+    def mask_invalid(self: T) -> T:
         """
         Mask all invalid data in all values.
         :return: copy of the dataset with invalid entries (nan/None) masked.
         """
-        ret: T = self.copy()
+        ret = self.copy()
         for d, _ in self.data_items():
             arr = self.data_vals(d)
             vals = np.ma.masked_where(num.is_invalid(arr), arr, copy=True)
