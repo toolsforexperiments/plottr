@@ -27,6 +27,8 @@ jobs:
       with:
         python-version: ${{ matrix.python-version }}
     - uses: ./.github/actions/install-dependencies-and-plottr
+    - name: Run Mypy
+      run: mypy plottr
     - name: Test with pytest
       run: |
         pytest test/pytest
