@@ -12,7 +12,7 @@ from plottr import QtGui, Signal, Slot, QtWidgets
 from .node import Node, NodeWidget, updateOption, updateGuiFromNode
 from ..data import datadict as dd
 from ..data.datadict import DataDict, MeshgridDataDict, DataDictBase
-from plottr.icons import gridIcon
+from plottr.icons import get_gridIcon
 
 __author__ = 'Wolfgang Pfaff'
 __license__ = 'MIT'
@@ -297,9 +297,8 @@ class GridOptionWidget(QtWidgets.QWidget):
 class DataGridderNodeWidget(NodeWidget):
     """Node widget for :class:`DataGridderNode`."""
 
-    icon = gridIcon
-
     def __init__(self, node: Node = None):
+        self.icon = get_gridIcon()
         super().__init__(embedWidgetClass=GridOptionWidget)
 
         self.optSetters = {

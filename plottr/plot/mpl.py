@@ -26,8 +26,8 @@ from ..utils import num
 from ..utils.num import interp_meshgrid_2d, centers2edges_2d
 from ..data.datadict import DataDictBase, DataDict, MeshgridDataDict
 
-from plottr.icons import (singleTracePlotIcon, multiTracePlotIcon, imagePlotIcon,
-                          colormeshPlotIcon, scatterPlot2dIcon)
+from plottr.icons import (get_singleTracePlotIcon, get_multiTracePlotIcon, get_imagePlotIcon,
+                          get_colormeshPlotIcon, get_scatterPlot2dIcon)
 
 
 __author__ = 'Wolfgang Pfaff'
@@ -614,13 +614,13 @@ class _AutoPlotToolBar(QtWidgets.QToolBar):
 
         super().__init__(name, parent=parent)
 
-        self.plotasMultiTraces = self.addAction(multiTracePlotIcon,
+        self.plotasMultiTraces = self.addAction(get_multiTracePlotIcon(),
                                                 'Multiple traces')
         self.plotasMultiTraces.setCheckable(True)
         self.plotasMultiTraces.triggered.connect(
             lambda: self.selectPlotType(PlotType.multitraces))
 
-        self.plotasSingleTraces = self.addAction(singleTracePlotIcon,
+        self.plotasSingleTraces = self.addAction(get_singleTracePlotIcon(),
                                                  'Individual traces')
         self.plotasSingleTraces.setCheckable(True)
         self.plotasSingleTraces.triggered.connect(
@@ -628,19 +628,19 @@ class _AutoPlotToolBar(QtWidgets.QToolBar):
 
         self.addSeparator()
 
-        self.plotasImage = self.addAction(imagePlotIcon,
+        self.plotasImage = self.addAction(get_imagePlotIcon(),
                                           'Image')
         self.plotasImage.setCheckable(True)
         self.plotasImage.triggered.connect(
             lambda: self.selectPlotType(PlotType.image))
 
-        self.plotasMesh = self.addAction(colormeshPlotIcon,
+        self.plotasMesh = self.addAction(get_colormeshPlotIcon(),
                                          'Color mesh')
         self.plotasMesh.setCheckable(True)
         self.plotasMesh.triggered.connect(
             lambda: self.selectPlotType(PlotType.colormesh))
 
-        self.plotasScatter2d = self.addAction(scatterPlot2dIcon,
+        self.plotasScatter2d = self.addAction(get_scatterPlot2dIcon(),
                                               'Scatter 2D')
         self.plotasScatter2d.setCheckable(True)
         self.plotasScatter2d.triggered.connect(
