@@ -2,3 +2,4 @@ qcodes
 pytest
 pytest-qt
 mypy
+PyQt5-stubs
