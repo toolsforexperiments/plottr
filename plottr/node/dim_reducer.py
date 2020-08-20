@@ -11,7 +11,7 @@ import numpy as np
 from .node import Node, updateOption, NodeWidget
 from ..data.datadict import MeshgridDataDict, DataDict, DataDictBase
 from .. import QtCore, QtWidgets, Signal, Slot
-from plottr.icons import xySelectIcon
+from plottr.icons import get_xySelectIcon
 
 __author__ = 'Wolfgang Pfaff'
 __license__ = 'MIT'
@@ -599,9 +599,8 @@ class DimensionReducer(Node):
 
 class XYSelectorNodeWidget(NodeWidget):
 
-    icon = xySelectIcon
-
     def __init__(self, node: Node = None):
+        self.icon = get_xySelectIcon()
         super().__init__(embedWidgetClass=XYSelectionWidget)
         assert self.widget is not None
 
