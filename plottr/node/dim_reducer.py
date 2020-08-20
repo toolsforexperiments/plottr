@@ -416,7 +416,7 @@ class DimensionReducer(Node):
     """
 
     nodeName = 'DimensionReducer'
-    uiClass = DimensionReducerNodeWidget
+    uiClass: Type["NodeWidget"] = DimensionReducerNodeWidget
 
     #: A signal that emits (structure, shapes, type) when data structure has
     #: changed.

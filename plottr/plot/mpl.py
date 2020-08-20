@@ -567,9 +567,10 @@ class _MPLPlotWidget(PlotWidget):
         self.addMplBarOptions()
         self.mplBar.setIconSize(QtCore.QSize(16,16))
 
-        self.layout = QtWidgets.QVBoxLayout(self)
-        self.layout.addWidget(self.plot)
-        self.layout.addWidget(self.mplBar)
+        layout = QtWidgets.QVBoxLayout(self)
+        layout.addWidget(self.plot)
+        layout.addWidget(self.mplBar)
+        self.setLayout(layout)
 
     def setMeta(self, data: DataDictBase):
         if data.has_meta('title'):
@@ -766,7 +767,7 @@ class AutoPlot(_MPLPlotWidget):
 
         # A toolbar for configuring the plot
         self.plotOptionsToolBar = _AutoPlotToolBar('Plot options', self)
-        self.layout.insertWidget(1, self.plotOptionsToolBar)
+        self.layout().insertWidget(1, self.plotOptionsToolBar)
 
         self.plotOptionsToolBar.plotTypeSelected.connect(
             self._plotTypeFromToolBar
