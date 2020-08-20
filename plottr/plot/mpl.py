@@ -5,7 +5,7 @@ plottr/plot/mpl.py : Tools for plotting with matplotlib.
 import logging
 import io
 from enum import Enum, unique, auto
-from typing import Dict, List, Tuple, Union, cast, Optional
+from typing import Dict, List, Tuple, Union, cast, Optional, Type
 from collections import OrderedDict
 
 # standard scientific computing imports
@@ -557,7 +557,7 @@ class _MPLPlotWidget(PlotWidget):
     Per default, add a canvas and the matplotlib NavBar.
     """
 
-    def __init__(self, parent=None):
+    def __init__(self, parent: Optional[QtWidgets.QWidget] = None):
         super().__init__(parent=parent)
 
         setMplDefaults()
@@ -752,7 +752,7 @@ class AutoPlot(_MPLPlotWidget):
     whereas magnitude and phase are separated into two panels.
     """
 
-    def __init__(self, parent=None):
+    def __init__(self, parent: Optional[QtWidgets.QWidget] = None):
         super().__init__(parent=parent)
 
         self.plotDataType = PlotDataType.unknown
@@ -760,7 +760,7 @@ class AutoPlot(_MPLPlotWidget):
         self.complexRepresentation = ComplexRepresentation.real
         self.complexPreference = ComplexRepresentation.realAndImag
 
-        self.dataType = type(None)
+        self.dataType: Optional[Type[DataDictBase]] = None
         self.dataStructure = None
         self.dataShapes = None
         self.dataLimits = None
@@ -782,7 +782,10 @@ class AutoPlot(_MPLPlotWidget):
 
     def _analyzeData(self, data: Optional[DataDictBase]) -> Dict[str, bool]:
         """checks data and compares with previous properties."""
-        dataType = type(data)
+        if data is not None:
+            dataType: Optional[Type[DataDictBase]] = type(data)
+        else:
+            dataType = None
 
         if data is None:
             dataStructure = None
