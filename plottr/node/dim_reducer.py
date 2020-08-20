@@ -210,12 +210,12 @@ class DimensionAssignmentWidget(QtWidgets.QTreeWidget):
                     w.deleteLater()
                     self.choices[dim]['optionsWidget'] = None
 
-            self.setItemWidget(item, 2, None)
+            self.setItemWidget(item, 2, QtWidgets.QWidget())
             self.setDimInfo(dim, '')
 
             self._currentRoles[dim] = {
-                'role' : role,
-                'options' : {},
+                'role': role,
+                'options': {},
             }
 
     def getRole(self, name: str) -> Tuple[str, Dict]:
