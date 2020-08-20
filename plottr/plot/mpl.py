@@ -652,7 +652,7 @@ class _AutoPlotToolBar(QtWidgets.QToolBar):
 
         self.plotComplexPolar = self.addAction('Mag/Phase')
         self.plotComplexPolar.setCheckable(True)
-        self.plotComplexPolar.triggered.connect(self.complexPolarSelected)
+        self.plotComplexPolar.triggered.connect(self._trigger_complex_mag_phase)
 
         self.plotTypeActions = OrderedDict({
             PlotType.multitraces: self.plotasMultiTraces,
@@ -664,6 +664,9 @@ class _AutoPlotToolBar(QtWidgets.QToolBar):
 
         self._currentPlotType = PlotType.empty
         self._currentlyAllowedPlotTypes: Tuple[PlotType, ...] = ()
+
+    def _trigger_complex_mag_phase(self, enable: bool):
+        self.complexPolarSelected.emit(enable)
 
     def selectPlotType(self, plotType: PlotType):
         """makes sure that the selected `plotType` is active (checked), all
