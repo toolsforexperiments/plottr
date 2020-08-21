@@ -14,6 +14,12 @@ https://plottr.readthedocs.io (work in progress...)
 
 ## Recent changes:
 
+## 2020-08-21
+
+- Workaround for bug with pyqt installed via conda that would result in blank icons.
+- Add experimental support for using Pyside2 as an alternative to PyQt5
+
+
 ## 2020-08-06
 
 #### Added
@@ -46,7 +52,12 @@ https://plottr.readthedocs.io (work in progress...)
 
 Plottr is installable from pypi with `pip install plottr`
 
-To install from source: clone the repo, and install using `pip install -e`
+To install with either PyQt5 or Pyside2 backend you can do
+``pip install plottr[PyQt5]`` or ``pip install plottr[Pyside2]`` Note that if 
+you have installed ``pyqt`` from ``(Ana)Conda`` you should not use any of these
+targets but do ``pip install plottr`` 
+
+To install from source: clone the repo, and install using `pip install -e .`
 
 ## inspectr: QCoDeS dataset inspection and (live) plotting
 

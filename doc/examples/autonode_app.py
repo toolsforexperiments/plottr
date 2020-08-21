@@ -6,7 +6,7 @@ import sys
 import numpy as np
 import lmfit
 
-from plottr import QtGui
+from plottr import QtWidgets
 from plottr.data.datadict import DataDictBase
 from plottr.data.qcodes_dataset import QCodesDSLoader
 from plottr.node.tools import linearFlowchart
@@ -61,7 +61,7 @@ def sinefit(self, dataIn: DataDictBase = None):
 
 
 def main(pathAndId):
-    app = QtGui.QApplication([])
+    app = QtWidgets.QApplication([])
 
     # flowchart and window
     fc = linearFlowchart(
