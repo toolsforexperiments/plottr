@@ -3,7 +3,7 @@
 Testing for axis settings / dimension-reduction widgets.
 """
 
-from plottr import QtGui
+from plottr import QtWidgets
 from plottr.data.datadict import datadict_to_meshgrid
 from plottr.gui.tools import widgetDialog
 from plottr.node.dim_reducer import XYSelectionWidget, DimensionReducer, XYSelector
@@ -15,7 +15,7 @@ def xySelectionWidget():
     def selectionCb(selection):
         print(selection)
 
-    app = QtGui.QApplication([])
+    app = QtWidgets.QApplication([])
     widget = XYSelectionWidget()
     widget.rolesChanged.connect(selectionCb)
 
@@ -32,7 +32,7 @@ def xySelectionWidget():
 
 def dimReduction(interactive=False):
     if not interactive:
-        app = QtGui.QApplication([])
+        app = QtWidgets.QApplication([])
 
     fc = linearFlowchart(('reducer', DimensionReducer))
     reducer = fc.nodes()['reducer']
@@ -51,7 +51,7 @@ def dimReduction(interactive=False):
 
 def xySelection(interactive=False):
     if not interactive:
-        app = QtGui.QApplication([])
+        app = QtWidgets.QApplication([])
 
     fc = linearFlowchart(('xysel', XYSelector))
     selector = fc.nodes()['xysel']
