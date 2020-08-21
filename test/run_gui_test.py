@@ -4,11 +4,11 @@ import argparse
 import importlib
 import inspect
 
-from plottr import QtGui, plottrPath
+from plottr import QtWidgets, plottrPath
 
 
 def run(func, **kw):
-    app = QtGui.QApplication([])
+    app = QtWidgets.QApplication([])
     _ = func(**kw)
     return app.exec_()
 

@@ -3,7 +3,7 @@
 Testing scripts for GUI elements for data display.
 """
 
-from plottr import QtGui
+from plottr import QtWidgets
 from plottr.gui.tools import widgetDialog
 from plottr.gui.data_display import DataSelectionWidget
 from plottr.utils import testdata
@@ -13,7 +13,7 @@ def test_dataSelectionWidget(readonly: bool = False):
     def selectionCb(selection):
         print(selection)
 
-    # app = QtGui.QApplication([])
+    # app = QtWidgets.QApplication([])
     widget = DataSelectionWidget(readonly=readonly)
     widget.dataSelectionMade.connect(selectionCb)
 
