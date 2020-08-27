@@ -335,7 +335,7 @@ def datadict_from_hdf5(basepath: str,
             if 'axes' in ds.attrs:
                 entry['axes'] = deh5ify(ds.attrs['axes']).tolist()
             else:
-                entry['axes'] = []
+                entry['axes'] = np.array([])
 
             if 'unit' in ds.attrs:
                 entry['unit'] = deh5ify(ds.attrs['unit'])
@@ -358,7 +358,7 @@ def datadict_from_hdf5(basepath: str,
     return dd
 
 
-def all_datadicts_from_hdf5(basepath: str, *args, **kwargs):
+def all_datadicts_from_hdf5(basepath: str, **kwargs):
     if len(basepath) > len(DATAFILEXT) and \
             basepath[-len(DATAFILEXT):] == DATAFILEXT:
         filepath = basepath
@@ -375,7 +375,7 @@ def all_datadicts_from_hdf5(basepath: str, *args, **kwargs):
             keys = [k for k in f.keys()]
 
         for k in keys:
-            ret[k] = datadict_from_hdf5(basepath, groupname=k, *args, **kwargs)
+            ret[k] = datadict_from_hdf5(basepath=basepath, groupname=k, **kwargs)
 
     return ret
 
@@ -384,8 +384,9 @@ def all_datadicts_from_hdf5(basepath: str, *args, **kwargs):
 
 class DDH5LoaderWidget(NodeWidget):
 
-    def __init__(self, node: Node = None):
+    def __init__(self, node: Node):
         super().__init__(node=node)
+        assert self.node is not None
 
         self.fileinput = QtWidgets.QLineEdit()
         self.groupinput = QtWidgets.QLineEdit('data')
@@ -431,7 +432,7 @@ class DDH5Loader(Node):
 
         super().__init__(name)
 
-        self.groupname = 'data'
+        self.groupname = 'data'  # type: ignore[misc]
         self.nLoadedRecords = 0
 
     @property
@@ -585,18 +586,19 @@ class DDH5Writer(object):
         to (1, ) for the scalar data, and (1, ...) for the others; in other words,
         an outer dimension with length 1 is added for all.
         """
+        assert self.file is not None
         self.datadict.add_data(**kwargs)
 
         if self.inserted_rows > 0:
             mode = AppendMode.new
         else:
             mode = AppendMode.none
-
-        if self.datadict.nrecords() > 0:
+        nrecords = self.datadict.nrecords()
+        if nrecords is not None and nrecords > 0:
             write_data_to_file(self.datadict,
                                self.file,
                                groupname=self.groupname,
                                append_mode=mode)
-            self.inserted_rows = self.datadict.nrecords()
+            self.inserted_rows = nrecords
             add_cur_time_attr(self.file, name='last_change')
             add_cur_time_attr(self.file[self.groupname], name='last_change')
