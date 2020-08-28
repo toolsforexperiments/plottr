@@ -1,9 +1,14 @@
+from typing import TYPE_CHECKING
 import os
 
-from qtpy import QtCore, QtGui, QtWidgets
-
-Signal = QtCore.Signal
-Slot = QtCore.Slot
+if TYPE_CHECKING:
+    from PyQt5 import QtCore, QtGui, QtWidgets
+    Signal = QtCore.pyqtSignal
+    Slot = QtCore.pyqtSlot
+else:
+    from qtpy import QtCore, QtGui, QtWidgets
+    Signal = QtCore.Signal
+    Slot = QtCore.Slot
 
 from pyqtgraph.flowchart import Flowchart as pgFlowchart, Node as pgNode
 Flowchart = pgFlowchart

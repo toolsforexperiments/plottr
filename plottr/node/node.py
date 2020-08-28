@@ -320,7 +320,7 @@ class NodeWidget(QtWidgets.QWidget):
     """
 
     #: icon for this node
-    icon = None
+    icon: Optional[QtGui.QIcon] = None
 
     #: preferred location of the widget when used as dock widget
     preferredDockWidgetArea = QtCore.Qt.LeftDockWidgetArea

@@ -5,7 +5,7 @@ plottr/plot/mpl.py : Tools for plotting with matplotlib.
 import logging
 import io
 from enum import Enum, unique, auto
-from typing import Dict, List, Tuple, Union, cast, Optional
+from typing import Dict, List, Tuple, Union, cast, Optional, Type
 from collections import OrderedDict
 
 # standard scientific computing imports
@@ -557,7 +557,7 @@ class _MPLPlotWidget(PlotWidget):
     Per default, add a canvas and the matplotlib NavBar.
     """
 
-    def __init__(self, parent=None):
+    def __init__(self, parent: Optional[QtWidgets.QWidget] = None):
         super().__init__(parent=parent)
 
         setMplDefaults()
@@ -567,9 +567,10 @@ class _MPLPlotWidget(PlotWidget):
         self.addMplBarOptions()
         self.mplBar.setIconSize(QtCore.QSize(16,16))
 
-        self.layout = QtWidgets.QVBoxLayout(self)
-        self.layout.addWidget(self.plot)
-        self.layout.addWidget(self.mplBar)
+        layout = QtWidgets.QVBoxLayout(self)
+        layout.addWidget(self.plot)
+        layout.addWidget(self.mplBar)
+        self.setLayout(layout)
 
     def setMeta(self, data: DataDictBase):
         if data.has_meta('title'):
@@ -651,7 +652,7 @@ class _AutoPlotToolBar(QtWidgets.QToolBar):
 
         self.plotComplexPolar = self.addAction('Mag/Phase')
         self.plotComplexPolar.setCheckable(True)
-        self.plotComplexPolar.triggered.connect(self.complexPolarSelected)
+        self.plotComplexPolar.triggered.connect(self._trigger_complex_mag_phase)
 
         self.plotTypeActions = OrderedDict({
             PlotType.multitraces: self.plotasMultiTraces,
@@ -663,6 +664,9 @@ class _AutoPlotToolBar(QtWidgets.QToolBar):
 
         self._currentPlotType = PlotType.empty
         self._currentlyAllowedPlotTypes: Tuple[PlotType, ...] = ()
+
+    def _trigger_complex_mag_phase(self, enable: bool):
+        self.complexPolarSelected.emit(enable)
 
     def selectPlotType(self, plotType: PlotType):
         """makes sure that the selected `plotType` is active (checked), all
@@ -751,7 +755,7 @@ class AutoPlot(_MPLPlotWidget):
     whereas magnitude and phase are separated into two panels.
     """
 
-    def __init__(self, parent=None):
+    def __init__(self, parent: Optional[QtWidgets.QWidget] = None):
         super().__init__(parent=parent)
 
         self.plotDataType = PlotDataType.unknown
@@ -759,14 +763,14 @@ class AutoPlot(_MPLPlotWidget):
         self.complexRepresentation = ComplexRepresentation.real
         self.complexPreference = ComplexRepresentation.realAndImag
 
-        self.dataType = type(None)
+        self.dataType: Optional[Type[DataDictBase]] = None
         self.dataStructure = None
         self.dataShapes = None
         self.dataLimits = None
 
         # A toolbar for configuring the plot
         self.plotOptionsToolBar = _AutoPlotToolBar('Plot options', self)
-        self.layout.insertWidget(1, self.plotOptionsToolBar)
+        self.layout().insertWidget(1, self.plotOptionsToolBar)
 
         self.plotOptionsToolBar.plotTypeSelected.connect(
             self._plotTypeFromToolBar
@@ -781,7 +785,10 @@ class AutoPlot(_MPLPlotWidget):
 
     def _analyzeData(self, data: Optional[DataDictBase]) -> Dict[str, bool]:
         """checks data and compares with previous properties."""
-        dataType = type(data)
+        if data is not None:
+            dataType: Optional[Type[DataDictBase]] = type(data)
+        else:
+            dataType = None
 
         if data is None:
             dataStructure = None

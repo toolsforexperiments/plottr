@@ -57,7 +57,10 @@ class DataFileContent(QtWidgets.QTreeWidget):
             metaParent = QtWidgets.QTreeWidgetItem(grpItem, ['[META]'])
 
             for dn, dv in grpData.data_items():
-                vals = [grpData.label(dn), str(grpData.meta_val('shape', dn))]
+                label = grpData.label(dn)
+                assert label is not None
+                vals = [label, str(grpData.meta_val('shape', dn))]
+
                 if dn in grpData.dependents():
                     vals.append(f'Data (depends on {str(tuple(grpData.axes(dn)))[1:]}')
                 else:

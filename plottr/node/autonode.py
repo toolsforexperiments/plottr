@@ -52,8 +52,8 @@ class AutoNodeGui(AutoNodeGuiTemplate):
 
     def __init__(self, parent=None, node=None):
         super().__init__(parent)
-        self.layout = QtWidgets.QFormLayout()
-        self.setLayout(self.layout)
+        layout = QtWidgets.QFormLayout()
+        self.setLayout(layout)
 
     def addOption(self, name: str, specs: Dict[str, Any], confirm: bool):
         optionType = specs.get('type', None)
@@ -62,12 +62,12 @@ class AutoNodeGui(AutoNodeGuiTemplate):
         if func is not None:
             widget = func(self, name, specs, confirm)
 
-        self.layout.addRow(name, widget)
+        self.layout().addRow(name, widget)
 
     def addConfirm(self):
         widget = QtWidgets.QPushButton('Confirm')
         widget.pressed.connect(self.signalAllOptions)
-        self.layout.addRow('', widget)
+        self.layout().addRow('', widget)
 
 
 class AutoNode(Node):

@@ -71,8 +71,9 @@ class PlotWidgetContainer(QtWidgets.QWidget):
         self.plotWidget: Optional["PlotWidget"] = None
         self.data: Optional[DataDictBase] = None
 
-        self.layout = QtWidgets.QVBoxLayout(self)
-        self.layout.setContentsMargins(0, 0, 0, 0)
+        layout: QtWidgets.QVBoxLayout = QtWidgets.QVBoxLayout(self)
+        layout.setContentsMargins(0, 0, 0, 0)
+        self.setLayout(layout)
 
     def setPlotWidget(self, widget: "PlotWidget"):
         """Set the plot widget.
@@ -88,12 +89,12 @@ class PlotWidgetContainer(QtWidgets.QWidget):
             return
 
         if self.plotWidget is not None:
-            self.layout.removeWidget(self.plotWidget)
+            self.layout().removeWidget(self.plotWidget)
             self.plotWidget.deleteLater()
 
         self.plotWidget = widget
         if self.plotWidget is not None:
-            self.layout.addWidget(widget)
+            self.layout().addWidget(widget)
             self.plotWidget.setData(self.data)
 
     def setData(self, data: DataDictBase):

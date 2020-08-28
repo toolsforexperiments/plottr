@@ -55,10 +55,10 @@ class ShapeSpecificationWidget(QtWidgets.QWidget):
         self._widgets = {}
         self._processChanges = True
 
-        self.layout = QtWidgets.QFormLayout()
+        layout = QtWidgets.QFormLayout()
         self.confirm = QtWidgets.QPushButton('set')
-        self.layout.addRow(self.confirm)
-        self.setLayout(self.layout)
+        layout.addRow(self.confirm)
+        self.setLayout(layout)
 
         self.confirm.clicked.connect(self.signalShape)
 
@@ -79,7 +79,7 @@ class ShapeSpecificationWidget(QtWidgets.QWidget):
             'name': nameWidget,
             'shape': dimLenWidget,
         }
-        self.layout.insertRow(idx, nameWidget, dimLenWidget)
+        self.layout().insertRow(idx, nameWidget, dimLenWidget)
 
         nameWidget.currentTextChanged.connect(
             lambda x: self._processAxisChange(idx, x)
@@ -94,10 +94,10 @@ class ShapeSpecificationWidget(QtWidgets.QWidget):
         if axes != self._axes:
             self._axes = axes
 
-            for i in range(self.layout.rowCount() - 1):
+            for i in range(self.layout().rowCount() - 1):
                 self._widgets[i]['name'].deleteLater()
                 self._widgets[i]['shape'].deleteLater()
-                self.layout.removeRow(0)
+                self.layout().removeRow(0)
 
             self._widgets = {}
 
