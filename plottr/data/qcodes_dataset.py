@@ -6,7 +6,7 @@ Dealing with qcodes dataset (the database) data in plottr.
 import os
 from itertools import chain
 from operator import attrgetter
-from typing import Dict, List, Set, Union, TYPE_CHECKING
+from typing import Dict, List, Set, Union, TYPE_CHECKING, Any, Tuple, Optional, cast
 
 import pandas as pd
 
@@ -37,7 +37,7 @@ def _get_names_of_standalone_parameters(paramspecs: List['ParamSpec']
 
 # Tools for extracting information on runs in a database
 
-def get_ds_structure(ds: 'DataSet'):
+def get_ds_structure(ds: 'DataSet') -> Dict[str, Any]:
     """
     Return the structure of the dataset, i.e., a dictionary in the form
         {
@@ -73,14 +73,14 @@ def get_ds_structure(ds: 'DataSet'):
     return structure
 
 
-def get_ds_info(ds: 'DataSet', get_structure: bool = True) -> Dict[str, Union[str,int]]:
+def get_ds_info(ds: 'DataSet', get_structure: bool = True) -> Dict[str, Union[str,int, Dict[str, Any]]]:
     """
     Get some info on a DataSet in dict.
 
     if get_structure is True: return the datastructure in that dataset
     as well (key is `structure' then).
     """
-    ret: Dict[str, Union[str, int]] = {}
+    ret: Dict[str, Union[str, int, Dict[str, Any]]] = {}
     ret['experiment'] = ds.exp_name
     ret['sample'] = ds.sample_name
     ret['name'] = ds.name
@@ -124,7 +124,7 @@ def load_dataset_from(path: str, run_id: int) -> 'DataSet':
 
 def get_runs_from_db(path: str, start: int = 0,
                      stop: Union[None, int] = None,
-                     get_structure: bool = False):
+                     get_structure: bool = False) -> Dict[int, Dict[str, Any]]:
     """
     Get a db ``overview`` dictionary from the db located in ``path``. The
     ``overview`` dictionary maps ``DataSet.run_id``s to dataset information as
@@ -152,7 +152,7 @@ def get_runs_from_db(path: str, start: int = 0,
     return overview
 
 
-def get_runs_from_db_as_dataframe(path):
+def get_runs_from_db_as_dataframe(path: str) -> pd.DataFrame:
     """
     Wrapper around `get_runs_from_db` that returns the overview
     as pandas dataframe.
@@ -203,8 +203,8 @@ class QCodesDSLoader(Node):
     uiClass = None
     useUi = False
 
-    def __init__(self, *arg, **kw):
-        self._pathAndId = (None, None)
+    def __init__(self, *arg: Any, **kw: Any):
+        self._pathAndId: Tuple[Optional[str], Optional[int]] = (None, None)
         self.nLoadedRecords = 0
 
         super().__init__(*arg, **kw)
@@ -212,22 +212,25 @@ class QCodesDSLoader(Node):
     ### Properties
 
     @property
-    def pathAndId(self):
+    def pathAndId(self) -> Tuple[Optional[str], Optional[int]]:
         return self._pathAndId
 
     # see https://github.com/python/mypy/issues/1362
     @pathAndId.setter  # type: ignore
     @updateOption('pathAndId')
-    def pathAndId(self, val):
+    def pathAndId(self, val: Tuple[Optional[str], Optional[int]]) -> None:
         if val != self.pathAndId:
             self._pathAndId = val
             self.nLoadedRecords = 0
 
     ### processing
-
-    def process(self, **kw):
+    # mypy does not correctly see the return annotation of pathAndId due to lack of support
+    # for decorated properties
+    def process(self, dataIn: DataDictBase = None) -> Optional[Dict[str, Any]]:  # type: ignore[return]
+        if dataIn is not None:
+            raise RuntimeError("QCodesDSLoader.process does not take a dataIn argument")
         if None not in self._pathAndId:
-            path, runId = self._pathAndId
+            path, runId = cast(Tuple[str, int], self._pathAndId)
 
             ds = load_dataset_from(path, runId)
 
@@ -252,3 +255,5 @@ DB-File [ID]: {} [{}]""".format(ds.run_timestamp(), ds.completed_timestamp(),
                 data.add_meta('qcodes_runTS', ds.run_timestamp())
                 self.nLoadedRecords = ds.number_of_results
                 return dict(dataOut=data)
+        else:
+            return None
