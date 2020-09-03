@@ -31,7 +31,7 @@ class PlotNode(Node):
         super().__init__(name=name)
         self.plotWidgetContainer: Optional['PlotWidgetContainer'] = None
 
-    def setPlotWidgetContainer(self, w: 'PlotWidgetContainer'):
+    def setPlotWidgetContainer(self, w: 'PlotWidgetContainer') -> None:
         """Set the plot widget container.
 
         Makes sure that newly arriving data is sent to plot GUI elements.
@@ -75,7 +75,7 @@ class PlotWidgetContainer(QtWidgets.QWidget):
         layout.setContentsMargins(0, 0, 0, 0)
         self.setLayout(layout)
 
-    def setPlotWidget(self, widget: "PlotWidget"):
+    def setPlotWidget(self, widget: "PlotWidget") -> None:
         """Set the plot widget.
 
         Makes sure that the added widget receives new data.
@@ -97,7 +97,7 @@ class PlotWidgetContainer(QtWidgets.QWidget):
             self.layout().addWidget(widget)
             self.plotWidget.setData(self.data)
 
-    def setData(self, data: DataDictBase):
+    def setData(self, data: DataDictBase) -> None:
         """set Data. If a plot widget is defined, call the widget's
         :meth:`PlotWidget.setData` method.
 
@@ -116,12 +116,12 @@ class PlotWidget(QtWidgets.QWidget):
     Implement a child class for actual plotting.
     """
 
-    def __init__(self, parent=None):
+    def __init__(self, parent: QtWidgets.QWidget = None) -> None:
         super().__init__(parent=parent)
 
-        self.data = None
+        self.data: Optional[DataDictBase] = None
 
-    def setData(self, data: Optional[DataDictBase]):
+    def setData(self, data: Optional[DataDictBase]) -> None:
         """Set data. Use this to trigger plotting.
 
         :param data: data to be plotted.
