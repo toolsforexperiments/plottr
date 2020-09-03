@@ -483,7 +483,7 @@ class MPLPlot(FCanvas):
         self.autosize()
         return self.axes
 
-    def resizeEvent(self, event) -> None:
+    def resizeEvent(self, event: QtGui.QResizeEvent) -> None:
         """
         Re-implementation of the widget resizeEvent method.
         Makes sure we resize the plots appropriately.
@@ -869,7 +869,7 @@ class AutoPlot(_MPLPlotWidget):
             )
 
         else:
-            self.plotOptionsToolBar.setAllowedPlotTypes([])
+            self.plotOptionsToolBar.setAllowedPlotTypes()
 
     @Slot(PlotType)
     def _plotTypeFromToolBar(self, plotType: PlotType) -> None:
@@ -927,7 +927,7 @@ class AutoPlot(_MPLPlotWidget):
         else:
             logger.info(f"No plot routine defined for {self.plotType}")
             return
-
+        assert self.data is not None
         self.setMeta(self.data)
         if adjustSize:
             self.plot.autosize()
