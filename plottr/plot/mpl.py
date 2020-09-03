@@ -987,7 +987,8 @@ class AutoPlot(_MPLPlotWidget):
                                 curveLabel=self.data.label(yname),
                                 addLegend=(yname == depnames[-1]))
 
-    def _plot1dSeparatePanels(self):
+    def _plot1dSeparatePanels(self) -> None:
+        assert self.data is not None
         xname = self.data.axes()[0]
         xvals = self.data.data_vals(xname)
         depnames = self.data.dependents()
@@ -1016,22 +1017,22 @@ class AutoPlot(_MPLPlotWidget):
 
             if self.complexRepresentation in [ComplexRepresentation.real,
                                               ComplexRepresentation.realAndImag]:
-                plot1dTrace(axes[iax], xvals, yvals,
+                plot1dTrace(axes[iax], np.array(xvals), np.array(yvals),
                             axLabels=(self.data.label(xname), self.data.label(yname)),
                             addLegend=self.dataIsComplex(yname))
                 iax += 1
 
             elif self.complexRepresentation is ComplexRepresentation.magAndPhase:
                 if self.dataIsComplex(yname):
-                    plot1dTrace(axes[iax], xvals, np.real(np.abs(yvals)),
+                    plot1dTrace(axes[iax], np.array(xvals), np.real(np.abs(yvals)),
                                 axLabels=(self.data.label(xname),
                                           f"Abs({self.data.label(yname)})"))
-                    plot1dTrace(axes[iax+1], xvals, np.angle(yvals),
+                    plot1dTrace(axes[iax+1], np.array(xvals), np.angle(yvals),
                                 axLabels=(self.data.label(xname),
                                           f"Arg({yname})"))
                     iax += 2
                 else:
-                    plot1dTrace(axes[iax], xvals, yvals,
+                    plot1dTrace(axes[iax], np.array(xvals), np.array(yvals),
                                 axLabels=(self.data.label(xname),
                                           self.data.label(yname)))
                     iax += 1
