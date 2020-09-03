@@ -5,7 +5,7 @@ plottr/plot/mpl.py : Tools for plotting with matplotlib.
 import logging
 import io
 from enum import Enum, unique, auto
-from typing import Dict, List, Tuple, Union, cast, Optional, Type
+from typing import Dict, List, Tuple, Union, cast, Optional, Type, Any
 from collections import OrderedDict
 
 # standard scientific computing imports
@@ -764,9 +764,9 @@ class AutoPlot(_MPLPlotWidget):
         self.complexPreference = ComplexRepresentation.realAndImag
 
         self.dataType: Optional[Type[DataDictBase]] = None
-        self.dataStructure = None
-        self.dataShapes = None
-        self.dataLimits = None
+        self.dataStructure: Optional[DataDictBase] = None
+        self.dataShapes: Optional[Dict[str, Tuple[int, ...]]] = None
+        self.dataLimits: Optional[Dict[str, Tuple[float, float]]] = None
 
         # A toolbar for configuring the plot
         self.plotOptionsToolBar = _AutoPlotToolBar('Plot options', self)
