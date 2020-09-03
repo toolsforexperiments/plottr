@@ -223,10 +223,7 @@ class QCodesDSLoader(Node):
             self._pathAndId = val
             self.nLoadedRecords = 0
 
-    ### processing
-    # mypy does not correctly see the return annotation of pathAndId due to lack of support
-    # for decorated properties
-    def process(self, dataIn: DataDictBase = None) -> Optional[Dict[str, Any]]:  # type: ignore[return]
+    def process(self, dataIn: DataDictBase = None) -> Optional[Dict[str, Any]]:
         if dataIn is not None:
             raise RuntimeError("QCodesDSLoader.process does not take a dataIn argument")
         if None not in self._pathAndId:
@@ -255,5 +252,4 @@ DB-File [ID]: {} [{}]""".format(ds.run_timestamp(), ds.completed_timestamp(),
                 data.add_meta('qcodes_runTS', ds.run_timestamp())
                 self.nLoadedRecords = ds.number_of_results
                 return dict(dataOut=data)
-        else:
-            return None
+        return None
