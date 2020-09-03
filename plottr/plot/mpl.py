@@ -192,7 +192,7 @@ def setMplDefaults() -> None:
 # 2D plots
 def colorplot2d(ax: Axes, x: np.ndarray, y: np.ndarray, z: np.ndarray,
                 style: PlotType = PlotType.image,
-                axLabels: Tuple[str, str, str] = ('', '', ''),
+                axLabels: Tuple[Optional[str], Optional[str], Optional[str]] = ('', '', ''),
                 **kw: Any) -> None:
     """make a 2d colorplot. what plot is made, depends on `style`.
     Any of the 2d plot types in :class:`PlotType` works.
@@ -940,7 +940,7 @@ class AutoPlot(_MPLPlotWidget):
     def _plot1dSinglepanel(self) -> None:
         assert self.data is not None
         xname = self.data.axes()[0]
-        xvals = self.data.data_vals(xname)
+        xvals = np.asanyarray(self.data.data_vals(xname))
         depnames = self.data.dependents()
         depvals = [self.data.data_vals(d) for d in depnames]
 
@@ -966,23 +966,23 @@ class AutoPlot(_MPLPlotWidget):
 
             if self.complexRepresentation in [ComplexRepresentation.real,
                                               ComplexRepresentation.realAndImag]:
-                plot1dTrace(axes[0], np.array(xvals), np.array(yvals),
+                plot1dTrace(axes[0], xvals, np.asanyarray(yvals),
                             axLabels=(self.data.label(xname), ylbl),
                             curveLabel=self.data.label(yname),
                             addLegend=(yname == depnames[-1]))
 
             elif self.complexRepresentation is ComplexRepresentation.magAndPhase:
                 if self.dataIsComplex(yname):
-                    plot1dTrace(axes[0], np.array(xvals), np.real(np.abs(yvals)),
+                    plot1dTrace(axes[0], xvals, np.real(np.abs(yvals)),
                                 axLabels=(self.data.label(xname), ylbl),
                                 curveLabel=f"Abs({self.data.label(yname)})",
                                 addLegend=(yname == depnames[-1]))
-                    plot1dTrace(axes[1], np.array(xvals), np.angle(yvals),
+                    plot1dTrace(axes[1], xvals, np.angle(yvals),
                                 axLabels=(self.data.label(xname), phlbl),
                                 curveLabel=f"Arg({yname})",
                                 addLegend=(yname == depnames[-1]))
                 else:
-                    plot1dTrace(axes[0], np.array(xvals), np.array(yvals),
+                    plot1dTrace(axes[0], xvals, np.asanyarray(yvals),
                                 axLabels=(self.data.label(xname), ylbl),
                                 curveLabel=self.data.label(yname),
                                 addLegend=(yname == depnames[-1]))
@@ -990,7 +990,7 @@ class AutoPlot(_MPLPlotWidget):
     def _plot1dSeparatePanels(self) -> None:
         assert self.data is not None
         xname = self.data.axes()[0]
-        xvals = self.data.data_vals(xname)
+        xvals = np.asanyarray(self.data.data_vals(xname))
         depnames = self.data.dependents()
         depvals = [self.data.data_vals(d) for d in depnames]
 
@@ -1017,31 +1017,32 @@ class AutoPlot(_MPLPlotWidget):
 
             if self.complexRepresentation in [ComplexRepresentation.real,
                                               ComplexRepresentation.realAndImag]:
-                plot1dTrace(axes[iax], np.array(xvals), np.array(yvals),
+                plot1dTrace(axes[iax], xvals, np.asanyarray(yvals),
                             axLabels=(self.data.label(xname), self.data.label(yname)),
                             addLegend=self.dataIsComplex(yname))
                 iax += 1
 
             elif self.complexRepresentation is ComplexRepresentation.magAndPhase:
                 if self.dataIsComplex(yname):
-                    plot1dTrace(axes[iax], np.array(xvals), np.real(np.abs(yvals)),
+                    plot1dTrace(axes[iax], xvals, np.real(np.abs(yvals)),
                                 axLabels=(self.data.label(xname),
                                           f"Abs({self.data.label(yname)})"))
-                    plot1dTrace(axes[iax+1], np.array(xvals), np.angle(yvals),
+                    plot1dTrace(axes[iax+1], xvals, np.angle(yvals),
                                 axLabels=(self.data.label(xname),
                                           f"Arg({yname})"))
                     iax += 2
                 else:
-                    plot1dTrace(axes[iax], np.array(xvals), np.array(yvals),
+                    plot1dTrace(axes[iax], xvals, np.asanyarray(yvals),
                                 axLabels=(self.data.label(xname),
                                           self.data.label(yname)))
                     iax += 1
 
-    def _colorplot2d(self):
+    def _colorplot2d(self) -> None:
+        assert self.data is not None
         xname = self.data.axes()[0]
         yname = self.data.axes()[1]
-        xvals = self.data.data_vals(xname)
-        yvals = self.data.data_vals(yname)
+        xvals = np.asanyarray(self.data.data_vals(xname))
+        yvals = np.asanyarray(self.data.data_vals(yname))
         depnames = self.data.dependents()
         depvals = [self.data.data_vals(d) for d in depnames]
 
@@ -1066,7 +1067,7 @@ class AutoPlot(_MPLPlotWidget):
 
             if self.complexRepresentation is ComplexRepresentation.real \
                     or not self.dataIsComplex(zname):
-                colorplot2d(axes[iax], xvals, yvals, zvals.real,
+                colorplot2d(axes[iax], xvals, yvals, np.asanyarray(zvals).real,
                             self.plotType,
                             axLabels=(self.data.label(xname),
                                       self.data.label(yname),
@@ -1074,12 +1075,12 @@ class AutoPlot(_MPLPlotWidget):
                 iax += 1
 
             elif self.complexRepresentation is ComplexRepresentation.realAndImag:
-                colorplot2d(axes[iax], xvals, yvals, zvals.real,
+                colorplot2d(axes[iax], xvals, yvals, np.asanyarray(zvals).real,
                             self.plotType,
                             axLabels=(self.data.label(xname),
                                       self.data.label(yname),
                                       f"Re( {self.data.label(zname)} )"))
-                colorplot2d(axes[iax+1], xvals, yvals, zvals.imag,
+                colorplot2d(axes[iax+1], xvals, yvals, np.asanyarray(zvals).imag,
                             self.plotType,
                             axLabels=(self.data.label(xname),
                                       self.data.label(yname),
@@ -1087,12 +1088,12 @@ class AutoPlot(_MPLPlotWidget):
                 iax += 2
 
             elif self.complexRepresentation is ComplexRepresentation.magAndPhase:
-                colorplot2d(axes[iax], xvals, yvals, np.abs(zvals),
+                colorplot2d(axes[iax], xvals, yvals, np.abs(np.asanyarray(zvals)),
                             self.plotType,
                             axLabels=(self.data.label(xname),
                                       self.data.label(yname),
                                       f"Abs( {self.data.label(zname)} )"))
-                colorplot2d(axes[iax+1], xvals, yvals, np.angle(zvals),
+                colorplot2d(axes[iax+1], xvals, yvals, np.angle(np.asanyarray(zvals)),
                             self.plotType,
                             axLabels=(self.data.label(xname),
                                       self.data.label(yname),
