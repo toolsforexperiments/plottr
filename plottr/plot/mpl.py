@@ -937,7 +937,8 @@ class AutoPlot(_MPLPlotWidget):
         QtCore.QCoreApplication.processEvents()
 
     # Plotting functions
-    def _plot1dSinglepanel(self):
+    def _plot1dSinglepanel(self) -> None:
+        assert self.data is not None
         xname = self.data.axes()[0]
         xvals = self.data.data_vals(xname)
         depnames = self.data.dependents()
@@ -952,7 +953,7 @@ class AutoPlot(_MPLPlotWidget):
 
         if len(depvals) > 1:
             ylbl = self.data.label(depnames[0])
-            phlbl = f"Arg({depnames[0]})"
+            phlbl: Optional[str] = f"Arg({depnames[0]})"
         else:
             ylbl = None
             phlbl = None
@@ -965,23 +966,23 @@ class AutoPlot(_MPLPlotWidget):
 
             if self.complexRepresentation in [ComplexRepresentation.real,
                                               ComplexRepresentation.realAndImag]:
-                plot1dTrace(axes[0], xvals, yvals,
+                plot1dTrace(axes[0], np.array(xvals), np.array(yvals),
                             axLabels=(self.data.label(xname), ylbl),
                             curveLabel=self.data.label(yname),
                             addLegend=(yname == depnames[-1]))
 
             elif self.complexRepresentation is ComplexRepresentation.magAndPhase:
                 if self.dataIsComplex(yname):
-                    plot1dTrace(axes[0], xvals, np.real(np.abs(yvals)),
+                    plot1dTrace(axes[0], np.array(xvals), np.real(np.abs(yvals)),
                                 axLabels=(self.data.label(xname), ylbl),
                                 curveLabel=f"Abs({self.data.label(yname)})",
                                 addLegend=(yname == depnames[-1]))
-                    plot1dTrace(axes[1], xvals, np.angle(yvals),
+                    plot1dTrace(axes[1], np.array(xvals), np.angle(yvals),
                                 axLabels=(self.data.label(xname), phlbl),
                                 curveLabel=f"Arg({yname})",
                                 addLegend=(yname == depnames[-1]))
                 else:
-                    plot1dTrace(axes[0], xvals, yvals,
+                    plot1dTrace(axes[0], np.array(xvals), np.array(yvals),
                                 axLabels=(self.data.label(xname), ylbl),
                                 curveLabel=self.data.label(yname),
                                 addLegend=(yname == depnames[-1]))
