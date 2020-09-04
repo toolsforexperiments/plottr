@@ -62,11 +62,11 @@ class ShapeSpecificationWidget(QtWidgets.QWidget):
 
         self.confirm.clicked.connect(self.signalShape)
 
-    def signalShape(self):
+    def signalShape(self) -> None:
         """When called, emit the current shape as signal"""
         self.newShapeNotification.emit(self.getShape())
 
-    def _addAxis(self, idx, name):
+    def _addAxis(self, idx, name) -> None:
         nameWidget = QtWidgets.QComboBox()
         for j, bx in enumerate(self._axes):
             nameWidget.addItem(bx)
@@ -85,7 +85,7 @@ class ShapeSpecificationWidget(QtWidgets.QWidget):
             lambda x: self._processAxisChange(idx, x)
         )
 
-    def setAxes(self, axes: List[str]):
+    def setAxes(self, axes: List[str]) -> None:
         """Specify a set of axis dimensions
 
         If the axes do not match the previous ones, delete all
@@ -271,13 +271,13 @@ class GridOptionWidget(QtWidgets.QWidget):
             self._emitUpdate = True
 
     @Slot()
-    def shapeSpecified(self):
+    def shapeSpecified(self) -> None:
         self.signalGridOption(self.getGrid())
 
-    def signalGridOption(self, grid):
+    def signalGridOption(self, grid) -> None:
         self.optionSelected.emit(grid)
 
-    def setAxes(self, axes: List[str]):
+    def setAxes(self, axes: List[str]) -> None:
         """Set the available axis dimensions."""
         self.shapeSpec.setAxes(axes)
         if self.getGrid()[0] == GridOption.specifyShape:
@@ -285,11 +285,11 @@ class GridOptionWidget(QtWidgets.QWidget):
         else:
             self.enableShapeEdit(False)
 
-    def setShape(self, shape: SpecShapeType):
+    def setShape(self, shape: SpecShapeType) -> None:
         """Set the shape of the grid."""
         self.shapeSpec.setShape(shape)
 
-    def enableShapeEdit(self, enable: bool):
+    def enableShapeEdit(self, enable: bool) -> None:
         """Enable/disable shape editing"""
         self.shapeSpec.enableEditing(enable)
 
@@ -315,15 +315,15 @@ class DataGridderNodeWidget(NodeWidget):
     def getGrid(self):
         return self.widget.getGrid()
 
-    def setGrid(self, grid):
+    def setGrid(self, grid) -> None:
         self.widget.setGrid(grid)
 
     @updateGuiFromNode
-    def setAxes(self, axes):
+    def setAxes(self, axes) -> None:
         self.widget.setAxes(axes)
 
     @updateGuiFromNode
-    def setShape(self, shape):
+    def setShape(self, shape) -> None:
         self.widget.setShape(shape)
 
 
@@ -353,7 +353,7 @@ class DataGridder(Node):
     # Properties
 
     @property
-    def grid(self):
+    def grid(self) -> Tuple[GridOption, dict]:
         """Specification for how to grid the data. Consists of a main option
         and (optional) additional options.
 
