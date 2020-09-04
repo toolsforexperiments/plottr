@@ -9,7 +9,7 @@
 from plottr import QtCore, QtGui, QtWidgets
 
 class Ui_MainWindow(object):
-    def setupUi(self, MainWindow):
+    def setupUi(self, MainWindow: QtWidgets.QMainWindow) -> None:
         MainWindow.setObjectName("MainWindow")
         MainWindow.resize(935, 569)
         self.centralwidget = QtWidgets.QWidget(MainWindow)
@@ -64,7 +64,7 @@ class Ui_MainWindow(object):
         self.fileList.newDataFilesFound.connect(MainWindow.onNewDataFilesFound)
         QtCore.QMetaObject.connectSlotsByName(MainWindow)
 
-    def retranslateUi(self, MainWindow):
+    def retranslateUi(self, MainWindow: QtWidgets.QMainWindow) -> None:
         _translate = QtCore.QCoreApplication.translate
         MainWindow.setWindowTitle(_translate("MainWindow", "Monitr"))
         self.fileList.setSortingEnabled(True)

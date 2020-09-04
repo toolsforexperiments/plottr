@@ -29,7 +29,7 @@ class DataFileContent(QtWidgets.QTreeWidget):
     #:   - name of the group within the currently selected file
     plotRequested = Signal(str)
 
-    def __init__(self, parent=None):
+    def __init__(self, parent: Optional[QtWidgets.QWidget] = None):
         super().__init__(parent)
 
         self.data = {}
@@ -42,7 +42,7 @@ class DataFileContent(QtWidgets.QTreeWidget):
 
 
     @Slot(object)
-    def setData(self, data: Dict[str, DataDict]):
+    def setData(self, data: Dict[str, DataDict]) -> None:
         """Set the data to display."""
         self.clear()
         self.data = {}
@@ -82,7 +82,7 @@ class DataFileContent(QtWidgets.QTreeWidget):
             self.resizeColumnToContents(i)
 
     @Slot(QtCore.QPoint)
-    def onCustomContextMenuRequested(self, pos):
+    def onCustomContextMenuRequested(self, pos: QtCore.QPoint) -> None:
         item = self.itemAt(pos)
         if item not in self.groupItems:
             return
@@ -92,7 +92,7 @@ class DataFileContent(QtWidgets.QTreeWidget):
         self.dataPopup.exec(self.mapToGlobal(pos))
 
     @Slot()
-    def onPlotActionTriggered(self):
+    def onPlotActionTriggered(self) -> None:
         self.plotRequested.emit(self.selectedGroup)
 
 
@@ -111,14 +111,14 @@ class DataFileList(QtWidgets.QTreeWidget):
     #: Signal(list) -- emitted when new files have been found
     newDataFilesFound = Signal(list)
 
-    def __init__(self, parent=None):
+    def __init__(self, parent: Optional[QtWidgets.QWidget] = None):
         super().__init__(parent)
 
         self.files = []
         self.path = None
 
     @staticmethod
-    def find(parent, name):
+    def find(parent: QtWidgets.QWidget, name: str) -> Optional[QtWidgets.QTreeWidgetItem]:
         if isinstance(parent, DataFileList):
             existingItems = [parent.topLevelItem(i) for i in
                              range(parent.topLevelItemCount())]
