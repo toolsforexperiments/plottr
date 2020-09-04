@@ -20,6 +20,8 @@ import logging
 from typing import Optional, Sequence, List, Dict, Iterable, Any
 from typing_extensions import TypedDict
 
+import pandas
+
 from plottr import QtCore, QtWidgets, Signal, Slot, QtGui, Flowchart
 
 from .. import log as plottrlog
@@ -402,7 +404,7 @@ class QCodesDBInspector(QtWidgets.QMainWindow):
                 self.loadDBProcess.setPath(self.filepath)
 
     
-    def DBLoaded(self, dbdf) -> None:
+    def DBLoaded(self, dbdf: pandas.DataFrame) -> None:
         self.dbdf = dbdf
         self.dbdfUpdated.emit()
         self.dateList.sendSelectedDates()
@@ -452,7 +454,7 @@ class QCodesDBInspector(QtWidgets.QMainWindow):
 
     ### handling user selections
     @Slot(list)
-    def setDateSelection(self, dates) -> None:
+    def setDateSelection(self, dates: Sequence[str]) -> None:
         if len(dates) > 0:
             assert self.dbdf is not None
             selection = self.dbdf.loc[self.dbdf['started date'].isin(dates)].sort_index(ascending=False)
