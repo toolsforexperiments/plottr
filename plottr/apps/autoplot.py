@@ -127,7 +127,7 @@ class AutoPlotMainWindow(PlotWindow):
     windowClosed = Signal()
 
     def __init__(self, fc: Flowchart,
-                 parent: Union[QtWidgets.QWidget, None] = None,
+                 parent: Optional[QtWidgets.QMainWindow] = None,
                  monitor: bool = False,
                  monitorInterval: Union[int, None] = None,
                  loaderName: str = None,
@@ -251,8 +251,8 @@ class QCAutoPlotMainWindow(AutoPlotMainWindow):
     """
 
     def __init__(self, fc: Flowchart,
-                 parent: Union[QtWidgets.QWidget, None] = None,
-                 pathAndId: Union[Tuple[str, int], None] = None, **kw):
+                 parent: Optional[QtWidgets.QMainWindow] = None,
+                 pathAndId: Optional[Tuple[str, int]] = None, **kw):
 
         super().__init__(fc, parent, **kw)
 
