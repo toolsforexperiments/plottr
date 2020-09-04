@@ -3,7 +3,7 @@ data_selector.py
 
 A node and widget for subselecting from a dataset.
 """
-from typing import List, Tuple, Dict, Any
+from typing import List, Tuple, Dict, Any, Sequence, Optional
 
 from .node import Node, NodeWidget, updateOption
 from ..data.datadict import DataDictBase, DataDict
@@ -34,7 +34,7 @@ class DataDisplayWidget(NodeWidget):
         self.widget.dataSelectionMade.connect(
             lambda x: self.signalOption('selectedData'))
 
-    def setSelected(self, vals: List[str]):
+    def setSelected(self, vals: Sequence[str]) -> None:
         assert self.widget is not None
         self.widget.setSelectedData(vals)
         self._updateOptions(vals)
@@ -44,15 +44,16 @@ class DataDisplayWidget(NodeWidget):
         return self.widget.getSelectedData()
 
     def setData(self, structure: DataDictBase,
-                shapes: Dict[str, Tuple[int, ...]], _: Any):
+                shapes: Dict[str, Tuple[int, ...]], _: Any) -> None:
         assert self.widget is not None
         self.widget.setData(structure, shapes)
 
-    def setShape(self, shapes: Dict[str, Tuple[int, ...]]):
+    def setShape(self, shapes: Dict[str, Tuple[int, ...]]) -> None:
         assert self.widget is not None
         self.widget.setShape(shapes)
 
-    def _updateOptions(self, selected):
+    def _updateOptions(self, selected) -> None:
+        assert self.widget is not None
         ds = self.widget._dataStructure
         for n, w in self.widget.dataItems.items():
             if selected != [] and ds[n]['axes'] != ds[selected[0]]['axes']:
@@ -81,11 +82,11 @@ class DataSelector(Node):
 
     force_numerical_data = True
 
-    def __init__(self, *arg, **kw):
-        super().__init__(*arg, **kw)
+    def __init__(self, name: str):
+        super().__init__(name)
 
         self._dataStructure = None
-        self.selectedData = []
+        self.selectedData = []  # type: ignore[misc]
 
     # Properties
 
@@ -95,14 +96,14 @@ class DataSelector(Node):
 
     @selectedData.setter  # type: ignore[misc]
     @updateOption('selectedData')
-    def selectedData(self, val: List[str]):
+    def selectedData(self, val: List[str]) -> None:
         if isinstance(val, str):
             val = [val]
         self._selectedData = val
 
     # Data processing
 
-    def validateOptions(self, data):
+    def validateOptions(self, data: Optional[Any]) -> bool:
         """
         Validations performed:
         * only compatible data fields can be selected.
@@ -131,7 +132,7 @@ class DataSelector(Node):
                     return False
         return True
 
-    def _reduceData(self, data):
+    def _reduceData(self, data) -> Optional[Any]:
         if isinstance(self.selectedData, str):
             dnames = [self.selectedData]
         else:
@@ -151,7 +152,7 @@ class DataSelector(Node):
 
         return ret
 
-    def process(self, dataIn: DataDictBase = None):
+    def process(self, dataIn: DataDictBase = None) -> Optional[Dict[str, Any]]:
         data = super().process(dataIn=dataIn)
         if data is None:
             return None
@@ -174,8 +175,9 @@ class DataSelector(Node):
 
     # Methods for GUI interaction
 
-    def setupUi(self):
+    def setupUi(self) -> None:
         super().setupUi()
+        assert self.ui is not None
         self.newDataStructure.connect(self.ui.setData)
         self.dataShapesChanged.connect(self.ui.setShape)
 

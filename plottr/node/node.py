@@ -7,7 +7,7 @@ import traceback
 from logging import Logger
 
 from functools import wraps
-from typing import Any, Union, Tuple, Dict, Optional, Type, List
+from typing import Any, Union, Tuple, Dict, Optional, Type, List, Callable
 
 from .. import NodeBase
 from .. import QtGui, QtCore, Signal, Slot, QtWidgets
@@ -21,7 +21,7 @@ __license__ = 'MIT'
 # TODO: implement a threaded version of Node
 
 
-def updateOption(optName: Union[None, str] = None):
+def updateOption(optName: Optional[str] = None) -> Callable[[Callable], Callable]:
     """Decorator for property setters that are handy for user options.
 
     Property setters in nodes that are decorated with this will do two things:
@@ -31,7 +31,7 @@ def updateOption(optName: Union[None, str] = None):
     :param optName: name of the property.
     """
 
-    def decorator(func):
+    def decorator(func: Callable) -> Callable:
         @wraps(func)
         def wrap(self, val):
             ret = func(self, val)
@@ -46,7 +46,7 @@ def updateOption(optName: Union[None, str] = None):
     return decorator
 
 
-def updateGuiFromNode(func):
+def updateGuiFromNode(func: Callable) -> Callable:
     """
     Decorator for the UI to set an internal flag to during execution of
     the wrapped function. Prevents recursive updating (i.e., if
@@ -167,7 +167,7 @@ class Node(NodeBase):
         else:
             self.ui = None
 
-    def setupUi(self):
+    def setupUi(self) -> None:
         """ setting up the UI widget.
 
         Gets called automatically in the node initialization.
@@ -177,6 +177,7 @@ class Node(NodeBase):
         UI widget (like connecting additional signals/slots between node and
         node widget).
         """
+        assert self.ui is not None
         self.ui.optionToNode.connect(self.setOption)
         self.ui.allOptionsToNode.connect(self.setOptions)
         self.optionChangeNotification.connect(self.ui.setOptionsFromNode)
@@ -186,7 +187,7 @@ class Node(NodeBase):
         """
         return self.ui
 
-    def setOption(self, nameAndVal: Tuple[str, Any]):
+    def setOption(self, nameAndVal: Tuple[str, Any]) -> None:
         """Set an option.
 
         name is the name of the property, not the string used for referencing
@@ -197,7 +198,7 @@ class Node(NodeBase):
         name, val = nameAndVal
         setattr(self, name, val)
 
-    def setOptions(self, opts: Dict[str, Any]):
+    def setOptions(self, opts: Dict[str, Any]) -> None:
         """Set multiple options.
 
         :param opts: a dictionary of property name : value pairs.
@@ -205,7 +206,7 @@ class Node(NodeBase):
         for opt, val in opts.items():
             setattr(self, opt, val)
 
-    def update(self, signal=True):
+    def update(self, signal: bool = True) -> None:
         super().update(signal=signal)
         if Node._raiseExceptions and self.exception is not None:
             raise self.exception[1]
@@ -237,7 +238,7 @@ class Node(NodeBase):
         """
         return True
 
-    def process(self, dataIn: DataDictBase=None):
+    def process(self, dataIn: DataDictBase=None) -> Optional[Dict[str, Optional[DataDictBase]]]:
         if dataIn is None:
             return None
 
@@ -361,7 +362,7 @@ class NodeWidget(QtWidgets.QWidget):
         return ret
 
     @updateGuiFromNode
-    def setOptionFromNode(self, opt: str, value: Any):
+    def setOptionFromNode(self, opt: str, value: Any) -> None:
         """Set an option from the node
 
         Calls the set function specified in the class' ``optSetters``.
@@ -373,7 +374,7 @@ class NodeWidget(QtWidgets.QWidget):
         self.optSetters[opt](value)
 
     @Slot(dict)
-    def setOptionsFromNode(self, opts: Dict[str, Any]):
+    def setOptionsFromNode(self, opts: Dict[str, Any]) -> None:
         """Set all options without triggering updates back to the node."""
         for opt, val in opts.items():
             self.setOptionFromNode(opt, val)
