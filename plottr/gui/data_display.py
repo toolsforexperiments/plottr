@@ -96,7 +96,7 @@ class DataSelectionWidget(QtWidgets.QTreeWidget):
         if not enable:
             item.setSelected(False)
 
-    def nameFromItem(self, item: Dict[str, Any]) -> str:
+    def nameFromItem(self, item: QtWidgets.QTreeWidgetItem) -> str:
         for k, v in self.dataItems.items():
             if item is v:
                 return k
