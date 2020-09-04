@@ -17,16 +17,17 @@ import time
 import sys
 import argparse
 import logging
-from typing import Optional, Sequence, List, Dict, Any
+from typing import Optional, Sequence, List, Dict, Iterable, Any
+from typing_extensions import TypedDict
 
-from plottr import QtCore, QtWidgets, Signal, Slot, QtGui
+from plottr import QtCore, QtWidgets, Signal, Slot, QtGui, Flowchart
 
 from .. import log as plottrlog
 from ..data.qcodes_dataset import (get_runs_from_db_as_dataframe,
                                    get_ds_structure, load_dataset_from)
 from plottr.gui.widgets import MonitorIntervalInput, FormLayoutWrapper, dictToTreeWidgetItems
 
-from .autoplot import autoplotQcodesDataset
+from .autoplot import autoplotQcodesDataset, QCAutoPlotMainWindow
 
 
 __author__ = 'Wolfgang Pfaff'
@@ -108,8 +109,8 @@ class SortableTreeWidgetItem(QtWidgets.QTreeWidgetItem):
     QTreeWidgetItem with an overridden comparator that sorts numerical values
     as numbers instead of sorting them alphabetically.
     """
-    def __init__(self, parent: Optional[QtWidgets.QWidget] = None):
-        super().__init__(parent)
+    def __init__(self, strings: Iterable[str]):
+        super().__init__(strings)
 
     def __lt__(self, other: "SortableTreeWidgetItem") -> bool:
         col = self.treeWidget().sortColumn()
@@ -243,7 +244,7 @@ class QCodesDBInspector(QtWidgets.QMainWindow):
         """Constructor for :class:`QCodesDBInspector`."""
         super().__init__(parent)
 
-        self._plotWindows = {}
+        self._plotWindows: Dict[int, WindowDict] = {}
 
         self.filepath = dbPath
         self.dbdf = None
@@ -328,7 +329,7 @@ class QCodesDBInspector(QtWidgets.QMainWindow):
         self.loadDBProcess.pathSet.connect(self.loadDBThread.start)
         self.loadDBProcess.dbdfLoaded.connect(self.DBLoaded)
         self.loadDBProcess.dbdfLoaded.connect(self.loadDBThread.quit)
-        self.loadDBThread.started.connect(self.loadDBProcess.loadDB)
+        self.loadDBThread.started.connect(self.loadDBProcess.loadDB)  # type: ignore[attr-defined]
 
         ### connect signals/slots
 
@@ -361,6 +362,7 @@ class QCodesDBInspector(QtWidgets.QMainWindow):
     @Slot()
     def showDBPath(self) -> None:
         tstamp = time.strftime("%Y-%m-%d %H:%M:%S")
+        assert self.filepath is not None
         path = os.path.abspath(self.filepath)
         self.status.showMessage(f"{path} (loaded: {tstamp})")
 
@@ -419,6 +421,7 @@ class QCodesDBInspector(QtWidgets.QMainWindow):
 
     @Slot()
     def updateDates(self) -> None:
+        assert self.dbdf is not None
         if self.dbdf.size > 0:
             dates = list(self.dbdf.groupby('started date').indices.keys())
             self.dateList.updateDates(dates)
@@ -451,6 +454,7 @@ class QCodesDBInspector(QtWidgets.QMainWindow):
     @Slot(list)
     def setDateSelection(self, dates) -> None:
         if len(dates) > 0:
+            assert self.dbdf is not None
             selection = self.dbdf.loc[self.dbdf['started date'].isin(dates)].sort_index(ascending=False)
             self.runList.setRuns(selection.to_dict(orient='index'))
         else:
@@ -458,6 +462,7 @@ class QCodesDBInspector(QtWidgets.QMainWindow):
 
     @Slot(int)
     def setRunSelection(self, runId: int) -> None:
+        assert self.filepath is not None
         ds = load_dataset_from(self.filepath, runId)
         snap = None
         if hasattr(ds, 'snapshot'):
@@ -472,12 +477,18 @@ class QCodesDBInspector(QtWidgets.QMainWindow):
 
     @Slot(int)
     def plotRun(self, runId: int) -> None:
+        assert self.filepath is not None
         fc, win = autoplotQcodesDataset(pathAndId=(self.filepath, runId))
         self._plotWindows[runId] = {
             'flowchart': fc,
             'window': win,
         }
         win.showTime()
+
+
+class WindowDict(TypedDict):
+    flowchart: Flowchart
+    window: QCAutoPlotMainWindow
 
 
 def inspectr(dbPath: str = None) -> QtWidgets.QMainWindow:
