@@ -585,7 +585,9 @@ class DimensionReducer(Node):
         if data is None:
             return None
 
-        data = data['dataOut'].copy()
+        dataout = data['dataOut']
+        assert dataout is not None
+        data = dataout.copy()
         data = data.mask_invalid()
         data = self._applyDimReductions(data)
 

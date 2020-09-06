@@ -316,14 +316,17 @@ class DataGridderNodeWidget(NodeWidget):
         return self.widget.getGrid()
 
     def setGrid(self, grid) -> None:
+        assert self.widget is not None
         self.widget.setGrid(grid)
 
     @updateGuiFromNode
     def setAxes(self, axes) -> None:
+        assert self.widget is not None
         self.widget.setAxes(axes)
 
     @updateGuiFromNode
     def setShape(self, shape) -> None:
+        assert self.widget is not None
         self.widget.setShape(shape)
 
 
@@ -444,7 +447,9 @@ class DataGridder(Node):
         data = super().process(dataIn=dataIn)
         if data is None:
             return None
-        data = data['dataOut'].copy()
+        dataout = data['dataOut']
+        assert dataout is not None
+        data = dataout.copy()
         self.axesList.emit(data.axes())
 
         dout: Optional[DataDictBase] = None
