@@ -6,7 +6,7 @@ A node and widget for placing data onto a grid (or not).
 
 from enum import Enum, unique
 
-from typing import Tuple, Dict, Any, List, Union, Optional
+from typing import Tuple, Dict, Any, List, Union, Optional, Sequence
 
 from plottr import QtGui, Signal, Slot, QtWidgets
 from .node import Node, NodeWidget, updateOption, updateGuiFromNode
@@ -48,11 +48,11 @@ class ShapeSpecificationWidget(QtWidgets.QWidget):
     #: signal that is emitted when we want to communicate a new shape
     newShapeNotification = Signal(dict)
 
-    def __init__(self, parent=None):
+    def __init__(self, parent: Optional[QtWidgets.QWidget] = None):
         super().__init__(parent)
 
-        self._axes = []
-        self._widgets = {}
+        self._axes: List[str] = []
+        self._widgets: Dict[int, Dict[str, QtWidgets.QWidget]] = {}
         self._processChanges = True
 
         layout = QtWidgets.QFormLayout()
@@ -66,7 +66,7 @@ class ShapeSpecificationWidget(QtWidgets.QWidget):
         """When called, emit the current shape as signal"""
         self.newShapeNotification.emit(self.getShape())
 
-    def _addAxis(self, idx, name) -> None:
+    def _addAxis(self, idx: int, name: str) -> None:
         nameWidget = QtWidgets.QComboBox()
         for j, bx in enumerate(self._axes):
             nameWidget.addItem(bx)
@@ -104,7 +104,7 @@ class ShapeSpecificationWidget(QtWidgets.QWidget):
             for i, ax in enumerate(axes):
                 self._addAxis(i, ax)
 
-    def _unusedAxes(self):
+    def _unusedAxes(self) -> List[str]:
         names = self._axes.copy()
         for k, v in self._widgets.items():
             ax = v['name'].currentText()
@@ -112,12 +112,14 @@ class ShapeSpecificationWidget(QtWidgets.QWidget):
                 del names[names.index(ax)]
         return names
 
-    def _axisIndexFromName(self, name, excludeIdxs=[]):
+    def _axisIndexFromName(self, name: str,
+                           excludeIdxs: Sequence[int] = ()) -> Optional[int]:
         for k, v in self._widgets.items():
             if k not in excludeIdxs and v['name'].currentText() == name:
                 return k
+        return None
 
-    def _processAxisChange(self, idx, newName):
+    def _processAxisChange(self, idx: int, newName: str) -> None:
         if not self._processChanges:
             return
 
@@ -128,7 +130,7 @@ class ShapeSpecificationWidget(QtWidgets.QWidget):
             self._widgets[prevIdx]['name'].setCurrentText(unused[0])
             self._processChanges = True
 
-    def setShape(self, shape: Dict[str, Tuple[Union[str, int], ...]]):
+    def setShape(self, shape: Dict[str, Tuple[Union[str, int], ...]]) -> None:
         """ Set the shape, will be reflected in the values set in the widgets.
 
         :param shape: A dictionary with keys `order` and `shape`. The value
@@ -159,7 +161,7 @@ class ShapeSpecificationWidget(QtWidgets.QWidget):
 
         return {'order': tuple(order), 'shape': tuple(shape)}
 
-    def enableEditing(self, enable):
+    def enableEditing(self, enable: bool) -> None:
         for ax, widgets in self._widgets.items():
             widgets['name'].setEnabled(enable)
             widgets['shape'].setEnabled(enable)
@@ -171,7 +173,7 @@ class GridOptionWidget(QtWidgets.QWidget):
 
     optionSelected = Signal(object)
 
-    def __init__(self, parent=None):
+    def __init__(self, parent: Optional[QtWidgets.QWidget] = None):
         super().__init__(parent)
 
         self._emitUpdate = True
@@ -230,7 +232,7 @@ class GridOptionWidget(QtWidgets.QWidget):
 
         return GridOption(activeId), opts
 
-    def setGrid(self, grid: Tuple[GridOption, Dict[str, Any]]):
+    def setGrid(self, grid: Tuple[GridOption, Dict[str, Any]]) -> None:
         """Set the grid specification in the UI.
 
         :param grid: Tuple of the :class:`GridOption` and additional options.
@@ -250,7 +252,7 @@ class GridOptionWidget(QtWidgets.QWidget):
         self._emitUpdate = True
 
     @Slot(QtWidgets.QAbstractButton, bool)
-    def gridButtonSelected(self, btn: QtWidgets.QAbstractButton, checked: bool):
+    def gridButtonSelected(self, btn: QtWidgets.QAbstractButton, checked: bool) -> None:
         """Process a change in grid option radio box selection.
         Only has an effect when the change was done manually, and is not
         coming from the node.
@@ -274,7 +276,7 @@ class GridOptionWidget(QtWidgets.QWidget):
     def shapeSpecified(self) -> None:
         self.signalGridOption(self.getGrid())
 
-    def signalGridOption(self, grid) -> None:
+    def signalGridOption(self, grid: Tuple[GridOption, Dict[str, Any]]) -> None:
         self.optionSelected.emit(grid)
 
     def setAxes(self, axes: List[str]) -> None:
@@ -312,20 +314,21 @@ class DataGridderNodeWidget(NodeWidget):
             lambda x: self.signalOption('grid')
         )
 
-    def getGrid(self):
+    def getGrid(self) -> Tuple[GridOption, Dict[str, Any]]:
+        assert self.widget is not None
         return self.widget.getGrid()
 
-    def setGrid(self, grid) -> None:
+    def setGrid(self, grid: Tuple[GridOption, Dict[str, Any]]) -> None:
         assert self.widget is not None
         self.widget.setGrid(grid)
 
     @updateGuiFromNode
-    def setAxes(self, axes) -> None:
+    def setAxes(self, axes: List[str]) -> None:
         assert self.widget is not None
         self.widget.setAxes(axes)
 
     @updateGuiFromNode
-    def setShape(self, shape) -> None:
+    def setShape(self, shape: Dict[str, Tuple[int, ...]]) -> None:
         assert self.widget is not None
         self.widget.setShape(shape)
 
@@ -345,18 +348,18 @@ class DataGridder(Node):
 
     axesList = Signal(list)
 
-    def __init__(self, *arg, **kw):
+    def __init__(self, name: str):
 
-        self._grid = GridOption.noGrid, {}
+        self._grid: Tuple[GridOption, Dict[str, Any]] = (GridOption.noGrid, {})
         self._shape = None
         self._invalid = False
 
-        super().__init__(*arg, **kw)
+        super().__init__(name)
 
     # Properties
 
     @property
-    def grid(self) -> Tuple[GridOption, dict]:
+    def grid(self) -> Tuple[GridOption, Dict[str, Any]]:
         """Specification for how to grid the data. Consists of a main option
         and (optional) additional options.
 
@@ -406,7 +409,7 @@ class DataGridder(Node):
 
     @grid.setter  # type: ignore[misc]
     @updateOption('grid')
-    def grid(self, val: Tuple[GridOption, Dict[str, Any]]):
+    def grid(self, val: Tuple[GridOption, Dict[str, Any]]) -> None:
         """set the grid option. does some elementary type checking, but should
         probably be refined a bit."""
 
@@ -425,7 +428,7 @@ class DataGridder(Node):
 
     # Processing
 
-    def validateOptions(self, data: Any):
+    def validateOptions(self, data: Any) -> bool:
         """Currently, does not perform checks beyond those of the parent class.
         """
         if not super().validateOptions(data):
@@ -433,7 +436,7 @@ class DataGridder(Node):
 
         return True
 
-    def process(self, dataIn: Optional[DataDictBase] = None):
+    def process(self, dataIn: Optional[DataDictBase] = None) -> Optional[Dict[str, Optional[DataDictBase]]]:
         """Process the data."""
 
         # TODO: what would be nice is to change the correct inner axis order
@@ -486,14 +489,16 @@ class DataGridder(Node):
             return None
 
         if hasattr(dout, 'shape'):
+            assert isinstance(dout, MeshgridDataDict)
             self.shapeDetermined.emit({'order': order,
-                                       'shape': dout.shape()})  # type: ignore[attr-defined]
+                                       'shape': dout.shape()})
 
         return dict(dataOut=dout)
 
     # Setup UI
 
-    def setupUi(self):
+    def setupUi(self) -> None:
         super().setupUi()
+        assert self.ui is not None
         self.axesList.connect(self.ui.setAxes)
         self.shapeDetermined.connect(self.ui.setShape)
