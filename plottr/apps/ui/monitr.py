@@ -180,9 +180,9 @@ class DataFileList(QtWidgets.QTreeWidget):
         for p in pathList:
             parent = add(parent, p)
 
-    def removeItemByPath(self, path: str):
+    def removeItemByPath(self, path: str) -> None:
 
-        def remove(i):
+        def remove(i) -> None:
             parent = i.parent()
             if isinstance(parent, DataFileList):
                 idx = parent.indexOfTopLevelItem(i)
@@ -197,7 +197,7 @@ class DataFileList(QtWidgets.QTreeWidget):
             return
         remove(item)
 
-    def loadFromPath(self, path: str, emitNew: bool = False):
+    def loadFromPath(self, path: str, emitNew: bool = False) -> None:
         self.path = path
         files = findFilesByExtension(path, self.fileExtensions)
         newFiles = [f for f in files if f not in self.files]
@@ -214,7 +214,7 @@ class DataFileList(QtWidgets.QTreeWidget):
             self.newDataFilesFound.emit(newFiles)
 
     @Slot()
-    def processSelection(self):
+    def processSelection(self) -> None:
         selected = self.selectedItems()
         if len(selected) == 0:
             return
