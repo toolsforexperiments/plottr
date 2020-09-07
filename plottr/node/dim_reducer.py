@@ -133,10 +133,10 @@ class DimensionAssignmentWidget(QtWidgets.QTreeWidget):
         if structure is None:
             self.clear()
             return
-
-        if DataDictBase.same_structure(structure, self._dataStructure) \
-                and shapes == self._dataShapes \
-                and dtype == self._dataType:
+        if (self._dataStructure is not None
+                and DataDictBase.same_structure(structure, self._dataStructure)
+                and shapes == self._dataShapes
+                and dtype == self._dataType):
             return
 
         self.clear()
