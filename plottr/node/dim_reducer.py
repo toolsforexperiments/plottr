@@ -549,7 +549,7 @@ class DimensionReducer(Node):
                 fun = reduction[0]
                 if len(reduction) == 1:
                     arg = []
-                    kw = {}
+                    kw: Dict[str, int] = {}
                 elif len(reduction) == 2:
                     arg = reduction[1]
                     kw = {}
