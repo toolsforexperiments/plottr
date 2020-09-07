@@ -22,8 +22,9 @@ class Monitr(QtWidgets.QMainWindow):
     #:  - a dictionary containing the datadicts found in the file (as top-level groups)
     dataFileSelected = Signal(object)
 
-    def __init__(self, monitorPath: str = '.', refreshInterval: int = 1,
-                 parent=None):
+    def __init__(self, monitorPath: str = '.',
+                 refreshInterval: int = 1,
+                 parent: Optional[QtWidgets.QMainWindow] = None):
 
         super().__init__(parent=parent)
         self.ui = Ui_MainWindow()
@@ -45,20 +46,20 @@ class Monitr(QtWidgets.QMainWindow):
         self.monitor.start(self.refreshInterval * 1000)
 
     @Slot(str)
-    def processFileSelection(self, filePath: str):
+    def processFileSelection(self, filePath: str) -> None:
         self.selectedFile = filePath
         groups = all_datadicts_from_hdf5(filePath, structure_only=True)
         self.dataFileSelected.emit(groups)
 
     @Slot(list)
-    def onNewDataFilesFound(self, files: List[str]):
+    def onNewDataFilesFound(self, files: List[str]) -> None:
         if not self.ui.autoPlotNewAction.isChecked():
             return
 
         self.newFiles += files
 
     @Slot()
-    def plotQueuedFiles(self):
+    def plotQueuedFiles(self) -> None:
         if not self.ui.autoPlotNewAction.isChecked():
             return
 
@@ -78,10 +79,10 @@ class Monitr(QtWidgets.QMainWindow):
             self.newFiles.remove(f)
 
     @Slot(str)
-    def plotSelected(self, group: str):
+    def plotSelected(self, group: str) -> None:
         self.plot(unwrap_optional(self.selectedFile), group)
 
-    def plot(self, filePath: str, group: str):
+    def plot(self, filePath: str, group: str) -> None:
         fc, win = autoplotDDH5(filePath, group)
         plotId = time.time()
         while plotId in self.plotDialogs:
@@ -95,13 +96,13 @@ class Monitr(QtWidgets.QMainWindow):
         win.windowClosed.connect(lambda: self.onPlotClose(plotId))
         win.show()
 
-    def onPlotClose(self, plotId: float):
+    def onPlotClose(self, plotId: float) -> None:
         self.plotDialogs[plotId]['flowchart'].deleteLater()
         self.plotDialogs[plotId]['window'].deleteLater()
         self.plotDialogs.pop(plotId, None)
 
 
-def script():
+def script() -> int:
     parser = argparse.ArgumentParser(description='Monitr main application')
     parser.add_argument("path", help="path to monitor for data", default=None)
     parser.add_argument("-r", "--refresh_interval", default=2,

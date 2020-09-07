@@ -4,7 +4,7 @@ widgets.py
 Common GUI widgets that are re-used across plottr.
 """
 
-from typing import Union, List, Tuple, Optional, Type, Sequence, Dict
+from typing import Union, List, Tuple, Optional, Type, Sequence, Dict, Any
 
 from .tools import dictToTreeWidgetItems
 from plottr import QtCore, Flowchart, QtWidgets, Signal, Slot
@@ -48,7 +48,7 @@ class MonitorIntervalInput(QtWidgets.QWidget):
 
     intervalChanged = Signal(int)
 
-    def __init__(self, parent=None):
+    def __init__(self, parent: Optional[QtWidgets.QWidget] = None):
         super().__init__(parent)
 
         self.spin = QtWidgets.QSpinBox()
@@ -59,7 +59,7 @@ class MonitorIntervalInput(QtWidgets.QWidget):
         self.spin.valueChanged.connect(self.spinValueChanged)
 
     @Slot(int)
-    def spinValueChanged(self, val):
+    def spinValueChanged(self, val: int) -> None:
         self.intervalChanged.emit(val)
 
 
@@ -73,7 +73,8 @@ class PlotWindow(QtWidgets.QMainWindow):
 
     plotWidgetClass = MPLAutoPlot
 
-    def __init__(self, parent=None, fc: Flowchart = None, **kw):
+    def __init__(self, parent: Optional[QtWidgets.QMainWindow] = None,
+                 fc: Optional[Flowchart] = None, **kw: Any):
         super().__init__(parent)
 
         self.plot = PlotWidgetContainer(parent=self)
@@ -89,7 +90,7 @@ class PlotWindow(QtWidgets.QMainWindow):
 
         self.setDefaultStyle()
 
-    def setDefaultStyle(self):
+    def setDefaultStyle(self) -> None:
         self.setStyleSheet(
             """
             QToolButton {
@@ -102,7 +103,7 @@ class PlotWindow(QtWidgets.QMainWindow):
             """
         )
 
-    def addNodeWidget(self, node: Node, **kwargs):
+    def addNodeWidget(self, node: Node, **kwargs: Any) -> None:
         """
         Add a node widget as dock.
 
@@ -139,7 +140,7 @@ class PlotWindow(QtWidgets.QMainWindow):
                                     exclude: Sequence[str] = (),
                                     plotNode: str = 'plot',
                                     makePlotWidget: bool = True,
-                                    **kwargs):
+                                    **kwargs: Any) -> None:
         """
         Add all nodes for a flowchart, excluding nodes given in `exclude`.
 
@@ -175,7 +176,7 @@ class PlotWindow(QtWidgets.QMainWindow):
                     self.plot.setPlotWidget(self.plotWidget)
 
 
-def makeFlowchartWithPlotWindow(nodes: List[Tuple[str, Type[Node]]], **kwargs) \
+def makeFlowchartWithPlotWindow(nodes: List[Tuple[str, Type[Node]]], **kwargs: Any) \
         -> Tuple[PlotWindow, Flowchart]:
     nodes.append(('plot', PlotNode))
     fc = linearFlowchart(*nodes)
@@ -185,13 +186,13 @@ def makeFlowchartWithPlotWindow(nodes: List[Tuple[str, Type[Node]]], **kwargs) \
 
 class SnapshotWidget(QtWidgets.QTreeWidget):
 
-    def __init__(self, parent=None):
+    def __init__(self, parent: Optional[QtWidgets.QTreeWidget] = None):
         super().__init__(parent)
 
         self.setHeaderLabels(['Key', 'Value'])
         self.setColumnCount(2)
 
-    def loadSnapshot(self, snapshotDict : Optional[dict]):
+    def loadSnapshot(self, snapshotDict : Optional[dict]) -> None:
         """
         Loads a qcodes DataSet snapshot in the tree view
         """

@@ -16,22 +16,27 @@ import os
 import time
 import sys
 import argparse
+import logging
+from typing import Optional, Sequence, List, Dict, Iterable, Union
+from typing_extensions import TypedDict
 
-from plottr import QtCore, QtWidgets, Signal, Slot
+import pandas
+
+from plottr import QtCore, QtWidgets, Signal, Slot, QtGui, Flowchart
 
 from .. import log as plottrlog
 from ..data.qcodes_dataset import (get_runs_from_db_as_dataframe,
                                    get_ds_structure, load_dataset_from)
 from plottr.gui.widgets import MonitorIntervalInput, FormLayoutWrapper, dictToTreeWidgetItems
 
-from .autoplot import autoplotQcodesDataset
+from .autoplot import autoplotQcodesDataset, QCAutoPlotMainWindow
 
 
 __author__ = 'Wolfgang Pfaff'
 __license__ = 'MIT'
 
 
-def logger():
+def logger() -> logging.Logger:
     logger = plottrlog.getLogger('plottr.apps.inspectr')
     return logger
 
@@ -44,7 +49,7 @@ class DateList(QtWidgets.QListWidget):
     datesSelected = Signal(list)
     fileDropped = Signal(str)
 
-    def __init__(self, parent=None):
+    def __init__(self, parent: Optional[QtWidgets.QWidget] = None):
         super().__init__(parent)
 
         self.setAcceptDrops(True)
@@ -54,7 +59,7 @@ class DateList(QtWidgets.QListWidget):
         self.itemSelectionChanged.connect(self.sendSelectedDates)
 
     @Slot(list)
-    def updateDates(self, dates):
+    def updateDates(self, dates: Sequence[str]) -> None:
         for d in dates:
             if len(self.findItems(d, QtCore.Qt.MatchExactly)) == 0:
                 self.insertItem(0, d)
@@ -73,12 +78,12 @@ class DateList(QtWidgets.QListWidget):
         self.sortItems(QtCore.Qt.DescendingOrder)
 
     @Slot()
-    def sendSelectedDates(self):
+    def sendSelectedDates(self) -> None:
         selection = [item.text() for item in self.selectedItems()]
         self.datesSelected.emit(selection)
 
     ### Drag/drop handling
-    def dragEnterEvent(self, event):
+    def dragEnterEvent(self, event: QtGui.QDragEnterEvent) -> None:
         if event.mimeData().hasUrls():
             urls = event.mimeData().urls()
             if len(urls) == 1:
@@ -90,11 +95,11 @@ class DateList(QtWidgets.QListWidget):
         else:
             event.ignore()
 
-    def dropEvent(self, event):
+    def dropEvent(self, event: QtGui.QDropEvent) -> None:
         url = event.mimeData().urls()[0].toLocalFile()
         self.fileDropped.emit(url)
 
-    def mimeTypes(self):
+    def mimeTypes(self) -> List[str]:
         return ([
             'text/uri-list',
             'application/x-qabstractitemmodeldatalist',
@@ -106,10 +111,10 @@ class SortableTreeWidgetItem(QtWidgets.QTreeWidgetItem):
     QTreeWidgetItem with an overridden comparator that sorts numerical values
     as numbers instead of sorting them alphabetically.
     """
-    def __init__(self, parent=None):
-        super().__init__(parent)
+    def __init__(self, strings: Iterable[str]):
+        super().__init__(strings)
 
-    def __lt__(self, other):
+    def __lt__(self, other: "SortableTreeWidgetItem") -> bool:
         col = self.treeWidget().sortColumn()
         text1 = self.text(col)
         text2 = other.text(col)
@@ -127,7 +132,7 @@ class RunList(QtWidgets.QTreeWidget):
     runSelected = Signal(int)
     runActivated = Signal(int)
 
-    def __init__(self, parent=None):
+    def __init__(self, parent: Optional[QtWidgets.QWidget] = None):
         super().__init__(parent)
 
         self.setColumnCount(len(self.cols))
@@ -136,7 +141,7 @@ class RunList(QtWidgets.QTreeWidget):
         self.itemSelectionChanged.connect(self.selectRun)
         self.itemActivated.connect(self.activateRun)
 
-    def addRun(self, runId, **vals):
+    def addRun(self, runId: int, **vals: str) -> None:
         lst = [str(runId)]
         lst.append(vals.get('experiment', ''))
         lst.append(vals.get('sample', ''))
@@ -149,7 +154,7 @@ class RunList(QtWidgets.QTreeWidget):
         item = SortableTreeWidgetItem(lst)
         self.addTopLevelItem(item)
 
-    def setRuns(self, selection):
+    def setRuns(self, selection: Dict[int, Dict[str, str]]) -> None:
         self.clear()
 
         # disable sorting before inserting values to avoid performance hit
@@ -164,7 +169,7 @@ class RunList(QtWidgets.QTreeWidget):
             self.resizeColumnToContents(i)
 
     @Slot()
-    def selectRun(self):
+    def selectRun(self) -> None:
         selection = self.selectedItems()
         if len(selection) == 0:
             return
@@ -173,7 +178,7 @@ class RunList(QtWidgets.QTreeWidget):
         self.runSelected.emit(runId)
 
     @Slot(QtWidgets.QTreeWidgetItem, int)
-    def activateRun(self, item, column):
+    def activateRun(self, item: QtWidgets.QTreeWidgetItem, column: int) -> None:
         runId = int(item.text(0))
         self.runActivated.emit(runId)
 
@@ -185,14 +190,14 @@ class RunInfo(QtWidgets.QTreeWidget):
     a tree view of that dictionary and display that.
     """
 
-    def __init__(self, parent=None):
+    def __init__(self, parent: Optional[QtWidgets.QWidget] = None):
         super().__init__(parent)
 
         self.setHeaderLabels(['Key', 'Value'])
         self.setColumnCount(2)
 
     @Slot(dict)
-    def setInfo(self, infoDict):
+    def setInfo(self, infoDict: Dict[str, Union[dict, str]]) -> None:
         self.clear()
 
         items = dictToTreeWidgetItems(infoDict)
@@ -214,11 +219,11 @@ class LoadDBProcess(QtCore.QObject):
     dbdfLoaded = Signal(object)
     pathSet = Signal()
 
-    def setPath(self, path: str):
+    def setPath(self, path: str) -> None:
         self.path = path
         self.pathSet.emit()
 
-    def loadDB(self):
+    def loadDB(self) -> None:
         dbdf = get_runs_from_db_as_dataframe(self.path)
         self.dbdfLoaded.emit(dbdf)
 
@@ -236,11 +241,12 @@ class QCodesDBInspector(QtWidgets.QMainWindow):
     #: run to the widget that displays the information
     _sendInfo = Signal(dict)
 
-    def __init__(self, parent=None, dbPath=None):
+    def __init__(self, parent: Optional[QtWidgets.QWidget] = None,
+                 dbPath: Optional[str] = None):
         """Constructor for :class:`QCodesDBInspector`."""
         super().__init__(parent)
 
-        self._plotWindows = {}
+        self._plotWindows: Dict[int, WindowDict] = {}
 
         self.filepath = dbPath
         self.dbdf = None
@@ -325,7 +331,7 @@ class QCodesDBInspector(QtWidgets.QMainWindow):
         self.loadDBProcess.pathSet.connect(self.loadDBThread.start)
         self.loadDBProcess.dbdfLoaded.connect(self.DBLoaded)
         self.loadDBProcess.dbdfLoaded.connect(self.loadDBThread.quit)
-        self.loadDBThread.started.connect(self.loadDBProcess.loadDB)
+        self.loadDBThread.started.connect(self.loadDBProcess.loadDB)  # type: ignore[attr-defined]
 
         ### connect signals/slots
 
@@ -342,7 +348,7 @@ class QCodesDBInspector(QtWidgets.QMainWindow):
         if self.filepath is not None:
             self.loadFullDB(self.filepath)
 
-    def closeEvent(self, event):
+    def closeEvent(self, event: QtGui.QCloseEvent) -> None:
         """
         When closing the inspectr window, do some house keeping:
         * stop the monitor, if running
@@ -356,14 +362,15 @@ class QCodesDBInspector(QtWidgets.QMainWindow):
             info['window'].close()
 
     @Slot()
-    def showDBPath(self):
+    def showDBPath(self) -> None:
         tstamp = time.strftime("%Y-%m-%d %H:%M:%S")
+        assert self.filepath is not None
         path = os.path.abspath(self.filepath)
         self.status.showMessage(f"{path} (loaded: {tstamp})")
 
     ### loading the DB and populating the widgets
     @Slot()
-    def loadDB(self):
+    def loadDB(self) -> None:
         """
         Open a file dialog that allows selecting a .db file for loading.
         If a file is selected, opens the db.
@@ -384,7 +391,7 @@ class QCodesDBInspector(QtWidgets.QMainWindow):
             logger().info(f"Opening: {path}")
             self.loadFullDB(path=path)
 
-    def loadFullDB(self, path=None):
+    def loadFullDB(self, path: Optional[str] = None) -> None:
         if path is not None and path != self.filepath:
             self.filepath = path
 
@@ -397,7 +404,7 @@ class QCodesDBInspector(QtWidgets.QMainWindow):
                 self.loadDBProcess.setPath(self.filepath)
 
     
-    def DBLoaded(self, dbdf):
+    def DBLoaded(self, dbdf: pandas.DataFrame) -> None:
         self.dbdf = dbdf
         self.dbdfUpdated.emit()
         self.dateList.sendSelectedDates()
@@ -415,14 +422,15 @@ class QCodesDBInspector(QtWidgets.QMainWindow):
 
 
     @Slot()
-    def updateDates(self):
+    def updateDates(self) -> None:
+        assert self.dbdf is not None
         if self.dbdf.size > 0:
             dates = list(self.dbdf.groupby('started date').indices.keys())
             self.dateList.updateDates(dates)
 
     ### reloading the db
     @Slot()
-    def refreshDB(self):
+    def refreshDB(self) -> None:
         if self.filepath is not None:
             if self.dbdf is not None and self.dbdf.size > 0:
                 self.latestRunId = self.dbdf.index.values.max()
@@ -432,7 +440,7 @@ class QCodesDBInspector(QtWidgets.QMainWindow):
             self.loadFullDB()
 
     @Slot(int)
-    def setMonitorInterval(self, val):
+    def setMonitorInterval(self, val: int) -> None:
         self.monitor.stop()
         if val > 0:
             self.monitor.start(val * 1000)
@@ -440,21 +448,23 @@ class QCodesDBInspector(QtWidgets.QMainWindow):
         self.monitorInput.spin.setValue(val)
 
     @Slot()
-    def monitorTriggered(self):
+    def monitorTriggered(self) -> None:
         logger().debug('Refreshing DB')
         self.refreshDB()
 
     ### handling user selections
     @Slot(list)
-    def setDateSelection(self, dates):
+    def setDateSelection(self, dates: Sequence[str]) -> None:
         if len(dates) > 0:
+            assert self.dbdf is not None
             selection = self.dbdf.loc[self.dbdf['started date'].isin(dates)].sort_index(ascending=False)
             self.runList.setRuns(selection.to_dict(orient='index'))
         else:
             self.runList.clear()
 
     @Slot(int)
-    def setRunSelection(self, runId):
+    def setRunSelection(self, runId: int) -> None:
+        assert self.filepath is not None
         ds = load_dataset_from(self.filepath, runId)
         snap = None
         if hasattr(ds, 'snapshot'):
@@ -468,7 +478,8 @@ class QCodesDBInspector(QtWidgets.QMainWindow):
         self._sendInfo.emit(contentInfo)
 
     @Slot(int)
-    def plotRun(self, runId):
+    def plotRun(self, runId: int) -> None:
+        assert self.filepath is not None
         fc, win = autoplotQcodesDataset(pathAndId=(self.filepath, runId))
         self._plotWindows[runId] = {
             'flowchart': fc,
@@ -477,12 +488,17 @@ class QCodesDBInspector(QtWidgets.QMainWindow):
         win.showTime()
 
 
-def inspectr(dbPath: str = None):
+class WindowDict(TypedDict):
+    flowchart: Flowchart
+    window: QCAutoPlotMainWindow
+
+
+def inspectr(dbPath: str = None) -> QCodesDBInspector:
     win = QCodesDBInspector(dbPath=dbPath)
     return win
 
 
-def main(dbPath):
+def main(dbPath: Optional[str]) -> None:
     app = QtWidgets.QApplication([])
     plottrlog.enableStreamHandler(True)
 
@@ -493,7 +509,7 @@ def main(dbPath):
         QtWidgets.QApplication.instance().exec_()
 
 
-def script():
+def script() -> None:
     parser = argparse.ArgumentParser(description='inspectr -- sifting through qcodes data.')
     parser.add_argument('--dbpath', help='path to qcodes .db file',
                         default=None)

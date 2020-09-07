@@ -2,6 +2,7 @@
 
 helpers and tools for creating GUI elements.
 """
+from typing import List, Dict, Union
 
 from .. import QtWidgets
 
@@ -22,7 +23,7 @@ def widgetDialog(widget: QtWidgets.QWidget, title: str = '',
     return win
 
 
-def dictToTreeWidgetItems(d):
+def dictToTreeWidgetItems(d: Dict[str, Union[dict, str]]) -> List[QtWidgets.QTreeWidgetItem]:
     items = []
     for k, v in d.items():
         if not isinstance(v, dict):
@@ -35,5 +36,5 @@ def dictToTreeWidgetItems(d):
     return items
 
 
-def flowchartAutoPlot():
+def flowchartAutoPlot() -> None:
     pass

@@ -29,7 +29,7 @@ class DataSelectionWidget(QtWidgets.QTreeWidget):
         self.setSelectionMode(self.MultiSelection)
         self.itemSelectionChanged.connect(self.emitSelection)
 
-    def _makeItem(self, name):
+    def _makeItem(self, name: str) -> QtWidgets.QTreeWidgetItem:
         shape = self._dataShapes.get(name, tuple())
         unit = self._dataStructure[name].get('unit', '')
         label = f"{name} [{unit}]"
@@ -47,10 +47,10 @@ class DataSelectionWidget(QtWidgets.QTreeWidget):
         ])
 
     @Slot(int)
-    def _processCbChange(self, _):
+    def _processCbChange(self, _: int) -> None:
         self.emitSelection()
 
-    def _populate(self):
+    def _populate(self) -> None:
         for n in self._dataStructure.dependents():
             item = self._makeItem(n)
             # for ax in self._dataStructure.axes(n):
@@ -62,7 +62,7 @@ class DataSelectionWidget(QtWidgets.QTreeWidget):
         for i in range(3):
             self.resizeColumnToContents(i)
 
-    def setData(self, structure: DataDictBase, shapes: dict):
+    def setData(self, structure: DataDictBase, shapes: dict) -> None:
         """Set data; populates the tree."""
         if structure is not None:
             self._dataShapes = shapes
@@ -75,7 +75,7 @@ class DataSelectionWidget(QtWidgets.QTreeWidget):
         if structure is not None:
             self._populate()
 
-    def setShape(self, shape: Dict[str, Tuple[int, ...]]):
+    def setShape(self, shape: Dict[str, Tuple[int, ...]]) -> None:
         """Set shapes of given elements"""
         for i in range(self.topLevelItemCount()):
             item = self.topLevelItem(i)
@@ -83,12 +83,12 @@ class DataSelectionWidget(QtWidgets.QTreeWidget):
             if name in shape:
                 item.setText(2, str(shape[name]))
 
-    def clear(self):
+    def clear(self) -> None:
         """Clear the tree, and make sure all selections are cleared."""
         self.dataItems = {}
         super().clear()
 
-    def setItemEnabled(self, name: str, enable: bool = True):
+    def setItemEnabled(self, name: str, enable: bool = True) -> None:
         """Enable/Disable a tree item by name"""
         # item = self.findItems(name, QtCore.Qt.MatchExactly, 1)[0]
         item = self.dataItems[name]
@@ -96,7 +96,7 @@ class DataSelectionWidget(QtWidgets.QTreeWidget):
         if not enable:
             item.setSelected(False)
 
-    def nameFromItem(self, item):
+    def nameFromItem(self, item: QtWidgets.QTreeWidgetItem) -> str:
         for k, v in self.dataItems.items():
             if item is v:
                 return k
@@ -110,11 +110,11 @@ class DataSelectionWidget(QtWidgets.QTreeWidget):
             ret.append(self.nameFromItem(w))
         return ret
 
-    def setSelectedData(self, vals: List[str]):
+    def setSelectedData(self, vals: List[str]) -> None:
         """select all given items, uncheck all others."""
         for n, w in self.dataItems.items():
             w.setSelected(n in vals)
 
-    def emitSelection(self):
+    def emitSelection(self) -> None:
         """emit the signal ``selectionChanged`` with the current selection"""
         self.dataSelectionMade.emit(self.getSelectedData())
