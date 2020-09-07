@@ -263,7 +263,7 @@ class DimensionAssignmentWidget(QtWidgets.QTreeWidget):
 
 class DimensionReductionAssignmentWidget(DimensionAssignmentWidget):
 
-    def __init__(self, parent=None):
+    def __init__(self, parent: Optional[QtWidgets.QWidget] = None):
         super().__init__(parent)
 
         self.availableChoices[MeshgridDataDict] += [
@@ -271,7 +271,7 @@ class DimensionReductionAssignmentWidget(DimensionAssignmentWidget):
             ReductionMethod.elementSelection.value,
         ]
 
-    def getRole(self, name: str):
+    def getRole(self, name: str) -> Tuple[str, Dict]:
         role, opts = super().getRole(name)
 
         if role == ReductionMethod.elementSelection.value:
@@ -326,7 +326,7 @@ class DimensionReductionAssignmentWidget(DimensionAssignmentWidget):
         roles = self.getRoles()
         self.rolesChanged.emit(roles)
 
-    def _setElementSelectionInfo(self, dim) -> None:
+    def _setElementSelectionInfo(self, dim: str) -> None:
         # get the number of elements in this dimension
         assert self._dataStructure is not None
         assert self._dataShapes is not None
@@ -371,9 +371,10 @@ class DimensionReducerNodeWidget(NodeWidget):
         self.widget.rolesChanged.connect(
             lambda x: self.signalOption('reductions'))
 
-    def getReductions(self):
+    def getReductions(self) -> Dict[str, Optional[ReductionType]]:
+        assert self.widget is not None
         roles = self.widget.getRoles()
-        reductions = {}
+        reductions: Dict[str, Optional[ReductionType]] = {}
         for dimName, rolesOptions in roles.items():
             role = rolesOptions['role']
             opts = rolesOptions['options']
@@ -383,8 +384,11 @@ class DimensionReducerNodeWidget(NodeWidget):
 
         return reductions
 
-    def setReductions(self, reductions):
-        for dimName, (method, arg, kw) in reductions.items():
+    def setReductions(self, reductions: Dict[str, Optional[ReductionType]]) -> None:
+        assert self.widget is not None
+        for dimName, reduction in reductions.items():
+            assert reduction is not None
+            (method, arg, kw) = reduction
             role = method.value
             self.widget.setRole(dimName, role, **kw)
 
@@ -392,7 +396,8 @@ class DimensionReducerNodeWidget(NodeWidget):
             if dimName not in reductions.keys():
                 self.widget.setRole(dimName, 'None')
 
-    def setData(self, structure, shapes, dtype):
+    def setData(self, structure, shapes, dtype) -> None:
+        assert self.widget is not None
         self.widget.setData(structure, shapes, dtype)
 
 
@@ -441,21 +446,21 @@ class DimensionReducer(Node):
     # Properties
 
     @property
-    def reductions(self):
+    def reductions(self) -> Dict[str, Optional[ReductionType]]:
         return self._reductions
 
     @reductions.setter  # type: ignore[misc]
     @updateOption('reductions')
-    def reductions(self, val):
+    def reductions(self, val: Dict[str, Optional[ReductionType]]) -> None:
         self._reductions = val
 
     @property
-    def targetNames(self):
+    def targetNames(self) -> Optional[List[str]]:
         return self._targetNames
 
     @targetNames.setter  # type: ignore[misc]
     @updateOption()
-    def targetNames(self, val):
+    def targetNames(self, val: Optional[List[str]]) -> None:
         self._targetNames = val
 
     # Data processing
