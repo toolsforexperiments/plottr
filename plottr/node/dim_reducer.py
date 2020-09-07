@@ -61,6 +61,9 @@ reductionFunc = {
     ReductionMethod.average: np.mean,
 }
 
+
+ReductionType = Tuple[ReductionMethod, List[Any], Dict[str, int]]
+
 class DimensionAssignmentWidget(QtWidgets.QTreeWidget):
     """
     A Widget that allows to assign options ('roles') to dimensions of a
@@ -428,7 +431,7 @@ class DimensionReducer(Node):
     newDataStructure = Signal(object, object, object)
 
     def __init__(self,  name: str):
-        self._reductions = {}
+        self._reductions: Dict[str, Optional[ReductionType]] = {}
         self._targetNames: Optional[List[str]] = None
         self._dataStructure = None
 
@@ -601,6 +604,7 @@ class DimensionReducer(Node):
     # FIXME: include connection to a method that helps updating sliders etc.
     def setupUi(self) -> None:
         super().setupUi()
+        assert self.ui is not None
         self.newDataStructure.connect(self.ui.setData)
 
 
@@ -766,7 +770,7 @@ class XYSelector(DimensionReducer):
 
                     # reductions are only supported on GridData
                     if isinstance(data, MeshgridDataDict):
-                        red = (ReductionMethod.elementSelection, [],
+                        red: Optional[ReductionType] = (ReductionMethod.elementSelection, [],
                                dict(index=0))
                     else:
                         red = None
