@@ -3,6 +3,7 @@
 nodes and widgets for reducing data dimensionality.
 """
 from typing import Dict, Any, Tuple, Type, Optional, List
+from typing import OrderedDict as OrderedDictType
 from enum import Enum, unique
 from collections import OrderedDict
 
@@ -92,11 +93,11 @@ class DimensionAssignmentWidget(QtWidgets.QTreeWidget):
         self.emitRoleChangeSignal = True
 
         self.choices: Dict[str, dict] = {}
-        self.availableChoices = OrderedDict({
+        self.availableChoices: Dict[Type[DataDictBase], List[str]] = {
             DataDictBase: ['None', ],
             DataDict: [],
             MeshgridDataDict: [],
-        })
+        }
 
     def clear(self) -> None:
         """
