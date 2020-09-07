@@ -116,7 +116,7 @@ class PlotWidget(QtWidgets.QWidget):
     Implement a child class for actual plotting.
     """
 
-    def __init__(self, parent: QtWidgets.QWidget = None) -> None:
+    def __init__(self, parent: Optional[QtWidgets.QWidget] = None) -> None:
         super().__init__(parent=parent)
 
         self.data: Optional[DataDictBase] = None

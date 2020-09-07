@@ -17,7 +17,7 @@ import time
 import sys
 import argparse
 import logging
-from typing import Optional, Sequence, List, Dict, Iterable, Any
+from typing import Optional, Sequence, List, Dict, Iterable, Union
 from typing_extensions import TypedDict
 
 import pandas
@@ -154,7 +154,7 @@ class RunList(QtWidgets.QTreeWidget):
         item = SortableTreeWidgetItem(lst)
         self.addTopLevelItem(item)
 
-    def setRuns(self, selection: Dict[int, Dict[str,str]]) -> None:
+    def setRuns(self, selection: Dict[int, Dict[str, str]]) -> None:
         self.clear()
 
         # disable sorting before inserting values to avoid performance hit
@@ -197,7 +197,7 @@ class RunInfo(QtWidgets.QTreeWidget):
         self.setColumnCount(2)
 
     @Slot(dict)
-    def setInfo(self, infoDict: dict) -> None:
+    def setInfo(self, infoDict: Dict[str, Union[dict, str]]) -> None:
         self.clear()
 
         items = dictToTreeWidgetItems(infoDict)
@@ -493,7 +493,7 @@ class WindowDict(TypedDict):
     window: QCAutoPlotMainWindow
 
 
-def inspectr(dbPath: str = None) -> QtWidgets.QMainWindow:
+def inspectr(dbPath: str = None) -> QCodesDBInspector:
     win = QCodesDBInspector(dbPath=dbPath)
     return win
 

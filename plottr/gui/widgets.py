@@ -74,7 +74,7 @@ class PlotWindow(QtWidgets.QMainWindow):
     plotWidgetClass = MPLAutoPlot
 
     def __init__(self, parent: Optional[QtWidgets.QMainWindow] = None,
-                 fc: Flowchart = None, **kw: Any):
+                 fc: Optional[Flowchart] = None, **kw: Any):
         super().__init__(parent)
 
         self.plot = PlotWidgetContainer(parent=self)

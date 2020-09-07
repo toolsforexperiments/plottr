@@ -47,7 +47,7 @@ class DataSelectionWidget(QtWidgets.QTreeWidget):
         ])
 
     @Slot(int)
-    def _processCbChange(self, _: Any) -> None:
+    def _processCbChange(self, _: int) -> None:
         self.emitSelection()
 
     def _populate(self) -> None:
