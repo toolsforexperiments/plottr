@@ -6,13 +6,13 @@ functions with name `generate_[...]` return generators that can be
 used to produce data line by line.
 functions with name `get_[...]` return valid DataDict objects.
 """
-
+from typing import Iterable, Dict
 import numpy as np
 
 from plottr.data.datadict import DataDict
 
 
-def generate_2d_scalar_simple(nx, ny, ndeps=1):
+def generate_2d_scalar_simple(nx: int, ny: int, ndeps: int = 1) -> Iterable[Dict[str, int]]:
     """
     Generate 2d example data, with axes x, y.
 
@@ -40,7 +40,7 @@ def generate_2d_scalar_simple(nx, ny, ndeps=1):
         yield ret
 
 
-def get_1d_scalar_cos_data(nx=10, ndata=1):
+def get_1d_scalar_cos_data(nx: int = 10, ndata: int = 1) -> DataDict:
     """
     return a datadict with `ndata` dependents.
     All have a cos-dependence on x (with increasing frequency).
@@ -58,7 +58,7 @@ def get_1d_scalar_cos_data(nx=10, ndata=1):
     return d
 
 
-def get_2d_scalar_cos_data(nx=10, ny=10, ndata=1):
+def get_2d_scalar_cos_data(nx: int = 10, ny: int = 10, ndata: int = 1) -> DataDict:
     """
     return a datadict with `ndata` dependents.
     All have a cos-dependence on x (with increasing frequency),
@@ -82,7 +82,7 @@ def get_2d_scalar_cos_data(nx=10, ny=10, ndata=1):
 
 
 # DEPRECATED BUT STILL IN USE
-def two_1d_traces(nvals=11):
+def two_1d_traces(nvals: int = 11) -> DataDict:
     x = np.linspace(0, 10, nvals)
     y = np.cos(x)
     z = np.cos(x) ** 2
@@ -95,7 +95,7 @@ def two_1d_traces(nvals=11):
     return d
 
 
-def one_2d_set(nx=10, ny=10):
+def one_2d_set(nx: int = 10, ny: int = 10) -> DataDict:
     x = np.linspace(0, 10, nx)
     y = np.arange(ny)
 
@@ -111,7 +111,7 @@ def one_2d_set(nx=10, ny=10):
     return d
 
 
-def two_compatible_noisy_2d_sets(nx=10, ny=10):
+def two_compatible_noisy_2d_sets(nx: int =10, ny: int = 10) -> DataDict:
     x = np.linspace(0, 10, nx)
     y = np.arange(ny)
 
@@ -129,7 +129,8 @@ def two_compatible_noisy_2d_sets(nx=10, ny=10):
     return d
 
 
-def three_compatible_3d_sets(nx=3, ny=3, nz=3, rand_factor=1):
+def three_compatible_3d_sets(nx: int = 3, ny: int = 3,
+                             nz: int = 3, rand_factor: int = 1) -> DataDict:
     x = np.linspace(0, 10, nx)
     y = np.linspace(-5, 5, ny)
     z = np.arange(nz)
@@ -152,7 +153,8 @@ def three_compatible_3d_sets(nx=3, ny=3, nz=3, rand_factor=1):
     return d
 
 
-def three_incompatible_3d_sets(nx=3, ny=3, nz=3, rand_factor=1):
+def three_incompatible_3d_sets(nx: int = 3, ny: int = 3,
+                               nz: int = 3, rand_factor: int = 1) -> DataDict:
     x = np.linspace(0, 10, nx)
     y = np.linspace(-5, 5, ny)
     z = np.arange(nz)

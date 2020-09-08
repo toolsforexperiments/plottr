@@ -456,7 +456,7 @@ class DDH5Loader(Node):
 
     # Data processing #
 
-    def process(self, dataIn: DataDictBase=None) -> Optional[Dict[str, Any]]:
+    def process(self, dataIn: Optional[DataDictBase] = None) -> Optional[Dict[str, Any]]:
         if self._filepath is None or self._groupname is None:
             return None
         if not os.path.exists(self._filepath):

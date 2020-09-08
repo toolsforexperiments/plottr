@@ -493,7 +493,7 @@ class WindowDict(TypedDict):
     window: QCAutoPlotMainWindow
 
 
-def inspectr(dbPath: str = None) -> QCodesDBInspector:
+def inspectr(dbPath: Optional[str] = None) -> QCodesDBInspector:
     win = QCodesDBInspector(dbPath=dbPath)
     return win
 

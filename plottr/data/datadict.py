@@ -641,6 +641,7 @@ class DataDictBase(dict):
         ret = self.copy()
         for d, _ in self.data_items():
             arr = self.data_vals(d)
+            assert isinstance(arr, np.ndarray)
             vals = np.ma.masked_where(num.is_invalid(arr), arr, copy=True)
             try:
                 vals.fill_value = np.nan

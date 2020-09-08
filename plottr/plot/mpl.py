@@ -162,7 +162,7 @@ class SymmetricNorm(colors.Normalize):
         super().__init__(vmin, vmax, clip)
         self.vcenter = vcenter
 
-    def __call__(self, value: float, clip: bool = None) -> np.ma.core.MaskedArray:
+    def __call__(self, value: float, clip: Optional[bool] = None) -> np.ma.core.MaskedArray:
         vlim = max(abs(self.vmin-self.vcenter), abs(self.vmax-self.vcenter))
         self.vmax: float = vlim+self.vcenter
         self.vmin: float = -vlim+self.vcenter
@@ -411,7 +411,7 @@ class MPLPlot(FCanvas):
     It can be used as any QT widget.
     """
 
-    def __init__(self, parent: QtWidgets.QWidget = None, width: float = 4.0,
+    def __init__(self, parent: Optional[QtWidgets.QWidget] = None, width: float = 4.0,
                  height: float = 3.0, dpi: int = 150, nrows: int = 1,
                  ncols: int = 1):
         """
@@ -612,7 +612,7 @@ class _AutoPlotToolBar(QtWidgets.QToolBar):
     #: signal emitted when the complex data option has been changed
     complexPolarSelected = Signal(bool)
 
-    def __init__(self, name: str, parent: QtWidgets.QWidget = None):
+    def __init__(self, name: str, parent: Optional[QtWidgets.QWidget] = None):
         """Constructor for :class:`AutoPlotToolBar`"""
 
         super().__init__(name, parent=parent)

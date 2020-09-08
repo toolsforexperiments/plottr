@@ -130,7 +130,7 @@ class AutoPlotMainWindow(PlotWindow):
                  parent: Optional[QtWidgets.QMainWindow] = None,
                  monitor: bool = False,
                  monitorInterval: Union[int, None] = None,
-                 loaderName: str = None,
+                 loaderName: Optional[str] = None,
                  **kwargs):
 
         super().__init__(parent, fc=fc, **kwargs)

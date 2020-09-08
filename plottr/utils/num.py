@@ -15,7 +15,7 @@ FLOATTYPES = [float, np.float, np.float16, np.float32, np.float64,
 NUMTYPES = INTTYPES + FLOATTYPES
 
 
-def largest_numtype(arr: np.ndarray, include_integers=True) \
+def largest_numtype(arr: np.ndarray, include_integers: bool = True) \
         -> Union[None, type]:
     """
     Get the largest numerical type present in an array.
@@ -46,15 +46,17 @@ def largest_numtype(arr: np.ndarray, include_integers=True) \
         return None
 
 
-def _are_close(a, b, rtol=1e-8):
+def _are_close(a: np.ndarray, b: np.ndarray, rtol: float = 1e-8) -> np.ndarray:
     return np.isclose(a, b, rtol=rtol)
 
 
-def _are_equal(a, b):
+def _are_equal(a: np.ndarray, b: np.ndarray) -> np.ndarray:
     return a == b
 
 
-def is_invalid(a):
+def is_invalid(a: np.ndarray) -> np.ndarray:
+    # really use == None to do an element wise
+    # check for None
     isnone = a == None
     if a.dtype in FLOATTYPES:
         isnan = np.isnan(a)
@@ -63,7 +65,7 @@ def is_invalid(a):
     return isnone | isnan
 
 
-def _are_invalid(a, b):
+def _are_invalid(a: np.ndarray, b: np.ndarray) -> np.ndarray:
     return is_invalid(a) & is_invalid(b)
 
 
@@ -143,7 +145,9 @@ def array1d_to_meshgrid(arr: Union[List, np.ndarray],
     return localarr.reshape(target_shape)
 
 
-def _find_switches(arr, rth=25, ztol=1e-15):
+def _find_switches(arr: np.ndarray,
+                   rth: float = 25,
+                   ztol: float = 1e-15) -> np.ndarray:
     arr_ = np.ma.MaskedArray(arr, is_invalid(arr))
     deltas = arr_[1:] - arr_[:-1]
     hi = np.percentile(arr[~is_invalid(arr)], 100.-rth)
@@ -389,7 +393,8 @@ def crop2d(x: np.ndarray, y: np.ndarray, *arr: np.ndarray) \
     return tuple(ret)
 
 
-def interp_meshgrid_2d(xx, yy):
+def interp_meshgrid_2d(xx: np.ndarray,
+                       yy: np.ndarray) -> Tuple[np.ndarray, np.ndarray]:
     """
     Try to find missing vertices in a 2d meshgrid,
     where xx and yy are the x and y coordinates of each point.
@@ -404,7 +409,7 @@ def interp_meshgrid_2d(xx, yy):
     return xx2, yy2
 
 
-def centers2edges_1d(arr):
+def centers2edges_1d(arr: np.ndarray) -> np.ndarray:
     """
     Given an array of center coordinates, return the array of
     bounding vertices for the mesh that is defined by the coordinates.
@@ -423,7 +428,7 @@ def centers2edges_1d(arr):
     return e
 
 
-def centers2edges_2d(centers):
+def centers2edges_2d(centers: np.ndarray) -> np.ndarray:
     """
     Given a 2d array of coordinates, return the array of bounding vertices for
     the mesh that is defined by the coordinates.

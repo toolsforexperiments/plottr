@@ -64,7 +64,7 @@ class PlotWidgetContainer(QtWidgets.QWidget):
     added to this container.
     """
 
-    def __init__(self, parent: QtWidgets.QWidget = None):
+    def __init__(self, parent: Optional[QtWidgets.QWidget] = None):
         """Constructor for :class:`PlotWidgetContainer`. """
         super().__init__(parent=parent)
 

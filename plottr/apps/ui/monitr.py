@@ -1,6 +1,6 @@
 import os
 from enum import Enum
-from typing import List, Any, Optional, Dict, Sequence
+from typing import List, Any, Optional, Dict, Sequence, Union
 from pprint import pprint
 
 from plottr import QtCore, QtGui, QtWidgets, Slot, Signal
@@ -29,11 +29,11 @@ class DataFileContent(QtWidgets.QTreeWidget):
     #:   - name of the group within the currently selected file
     plotRequested = Signal(str)
 
-    def __init__(self, parent=None):
+    def __init__(self, parent: Optional[QtWidgets.QWidget] = None):
         super().__init__(parent)
 
-        self.data = {}
-        self.groupItems = []
+        self.data: Dict[str, DataDict] = {}
+        self.groupItems: List[QtWidgets.QTreeWidgetItem] = []
         self.selectedGroup = None
 
         self.dataPopup = QtWidgets.QMenu('Data actions', self)
@@ -42,7 +42,7 @@ class DataFileContent(QtWidgets.QTreeWidget):
 
 
     @Slot(object)
-    def setData(self, data: Dict[str, DataDict]):
+    def setData(self, data: Dict[str, DataDict]) -> None:
         """Set the data to display."""
         self.clear()
         self.data = {}
@@ -82,7 +82,7 @@ class DataFileContent(QtWidgets.QTreeWidget):
             self.resizeColumnToContents(i)
 
     @Slot(QtCore.QPoint)
-    def onCustomContextMenuRequested(self, pos):
+    def onCustomContextMenuRequested(self, pos: QtCore.QPoint) -> None:
         item = self.itemAt(pos)
         if item not in self.groupItems:
             return
@@ -92,7 +92,7 @@ class DataFileContent(QtWidgets.QTreeWidget):
         self.dataPopup.exec(self.mapToGlobal(pos))
 
     @Slot()
-    def onPlotActionTriggered(self):
+    def onPlotActionTriggered(self) -> None:
         self.plotRequested.emit(self.selectedGroup)
 
 
@@ -111,14 +111,14 @@ class DataFileList(QtWidgets.QTreeWidget):
     #: Signal(list) -- emitted when new files have been found
     newDataFilesFound = Signal(list)
 
-    def __init__(self, parent=None):
+    def __init__(self, parent: Optional[QtWidgets.QWidget] = None):
         super().__init__(parent)
 
-        self.files = []
-        self.path = None
+        self.files: List[str] = []
+        self.path: Optional[str] = None
 
     @staticmethod
-    def find(parent, name):
+    def finditem(parent: Union[QtWidgets.QWidget, QtWidgets.QTreeWidgetItem], name: str) -> Optional[QtWidgets.QTreeWidgetItem]:
         if isinstance(parent, DataFileList):
             existingItems = [parent.topLevelItem(i) for i in
                              range(parent.topLevelItemCount())]
@@ -143,22 +143,26 @@ class DataFileList(QtWidgets.QTreeWidget):
             return buildPath(i.parent(), suffix=newSuffix)
         return os.path.join(self.path, buildPath(item))
 
-    def findItemByPath(self, path: str):
+    def findItemByPath(self, path: str) -> Optional[Union[QtWidgets.QWidget, QtWidgets.QTreeWidgetItem]]:
+        assert self.path is not None
         path = path[len(self.path) + len(os.path.sep):]
         pathList = path.split(os.path.sep)
-        parent = self
+        parent: Union[QtWidgets.QWidget, QtWidgets.QTreeWidgetItem] = self
         for p in pathList:
-            parent = self.find(parent, p)
-            if parent is None:
+            new_parent = self.finditem(parent, p)
+            if new_parent is None:
                 return None
+            else:
+                parent = new_parent
         return parent
 
     def addItemByPath(self, path: str):
+        assert self.path is not None
         path = path[len(self.path)+len(os.path.sep):]
         pathList = path.split(os.path.sep)
 
         def add(parent, name):
-            item = self.find(parent, name)
+            item = self.finditem(parent, name)
             if item is None:
                 item = QtWidgets.QTreeWidgetItem(parent, [name])
                 if os.path.splitext(name)[-1] in self.fileExtensions:

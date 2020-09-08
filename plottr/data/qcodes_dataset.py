@@ -223,7 +223,7 @@ class QCodesDSLoader(Node):
             self._pathAndId = val
             self.nLoadedRecords = 0
 
-    def process(self, dataIn: DataDictBase = None) -> Optional[Dict[str, Any]]:
+    def process(self, dataIn: Optional[DataDictBase] = None) -> Optional[Dict[str, Any]]:
         if dataIn is not None:
             raise RuntimeError("QCodesDSLoader.process does not take a dataIn argument")
         if None not in self._pathAndId:
