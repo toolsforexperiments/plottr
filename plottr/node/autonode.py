@@ -1,4 +1,4 @@
-from typing import Dict, Any, Callable, Optional
+from typing import Dict, Any, Callable, Optional, Type
 
 from .. import QtGui, QtWidgets
 from .node import Node, NodeWidget, updateOption
@@ -89,7 +89,7 @@ class AutoNode(Node):
 
 def autonode(nodeName: str, confirm: bool = True, **options: Any) -> Callable:
 
-    def decorator(func: Callable):
+    def decorator(func: Callable) -> Type["AutoNode"]:
 
         class AutoNodeGui_(AutoNodeGui):
             def __init__(self, parent: Optional[QtWidgets.QWidget] = None,
