@@ -102,7 +102,7 @@ class SubtractAverage(Node):
     def averagingAxis(self, value: str) -> None:
         self._averagingAxis = value
 
-    def process(self, dataIn: DataDictBase = None) -> Optional[Dict[str, Optional[DataDictBase]]]:
+    def process(self, dataIn: Optional[DataDictBase] = None) -> Optional[Dict[str, Optional[DataDictBase]]]:
         if super().process(dataIn=dataIn) is None:
             return None
         assert dataIn is not None
