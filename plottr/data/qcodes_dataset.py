@@ -13,7 +13,6 @@ import pandas as pd
 from qcodes.dataset.data_set import load_by_id
 from qcodes.dataset.experiment_container import experiments
 from qcodes.dataset.sqlite.database import initialise_or_create_database_at
-import qcodes
 
 from .datadict import DataDictBase, DataDict, combine_datadicts
 from ..node.node import Node, updateOption
