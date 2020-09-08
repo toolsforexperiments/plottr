@@ -228,7 +228,7 @@ class Node(NodeBase):
         logger.setLevel(log.LEVEL)
         return logger
 
-    def validateOptions(self, data: Any) -> bool:
+    def validateOptions(self, data: DataDictBase) -> bool:
         """Validate the user options
 
         Does nothing in this base implementation. Can be reimplemented by any

@@ -2,7 +2,7 @@
 
 nodes and widgets for reducing data dimensionality.
 """
-from typing import Dict, Any, Tuple, Type, Optional, List
+from typing import Dict, Any, Tuple, Type, Optional, List, Union, cast
 from enum import Enum, unique
 
 import numpy as np
@@ -394,7 +394,10 @@ class DimensionReducerNodeWidget(NodeWidget):
             if dimName not in reductions.keys():
                 self.widget.setRole(dimName, 'None')
 
-    def setData(self, structure, shapes, dtype) -> None:
+    def setData(self,
+                structure: DataDictBase,
+                shapes: dict,
+                dtype: Type[DataDictBase]) -> None:
         assert self.widget is not None
         self.widget.setData(structure, shapes, dtype)
 
@@ -463,7 +466,7 @@ class DimensionReducer(Node):
 
     # Data processing
 
-    def _applyDimReductions(self, data):
+    def _applyDimReductions(self, data: DataDictBase) -> Optional[DataDictBase]:
         """Apply the reductions"""
         if self._targetNames is not None:
             dnames = self._targetNames
@@ -477,6 +480,7 @@ class DimensionReducer(Node):
 
         for n in dnames:
             for ax, reduction in self._reductions.items():
+                fun: Optional[ReductionMethod]
                 if reduction is not None:
                     fun, arg, kw = reduction
                 else:
@@ -495,9 +499,9 @@ class DimensionReducer(Node):
 
                     # check that the new shape is actually correct
                     # get target shape by removing the right axis
-                    targetShape = list(data[n]['values'].shape)
-                    del targetShape[idx]
-                    targetShape = tuple(targetShape)
+                    targetShape_list = list(data[n]['values'].shape)
+                    del targetShape_list[idx]
+                    targetShape = tuple(targetShape_list)
 
                     # support for both pre-defined and custom functions
                     if isinstance(fun, ReductionMethod):
@@ -518,7 +522,9 @@ class DimensionReducer(Node):
                     # since we are on a meshgrid, we also need to reduce
                     # the dimensions of the coordinate meshes
                     for ax in data[n]['axes']:
-                        if len(data.data_vals(ax).shape) > len(targetShape):
+                        axdata = data.data_vals(ax)
+                        assert isinstance(axdata, np.ndarray)
+                        if len(axdata.shape) > len(targetShape):
                             newaxvals = funCall(data[ax]['values'], *arg, **kw)
                             data[ax]['values'] = newaxvals
 
@@ -528,7 +534,7 @@ class DimensionReducer(Node):
         data.validate()
         return data
 
-    def validateOptions(self, data: Any) -> bool:
+    def validateOptions(self, data: DataDictBase) -> bool:
         """
         Checks performed:
         * each item in reduction must be of the form (fun, [*arg], {**kw}),
@@ -588,7 +594,10 @@ class DimensionReducer(Node):
 
         return True
 
-    def process(self, dataIn: Optional[DataDictBase] = None):
+    def process(
+            self,
+            dataIn: Optional[DataDictBase] = None) -> \
+            Optional[Dict[str, Optional[DataDictBase]]]:
         if dataIn is None:
             return None
 
@@ -676,22 +685,22 @@ class XYSelector(DimensionReducer):
     nodeName = 'XYSelector'
     uiClass = XYSelectorNodeWidget
 
-    def __init__(self, *arg, **kw):
-        self._xyAxes = (None, None)
-        super().__init__(*arg, **kw)
+    def __init__(self, name: str):
+        self._xyAxes: Tuple[Optional[str], Optional[str]] = (None, None)
+        super().__init__(name)
 
     @property
-    def xyAxes(self):
+    def xyAxes(self) -> Tuple[Optional[str],Optional[str]]:
         return self._xyAxes
 
     @xyAxes.setter  # type: ignore[misc]
     @updateOption('xyAxes')
-    def xyAxes(self, val):
+    def xyAxes(self, val: Tuple[Optional[str], Optional[str]]):
         self._xyAxes = val
 
     @property
-    def dimensionRoles(self):
-        dr = {}
+    def dimensionRoles(self) -> Dict[str, Union[str, ReductionType, None]]:
+        dr: Dict[str, Union[str, ReductionType, None]] = {}
         if self.xyAxes[0] is not None:
             dr[self.xyAxes[0]] = 'x-axis'
         if self.xyAxes[1] is not None:
@@ -702,18 +711,19 @@ class XYSelector(DimensionReducer):
 
     @dimensionRoles.setter  # type: ignore[misc]
     @updateOption('dimensionRoles')
-    def dimensionRoles(self, val):
-        xy = [None, None]
+    def dimensionRoles(self, val: Dict[str, str]) -> None:
+        x = None
+        y = None
         for dimName, role in val.items():
             if role == 'x-axis':
-                xy[0] = dimName
+                x = dimName
             elif role == 'y-axis':
-                xy[1] = dimName
+                y = dimName
             else:
-                self._reductions[dimName] = role
-        self._xyAxes = tuple(xy)
+                self._reductions[dimName] = cast(Optional[ReductionType], role)
+        self._xyAxes = (x, y)
 
-    def validateOptions(self, data: Any) -> bool:
+    def validateOptions(self, data: DataDictBase) -> bool:
         """
         Checks performed:
         * values for xAxis and yAxis must be axes that exist for the input
@@ -790,18 +800,23 @@ class XYSelector(DimensionReducer):
 
         return True
 
-    def process(self, dataIn: Optional[DataDictBase] = None) -> Optional[Dict[str, Optional[DataDictBase]]]:
+    def process(
+            self,
+            dataIn: Optional[DataDictBase] = None
+    ) -> Optional[Dict[str, Optional[DataDictBase]]]:
         if dataIn is None:
             return None
 
         data = super().process(dataIn=dataIn)
         if data is None:
             return None
-        data = data['dataOut'].copy()
+        dataout = data['dataOut']
+        assert dataout is not None
+        data = dataout.copy()
 
         if self._xyAxes[0] is not None and self._xyAxes[1] is not None:
             _kw = {self._xyAxes[0]: 0, self._xyAxes[1]: 1}
-            data = data.reorder_axes(**_kw)
+            data = data.reorder_axes(None, **_kw)
 
         # it is possible that UI options have been re-generated, while the
         # options in the node have not been changed. to make sure everything
