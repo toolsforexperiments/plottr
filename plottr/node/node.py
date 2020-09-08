@@ -238,7 +238,7 @@ class Node(NodeBase):
         """
         return True
 
-    def process(self, dataIn: DataDictBase=None) -> Optional[Dict[str, Optional[DataDictBase]]]:
+    def process(self, dataIn: Optional[DataDictBase]=None) -> Optional[Dict[str, Optional[DataDictBase]]]:
         if dataIn is None:
             return None
 
@@ -333,9 +333,9 @@ class NodeWidget(QtWidgets.QWidget):
     #: signal (args: (object)) all options to the node.
     allOptionsToNode = Signal(object)
 
-    def __init__(self, parent: QtWidgets.QWidget = None,
-                 embedWidgetClass: Type[QtWidgets.QWidget] = None,
-                 node: Node = None):
+    def __init__(self, parent: Optional[QtWidgets.QWidget] = None,
+                 embedWidgetClass: Optional[Type[QtWidgets.QWidget]] = None,
+                 node: Optional[Node] = None):
         super().__init__(parent)
 
         self.optGetters: Dict[str, Any] = {}

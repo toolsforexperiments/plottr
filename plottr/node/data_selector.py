@@ -20,7 +20,7 @@ class DataDisplayWidget(NodeWidget):
     Simple Tree widget to show data and their dependencies in the node data.
     """
 
-    def __init__(self, node: Node = None):
+    def __init__(self, node: Optional[Node] = None):
         self.icon = get_dataColumnsIcon()
         super().__init__(embedWidgetClass=DataSelectionWidget)
         assert self.widget is not None
@@ -152,7 +152,7 @@ class DataSelector(Node):
 
         return ret
 
-    def process(self, dataIn: DataDictBase = None) -> Optional[Dict[str, Any]]:
+    def process(self, dataIn: Optional[DataDictBase] = None) -> Optional[Dict[str, Any]]:
         data = super().process(dataIn=dataIn)
         if data is None:
             return None

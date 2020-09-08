@@ -299,7 +299,7 @@ class GridOptionWidget(QtWidgets.QWidget):
 class DataGridderNodeWidget(NodeWidget):
     """Node widget for :class:`DataGridderNode`."""
 
-    def __init__(self, node: Node = None):
+    def __init__(self, node: Optional[Node] = None):
         self.icon = get_gridIcon()
         super().__init__(embedWidgetClass=GridOptionWidget)
 

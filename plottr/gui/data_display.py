@@ -3,7 +3,7 @@
 UI elements for inspecting data structure and content.
 """
 
-from typing import Union, List, Tuple, Dict, Any
+from typing import Union, List, Tuple, Dict, Any, Optional
 
 from .. import QtCore, QtWidgets, Signal, Slot
 from ..data.datadict import DataDictBase
@@ -15,7 +15,8 @@ class DataSelectionWidget(QtWidgets.QTreeWidget):
     #: signal (List[str]) that is emitted when the selection is modified.
     dataSelectionMade = Signal(list)
 
-    def __init__(self, parent: QtWidgets.QWidget = None, readonly: bool = False):
+    def __init__(self, parent: Optional[QtWidgets.QWidget] = None,
+                 readonly: bool = False):
         super().__init__(parent)
 
         self.setColumnCount(3)

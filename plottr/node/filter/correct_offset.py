@@ -1,4 +1,4 @@
-from typing import Sequence
+from typing import Sequence, Optional
 
 from plottr import Signal, Slot, QtWidgets
 from plottr.node import Node, NodeWidget, updateOption
@@ -23,7 +23,7 @@ class DimensionCombo(QtWidgets.QComboBox):
 
         self.currentTextChanged.connect(self.signalDimensionSelection)
 
-    def connectNode(self, node: Node = None) -> None:
+    def connectNode(self, node: Optional[Node] = None) -> None:
         if node is None:
             raise RuntimeError
         self.node = node
@@ -56,7 +56,7 @@ class AxisSelector(FormLayoutWrapper):
 
 class SubtractAverageWidget(NodeWidget):
 
-    def __init__(self, node: Node = None):
+    def __init__(self, node: Optional[Node] = None):
         super().__init__(node=node, embedWidgetClass=AxisSelector)
         if self.widget is None:
             raise RuntimeError

@@ -197,7 +197,7 @@ class DimensionAssignmentWidget(QtWidgets.QTreeWidget):
             self.rolesChanged.emit(self.getRoles())
             self.emitRoleChangeSignal = True
 
-    def setRole(self, dim: str, role: str = None) -> None:
+    def setRole(self, dim: str, role: Optional[str] = None) -> None:
         """
         Set the role for a dimension, including options.
 
@@ -279,7 +279,7 @@ class DimensionReductionAssignmentWidget(DimensionAssignmentWidget):
 
         return role, opts
 
-    def setRole(self, dim: str, role: str = None, **kw: Any) -> None:
+    def setRole(self, dim: str, role: Optional[str] = None, **kw: Any) -> None:
         super().setRole(dim, role)
 
         # at this point, we've already populated the dropdown.
@@ -343,7 +343,7 @@ class XYSelectionWidget(DimensionReductionAssignmentWidget):
 
         self.availableChoices[DataDictBase] += ["x-axis", "y-axis"]
 
-    def setRole(self, dim: str, role: str = None, **kw: Any) -> None:
+    def setRole(self, dim: str, role: Optional[str] = None, **kw: Any) -> None:
         super().setRole(dim, role, **kw)
 
         # there can only be one x and y axis element.
@@ -358,7 +358,7 @@ class XYSelectionWidget(DimensionReductionAssignmentWidget):
 
 class DimensionReducerNodeWidget(NodeWidget):
 
-    def __init__(self, node: Node = None):
+    def __init__(self, node: Optional[Node] = None):
         super().__init__(embedWidgetClass=DimensionReductionAssignmentWidget)
         assert self.widget is not None
         self.optSetters = {
@@ -590,7 +590,7 @@ class DimensionReducer(Node):
 
         return True
 
-    def process(self, dataIn: DataDictBase = None):
+    def process(self, dataIn: Optional[DataDictBase] = None):
         if dataIn is None:
             return None
 
@@ -616,7 +616,7 @@ class DimensionReducer(Node):
 
 class XYSelectorNodeWidget(NodeWidget):
 
-    def __init__(self, node: Node = None):
+    def __init__(self, node: Optional[Node] = None):
         self.icon = get_xySelectIcon()
         super().__init__(embedWidgetClass=XYSelectionWidget)
         assert self.widget is not None
@@ -792,7 +792,7 @@ class XYSelector(DimensionReducer):
 
         return True
 
-    def process(self, dataIn: DataDictBase=None) -> Optional[Dict[str, Optional[DataDictBase]]]:
+    def process(self, dataIn: Optional[DataDictBase] = None) -> Optional[Dict[str, Optional[DataDictBase]]]:
         if dataIn is None:
             return None
 
