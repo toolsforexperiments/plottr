@@ -5,6 +5,8 @@ A node and widget for subselecting from a dataset.
 """
 from typing import List, Tuple, Dict, Any, Sequence, Optional
 
+import numpy as np
+
 from .node import Node, NodeWidget, updateOption
 from ..data.datadict import DataDictBase, DataDict
 from ..gui.data_display import DataSelectionWidget
@@ -52,7 +54,7 @@ class DataDisplayWidget(NodeWidget):
         assert self.widget is not None
         self.widget.setShape(shapes)
 
-    def _updateOptions(self, selected) -> None:
+    def _updateOptions(self, selected: Sequence[str]) -> None:
         assert self.widget is not None
         ds = self.widget._dataStructure
         for n, w in self.widget.dataItems.items():
@@ -103,7 +105,7 @@ class DataSelector(Node):
 
     # Data processing
 
-    def validateOptions(self, data: Optional[Any]) -> bool:
+    def validateOptions(self, data: DataDictBase) -> bool:
         """
         Validations performed:
         * only compatible data fields can be selected.
@@ -132,7 +134,9 @@ class DataSelector(Node):
                     return False
         return True
 
-    def _reduceData(self, data) -> Optional[Any]:
+    def _reduceData(self, data: Optional[DataDictBase]) -> Optional[DataDictBase]:
+        if data is None:
+            return None
         if isinstance(self.selectedData, str):
             dnames = [self.selectedData]
         else:
@@ -143,7 +147,9 @@ class DataSelector(Node):
         ret = data.extract(dnames)
         if self.force_numerical_data:
             for d, _ in ret.data_items():
-                dt = num.largest_numtype(ret.data_vals(d),
+                d_data_vals = ret.data_vals(d)
+                assert isinstance(d_data_vals, np.ndarray)
+                dt = num.largest_numtype(d_data_vals,
                                          include_integers=False)
                 if dt is not None:
                     ret[d]['values'] = ret[d]['values'].astype(dt)
