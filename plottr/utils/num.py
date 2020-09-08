@@ -50,12 +50,14 @@ def _are_close(a: np.ndarray, b: np.ndarray, rtol: float = 1e-8) -> np.ndarray:
     return np.isclose(a, b, rtol=rtol)
 
 
-def _are_equal(a: np.ndarray, b: np.ndarray) -> bool:
+def _are_equal(a: np.ndarray, b: np.ndarray) -> np.ndarray:
     return a == b
 
 
-def is_invalid(a: np.ndarray) -> bool:
-    isnone = a is None
+def is_invalid(a: np.ndarray) -> np.ndarray:
+    # really use == None to do an element wise
+    # check for None
+    isnone = a == None
     if a.dtype in FLOATTYPES:
         isnan = np.isnan(a)
     else:
@@ -63,7 +65,7 @@ def is_invalid(a: np.ndarray) -> bool:
     return isnone | isnan
 
 
-def _are_invalid(a: np.ndarray, b: np.ndarray) -> bool:
+def _are_invalid(a: np.ndarray, b: np.ndarray) -> np.ndarray:
     return is_invalid(a) & is_invalid(b)
 
 
