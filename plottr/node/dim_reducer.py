@@ -639,7 +639,8 @@ class XYSelectorNodeWidget(NodeWidget):
             lambda x: self.signalOption('dimensionRoles')
         )
 
-    def getRoles(self):
+    def getRoles(self) -> Dict[str, str]:
+        assert self.widget is not None
         widgetRoles = self.widget.getRoles()
         roles = {}
         for dimName, rolesOptions in widgetRoles.items():
@@ -656,7 +657,8 @@ class XYSelectorNodeWidget(NodeWidget):
 
         return roles
 
-    def setRoles(self, roles):
+    def setRoles(self, roles: Dict[str, str]) -> None:
+        assert isinstance(self.widget, XYSelectionWidget)
         # when this is called, we do not want the UI to signal changes.
         self.widget.emitRoleChangeSignal = False
 
