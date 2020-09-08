@@ -13,6 +13,7 @@ import pandas as pd
 from qcodes.dataset.data_set import load_by_id
 from qcodes.dataset.experiment_container import experiments
 from qcodes.dataset.sqlite.database import initialise_or_create_database_at
+import qcodes
 
 from .datadict import DataDictBase, DataDict, combine_datadicts
 from ..node.node import Node, updateOption
@@ -175,7 +176,12 @@ def ds_to_datadicts(ds: 'DataSet') -> Dict[str, DataDict]:
                      axes.
     """
     ret = {}
-    pdata = ds.get_parameter_data()
+    has_cache = hasattr(ds, 'cache')
+    if has_cache:
+        pdata = ds.cache.data()
+    else:
+        # qcodes < 0.17
+        pdata = ds.get_parameter_data()
     for p, spec in ds.paramspecs.items():
         if spec.depends_on != '':
             axes = spec.depends_on_
