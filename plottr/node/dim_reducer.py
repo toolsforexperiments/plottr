@@ -676,7 +676,11 @@ class XYSelectorNodeWidget(NodeWidget):
 
         self.widget.emitRoleChangeSignal = True
 
-    def setData(self, structure, shapes, dtype):
+    def setData(self,
+                structure: DataDictBase,
+                shapes: dict,
+                dtype: Type[DataDictBase]) -> None:
+        assert self.widget is not None
         self.widget.setData(structure, shapes, dtype)
 
 
@@ -690,12 +694,12 @@ class XYSelector(DimensionReducer):
         super().__init__(name)
 
     @property
-    def xyAxes(self) -> Tuple[Optional[str],Optional[str]]:
+    def xyAxes(self) -> Tuple[Optional[str], Optional[str]]:
         return self._xyAxes
 
     @xyAxes.setter  # type: ignore[misc]
     @updateOption('xyAxes')
-    def xyAxes(self, val: Tuple[Optional[str], Optional[str]]):
+    def xyAxes(self, val: Tuple[Optional[str], Optional[str]]) -> None:
         self._xyAxes = val
 
     @property
