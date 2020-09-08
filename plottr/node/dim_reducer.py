@@ -3,9 +3,7 @@
 nodes and widgets for reducing data dimensionality.
 """
 from typing import Dict, Any, Tuple, Type, Optional, List
-from typing import OrderedDict as OrderedDictType
 from enum import Enum, unique
-from collections import OrderedDict
 
 import numpy as np
 
