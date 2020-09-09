@@ -6,9 +6,9 @@ import logging
 import os
 import time
 import argparse
-from typing import Union, Tuple, Optional, Type, List
+from typing import Union, Tuple, Optional, Type, List, Any
 
-from .. import QtCore, Flowchart, Signal, Slot, QtWidgets
+from .. import QtCore, Flowchart, Signal, Slot, QtWidgets, QtGui
 from .. import log as plottrlog
 from ..data.datadict import DataDictBase
 from ..data.datadict_storage import DDH5Loader
@@ -31,7 +31,7 @@ __license__ = 'MIT'
 # TODO: * separate logging window
 
 
-def logger():
+def logger() -> logging.Logger:
     logger = logging.getLogger('plottr.apps.autoplot')
     logger.setLevel(plottrlog.LEVEL)
     return logger
@@ -80,7 +80,7 @@ class UpdateToolBar(QtWidgets.QToolBar):
     #: Signal emitted after each trigger interval
     trigger = Signal()
 
-    def __init__(self, name, parent=None):
+    def __init__(self, name: str, parent: Optional[QtWidgets.QWidget] = None):
         super().__init__(name, parent)
 
         self.monitorInput = MonitorIntervalInput()
@@ -92,7 +92,7 @@ class UpdateToolBar(QtWidgets.QToolBar):
         self.monitor.timeout.connect(self.monitorTriggered)
 
     Slot()
-    def monitorTriggered(self):
+    def monitorTriggered(self) -> None:
         """
         Is called whenever the monitor timer triggers, and emit the
         :attr:`trigger` Signal.
@@ -101,7 +101,7 @@ class UpdateToolBar(QtWidgets.QToolBar):
         self.trigger.emit()
 
     Slot(int)
-    def setMonitorInterval(self, val: int):
+    def setMonitorInterval(self, val: int) -> None:
         """
         Start a background timer that is triggered every `val' seconds.
 
@@ -114,7 +114,7 @@ class UpdateToolBar(QtWidgets.QToolBar):
         self.monitorInput.spin.setValue(val)
 
     Slot()
-    def stop(self):
+    def stop(self) -> None:
         """
         Stop the timer.
         """
@@ -131,7 +131,7 @@ class AutoPlotMainWindow(PlotWindow):
                  monitor: bool = False,
                  monitorInterval: Union[int, None] = None,
                  loaderName: Optional[str] = None,
-                 **kwargs):
+                 **kwargs: Any):
 
         super().__init__(parent, fc=fc, **kwargs)
 
@@ -172,11 +172,11 @@ class AutoPlotMainWindow(PlotWindow):
         else:
             self.monitorToolBar = None
 
-    def setMonitorInterval(self, val):
+    def setMonitorInterval(self, val: int) -> None:
         if self.monitorToolBar is not None:
             self.monitorToolBar.setMonitorInterval(val)
 
-    def closeEvent(self, event):
+    def closeEvent(self, event: QtGui.QCloseEvent) -> None:
         """
         When closing the inspectr window, do some house keeping:
         * stop the monitor, if running
@@ -186,7 +186,7 @@ class AutoPlotMainWindow(PlotWindow):
         self.windowClosed.emit()
         return event.accept()
 
-    def showTime(self):
+    def showTime(self) -> None:
         """
         Displays current time and DS info in the status bar.
         """
@@ -194,7 +194,7 @@ class AutoPlotMainWindow(PlotWindow):
         self.status.showMessage(f"loaded: {tstamp}")
 
     Slot()
-    def refreshData(self):
+    def refreshData(self) -> None:
         """
         Refresh the dataset by calling `update' on the dataset loader node.
         """
@@ -207,7 +207,7 @@ class AutoPlotMainWindow(PlotWindow):
                 self.setDefaults(self.loaderNode.outputValues()['dataOut'])
                 self._initialized = True
 
-    def setInput(self, data: DataDictBase, resetDefaults=True):
+    def setInput(self, data: DataDictBase, resetDefaults: bool = True) -> None:
         """
         Set input to the flowchart. Can only be used when no loader node is
         defined.
@@ -220,7 +220,7 @@ class AutoPlotMainWindow(PlotWindow):
                 self.setDefaults(data)
                 self._initialized = True
 
-    def setDefaults(self, data: DataDictBase):
+    def setDefaults(self, data: DataDictBase) -> None:
         """
         try to set some reasonable defaults so there's a plot right away.
         """
@@ -252,7 +252,7 @@ class QCAutoPlotMainWindow(AutoPlotMainWindow):
 
     def __init__(self, fc: Flowchart,
                  parent: Optional[QtWidgets.QMainWindow] = None,
-                 pathAndId: Optional[Tuple[str, int]] = None, **kw):
+                 pathAndId: Optional[Tuple[str, int]] = None, **kw: Any):
 
         super().__init__(fc, parent, **kw)
 
@@ -331,14 +331,14 @@ def autoplotDDH5(filepath: str = '', groupname: str = 'data') \
     return fc, win
 
 
-def main(f, g):
+def main(f: str, g: str) -> int:
     app = QtWidgets.QApplication([])
     fc, win = autoplotDDH5(f, g)
 
     return app.exec_()
 
 
-def script():
+def script() -> None:
     parser = argparse.ArgumentParser(
         description='plottr autoplot .dd.h5 files.'
     )

@@ -118,7 +118,7 @@ class DataFileList(QtWidgets.QTreeWidget):
         self.path: Optional[str] = None
 
     @staticmethod
-    def finditem(parent: Union[QtWidgets.QWidget, QtWidgets.QTreeWidgetItem], name: str) -> Optional[QtWidgets.QTreeWidgetItem]:
+    def finditem(parent: Union["DataFileList", QtWidgets.QTreeWidgetItem], name: str) -> Optional[QtWidgets.QTreeWidgetItem]:
         if isinstance(parent, DataFileList):
             existingItems = [parent.topLevelItem(i) for i in
                              range(parent.topLevelItemCount())]
@@ -133,35 +133,37 @@ class DataFileList(QtWidgets.QTreeWidget):
                 break
         return item
 
-    def itemPath(self, item):
-        def buildPath(i, suffix=''):
+    def itemPath(self, item: QtWidgets.QTreeWidgetItem) -> str:
+        def buildPath(i: Optional[QtWidgets.QTreeWidgetItem], suffix: str = '') -> str:
             if i is None:
                 return suffix
             newSuffix = i.text(0)
             if suffix != '':
                 newSuffix += os.path.sep+suffix
             return buildPath(i.parent(), suffix=newSuffix)
+        assert self.path is not None
         return os.path.join(self.path, buildPath(item))
 
-    def findItemByPath(self, path: str) -> Optional[Union[QtWidgets.QWidget, QtWidgets.QTreeWidgetItem]]:
+    def findItemByPath(self, path: str) -> Optional[QtWidgets.QTreeWidgetItem]:
         assert self.path is not None
         path = path[len(self.path) + len(os.path.sep):]
         pathList = path.split(os.path.sep)
-        parent: Union[QtWidgets.QWidget, QtWidgets.QTreeWidgetItem] = self
+        parent: Union["DataFileList", QtWidgets.QTreeWidgetItem] = self
         for p in pathList:
             new_parent = self.finditem(parent, p)
             if new_parent is None:
                 return None
             else:
                 parent = new_parent
+        assert isinstance(parent, QtWidgets.QTreeWidgetItem)
         return parent
 
-    def addItemByPath(self, path: str):
+    def addItemByPath(self, path: str) -> None:
         assert self.path is not None
         path = path[len(self.path)+len(os.path.sep):]
         pathList = path.split(os.path.sep)
 
-        def add(parent, name):
+        def add(parent: Union["DataFileList", QtWidgets.QTreeWidgetItem], name: str) -> Union["DataFileList", QtWidgets.QTreeWidgetItem]:
             item = self.finditem(parent, name)
             if item is None:
                 item = QtWidgets.QTreeWidgetItem(parent, [name])
@@ -176,13 +178,13 @@ class DataFileList(QtWidgets.QTreeWidget):
                     parent.addChild(item)
             return item
 
-        parent = self
+        parent: Union["DataFileList", QtWidgets.QTreeWidgetItem] = self
         for p in pathList:
             parent = add(parent, p)
 
-    def removeItemByPath(self, path: str):
+    def removeItemByPath(self, path: str) -> None:
 
-        def remove(i):
+        def remove(i: QtWidgets.QTreeWidgetItem) -> None:
             parent = i.parent()
             if isinstance(parent, DataFileList):
                 idx = parent.indexOfTopLevelItem(i)
@@ -197,7 +199,7 @@ class DataFileList(QtWidgets.QTreeWidget):
             return
         remove(item)
 
-    def loadFromPath(self, path: str, emitNew: bool = False):
+    def loadFromPath(self, path: str, emitNew: bool = False) -> None:
         self.path = path
         files = findFilesByExtension(path, self.fileExtensions)
         newFiles = [f for f in files if f not in self.files]
@@ -214,7 +216,7 @@ class DataFileList(QtWidgets.QTreeWidget):
             self.newDataFilesFound.emit(newFiles)
 
     @Slot()
-    def processSelection(self):
+    def processSelection(self) -> None:
         selected = self.selectedItems()
         if len(selected) == 0:
             return

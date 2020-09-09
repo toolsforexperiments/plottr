@@ -1,4 +1,6 @@
-from typing import Sequence, Optional
+from typing import Sequence, Optional, Dict
+
+import numpy as np
 
 from plottr import Signal, Slot, QtWidgets
 from plottr.node import Node, NodeWidget, updateOption
@@ -10,10 +12,11 @@ from plottr.data.datadict import DataDictBase, MeshgridDataDict
 class DimensionCombo(QtWidgets.QComboBox):
     dimensionSelected = Signal(str)
 
-    def __init__(self, parent=None, dimensionType='axes'):
+    def __init__(self, parent: Optional[QtWidgets.QWidget] = None,
+                 dimensionType: str = 'axes'):
         super().__init__(parent)
 
-        self.node = None
+        self.node: Optional[Node] = None
         self.dimensionType = dimensionType
 
         self.clear()
@@ -35,7 +38,7 @@ class DimensionCombo(QtWidgets.QComboBox):
     @updateGuiQuietly
     def setDimensions(self, dims: Sequence[str]) -> None:
         self.clear()
-        allDims = self.entries + dims
+        allDims = self.entries + list(dims)
         for d in allDims:
             self.addItem(d)
 
@@ -47,7 +50,7 @@ class DimensionCombo(QtWidgets.QComboBox):
 
 class AxisSelector(FormLayoutWrapper):
 
-    def __init__(self, parent=None):
+    def __init__(self, parent: Optional[QtWidgets.QWidget] = None):
         super().__init__(
             parent=parent,
             elements=[('Axis', DimensionCombo(dimensionType='axes'))],
@@ -75,10 +78,10 @@ class SubtractAverageWidget(NodeWidget):
             lambda x: self.signalOption('averagingAxis')
         )
 
-    def setAvgAxis(self, val):
+    def setAvgAxis(self, val: str) -> None:
         self.combo.setCurrentText(val)
 
-    def getAvgAxis(self):
+    def getAvgAxis(self) -> str:
         return self.combo.currentText()
 
 
@@ -88,27 +91,29 @@ class SubtractAverage(Node):
 
     def __init__(self, name: str):
         super().__init__(name)
-        self._averagingAxis = None
+        self._averagingAxis: Optional[str] = None
 
     @property
-    def averagingAxis(self):
+    def averagingAxis(self) -> Optional[str]:
         return self._averagingAxis
 
     @averagingAxis.setter  # type: ignore[misc]
     @updateOption('averagingAxis')
-    def averagingAxis(self, value):
+    def averagingAxis(self, value: str) -> None:
         self._averagingAxis = value
 
-    def process(self, dataIn=None):
+    def process(self, dataIn: Optional[DataDictBase] = None) -> Optional[Dict[str, Optional[DataDictBase]]]:
         if super().process(dataIn=dataIn) is None:
             return None
-
+        assert dataIn is not None
+        assert self.dataAxes is not None
         data = dataIn.copy()
         if self._averagingAxis in self.dataAxes and \
                 self.dataType == MeshgridDataDict:
             axidx = self.dataAxes.index(self._averagingAxis)
             for dep in dataIn.dependents():
-                avg = data.data_vals(dep).mean(axis=axidx, keepdims=True)
+                data_vals = np.asanyarray(data.data_vals(dep))
+                avg = data_vals.mean(axis=axidx, keepdims=True)
                 data[dep]['values'] -= avg
 
         return dict(dataOut=data)
