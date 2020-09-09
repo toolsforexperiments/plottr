@@ -49,6 +49,20 @@ class DependentParameterDict(IndependentParameterDict):
 
 DataSetStructureDict = Dict[str, Union[IndependentParameterDict, DependentParameterDict]]
 
+
+class DataSetInfoDict(TypedDict):
+    experiment: str
+    sample: str
+    name: str
+    completed_date: str
+    completed_time: str
+    started_date: str
+    started_time: str
+    structure: Optional[DataSetStructureDict]
+    records: int
+    guid: str
+
+
 # Tools for extracting information on runs in a database
 
 
@@ -97,41 +111,48 @@ def get_ds_structure(
     return structure
 
 
-def get_ds_info(ds: 'DataSet', get_structure: bool = True) -> Dict[str, Union[str, int, DataSetStructureDict]]:
+def get_ds_info(ds: 'DataSet', get_structure: bool = True) -> DataSetInfoDict:
     """
     Get some info on a DataSet in dict.
 
     if get_structure is True: return the datastructure in that dataset
     as well (key is `structure' then).
     """
-    ret: Dict[str, Union[str, int, Dict[str, Any]]] = {}
-    ret['experiment'] = ds.exp_name
-    ret['sample'] = ds.sample_name
-    ret['name'] = ds.name
-
     _complete_ts = ds.completed_timestamp()
     if _complete_ts is not None:
-        ret['completed date'] = _complete_ts[:10]
-        ret['completed time'] = _complete_ts[11:]
+        completed_date = _complete_ts[:10]
+        completed_time = _complete_ts[11:]
     else:
-        ret['completed date'] = ''
-        ret['completed time'] = ''
+        completed_date = ''
+        completed_time = ''
 
     _start_ts = ds.run_timestamp()
     if _start_ts is not None:
-        ret['started date'] = _start_ts[:10]
-        ret['started time'] = _start_ts[11:]
+        started_date = _start_ts[:10]
+        started_time = _start_ts[11:]
     else:
-        ret['started date'] = ''
-        ret['started time'] = ''
+        started_date = ''
+        started_time = ''
 
     if get_structure:
-        ret['structure'] = get_ds_structure(ds)
+        structure: Optional[DataSetStructureDict] = get_ds_structure(ds)
+    else:
+        structure = None
 
-    ret['records'] = ds.number_of_results
-    ret['guid'] = ds.guid
+    data = DataSetInfoDict(
+        experiment=ds.exp_name,
+        sample=ds.sample_name,
+        name=ds.name,
+        completed_date=completed_date,
+        completed_time=completed_time,
+        started_date=started_date,
+        started_time=started_time,
+        structure=structure,
+        records=ds.number_of_results,
+        guid=ds.guid
+    )
 
-    return ret
+    return data
 
 
 def load_dataset_from(path: str, run_id: int) -> 'DataSet':
@@ -148,7 +169,7 @@ def load_dataset_from(path: str, run_id: int) -> 'DataSet':
 
 def get_runs_from_db(path: str, start: int = 0,
                      stop: Union[None, int] = None,
-                     get_structure: bool = False) -> Dict[int, Dict[str, Any]]:
+                     get_structure: bool = False) -> Dict[int, DataSetInfoDict]:
     """
     Get a db ``overview`` dictionary from the db located in ``path``. The
     ``overview`` dictionary maps ``DataSet.run_id``s to dataset information as
