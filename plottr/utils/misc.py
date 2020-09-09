@@ -3,10 +3,10 @@
 Various utility functions.
 """
 
-from typing import List, Tuple, TypeVar, Optional
+from typing import List, Tuple, TypeVar, Optional, Sequence
 
 
-def reorder_indices(lst: List, target: List) -> Tuple[int, ...]:
+def reorder_indices(lst: Sequence[str], target: Sequence[str]) -> Tuple[int, ...]:
     """
     Determine how to bring a list with unique entries to a different order.
 
