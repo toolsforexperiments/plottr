@@ -8,6 +8,8 @@ from itertools import chain
 from operator import attrgetter
 from typing import Dict, List, Set, Union, TYPE_CHECKING, Any, Tuple, Optional, cast
 
+from typing_extensions import TypedDict
+
 import pandas as pd
 
 from qcodes.dataset.data_set import load_by_id
@@ -35,9 +37,24 @@ def _get_names_of_standalone_parameters(paramspecs: List['ParamSpec']
     return standalones
 
 
+class IndependentParameterDict(TypedDict):
+    unit: str
+    label: str
+    values: List[Any]
+
+
+class DependentParameterDict(IndependentParameterDict):
+    axes: List[str]
+
+
+DataSetStructureDict = Dict[str, Union[IndependentParameterDict, DependentParameterDict]]
+
 # Tools for extracting information on runs in a database
 
-def get_ds_structure(ds: 'DataSet') -> Dict[str, Any]:
+
+def get_ds_structure(
+        ds: 'DataSet'
+) -> DataSetStructureDict:
     """
     Return the structure of the dataset, i.e., a dictionary in the form
         {
@@ -60,7 +77,7 @@ def get_ds_structure(ds: 'DataSet') -> Dict[str, Any]:
     in the returned structure.
     """
 
-    structure = {}
+    structure: DataSetStructureDict = {}
 
     paramspecs = ds.get_parameters()
 
@@ -68,14 +85,19 @@ def get_ds_structure(ds: 'DataSet') -> Dict[str, Any]:
 
     for spec in paramspecs:
         if spec.name not in standalones:
-            structure[spec.name] = {'unit': spec.unit, 'label': spec.label, 'values': []}
             if len(spec.depends_on_) > 0:
-                structure[spec.name]['axes'] = list(spec.depends_on_)
-
+                structure[spec.name] = DependentParameterDict(unit=spec.unit,
+                                                              label=spec.label,
+                                                              values=[],
+                                                              axes=list(spec.depends_on_))
+            else:
+                structure[spec.name] = IndependentParameterDict(unit=spec.unit,
+                                                                label=spec.label,
+                                                                values=[])
     return structure
 
 
-def get_ds_info(ds: 'DataSet', get_structure: bool = True) -> Dict[str, Union[str,int, Dict[str, Any]]]:
+def get_ds_info(ds: 'DataSet', get_structure: bool = True) -> Dict[str, Union[str, int, DataSetStructureDict]]:
     """
     Get some info on a DataSet in dict.
 
