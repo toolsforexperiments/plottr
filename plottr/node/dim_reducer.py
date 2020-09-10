@@ -80,7 +80,7 @@ class DimensionAssignmentWidget(QtWidgets.QTreeWidget):
         self.setHeaderLabels(['Dimension', 'Role', 'Options', 'Info'])
 
         self._dataStructure: Optional[DataDictBase] = None
-        self._dataShapes: Optional[dict] = None
+        self._dataShapes: Optional[Dict[str, Dict[int, int]]] = None
         self._dataType: Optional[Type[DataDictBase]] = None
         self._currentRoles: Dict[str, Dict[str, Any]] = {}
 
@@ -123,7 +123,7 @@ class DimensionAssignmentWidget(QtWidgets.QTreeWidget):
             self.resizeColumnToContents(i)
 
     def setData(self, structure: DataDictBase,
-                shapes: dict, dtype: Type[DataDictBase]) -> None:
+                shapes: Dict[str, Dict[int, int]], dtype: Type[DataDictBase]) -> None:
         """
         set data: add all dimensions to the list, and populate choices.
 
@@ -396,7 +396,7 @@ class DimensionReducerNodeWidget(NodeWidget):
 
     def setData(self,
                 structure: DataDictBase,
-                shapes: dict,
+                shapes: Dict[str, Dict[int, int]],
                 dtype: Type[DataDictBase]) -> None:
         assert self.widget is not None
         self.widget.setData(structure, shapes, dtype)
@@ -680,7 +680,7 @@ class XYSelectorNodeWidget(NodeWidget):
 
     def setData(self,
                 structure: DataDictBase,
-                shapes: dict,
+                shapes: Dict[str, Dict[int, int]],
                 dtype: Type[DataDictBase]) -> None:
         assert self.widget is not None
         self.widget.setData(structure, shapes, dtype)
