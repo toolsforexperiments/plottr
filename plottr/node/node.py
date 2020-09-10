@@ -7,7 +7,7 @@ import traceback
 from logging import Logger
 
 from functools import wraps
-from typing import Any, Union, Tuple, Dict, Optional, Type, List, Callable
+from typing import Any, Union, Tuple, Dict, Optional, Type, List, Callable, TypeVar
 
 from .. import NodeBase
 from .. import QtGui, QtCore, Signal, Slot, QtWidgets
@@ -19,9 +19,11 @@ __license__ = 'MIT'
 
 
 # TODO: implement a threaded version of Node
+R = TypeVar('R', bound="Node")
+S = TypeVar('S')
+T = TypeVar('T')
 
-
-def updateOption(optName: Optional[str] = None) -> Callable[[Callable], Callable]:
+def updateOption(optName: Optional[str] = None) -> Callable[[Callable[[R, S], T]], Callable[[R, S], T]]:
     """Decorator for property setters that are handy for user options.
 
     Property setters in nodes that are decorated with this will do two things:
@@ -31,9 +33,9 @@ def updateOption(optName: Optional[str] = None) -> Callable[[Callable], Callable
     :param optName: name of the property.
     """
 
-    def decorator(func: Callable) -> Callable:
+    def decorator(func: Callable[[R, S], T]) -> Callable[[R, S], T]:
         @wraps(func)
-        def wrap(self, val):
+        def wrap(self: R, val: S) -> T:
             ret = func(self, val)
             if optName is not None and self.ui is not None and \
                     optName in self.ui.optSetters:
@@ -45,8 +47,12 @@ def updateOption(optName: Optional[str] = None) -> Callable[[Callable], Callable
 
     return decorator
 
+U = TypeVar('U', bound="NodeWidget")
+V = TypeVar('V',)
 
-def updateGuiFromNode(func: Callable) -> Callable:
+
+
+def updateGuiFromNode(func: Callable[..., V]) -> Callable[..., V]:
     """
     Decorator for the UI to set an internal flag to during execution of
     the wrapped function. Prevents recursive updating (i.e., if
@@ -55,7 +61,7 @@ def updateGuiFromNode(func: Callable) -> Callable:
     """
 
     @wraps(func)
-    def wrap(self, *arg, **kw):
+    def wrap(self: U, *arg: Any, **kw: Any) -> V:
         self._emitGuiChange = False
         ret = func(self, *arg, **kw)
         self._emitGuiChange = True
@@ -66,8 +72,10 @@ def updateGuiFromNode(func: Callable) -> Callable:
 
 updateGuiQuietly = updateGuiFromNode
 
+W = TypeVar('W')
 
-def emitGuiUpdate(signalName: str):
+
+def emitGuiUpdate(signalName: str) -> Callable[[Callable[..., Any]], Callable[..., None]]:
     """
     Decorator for UI functions to emit the signal ``signalName``
     (given as argument the decorator), with the return of the wrapped function.
@@ -79,9 +87,9 @@ def emitGuiUpdate(signalName: str):
     :param signalName: name of the signal to emit.
     """
 
-    def decorator(func):
+    def decorator(func: Callable[..., Any]) -> Callable[..., None]:
         @wraps(func)
-        def wrap(self, *arg, **kw):
+        def wrap(self: W, *arg: Any, **kw: Any) -> None:
             ret = func(self, *arg, **kw)
             emit = getattr(self, '_emitGuiChange', True)
             if emit:
@@ -228,7 +236,7 @@ class Node(NodeBase):
         logger.setLevel(log.LEVEL)
         return logger
 
-    def validateOptions(self, data: Any) -> bool:
+    def validateOptions(self, data: DataDictBase) -> bool:
         """Validate the user options
 
         Does nothing in this base implementation. Can be reimplemented by any
