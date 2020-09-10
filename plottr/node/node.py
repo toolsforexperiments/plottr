@@ -73,7 +73,6 @@ def updateGuiFromNode(func: Callable[..., V]) -> Callable[..., V]:
 updateGuiQuietly = updateGuiFromNode
 
 W = TypeVar('W')
-X = TypeVar('X',)
 
 
 def emitGuiUpdate(signalName: str) -> Callable[[Callable[..., Any]], Callable[..., None]]:
