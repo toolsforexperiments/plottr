@@ -17,7 +17,7 @@ import time
 import sys
 import argparse
 import logging
-from typing import Optional, Sequence, List, Dict, Iterable, Union
+from typing import Optional, Sequence, List, Dict, Iterable, Union, cast
 from typing_extensions import TypedDict
 
 import pandas
@@ -469,7 +469,8 @@ class QCodesDBInspector(QtWidgets.QMainWindow):
         if hasattr(ds, 'snapshot'):
             snap = ds.snapshot
 
-        structure = get_ds_structure(ds)
+        structure = cast(Dict[str, dict], get_ds_structure(ds))
+        # cast away typed dict so we can pop a key
         for k, v in structure.items():
             v.pop('values')
         contentInfo = {'Data structure': structure,
