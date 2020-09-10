@@ -5,6 +5,7 @@ nodes and widgets for reducing data dimensionality.
 from typing import Dict, Any, Tuple, Type, Optional, List, Union, cast
 from enum import Enum, unique
 
+from typing_extensions import TypedDict
 import numpy as np
 
 from .node import Node, updateOption, NodeWidget
@@ -62,6 +63,13 @@ reductionFunc = {
 
 
 ReductionType = Tuple[ReductionMethod, List[Any], Dict[str, int]]
+RoleOptionsDict = dict
+
+
+class RoleDict(TypedDict):
+    role: Optional[str]
+    options: RoleOptionsDict
+
 
 class DimensionAssignmentWidget(QtWidgets.QTreeWidget):
     """
@@ -82,7 +90,7 @@ class DimensionAssignmentWidget(QtWidgets.QTreeWidget):
         self._dataStructure: Optional[DataDictBase] = None
         self._dataShapes: Optional[Dict[str, Dict[int, int]]] = None
         self._dataType: Optional[Type[DataDictBase]] = None
-        self._currentRoles: Dict[str, Dict[str, Any]] = {}
+        self._currentRoles: Dict[str, RoleDict] = {}
 
         #: This is a flag to control whether we need to emit signals when
         #: a role has changed. broadly speaking, this is only desired when
@@ -216,12 +224,12 @@ class DimensionAssignmentWidget(QtWidgets.QTreeWidget):
             self.setItemWidget(item, 2, QtWidgets.QWidget())
             self.setDimInfo(dim, '')
 
-            self._currentRoles[dim] = {
-                'role': role,
-                'options': {},
-            }
+            self._currentRoles[dim] = RoleDict(
+                role=role,
+                options={},
+            )
 
-    def getRole(self, name: str) -> Tuple[str, Dict]:
+    def getRole(self, name: str) -> Tuple[str, RoleOptionsDict]:
         """
         Get the current role and its options for a dimension.
         :param name: 
@@ -231,7 +239,7 @@ class DimensionAssignmentWidget(QtWidgets.QTreeWidget):
         opts: Dict = {}
         return role, opts
 
-    def getRoles(self) -> Dict[str, Dict[str, Any]]:
+    def getRoles(self) -> Dict[str, RoleDict]:
         """
         Get all roles as set in the UI.
         :return: Dictionary with information on all current roles/options.
@@ -239,10 +247,10 @@ class DimensionAssignmentWidget(QtWidgets.QTreeWidget):
         ret = {}
         for name, val in self.choices.items():
             role, opts = self.getRole(name)
-            ret[name] = {
-                'role': role,
-                'options': opts,
-            }
+            ret[name] = RoleDict(
+                role=role,
+                options=opts,
+            )
         return ret
 
     @Slot(str, str)
