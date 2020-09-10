@@ -25,7 +25,8 @@ setup(
         'numpy',
         'lmfit',
         'h5py>=2.10.0',
-        'qtpy>=1.9.0'
+        'qtpy>=1.9.0',
+        'typing-extensions>=3.7.4.3'
     ],
     classifiers=[
         'Development Status :: 3 - Alpha',
