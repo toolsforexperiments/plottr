@@ -531,7 +531,6 @@ class DimensionReducer(Node):
                     # the dimensions of the coordinate meshes
                     for ax in data[n]['axes']:
                         axdata = data.data_vals(ax)
-                        assert isinstance(axdata, np.ndarray)
                         if len(axdata.shape) > len(targetShape):
                             newaxvals = funCall(data[ax]['values'], *arg, **kw)
                             data[ax]['values'] = newaxvals
