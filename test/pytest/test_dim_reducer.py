@@ -1,9 +1,26 @@
 import numpy as np
 
 from plottr.data.datadict import MeshgridDataDict
-from plottr.node.dim_reducer import DimensionReducer, ReductionMethod, XYSelector
+from plottr.node.dim_reducer import DimensionReducer, ReductionMethod, XYSelector, \
+    selectAxisElement
 from plottr.node.tools import linearFlowchart
 from plottr.utils import num
+
+
+def test_selectAxisElement():
+    """
+    When one of the dimension only has one element, it should not be removed
+    by np.squeeze.
+    The data in the test has shape of (2, 3, 1), and the vals after applying
+    function "selectAxisElement" (on axis 0) should have shape (3,1), not (3,).
+    """
+    data = np.array([[[1], [2], [3]], [[4], [5], [6]]])
+    axis_to_reduce = 0
+    targetShape_list = list(data.shape)
+    del targetShape_list[axis_to_reduce]
+    targetShape = tuple(targetShape_list)
+    vals = selectAxisElement(data, index=0, axis=axis_to_reduce)
+    assert vals.shape == targetShape
 
 
 def test_reduction(qtbot):
