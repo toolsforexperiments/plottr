@@ -43,6 +43,7 @@ def meta_name_to_key(name: str) -> str:
 
 T = TypeVar('T', bound='DataDictBase')
 
+
 class DataDictBase(dict):
     """
     Simple data storage class that is based on a regular dictionary.
@@ -174,7 +175,7 @@ class DataDictBase(dict):
                         n = k
                     yield n, v
 
-    def data_vals(self, key: str) -> Union[Sequence, np.ndarray]:
+    def data_vals(self, key: str) -> np.ndarray:
         """
         Return the data values of field ``key``.
 
@@ -641,7 +642,6 @@ class DataDictBase(dict):
         ret = self.copy()
         for d, _ in self.data_items():
             arr = self.data_vals(d)
-            assert isinstance(arr, np.ndarray)
             vals = np.ma.masked_where(num.is_invalid(arr), arr, copy=True)
             try:
                 vals.fill_value = np.nan
@@ -895,7 +895,6 @@ class DataDict(DataDictBase):
                 rows = self.data_vals(d)
             else:
                 datavals = self.data_vals(d)
-                assert isinstance(datavals, np.ndarray)
                 rows = datavals.reshape(-1, np.prod(ishp[d]))
 
             _idxs = np.array([])
@@ -1084,7 +1083,6 @@ def guess_shape_from_datadict(data: DataDict) -> \
         axes: Dict[str, np.ndarray] = {}
         for a in axnames:
             axdata = data.data_vals(a)
-            assert isinstance(axdata, np.ndarray)
             axes[a] = axdata
         shapes[d] = num.guess_grid_from_sweep_direction(**axes)
 
