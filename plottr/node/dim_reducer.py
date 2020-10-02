@@ -44,7 +44,7 @@ def selectAxisElement(arr: np.ndarray, index: int, axis: int) -> np.ndarray:
     :param axis: dimension on which to perform the reduction
     :return: reduced array
     """
-    return np.squeeze(sliceAxis(arr, np.s_[index:index+1:], axis))
+    return np.squeeze(sliceAxis(arr, np.s_[index:index+1:], axis), axis=axis)
 
 
 # Translation between reduction functions and convenient naming
@@ -296,7 +296,8 @@ class DimensionReductionAssignmentWidget(DimensionAssignmentWidget):
             value = kw.get('index', 0)
 
             # only create the slider widget if it doesn't exist yet
-            if self.itemWidget(item, 2) is None:
+            if (self.itemWidget(item, 2) is None) or \
+                    (self.choices[dim]['optionsWidget'] is None):
                 assert self._dataStructure is not None
                 assert self._dataShapes is not None
                 # get the number of elements in this dimension
