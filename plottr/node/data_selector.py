@@ -148,7 +148,6 @@ class DataSelector(Node):
         if self.force_numerical_data:
             for d, _ in ret.data_items():
                 d_data_vals = ret.data_vals(d)
-                assert isinstance(d_data_vals, np.ndarray)
                 dt = num.largest_numtype(d_data_vals,
                                          include_integers=False)
                 if dt is not None:
