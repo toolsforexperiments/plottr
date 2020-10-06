@@ -159,6 +159,9 @@ def datadict_to_hdf5(datadict: DataDict,
     if not os.path.exists(filepath):
         init_path(filepath)
 
+    if not os.path.exists(filepath):
+        append_mode = AppendMode.none
+
     with h5py.File(filepath, mode='a', libver='latest') as f:
         if append_mode is AppendMode.none:
             init_file(f, groupname)
@@ -336,7 +339,7 @@ def datadict_from_hdf5(basepath: str,
             if 'axes' in ds.attrs:
                 entry['axes'] = deh5ify(ds.attrs['axes']).tolist()
             else:
-                entry['axes'] = np.array([])
+                entry['axes'] = []
 
             if 'unit' in ds.attrs:
                 entry['unit'] = deh5ify(ds.attrs['unit'])
