@@ -202,9 +202,10 @@ def colorplot2d(ax: Axes, x: np.ndarray, y: np.ndarray, z: np.ndarray,
     :param y: y coordinates (meshgrid)
     :param z: z data
     :param style: the plot type
-    :axLabels: labels for the x, y axes, and the colorbar.
+    :param axLabels: labels for the x, y axes, and the colorbar.
 
     all keywords are passed to the actual plotting functions:
+    
     - :attr:`PlotType.image` --
         :func:`plotImage`
     - :attr:`PlotType.colormesh` --
