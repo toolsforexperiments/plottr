@@ -211,6 +211,7 @@ class QCodesDSLoader(Node):
     def __init__(self, *arg: Any, **kw: Any):
         self._pathAndId: Tuple[Optional[str], Optional[int]] = (None, None)
         self.nLoadedRecords = 0
+        self._dataset = None
 
         super().__init__(*arg, **kw)
 
@@ -234,27 +235,28 @@ class QCodesDSLoader(Node):
         if None not in self._pathAndId:
             path, runId = cast(Tuple[str, int], self._pathAndId)
 
-            ds = load_dataset_from(path, runId)
+            if self._dataset is None:
+                self._dataset = load_dataset_from(path, runId)
 
-            if ds.number_of_results > self.nLoadedRecords:
+            if self._dataset.number_of_results > self.nLoadedRecords:
 
-                guid = ds.guid
+                guid = self._dataset.guid
                 title = f"{os.path.split(path)[-1]} | " \
                         f"run ID: {runId} | GUID: {guid}"
                 info = """Started: {}
 Finished: {}
 GUID: {}
-DB-File [ID]: {} [{}]""".format(ds.run_timestamp(), ds.completed_timestamp(),
+DB-File [ID]: {} [{}]""".format(self._dataset.run_timestamp(), self._dataset.completed_timestamp(),
                                 guid, path, runId)
 
-                data = ds_to_datadict(ds)
+                data = ds_to_datadict(self._dataset)
                 data.add_meta('title', title)
                 data.add_meta('info', info)
                 data.add_meta('qcodes_guid', guid)
                 data.add_meta('qcodes_db', path)
                 data.add_meta('qcodes_runId', runId)
-                data.add_meta('qcodes_completedTS', ds.completed_timestamp())
-                data.add_meta('qcodes_runTS', ds.run_timestamp())
-                self.nLoadedRecords = ds.number_of_results
+                data.add_meta('qcodes_completedTS', self._dataset.completed_timestamp())
+                data.add_meta('qcodes_runTS', self._dataset.run_timestamp())
+                self.nLoadedRecords = self._dataset.number_of_results
                 return dict(dataOut=data)
         return None
