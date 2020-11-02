@@ -211,7 +211,7 @@ class QCodesDSLoader(Node):
     def __init__(self, *arg: Any, **kw: Any):
         self._pathAndId: Tuple[Optional[str], Optional[int]] = (None, None)
         self.nLoadedRecords = 0
-        self._dataset = None
+        self._dataset: Optional[DataSet] = None
 
         super().__init__(*arg, **kw)
 
