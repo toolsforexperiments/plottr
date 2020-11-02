@@ -228,6 +228,7 @@ class QCodesDSLoader(Node):
         if val != self.pathAndId:
             self._pathAndId = val
             self.nLoadedRecords = 0
+            self._dataset = None
 
     def process(self, dataIn: Optional[DataDictBase] = None) -> Optional[Dict[str, Any]]:
         if dataIn is not None:
