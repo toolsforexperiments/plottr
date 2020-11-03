@@ -91,7 +91,7 @@ class UpdateToolBar(QtWidgets.QToolBar):
         self.monitor = QtCore.QTimer()
         self.monitor.timeout.connect(self.monitorTriggered)
 
-    Slot()
+    @Slot()
     def monitorTriggered(self) -> None:
         """
         Is called whenever the monitor timer triggers, and emit the
@@ -100,7 +100,7 @@ class UpdateToolBar(QtWidgets.QToolBar):
         logger().debug('Emit trigger')
         self.trigger.emit()
 
-    Slot(int)
+    @Slot(int)
     def setMonitorInterval(self, val: int) -> None:
         """
         Start a background timer that is triggered every `val' seconds.
@@ -113,7 +113,7 @@ class UpdateToolBar(QtWidgets.QToolBar):
 
         self.monitorInput.spin.setValue(val)
 
-    Slot()
+    @Slot()
     def stop(self) -> None:
         """
         Stop the timer.
@@ -193,7 +193,7 @@ class AutoPlotMainWindow(PlotWindow):
         tstamp = time.strftime("%Y-%m-%d %H:%M:%S")
         self.status.showMessage(f"loaded: {tstamp}")
 
-    Slot()
+    @Slot()
     def refreshData(self) -> None:
         """
         Refresh the dataset by calling `update' on the dataset loader node.
