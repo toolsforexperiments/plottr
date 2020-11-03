@@ -139,7 +139,6 @@ def test_get_ds_structure(experiment):
     assert structure == expected_structure
 
 
-@pytest.mark.xfail
 def test_get_ds_info(experiment):
     N = 5
 
@@ -161,6 +160,7 @@ def test_get_ds_info(experiment):
 
     # timestamps are difficult to test for, so we will cheat here and
     # instead of hard-coding timestamps we will just get them from the dataset
+    # The same applies to the guid as it contains the timestamp
     started_ts = dataset.run_timestamp()
     completed_ts = dataset.completed_timestamp()
 
@@ -171,8 +171,9 @@ def test_get_ds_info(experiment):
         'completed time': completed_ts[11:],
         'started date': started_ts[:10],
         'started time': started_ts[11:],
+        'name': 'results',
         'records': 0,
-        'guid': 'aaaaaaaa-0d00-0000-0000-000000000000'
+        'guid': dataset.guid
     }
 
     ds_info = get_ds_info(dataset, get_structure=False)
