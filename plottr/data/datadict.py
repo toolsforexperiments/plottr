@@ -1129,17 +1129,13 @@ def datadict_to_meshgrid(data: DataDict,
     # guess what the shape likely is.
     if target_shape is None:
         shp_specs = guess_shape_from_datadict(data)
-        shps = []
-        for order_shape in shp_specs.values():
-            assert order_shape is not None
-            shps.append(order_shape[1])
-        if len(set(shps)) > 1:
+        shps = set(order_shape[1] if order_shape is not None
+                   else None for order_shape in shp_specs.values())
+        if len(shps) > 1:
             raise ValueError('Cannot determine unique shape for all data.')
-
         ret = list(shp_specs.values())[0]
         if ret is None:
             raise ValueError('Shape could not be inferred.')
-
         # the guess-function returns both axis order as well as shape.
         inner_axis_order, target_shape = ret
 
