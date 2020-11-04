@@ -99,7 +99,8 @@ def test_load_2dsoftsweep(experiment):
 
 
 @pytest.mark.skipif(version.parse(qc.version.__version__)
-                    < version.parse("0.20.0"))
+                    < version.parse("0.20.0"),
+                    reason="Requires QCoDes 0.20.0 or later")
 def test_load_2dsoftsweep_known_shape(experiment):
     N = 1
     m = qc.Measurement(exp=experiment)
