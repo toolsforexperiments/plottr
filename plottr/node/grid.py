@@ -493,6 +493,10 @@ class DataGridder(Node):
                 self.logger().warning(
                     f"Data is already on grid. Ignore shape.")
                 dout = data
+            elif method is GridOption.metadataShape:
+                self.logger().warning(
+                    f"Data is already on grid. Ignore shape.")
+                dout = data
 
         else:
             self.logger().error(
