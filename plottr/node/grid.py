@@ -35,6 +35,8 @@ class GridOption(Enum):
     #: manually specify the shape of the grid
     specifyShape = 2
 
+    #: read the shape from DataSet Metadata (if available)
+    metadataShape = 3
 
 class ShapeSpecificationWidget(QtWidgets.QWidget):
     """A widget that allows the user to specify a grid shape.
@@ -183,6 +185,8 @@ class GridOptionWidget(QtWidgets.QWidget):
             GridOption.noGrid: QtWidgets.QRadioButton('No grid'),
             GridOption.guessShape: QtWidgets.QRadioButton('Guess shape'),
             GridOption.specifyShape: QtWidgets.QRadioButton('Specify shape'),
+            GridOption.metadataShape: QtWidgets.QRadioButton(
+                'Read shape from metadata'),
         }
 
         btnLayout = QtWidgets.QVBoxLayout()
@@ -374,12 +378,15 @@ class DataGridder(Node):
                 will leave tabular data as is, and flatten gridded data to result
                 in tabular data
 
-            * :attr:`GridOption.guessGrid` --
+            * :attr:`GridOption.guessShape` --
                 use :func:`.guess_shape_from_datadict` and :func:`.datadict_to_meshgrid`
                 to infer the grid, if the input data is tabular.
 
             * :attr:`GridOption.specifyShape` --
                 reshape the data using a specified shape.
+
+            * :attr:`GridOption.metadataShape` --
+                use the shape specified in the dataset metadata
 
         Some types may required additional options.
         At the moment, this is only the case for :attr:`GridOption.specifyShape`.
@@ -418,7 +425,7 @@ class DataGridder(Node):
         except TypeError:
             raise ValueError(f"Invalid grid specification.")
 
-        if not method in GridOption:
+        if method not in GridOption:
             raise ValueError(f"Invalid grid method specification.")
 
         if not isinstance(opts, dict):
@@ -436,7 +443,10 @@ class DataGridder(Node):
 
         return True
 
-    def process(self, dataIn: Optional[DataDictBase] = None) -> Optional[Dict[str, Optional[DataDictBase]]]:
+    def process(
+            self,
+            dataIn: Optional[DataDictBase] = None
+    ) -> Optional[Dict[str, Optional[DataDictBase]]]:
         """Process the data."""
 
         # TODO: what would be nice is to change the correct inner axis order
@@ -468,6 +478,10 @@ class DataGridder(Node):
                 dout = dd.datadict_to_meshgrid(
                     data, target_shape=opts['shape'],
                     inner_axis_order=order,
+                )
+            elif method is GridOption.metadataShape:
+                dout = dd.datadict_to_meshgrid(
+                    data, use_existing_shape=True
                 )
 
         elif isinstance(data, MeshgridDataDict):
