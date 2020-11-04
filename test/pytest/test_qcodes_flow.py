@@ -1,3 +1,7 @@
+import pytest
+from packaging import version
+import qcodes as qc
+
 from plottr.data.datadict import DataDict
 from plottr.node.tools import linearFlowchart
 from plottr.data.qcodes_dataset import QCodesDSLoader
@@ -8,6 +12,8 @@ from plottr.node.filter.correct_offset import SubtractAverage
 from plottr.plot import PlotNode
 
 
+@pytest.mark.skipif(version.parse(qc.version.__version__)
+                    < version.parse("0.20.0"))
 def test_qcodes_flow_shaped_data(qtbot, dataset_with_shape):
 
     fc = linearFlowchart(

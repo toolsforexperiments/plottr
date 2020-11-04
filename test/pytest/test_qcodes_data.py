@@ -1,5 +1,6 @@
 import numpy as np
 import pytest
+from packaging import version
 
 import qcodes as qc
 from qcodes import load_or_create_experiment, initialise_or_create_database_at
@@ -97,6 +98,8 @@ def test_load_2dsoftsweep(experiment):
     assert ddict == dd_expected
 
 
+@pytest.mark.skipif(version.parse(qc.version.__version__)
+                    < version.parse("0.20.0"))
 def test_load_2dsoftsweep_known_shape(experiment):
     N = 1
     m = qc.Measurement(exp=experiment)
