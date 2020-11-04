@@ -1,6 +1,8 @@
 import pytest
 from packaging import version
 import qcodes as qc
+from numpy.testing import assert_array_equal
+
 
 from plottr.data.datadict import DataDict
 from plottr.node.tools import linearFlowchart
@@ -36,4 +38,8 @@ def test_qcodes_flow_shaped_data(qtbot, dataset_with_shape):
     for key in ('x', 'y', 'z_0'):
         assert datadict[key]['values'].shape == expected_shape
         assert datadict.shapes()[key] == expected_shape
+        assert_array_equal(
+            datadict[key]['values'],
+            dataset_with_shape.get_parameter_data()['z_0'][key]
+        )
     assert datadict.shape() == expected_shape
