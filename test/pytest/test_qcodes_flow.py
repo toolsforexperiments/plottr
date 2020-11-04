@@ -6,10 +6,7 @@ from plottr.data.datadict import DataDict
 from plottr.node.tools import linearFlowchart
 from plottr.data.qcodes_dataset import QCodesDSLoader
 from plottr.node.data_selector import DataSelector
-from plottr.node.grid import DataGridder
-from plottr.node.dim_reducer import XYSelector
-from plottr.node.filter.correct_offset import SubtractAverage
-from plottr.plot import PlotNode
+from plottr.node.grid import DataGridder, GridOption
 
 
 @pytest.mark.skipif(version.parse(qc.__version__)
@@ -40,7 +37,3 @@ def test_qcodes_flow_shaped_data(qtbot, dataset_with_shape):
         assert datadict[key]['values'].shape == expected_shape
         assert datadict.shapes()[key] == expected_shape
     assert datadict.shape() == expected_shape
-
-
-
-
