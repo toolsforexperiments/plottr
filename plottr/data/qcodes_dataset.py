@@ -258,6 +258,10 @@ DB-File [ID]: {} [{}]""".format(self._dataset.run_timestamp(), self._dataset.com
                 data.add_meta('qcodes_runId', runId)
                 data.add_meta('qcodes_completedTS', self._dataset.completed_timestamp())
                 data.add_meta('qcodes_runTS', self._dataset.run_timestamp())
+                if hasattr(self._dataset.description, "shapes"):
+                    data.add_meta('qcodes_shape', self._dataset.description.shapes)
+                else:
+                    data.add_meta('qcodes_shape', None)
                 self.nLoadedRecords = self._dataset.number_of_results
                 return dict(dataOut=data)
         return None
