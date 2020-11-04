@@ -12,7 +12,7 @@ from plottr.node.filter.correct_offset import SubtractAverage
 from plottr.plot import PlotNode
 
 
-@pytest.mark.skipif(version.parse(qc.version.__version__)
+@pytest.mark.skipif(version.parse(qc.__version__)
                     < version.parse("0.20.0"),
                     reason="Requires QCoDes 0.20.0 or later")
 def test_qcodes_flow_shaped_data(qtbot, dataset_with_shape):

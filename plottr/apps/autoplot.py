@@ -274,7 +274,7 @@ class QCAutoPlotMainWindow(AutoPlotMainWindow):
     def setDefaults(self, data: DataDictBase) -> None:
         super().setDefaults(data)
         import qcodes as qc
-        qcodes_support = (version.parse(qc.version.__version__) >=
+        qcodes_support = (version.parse(qc.__version__) >=
                           version.parse("0.20.0"))
         if data.meta_val('qcodes_shape') is not None and qcodes_support:
             self.fc.nodes()['Grid'].grid = GridOption.metadataShape, {}
