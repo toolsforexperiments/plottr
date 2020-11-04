@@ -21,17 +21,26 @@ def test_qcodes_flow_shaped_data(qtbot, dataset_with_shape):
         ('Data loader', QCodesDSLoader),
         ('Data selection', DataSelector),
         ('Grid', DataGridder),
-        ('Dimension assignment', XYSelector),
-        ('Subtract average', SubtractAverage),
-        ('plot', PlotNode)
+        # ('Dimension assignment', XYSelector),
     )
     loader = fc.nodes()['Data loader']
     selector = fc.nodes()['Data selection']
     selector.selectedData = 'z_0'
+    gridder = fc.nodes()['Grid']
+    gridder.grid = (GridOption.metadataShape, {})
 
     loader.pathAndId = dataset_with_shape.path_to_db, dataset_with_shape.run_id
     loader.update()
-    assert 1 == 1
+
+    expected_shape = dataset_with_shape.description.shapes['z_0']
+
+    datadict = fc.output()['dataOut']
+
+    for key in ('x', 'y', 'z_0'):
+        assert datadict[key]['values'].shape == expected_shape
+        assert datadict.shapes()[key] == expected_shape
+    assert datadict.shape() == expected_shape
+
 
 
 
