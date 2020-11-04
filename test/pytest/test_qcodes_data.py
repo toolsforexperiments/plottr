@@ -126,9 +126,13 @@ def test_load_2dsoftsweep_known_shape(experiment):
             datasaver.add_result(*row)
             dd_expected.add_data(**result)
 
+    dd_expected['x']['values'] = dd_expected['x']['values'].reshape(*shape)
+    dd_expected['y']['values'] = dd_expected['y']['values'].reshape(*shape)
+    dd_expected['z_0']['values'] = dd_expected['z_0']['values'].reshape(*shape)
+
     # retrieve data as data dict
     ddict = ds_to_datadict(datasaver.dataset)
-    # assert ddict == dd_expected
+    assert ddict == dd_expected
 
 
 def test_get_ds_structure(experiment):
