@@ -251,7 +251,7 @@ class QCodesDBInspector(QtWidgets.QMainWindow):
         self.filepath = dbPath
         self.dbdf = None
         self.monitor = QtCore.QTimer()
-        
+
         # flag for determining what has been loaded so far.
         # * None: nothing opened yet.
         # * -1: empty DS open.
@@ -323,7 +323,7 @@ class QCodesDBInspector(QtWidgets.QMainWindow):
         self.resize(640, 640)
 
         ### Thread workers
-        
+
         # DB loading. can be slow, so nice to have in a thread.
         self.loadDBProcess = LoadDBProcess()
         self.loadDBThread = QtCore.QThread()
@@ -403,7 +403,7 @@ class QCodesDBInspector(QtWidgets.QMainWindow):
             if not self.loadDBThread.isRunning():
                 self.loadDBProcess.setPath(self.filepath)
 
-    
+
     def DBLoaded(self, dbdf: pandas.DataFrame) -> None:
         self.dbdf = dbdf
         self.dbdfUpdated.emit()
@@ -413,11 +413,13 @@ class QCodesDBInspector(QtWidgets.QMainWindow):
         if self.latestRunId is not None:
             idxs = self.dbdf.index.values
             newIdxs = idxs[idxs > self.latestRunId]
-            
+
             if self.monitor.isActive() and self.autoLaunchPlots.elements['Auto-plot new'].isChecked():
                 for idx in newIdxs:
                     self.plotRun(idx)
-                    self._plotWindows[idx]['window'].setMonitorInterval(2)
+                    self._plotWindows[idx]['window'].setMonitorInterval(
+                        self.monitorInput.spin.value()
+                    )
 
 
 
