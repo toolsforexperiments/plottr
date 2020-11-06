@@ -416,7 +416,9 @@ class QCodesDBInspector(QtWidgets.QMainWindow):
             if self.monitor.isActive() and self.autoLaunchPlots.elements['Auto-plot new'].isChecked():
                 for idx in newIdxs:
                     self.plotRun(idx)
-                    self._plotWindows[idx]['window'].setMonitorInterval(2)
+                    self._plotWindows[idx]['window'].setMonitorInterval(
+                        self.monitorInput.spin.value()
+                    )
 
     @Slot()
     def updateDates(self) -> None:
