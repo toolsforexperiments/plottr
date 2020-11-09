@@ -403,7 +403,6 @@ class QCodesDBInspector(QtWidgets.QMainWindow):
             if not self.loadDBThread.isRunning():
                 self.loadDBProcess.setPath(self.filepath)
 
-
     def DBLoaded(self, dbdf: pandas.DataFrame) -> None:
         self.dbdf = dbdf
         self.dbdfUpdated.emit()
@@ -420,8 +419,6 @@ class QCodesDBInspector(QtWidgets.QMainWindow):
                     self._plotWindows[idx]['window'].setMonitorInterval(
                         self.monitorInput.spin.value()
                     )
-
-
 
     @Slot()
     def updateDates(self) -> None:
