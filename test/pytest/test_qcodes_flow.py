@@ -20,7 +20,6 @@ def test_qcodes_flow_shaped_data(qtbot, dataset_with_shape):
         ('Data loader', QCodesDSLoader),
         ('Data selection', DataSelector),
         ('Grid', DataGridder),
-        # ('Dimension assignment', XYSelector),
     )
     loader = fc.nodes()['Data loader']
     selector = fc.nodes()['Data selection']
