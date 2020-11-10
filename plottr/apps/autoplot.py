@@ -7,6 +7,7 @@ import os
 import time
 import argparse
 from typing import Union, Tuple, Optional, Type, List, Any
+from packaging import version
 
 from .. import QtCore, Flowchart, Signal, Slot, QtWidgets, QtGui
 from .. import log as plottrlog
@@ -269,6 +270,16 @@ class QCAutoPlotMainWindow(AutoPlotMainWindow):
         if self.loaderNode.nLoadedRecords > 0:
             self.setDefaults(self.loaderNode.outputValues()['dataOut'])
             self._initialized = True
+
+    def setDefaults(self, data: DataDictBase) -> None:
+        super().setDefaults(data)
+        import qcodes as qc
+        qcodes_support = (version.parse(qc.__version__) >=
+                          version.parse("0.20.0"))
+        if data.meta_val('qcodes_shape') is not None and qcodes_support:
+            self.fc.nodes()['Grid'].grid = GridOption.metadataShape, {}
+        else:
+            self.fc.nodes()['Grid'].grid = GridOption.guessShape, {}
 
 
 def autoplotQcodesDataset(log: bool = False,

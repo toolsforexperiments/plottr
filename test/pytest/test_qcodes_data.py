@@ -1,5 +1,6 @@
 import numpy as np
 import pytest
+from packaging import version
 
 import qcodes as qc
 from qcodes import load_or_create_experiment, initialise_or_create_database_at
@@ -91,6 +92,43 @@ def test_load_2dsoftsweep(experiment):
             row = [(k, v) for k, v in result.items()] + [('foo', 1)]
             datasaver.add_result(*row)
             dd_expected.add_data(**result)
+
+    # retrieve data as data dict
+    ddict = ds_to_datadict(datasaver.dataset)
+    assert ddict == dd_expected
+
+
+@pytest.mark.skipif(version.parse(qc.__version__)
+                    < version.parse("0.20.0"),
+                    reason="Requires QCoDes 0.20.0 or later")
+def test_load_2dsoftsweep_known_shape(experiment):
+    N = 1
+    m = qc.Measurement(exp=experiment)
+    m.register_custom_parameter('x', unit='cm')
+    m.register_custom_parameter('y')
+
+    # check that unused parameters don't mess with
+    m.register_custom_parameter('foo')
+    dd_expected = DataDict(x=dict(values=np.array([]), unit='cm'),
+                           y=dict(values=np.array([])))
+    for n in range(N):
+        m.register_custom_parameter(f'z_{n}', setpoints=['x', 'y'])
+        dd_expected[f'z_{n}'] = dict(values=np.array([]), axes=['x', 'y'])
+    dd_expected.validate()
+
+    shape = (3, 3)
+
+    m.set_shapes({'z_0': shape})
+
+    with m.run() as datasaver:
+        for result in testdata.generate_2d_scalar_simple(*shape, N):
+            row = [(k, v) for k, v in result.items()] + [('foo', 1)]
+            datasaver.add_result(*row)
+            dd_expected.add_data(**result)
+
+    dd_expected['x']['values'] = dd_expected['x']['values'].reshape(*shape)
+    dd_expected['y']['values'] = dd_expected['y']['values'].reshape(*shape)
+    dd_expected['z_0']['values'] = dd_expected['z_0']['values'].reshape(*shape)
 
     # retrieve data as data dict
     ddict = ds_to_datadict(datasaver.dataset)

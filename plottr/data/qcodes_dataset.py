@@ -258,6 +258,8 @@ DB-File [ID]: {} [{}]""".format(self._dataset.run_timestamp(), self._dataset.com
                 data.add_meta('qcodes_runId', runId)
                 data.add_meta('qcodes_completedTS', self._dataset.completed_timestamp())
                 data.add_meta('qcodes_runTS', self._dataset.run_timestamp())
+                qcodes_shape = getattr(self._dataset.description, "shapes", None)
+                data.add_meta('qcodes_shape', qcodes_shape)
                 self.nLoadedRecords = self._dataset.number_of_results
                 return dict(dataOut=data)
         return None
