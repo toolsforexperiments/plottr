@@ -87,6 +87,10 @@ class DataDictBase(dict):
                 # print(f"different units for {dn}")
                 return False
 
+            if self[dn].get('label', '') != other[dn].get('label', ''):
+                # print(f"different labels for {dn}")
+                return False
+
             if self[dn].get('axes', []) != other[dn].get('axes', []):
                 # print(f"different axes for {dn}")
                 return False
@@ -397,6 +401,8 @@ class DataDictBase(dict):
         """
         Get a label for a data field.
 
+        If label is present, use the label for the data; otherwise 
+        fallback to use data name as the label.
         If a unit is present, this is the name with the unit appended in
         brackets: ``name (unit)``; if no unit is present, just the name.
 
@@ -406,8 +412,12 @@ class DataDictBase(dict):
         if self.validate():
             if name not in self:
                 raise ValueError("No field '{}' present.".format(name))
+            
+            if self[name]['label'] != '':
+                n = self[name]['label']
+            else:
+                n = name
 
-            n = name
             if self[name]['unit'] != '':
                 n += ' ({})'.format(self[name]['unit'])
 
@@ -497,6 +507,7 @@ class DataDictBase(dict):
 
         Other tasks performed:
             * ``unit`` keys are created if omitted
+            * ``label`` keys are created if omitted
             * ``shape`` meta information is updated with the correct values
               (only if present already).
 
@@ -521,6 +532,9 @@ class DataDictBase(dict):
 
             if 'unit' not in v:
                 v['unit'] = ''
+
+            if 'label' not in v:
+                v['label'] = ''
 
             vals = v.get('values', [])
             if type(vals) not in [np.ndarray, np.ma.core.MaskedArray]:
