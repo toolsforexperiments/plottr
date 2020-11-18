@@ -139,7 +139,7 @@ def test_get_ds_structure(experiment):
     N = 5
 
     m = qc.Measurement(exp=experiment)
-    m.register_custom_parameter('x', unit='cm')
+    m.register_custom_parameter('x', unit='cm',label='my_x_param')
     m.register_custom_parameter('y')
 
     # check that unused parameters don't mess with
@@ -155,10 +155,12 @@ def test_get_ds_structure(experiment):
     expected_structure = {
         'x': {
             'unit': 'cm',
+            'label': 'my_x_param',
             'values': []
         },
         'y': {
             'unit': '',
+            'label': '',
             'values': []
         }
         # note that parameter 'foo' is not expected to be included
@@ -168,6 +170,7 @@ def test_get_ds_structure(experiment):
         expected_structure.update(
             {f'z_{n}': {
                 'unit': '',
+                'label': '',
                 'axes': ['x', 'y'],
                 'values': []
                 }
