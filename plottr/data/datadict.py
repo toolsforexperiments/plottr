@@ -87,6 +87,10 @@ class DataDictBase(dict):
                 # print(f"different units for {dn}")
                 return False
 
+            if self[dn].get('label', '') != other[dn].get('label', ''):
+                # print(f"different units for {dn}")
+                return False
+
             if self[dn].get('axes', []) != other[dn].get('axes', []):
                 # print(f"different axes for {dn}")
                 return False
@@ -406,8 +410,12 @@ class DataDictBase(dict):
         if self.validate():
             if name not in self:
                 raise ValueError("No field '{}' present.".format(name))
+            
+            if self[name]['label'] != '':
+                n = self[name]['label']
+            else:
+                n = name
 
-            n = name
             if self[name]['unit'] != '':
                 n += ' ({})'.format(self[name]['unit'])
 
@@ -521,6 +529,9 @@ class DataDictBase(dict):
 
             if 'unit' not in v:
                 v['unit'] = ''
+
+            if 'label' not in v:
+                v['label'] = ''
 
             vals = v.get('values', [])
             if type(vals) not in [np.ndarray, np.ma.core.MaskedArray]:

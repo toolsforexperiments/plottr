@@ -43,11 +43,13 @@ def get_ds_structure(ds: 'DataSet') -> Dict[str, Any]:
         {
             'dependent_parameter_name': {
                 'unit': unit,
+                'label': label,
                 'axes': list of names of independent parameters,
                 'values': []
             },
             'independent_parameter_name': {
                 'unit': unit,
+                'label': label,
                 'values': []
             },
             ...
@@ -66,7 +68,7 @@ def get_ds_structure(ds: 'DataSet') -> Dict[str, Any]:
 
     for spec in paramspecs:
         if spec.name not in standalones:
-            structure[spec.name] = {'unit': spec.unit, 'values': []}
+            structure[spec.name] = {'unit': spec.unit, 'label': spec.label, 'values': []}
             if len(spec.depends_on_) > 0:
                 structure[spec.name]['axes'] = list(spec.depends_on_)
 
@@ -185,10 +187,10 @@ def ds_to_datadicts(ds: 'DataSet') -> Dict[str, DataDict]:
         if spec.depends_on != '':
             axes = spec.depends_on_
             data = dict()
-            data[p] = dict(unit=spec.unit, axes=axes, values=pdata[p][p])
+            data[p] = dict(unit=spec.unit, label=spec.label, axes=axes, values=pdata[p][p])
             for ax in axes:
                 axspec = ds.paramspecs[ax]
-                data[ax] = dict(unit=axspec.unit, values=pdata[p][ax])
+                data[ax] = dict(unit=axspec.unit, label=axspec.label, values=pdata[p][ax])
             ret[p] = DataDict(**data)
             ret[p].validate()
 
