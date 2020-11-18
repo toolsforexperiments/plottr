@@ -88,7 +88,7 @@ class DataDictBase(dict):
                 return False
 
             if self[dn].get('label', '') != other[dn].get('label', ''):
-                # print(f"different units for {dn}")
+                # print(f"different labels for {dn}")
                 return False
 
             if self[dn].get('axes', []) != other[dn].get('axes', []):
@@ -401,6 +401,8 @@ class DataDictBase(dict):
         """
         Get a label for a data field.
 
+        If label is present, use the label for the data; otherwise 
+        fallback to use data name as the label.
         If a unit is present, this is the name with the unit appended in
         brackets: ``name (unit)``; if no unit is present, just the name.
 
@@ -505,6 +507,7 @@ class DataDictBase(dict):
 
         Other tasks performed:
             * ``unit`` keys are created if omitted
+            * ``label`` keys are created if omitted
             * ``shape`` meta information is updated with the correct values
               (only if present already).
 
