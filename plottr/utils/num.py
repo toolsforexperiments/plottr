@@ -46,7 +46,7 @@ def largest_numtype(arr: np.ndarray, include_integers: bool = True) \
         return None
 
 
-def _are_close(a: np.ndarray, b: np.ndarray, rtol: float = 1e-8) -> Union[np.ndarray, bool]:
+def _are_close(a: np.ndarray, b: np.ndarray, rtol: float = 1e-8) -> Union[np.ndarray, np.bool_]:
     return np.isclose(a, b, rtol=rtol)
 
 
@@ -98,7 +98,7 @@ def arrays_equal(a: np.ndarray, b: np.ndarray,
         else:
             return False
 
-    close: Union[np.ndarray, bool] = np.zeros(a.shape, dtype=bool)
+    close: Union[np.ndarray, np.bool_] = np.zeros(a.shape, dtype=bool)
     if a.dtype in FLOATTYPES and b.dtype in FLOATTYPES:
         close = _are_close(a, b, rtol=rtol)
 
