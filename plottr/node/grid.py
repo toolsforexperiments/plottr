@@ -11,7 +11,7 @@ from typing import Tuple, Dict, Any, List, Union, Optional, Sequence
 from plottr import QtGui, Signal, Slot, QtWidgets
 from .node import Node, NodeWidget, updateOption, updateGuiFromNode
 from ..data import datadict as dd
-from ..data.datadict import DataDict, MeshgridDataDict, DataDictBase
+from ..data.datadict import DataDict, MeshgridDataDict, DataDictBase, GriddingError
 from plottr.icons import get_gridIcon
 
 __author__ = 'Wolfgang Pfaff'
@@ -37,6 +37,7 @@ class GridOption(Enum):
 
     #: read the shape from DataSet Metadata (if available)
     metadataShape = 3
+
 
 class ShapeSpecificationWidget(QtWidgets.QWidget):
     """A widget that allows the user to specify a grid shape.
@@ -470,20 +471,26 @@ class DataGridder(Node):
         order = opts.get('order', data.axes())
 
         if isinstance(data, DataDict):
-            if method is GridOption.noGrid:
+            try:
+                if method is GridOption.noGrid:
+                    dout = data.expand()
+                elif method is GridOption.guessShape:
+                    dout = dd.datadict_to_meshgrid(data)
+                elif method is GridOption.specifyShape:
+                    dout = dd.datadict_to_meshgrid(
+                        data, target_shape=opts['shape'],
+                        inner_axis_order=order,
+                    )
+                elif method is GridOption.metadataShape:
+                    dout = dd.datadict_to_meshgrid(
+                        data, use_existing_shape=True
+                    )
+            except GriddingError:
                 dout = data.expand()
-            elif method is GridOption.guessShape:
-                dout = dd.datadict_to_meshgrid(data)
-            elif method is GridOption.specifyShape:
-                dout = dd.datadict_to_meshgrid(
-                    data, target_shape=opts['shape'],
-                    inner_axis_order=order,
-                )
-            elif method is GridOption.metadataShape:
-                dout = dd.datadict_to_meshgrid(
-                    data, use_existing_shape=True
-                )
-
+                self.logger().info("data could not be gridded. Falling back "
+                                   "to no grid")
+                if self.ui is not None:
+                    self.ui.setGrid((GridOption.noGrid, {}))
         elif isinstance(data, MeshgridDataDict):
             if method is GridOption.noGrid:
                 dout = dd.meshgrid_to_datadict(data)
