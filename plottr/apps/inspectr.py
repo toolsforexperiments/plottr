@@ -17,7 +17,7 @@ import time
 import sys
 import argparse
 import logging
-from typing import Optional, Sequence, List, Dict, Iterable, Union
+from typing import Optional, Sequence, List, Dict, Iterable, Union, cast
 from typing_extensions import TypedDict
 
 import pandas
@@ -146,8 +146,8 @@ class RunList(QtWidgets.QTreeWidget):
         lst.append(vals.get('experiment', ''))
         lst.append(vals.get('sample', ''))
         lst.append(vals.get('name', ''))
-        lst.append(vals.get('started date', '') + ' ' + vals.get('started time', ''))
-        lst.append(vals.get('completed date', '') + ' ' + vals.get('completed time', ''))
+        lst.append(vals.get('started_date', '') + ' ' + vals.get('started_time', ''))
+        lst.append(vals.get('completed_date', '') + ' ' + vals.get('completed_time', ''))
         lst.append(str(vals.get('records', '')))
         lst.append(vals.get('guid', ''))
 
@@ -424,7 +424,7 @@ class QCodesDBInspector(QtWidgets.QMainWindow):
     def updateDates(self) -> None:
         assert self.dbdf is not None
         if self.dbdf.size > 0:
-            dates = list(self.dbdf.groupby('started date').indices.keys())
+            dates = list(self.dbdf.groupby('started_date').indices.keys())
             self.dateList.updateDates(dates)
 
     ### reloading the db
@@ -456,7 +456,7 @@ class QCodesDBInspector(QtWidgets.QMainWindow):
     def setDateSelection(self, dates: Sequence[str]) -> None:
         if len(dates) > 0:
             assert self.dbdf is not None
-            selection = self.dbdf.loc[self.dbdf['started date'].isin(dates)].sort_index(ascending=False)
+            selection = self.dbdf.loc[self.dbdf['started_date'].isin(dates)].sort_index(ascending=False)
             self.runList.setRuns(selection.to_dict(orient='index'))
         else:
             self.runList.clear()
@@ -469,7 +469,8 @@ class QCodesDBInspector(QtWidgets.QMainWindow):
         if hasattr(ds, 'snapshot'):
             snap = ds.snapshot
 
-        structure = get_ds_structure(ds)
+        structure = cast(Dict[str, dict], get_ds_structure(ds))
+        # cast away typed dict so we can pop a key
         for k, v in structure.items():
             v.pop('values')
         contentInfo = {'Data structure': structure,

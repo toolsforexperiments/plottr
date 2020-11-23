@@ -196,8 +196,8 @@ def test_get_ds_info(experiment):
 
         ds_info_with_empty_timestamps = get_ds_info(dataset,
                                                     get_structure=False)
-        assert ds_info_with_empty_timestamps['completed date'] == ''
-        assert ds_info_with_empty_timestamps['completed time'] == ''
+        assert ds_info_with_empty_timestamps['completed_date'] == ''
+        assert ds_info_with_empty_timestamps['completed_time'] == ''
 
     # timestamps are difficult to test for, so we will cheat here and
     # instead of hard-coding timestamps we will just get them from the dataset
@@ -208,11 +208,12 @@ def test_get_ds_info(experiment):
     expected_ds_info = {
         'experiment': '2d_softsweep',
         'sample': 'no sample',
-        'completed date': completed_ts[:10],
-        'completed time': completed_ts[11:],
-        'started date': started_ts[:10],
-        'started time': started_ts[11:],
+        'completed_date': completed_ts[:10],
+        'completed_time': completed_ts[11:],
+        'started_date': started_ts[:10],
+        'started_time': started_ts[11:],
         'name': 'results',
+        'structure': None,
         'records': 0,
         'guid': dataset.guid
     }
