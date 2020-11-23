@@ -230,9 +230,8 @@ class Node(NodeBase):
 
         :return: logger with a name that can be traced back easily to this node.
         """
-        name = self.__module__ + '.' + self.__class__.__name__ + '.' \
-               + self.name()
-        logger = log.getLogger()
+        name = f"{self.__module__}.{self.__class__.__name__}.{self.name()}"
+        logger = log.getLogger(name)
         logger.setLevel(log.LEVEL)
         return logger
 

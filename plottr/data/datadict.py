@@ -44,6 +44,10 @@ def meta_name_to_key(name: str) -> str:
 T = TypeVar('T', bound='DataDictBase')
 
 
+class GriddingError(ValueError):
+    pass
+
+
 class DataDictBase(dict):
     """
     Simple data storage class that is based on a regular dictionary.
@@ -1125,6 +1129,7 @@ def datadict_to_meshgrid(data: DataDict,
     :param use_existing_shape: if ``True``, simply use the shape that the data
         already has. For numpy-array data, this might already be present.
         if ``False``, flatten and reshape.
+    :raises: GriddingError (subclass of ValueError) if the data cannot be gridded.
     :returns: the generated ``MeshgridDataDict``.
     """
 
@@ -1133,7 +1138,7 @@ def datadict_to_meshgrid(data: DataDict,
         return MeshgridDataDict()
 
     if not data.axes_are_compatible():
-        raise ValueError('Non-compatible axes, cannot grid that.')
+        raise GriddingError('Non-compatible axes, cannot grid that.')
 
     if not use_existing_shape and data.is_expandable():
         data = data.expand()
@@ -1146,10 +1151,10 @@ def datadict_to_meshgrid(data: DataDict,
         shps = set(order_shape[1] if order_shape is not None
                    else None for order_shape in shp_specs.values())
         if len(shps) > 1:
-            raise ValueError('Cannot determine unique shape for all data.')
+            raise GriddingError('Cannot determine unique shape for all data.')
         ret = list(shp_specs.values())[0]
         if ret is None:
-            raise ValueError('Shape could not be inferred.')
+            raise GriddingError('Shape could not be inferred.')
         # the guess-function returns both axis order as well as shape.
         inner_axis_order, target_shape = ret
 
