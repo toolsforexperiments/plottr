@@ -489,7 +489,8 @@ class DataGridder(Node):
                 dout = data.expand()
                 self.logger().info("data could not be gridded. Falling back "
                                    "to no grid")
-                self.ui.setGrid((GridOption.noGrid, {}))
+                if self.ui is not None:
+                    self.ui.setGrid((GridOption.noGrid, {}))
         elif isinstance(data, MeshgridDataDict):
             if method is GridOption.noGrid:
                 dout = dd.meshgrid_to_datadict(data)
