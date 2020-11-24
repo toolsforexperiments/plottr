@@ -179,7 +179,7 @@ def setMplDefaults() -> None:
     rcParams['grid.linewidth'] = 0.5
     rcParams['grid.linestyle'] = ':'
     rcParams['font.family'] = 'Arial', 'Helvetica', 'DejaVu Sans'
-    rcParams['font.size'] = 6
+    rcParams['font.size'] = 11
     rcParams['lines.markersize'] = 3
     rcParams['lines.linestyle'] = '-'
     rcParams['savefig.transparent'] = False
@@ -569,7 +569,7 @@ class _MPLPlotWidget(PlotWidget):
         self.plot = MPLPlot()
         self.mplBar = NavBar(self.plot, self)
         self.addMplBarOptions()
-        self.mplBar.setIconSize(QtCore.QSize(16,16))
+        self.mplBar.setIconSize(QtCore.QSize(32, 32))
 
         layout = QtWidgets.QVBoxLayout(self)
         layout.addWidget(self.plot)
@@ -782,7 +782,7 @@ class AutoPlot(_MPLPlotWidget):
             self._complexPreferenceFromToolBar
         )
 
-        self.plotOptionsToolBar.setIconSize(QtCore.QSize(32, 32))
+        self.plotOptionsToolBar.setIconSize(QtCore.QSize(36, 36))
 
         self.setMinimumSize(640, 480)
 
