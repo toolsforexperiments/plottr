@@ -88,7 +88,7 @@ class PlotWindow(QtWidgets.QMainWindow):
         if fc is not None:
             self.addNodeWidgetsFromFlowchart(fc, **kw)
 
-        self.setDefaultStyle()
+        #self.setDefaultStyle()
 
     def setDefaultStyle(self) -> None:
         self.setStyleSheet(
