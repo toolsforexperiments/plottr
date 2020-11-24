@@ -17,7 +17,7 @@ underscore pre- and suffix.
 import os
 import time
 from enum import Enum
-from typing import Any, Union, Optional, Dict, Type
+from typing import Any, Union, Optional, Dict, Type, Collection
 from types import TracebackType
 
 import numpy as np
@@ -334,7 +334,7 @@ def datadict_from_hdf5(basepath: str,
 
         for k in keys:
             ds = grp[k]
-            entry = dict(values=np.array([]), )
+            entry: Dict[str, Union[Collection[Any], np.ndarray]] = dict(values=np.array([]), )
 
             if 'axes' in ds.attrs:
                 entry['axes'] = deh5ify(ds.attrs['axes']).tolist()
