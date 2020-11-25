@@ -169,7 +169,7 @@ class SymmetricNorm(colors.Normalize):
         return super().__call__(value, clip)
 
 
-def setMplDefaults(obj) -> None:
+def setMplDefaults(obj: Any) -> None:
     """Set some reasonable matplotlib defaults for appearance."""
     if isinstance(obj, _MPLPlotWidget):
         fontSize = 6 * obj.devicePixelRatio()
