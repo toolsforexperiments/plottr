@@ -88,18 +88,19 @@ class PlotWindow(QtWidgets.QMainWindow):
         if fc is not None:
             self.addNodeWidgetsFromFlowchart(fc, **kw)
 
-        #self.setDefaultStyle()
+        self.setDefaultStyle()
 
     def setDefaultStyle(self) -> None:
+        fontSize = 10*self.devicePixelRatio()
         self.setStyleSheet(
-            """
-            QToolButton {
-                font: 10px;
-            }
+            f"""
+            QToolButton {{
+                font: {fontSize}px;
+            }}
 
-            QToolBar QCheckBox {
-                font: 10px;
-            }
+            QToolBar QCheckBox {{
+                font: {fontSize}px;
+            }}
             """
         )
 
