@@ -179,7 +179,7 @@ def setMplDefaults() -> None:
     rcParams['grid.linewidth'] = 0.5
     rcParams['grid.linestyle'] = ':'
     rcParams['font.family'] = 'Arial', 'Helvetica', 'DejaVu Sans'
-    rcParams['font.size'] = 11
+    rcParams['font.size'] = 6
     rcParams['lines.markersize'] = 3
     rcParams['lines.linestyle'] = '-'
     rcParams['savefig.transparent'] = False
@@ -565,6 +565,7 @@ class _MPLPlotWidget(PlotWidget):
         super().__init__(parent=parent)
 
         setMplDefaults()
+        rcParams['font.size'] = 6*self.devicePixelRatio()
 
         defaultIconSize = 16*self.devicePixelRatio()
 
