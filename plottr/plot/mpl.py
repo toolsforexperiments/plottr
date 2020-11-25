@@ -169,8 +169,12 @@ class SymmetricNorm(colors.Normalize):
         return super().__call__(value, clip)
 
 
-def setMplDefaults() -> None:
+def setMplDefaults(obj) -> None:
     """Set some reasonable matplotlib defaults for appearance."""
+    if isinstance(obj, _MPLPlotWidget):
+        fontSize = 6 * obj.devicePixelRatio()
+    else:
+        fontSize = 6
 
     rcParams['figure.dpi'] = 300
     rcParams['figure.figsize'] = (4.5, 3)
@@ -179,7 +183,7 @@ def setMplDefaults() -> None:
     rcParams['grid.linewidth'] = 0.5
     rcParams['grid.linestyle'] = ':'
     rcParams['font.family'] = 'Arial', 'Helvetica', 'DejaVu Sans'
-    rcParams['font.size'] = 6
+    rcParams['font.size'] = fontSize
     rcParams['lines.markersize'] = 3
     rcParams['lines.linestyle'] = '-'
     rcParams['savefig.transparent'] = False
@@ -463,7 +467,7 @@ class MPLPlot(FCanvas):
         :returns: the created axes in the grid
         """
         self.fig.clear()
-        setMplDefaults()
+        setMplDefaults(self)
 
         self.axes = []
         iax = 1
@@ -564,8 +568,7 @@ class _MPLPlotWidget(PlotWidget):
     def __init__(self, parent: Optional[QtWidgets.QWidget] = None):
         super().__init__(parent=parent)
 
-        setMplDefaults()
-        rcParams['font.size'] = 6*self.devicePixelRatio()
+        setMplDefaults(self)
 
         defaultIconSize = 16*self.devicePixelRatio()
 
