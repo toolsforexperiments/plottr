@@ -566,10 +566,12 @@ class _MPLPlotWidget(PlotWidget):
 
         setMplDefaults()
 
+        defaultIconSize = 16*self.devicePixelRatio()
+
         self.plot = MPLPlot()
         self.mplBar = NavBar(self.plot, self)
         self.addMplBarOptions()
-        self.mplBar.setIconSize(QtCore.QSize(32, 32))
+        self.mplBar.setIconSize(QtCore.QSize(defaultIconSize, defaultIconSize))
 
         layout = QtWidgets.QVBoxLayout(self)
         layout.addWidget(self.plot)
@@ -781,8 +783,8 @@ class AutoPlot(_MPLPlotWidget):
         self.plotOptionsToolBar.complexPolarSelected.connect(
             self._complexPreferenceFromToolBar
         )
-
-        self.plotOptionsToolBar.setIconSize(QtCore.QSize(36, 36))
+        iconSize = 32 + 4*(self.devicePixelRatio() - 1)
+        self.plotOptionsToolBar.setIconSize(QtCore.QSize(iconSize, iconSize))
 
         self.setMinimumSize(640, 480)
 
