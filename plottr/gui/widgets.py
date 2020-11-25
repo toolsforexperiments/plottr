@@ -4,10 +4,10 @@ widgets.py
 Common GUI widgets that are re-used across plottr.
 """
 
-from typing import Union, List, Tuple, Optional, Type
+from typing import Union, List, Tuple, Optional, Type, Sequence, Dict, Any
 
 from .tools import dictToTreeWidgetItems
-from plottr import QtGui, QtCore, Flowchart
+from plottr import QtCore, Flowchart, QtWidgets, Signal, Slot
 from plottr.node import Node, linearFlowchart
 from ..plot import PlotNode, PlotWidgetContainer, MPLAutoPlot
 
@@ -15,7 +15,7 @@ __author__ = 'Wolfgang Pfaff'
 __license__ = 'MIT'
 
 
-class FormLayoutWrapper(QtGui.QWidget):
+class FormLayoutWrapper(QtWidgets.QWidget):
     """
     Simple wrapper widget for forms.
     Expects a list of tuples of the form (label, widget),
@@ -23,13 +23,13 @@ class FormLayoutWrapper(QtGui.QWidget):
     Labels have to be unique.
     """
 
-    def __init__(self, elements: List[Tuple[str, QtGui.QWidget]],
-                 parent: Union[None, QtGui.QWidget] = None):
+    def __init__(self, elements: List[Tuple[str, QtWidgets.QWidget]],
+                 parent: Union[None, QtWidgets.QWidget] = None):
         super().__init__(parent)
 
         self.elements = {}
 
-        layout = QtGui.QFormLayout()
+        layout = QtWidgets.QFormLayout()
         for lbl, widget in elements:
             self.elements[lbl] = widget
             layout.addRow(lbl, widget)
@@ -37,7 +37,7 @@ class FormLayoutWrapper(QtGui.QWidget):
         self.setLayout(layout)
 
 
-class MonitorIntervalInput(QtGui.QWidget):
+class MonitorIntervalInput(QtWidgets.QWidget):
     """
     Simple form-like widget for entering a monitor/refresh interval.
     Only has a label and a spin-box as input.
@@ -46,24 +46,24 @@ class MonitorIntervalInput(QtGui.QWidget):
     of the spinbox has changed.
     """
 
-    intervalChanged = QtCore.pyqtSignal(int)
+    intervalChanged = Signal(int)
 
-    def __init__(self, parent=None):
+    def __init__(self, parent: Optional[QtWidgets.QWidget] = None):
         super().__init__(parent)
 
-        self.spin = QtGui.QSpinBox()
-        layout = QtGui.QFormLayout()
+        self.spin = QtWidgets.QSpinBox()
+        layout = QtWidgets.QFormLayout()
         layout.addRow('Refresh interval (s)', self.spin)
         self.setLayout(layout)
 
         self.spin.valueChanged.connect(self.spinValueChanged)
 
-    @QtCore.pyqtSlot(int)
-    def spinValueChanged(self, val):
+    @Slot(int)
+    def spinValueChanged(self, val: int) -> None:
         self.intervalChanged.emit(val)
 
 
-class PlotWindow(QtGui.QMainWindow):
+class PlotWindow(QtWidgets.QMainWindow):
     """
     Simple MainWindow class for embedding flowcharts and plots.
 
@@ -73,23 +73,24 @@ class PlotWindow(QtGui.QMainWindow):
 
     plotWidgetClass = MPLAutoPlot
 
-    def __init__(self, parent=None, fc: Flowchart = None, **kw):
+    def __init__(self, parent: Optional[QtWidgets.QMainWindow] = None,
+                 fc: Optional[Flowchart] = None, **kw: Any):
         super().__init__(parent)
 
         self.plot = PlotWidgetContainer(parent=self)
         self.setCentralWidget(self.plot)
-        self.plotWidget = None
+        self.plotWidget: Optional[MPLAutoPlot] = None
 
-        self.nodeToolBar = QtGui.QToolBar('Node control', self)
+        self.nodeToolBar = QtWidgets.QToolBar('Node control', self)
         self.addToolBar(self.nodeToolBar)
 
-        self.nodeWidgets = {}
+        self.nodeWidgets: Dict[str, QtWidgets.QDockWidget] = {}
         if fc is not None:
             self.addNodeWidgetsFromFlowchart(fc, **kw)
 
         self.setDefaultStyle()
 
-    def setDefaultStyle(self):
+    def setDefaultStyle(self) -> None:
         self.setStyleSheet(
             """
             QToolButton {
@@ -102,7 +103,7 @@ class PlotWindow(QtGui.QMainWindow):
             """
         )
 
-    def addNodeWidget(self, node: Node, **kwargs):
+    def addNodeWidget(self, node: Node, **kwargs: Any) -> None:
         """
         Add a node widget as dock.
 
@@ -117,12 +118,12 @@ class PlotWindow(QtGui.QMainWindow):
               an icon to use for the toolbar
         """
 
-        if node.useUi and node.uiClass is not None:
+        if node.useUi and node.ui is not None and node.uiClass is not None:
             dockArea = kwargs.get('dockArea', node.ui.preferredDockWidgetArea)
             visible = kwargs.get('visible', node.uiVisibleByDefault)
             icon = kwargs.get('icon', node.ui.icon)
 
-            d = QtGui.QDockWidget(node.name(), self)
+            d = QtWidgets.QDockWidget(node.name(), self)
             d.setWidget(node.ui)
             self.nodeWidgets[node.name()] = d
             self.addDockWidget(dockArea, d)
@@ -136,10 +137,10 @@ class PlotWindow(QtGui.QMainWindow):
                 d.close()
 
     def addNodeWidgetsFromFlowchart(self, fc: Flowchart,
-                                    exclude: List[str] = [],
+                                    exclude: Sequence[str] = (),
                                     plotNode: str = 'plot',
                                     makePlotWidget: bool = True,
-                                    **kwargs):
+                                    **kwargs: Any) -> None:
         """
         Add all nodes for a flowchart, excluding nodes given in `exclude`.
 
@@ -158,7 +159,7 @@ class PlotWindow(QtGui.QMainWindow):
               the options will be passed to :meth:`addNodeWidget` as keyword
               arguments.
         """
-        exclude += ['Input', 'Output']
+        exclude = tuple(exclude) + ('Input', 'Output')
 
         opts = kwargs.get('widgetOptions', dict())
 
@@ -175,23 +176,23 @@ class PlotWindow(QtGui.QMainWindow):
                     self.plot.setPlotWidget(self.plotWidget)
 
 
-def makeFlowchartWithPlotWindow(nodes: List[Tuple[str, Type[Node]]], **kwargs) \
-        -> (PlotWindow, Flowchart):
+def makeFlowchartWithPlotWindow(nodes: List[Tuple[str, Type[Node]]], **kwargs: Any) \
+        -> Tuple[PlotWindow, Flowchart]:
     nodes.append(('plot', PlotNode))
     fc = linearFlowchart(*nodes)
     win = PlotWindow(fc=fc, plotNode='plot', **kwargs)
     return win, fc
 
 
-class SnapshotWidget(QtGui.QTreeWidget):
+class SnapshotWidget(QtWidgets.QTreeWidget):
 
-    def __init__(self, parent=None):
+    def __init__(self, parent: Optional[QtWidgets.QTreeWidget] = None):
         super().__init__(parent)
 
         self.setHeaderLabels(['Key', 'Value'])
         self.setColumnCount(2)
 
-    def loadSnapshot(self, snapshotDict : Optional[dict]):
+    def loadSnapshot(self, snapshotDict : Optional[dict]) -> None:
         """
         Loads a qcodes DataSet snapshot in the tree view
         """

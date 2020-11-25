@@ -4,7 +4,7 @@ Testing how to make a custom app with gui.
 import numpy as np
 import lmfit
 
-from plottr import QtGui
+from plottr import QtWidgets
 from plottr.data.datadict import DataDictBase, MeshgridDataDict
 from plottr.gui.widgets import makeFlowchartWithPlotWindow
 from plottr.node.dim_reducer import XYSelector
@@ -68,7 +68,7 @@ def makeNodeList():
 
 
 def main():
-    app = QtGui.QApplication([])
+    app = QtWidgets.QApplication([])
 
     # flowchart and window
     nodes = makeNodeList()

@@ -2,10 +2,12 @@
 
 Tools for numerical operations.
 """
-from typing import Sequence, Tuple, Union, List
+from typing import Sequence, Tuple, Union, List, Optional
 
 import numpy as np
 import pandas as pd
+
+from ..utils.misc import unwrap_optional
 
 INTTYPES = [int, np.int, np.int16, np.int32, np.int64]
 FLOATTYPES = [float, np.float, np.float16, np.float32, np.float64,
@@ -13,7 +15,7 @@ FLOATTYPES = [float, np.float, np.float16, np.float32, np.float64,
 NUMTYPES = INTTYPES + FLOATTYPES
 
 
-def largest_numtype(arr: np.ndarray, include_integers=True) \
+def largest_numtype(arr: np.ndarray, include_integers: bool = True) \
         -> Union[None, type]:
     """
     Get the largest numerical type present in an array.
@@ -44,15 +46,17 @@ def largest_numtype(arr: np.ndarray, include_integers=True) \
         return None
 
 
-def _are_close(a, b, rtol=1e-8):
+def _are_close(a: np.ndarray, b: np.ndarray, rtol: float = 1e-8) -> Union[np.ndarray, np.bool_]:
     return np.isclose(a, b, rtol=rtol)
 
 
-def _are_equal(a, b):
+def _are_equal(a: np.ndarray, b: np.ndarray) -> np.ndarray:
     return a == b
 
 
-def is_invalid(a):
+def is_invalid(a: np.ndarray) -> np.ndarray:
+    # really use == None to do an element wise
+    # check for None
     isnone = a == None
     if a.dtype in FLOATTYPES:
         isnan = np.isnan(a)
@@ -61,7 +65,7 @@ def is_invalid(a):
     return isnone | isnan
 
 
-def _are_invalid(a, b):
+def _are_invalid(a: np.ndarray, b: np.ndarray) -> np.ndarray:
     return is_invalid(a) & is_invalid(b)
 
 
@@ -94,7 +98,7 @@ def arrays_equal(a: np.ndarray, b: np.ndarray,
         else:
             return False
 
-    close = np.zeros(a.shape, dtype=bool)
+    close: Union[np.ndarray, np.bool_] = np.zeros(a.shape, dtype=bool)
     if a.dtype in FLOATTYPES and b.dtype in FLOATTYPES:
         close = _are_close(a, b, rtol=rtol)
 
@@ -104,7 +108,8 @@ def arrays_equal(a: np.ndarray, b: np.ndarray,
     return np.all(equal | close | invalid)
 
 
-def array1d_to_meshgrid(arr: Sequence, target_shape: Tuple[int, ...],
+def array1d_to_meshgrid(arr: Union[List, np.ndarray],
+                        target_shape: Tuple[int, ...],
                         copy: bool = True) -> np.ndarray:
     """
     reshape an array to a target shape.
@@ -119,25 +124,30 @@ def array1d_to_meshgrid(arr: Sequence, target_shape: Tuple[int, ...],
     :return: re-shaped array.
     """
     if not isinstance(arr, np.ndarray):
-        arr = np.array(arr)
+        localarr = np.array(arr)
+    else:
+        localarr = arr
+
     if copy:
-        arr = arr.copy()
-    arr = arr.reshape(-1)
+        localarr = localarr.copy()
+    localarr = localarr.reshape(-1)
 
     newsize = np.prod(target_shape)
-    if newsize < arr.size:
-        arr = arr[:newsize]
-    elif newsize > arr.size:
-        if arr.dtype in FLOATTYPES:
-            fill = np.zeros(newsize - arr.size) * np.nan
+    if newsize < localarr.size:
+        localarr = localarr[:newsize]
+    elif newsize > localarr.size:
+        if localarr.dtype in FLOATTYPES:
+            fill = np.zeros(newsize - localarr.size) * np.nan
         else:
-            fill = np.array((newsize - arr.size) * [None])
-        arr = np.append(arr, fill)
+            fill = np.array((newsize - localarr.size) * [None])
+        localarr = np.append(localarr, fill)
 
-    return arr.reshape(target_shape)
+    return localarr.reshape(target_shape)
 
 
-def _find_switches(arr, rth=25, ztol=1e-15):
+def _find_switches(arr: np.ndarray,
+                   rth: float = 25,
+                   ztol: float = 1e-15) -> np.ndarray:
     arr_ = np.ma.MaskedArray(arr, is_invalid(arr))
     deltas = arr_[1:] - arr_[:-1]
     hi = np.percentile(arr[~is_invalid(arr)], 100.-rth)
@@ -168,7 +178,7 @@ def _find_switches(arr, rth=25, ztol=1e-15):
 
 
 def find_direction_period(vals: np.ndarray, ignore_last: bool = False) \
-        -> Union[None, int]:
+        -> Optional[float]:
     """
     Find the period with which the values in an array change direction.
 
@@ -209,7 +219,7 @@ def find_direction_period(vals: np.ndarray, ignore_last: bool = False) \
 
 
 def guess_grid_from_sweep_direction(**axes: np.ndarray) \
-        -> Union[None, Tuple[List[str], Tuple[int]]]:
+        -> Union[None, Tuple[List[str], Tuple[int, ...]]]:
     """
     Try to determine order and shape of a set of axes data
     (such as flattened meshgrid data).
@@ -223,10 +233,10 @@ def guess_grid_from_sweep_direction(**axes: np.ndarray) \
              Sorted list of axes names, and shape tuple for the dataset.
     :raises: `ValueError` for incorrect input
     """
-    periods = []
-    sorting = []
-    names = []
-    size = None
+    periods_list = []
+    sorting: List[float] = []
+    names_list = []
+    size: Optional[int] = None
 
     if len(axes) < 1:
         raise ValueError("Empty input.")
@@ -245,8 +255,8 @@ def guess_grid_from_sweep_direction(**axes: np.ndarray) \
         # record for each dimension in which interval it repeats.
         period = find_direction_period(vals, ignore_last=True)
         if period is not None:
-            names.append(name)
-            periods.append(period)
+            names_list.append(name)
+            periods_list.append(period)
 
             # some dimensions will likely not have a finite period (because
             # there have been no repetitions (yet).
@@ -269,11 +279,13 @@ def guess_grid_from_sweep_direction(**axes: np.ndarray) \
         else:
             return None
 
+    size = unwrap_optional(size)
+
     # invert the order. we work from fastest to slowest repetition period.
     order = np.argsort(sorting)
-    periods = np.array(periods)[order]
+    periods = np.array(periods_list)[order]
     shape = periods.copy()
-    names = np.array(names)[order]
+    names = np.array(names_list)[order]
 
     divisor = 1
     for i, p in enumerate(periods):
@@ -376,12 +388,13 @@ def crop2d(x: np.ndarray, y: np.ndarray, *arr: np.ndarray) \
     :return: all arrays (incl. x and y), cropped.
     """
     xs, ys = joint_crop2d_rows_cols(x, y)
-    allarrs = [] + [x, y] + [a for a in arr]
+    allarrs = [x, y] + [a for a in arr]
     ret = [crop2d_from_xy(a, xs, ys) for a in allarrs]
     return tuple(ret)
 
 
-def interp_meshgrid_2d(xx, yy):
+def interp_meshgrid_2d(xx: np.ndarray,
+                       yy: np.ndarray) -> Tuple[np.ndarray, np.ndarray]:
     """
     Try to find missing vertices in a 2d meshgrid,
     where xx and yy are the x and y coordinates of each point.
@@ -396,7 +409,7 @@ def interp_meshgrid_2d(xx, yy):
     return xx2, yy2
 
 
-def centers2edges_1d(arr):
+def centers2edges_1d(arr: np.ndarray) -> np.ndarray:
     """
     Given an array of center coordinates, return the array of
     bounding vertices for the mesh that is defined by the coordinates.
@@ -415,7 +428,7 @@ def centers2edges_1d(arr):
     return e
 
 
-def centers2edges_2d(centers):
+def centers2edges_2d(centers: np.ndarray) -> np.ndarray:
     """
     Given a 2d array of coordinates, return the array of bounding vertices for
     the mesh that is defined by the coordinates.

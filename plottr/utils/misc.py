@@ -3,10 +3,10 @@
 Various utility functions.
 """
 
-from typing import List, Tuple
+from typing import List, Tuple, TypeVar, Optional, Sequence
 
 
-def reorder_indices(lst: List, target: List) -> Tuple[int]:
+def reorder_indices(lst: Sequence[str], target: Sequence[str]) -> Tuple[int, ...]:
     """
     Determine how to bring a list with unique entries to a different order.
 
@@ -32,7 +32,7 @@ def reorder_indices(lst: List, target: List) -> Tuple[int]:
 
 
 def reorder_indices_from_new_positions(lst: List[str], **pos: int) \
-        -> Tuple[int]:
+        -> Tuple[int, ...]:
     """
     Determine how to bring a list with unique entries to a different order.
 
@@ -54,3 +54,15 @@ def reorder_indices_from_new_positions(lst: List[str], **pos: int) \
         target.insert(newidx, item)
 
     return reorder_indices(lst, target)
+
+
+T = TypeVar('T')
+
+
+def unwrap_optional(val: Optional[T]) -> T:
+    """Covert a variable of type Optional[T] to T
+    If the variable has value None a ValueError will be raised
+    """
+    if val is None:
+        raise ValueError("Expected a not None value but got a None value.")
+    return val

@@ -1,11 +1,11 @@
 """
-plottr/plot/mpl : Tools for plotting with matplotlib.
+plottr/plot/mpl.py : Tools for plotting with matplotlib.
 """
 
 import logging
 import io
 from enum import Enum, unique, auto
-from typing import Dict, List, Tuple, Union
+from typing import Dict, List, Tuple, Union, cast, Type, Optional, Any
 from collections import OrderedDict
 
 # standard scientific computing imports
@@ -20,13 +20,14 @@ from matplotlib.backends.backend_qt5agg import (
 from matplotlib.figure import Figure
 from mpl_toolkits.axes_grid1 import make_axes_locatable
 
-from plottr import QtGui, QtCore, Signal, Slot
-from plottr.utils import num
-from plottr.utils.num import interp_meshgrid_2d, centers2edges_2d
-from plottr.data.datadict import DataDictBase, DataDict, MeshgridDataDict
-from plottr.icons import (singleTracePlotIcon, multiTracePlotIcon, imagePlotIcon,
-                          colormeshPlotIcon, scatterPlot2dIcon)
-from ..base import PlotWidget
+from .base import PlotWidget
+from .. import QtGui, QtCore, Signal, Slot, QtWidgets
+from ..utils import num
+from ..utils.num import interp_meshgrid_2d, centers2edges_2d
+from ..data.datadict import DataDictBase, DataDict, MeshgridDataDict
+
+from plottr.icons import (get_singleTracePlotIcon, get_multiTracePlotIcon, get_imagePlotIcon,
+                          get_colormeshPlotIcon, get_scatterPlot2dIcon)
 
 
 __author__ = 'Wolfgang Pfaff'
@@ -100,7 +101,7 @@ class ComplexRepresentation(Enum):
     magAndPhase = auto()
 
 
-def determinePlotDataType(data: DataDictBase) -> PlotDataType:
+def determinePlotDataType(data: Optional[DataDictBase]) -> PlotDataType:
     """
     Analyze input data and determine most likely :class:`PlotDataType`.
 
@@ -147,29 +148,52 @@ def determinePlotDataType(data: DataDictBase) -> PlotDataType:
 
 
 # matplotlib tools and settings
-# default_prop_cycle = rcParams['axes.prop_cycle']
-# default_cmap = cm.get_cmap('magma')
-# symmetric_cmap = cm.get_cmap('bwr')
+default_prop_cycle = rcParams['axes.prop_cycle']
+default_cmap = cm.get_cmap('magma')
+symmetric_cmap = cm.get_cmap('bwr')
 
 
 class SymmetricNorm(colors.Normalize):
     """Color norm that's symmetric and linear around a center value."""
-    def __init__(self, vmin=None, vmax=None, vcenter=0, clip=False):
+    def __init__(self, vmin: Optional[float] = None,
+                 vmax: Optional[float] = None,
+                 vcenter: float = 0,
+                 clip: bool = False):
         super().__init__(vmin, vmax, clip)
         self.vcenter = vcenter
 
-    def __call__(self, value, clip=None):
+    def __call__(self, value: float, clip: Optional[bool] = None) -> np.ma.core.MaskedArray:
         vlim = max(abs(self.vmin-self.vcenter), abs(self.vmax-self.vcenter))
-        self.vmax = vlim+self.vcenter
-        self.vmin = -vlim+self.vcenter
+        self.vmax: float = vlim+self.vcenter
+        self.vmin: float = -vlim+self.vcenter
         return super().__call__(value, clip)
+
+
+def setMplDefaults() -> None:
+    """Set some reasonable matplotlib defaults for appearance."""
+
+    rcParams['figure.dpi'] = 300
+    rcParams['figure.figsize'] = (4.5, 3)
+    rcParams['savefig.dpi'] = 300
+    rcParams['axes.grid'] = True
+    rcParams['grid.linewidth'] = 0.5
+    rcParams['grid.linestyle'] = ':'
+    rcParams['font.family'] = 'Arial', 'Helvetica', 'DejaVu Sans'
+    rcParams['font.size'] = 6
+    rcParams['lines.markersize'] = 3
+    rcParams['lines.linestyle'] = '-'
+    rcParams['savefig.transparent'] = False
+    rcParams['figure.subplot.bottom'] = 0.15
+    rcParams['figure.subplot.top'] = 0.85
+    rcParams['figure.subplot.left'] = 0.15
+    rcParams['figure.subplot.right'] = 0.9
 
 
 # 2D plots
 def colorplot2d(ax: Axes, x: np.ndarray, y: np.ndarray, z: np.ndarray,
                 style: PlotType = PlotType.image,
-                axLabels: Tuple[str, str, str] = ('', '', ''),
-                **kw):
+                axLabels: Tuple[Optional[str], Optional[str], Optional[str]] = ('', '', ''),
+                **kw: Any) -> None:
     """make a 2d colorplot. what plot is made, depends on `style`.
     Any of the 2d plot types in :class:`PlotType` works.
 
@@ -178,9 +202,10 @@ def colorplot2d(ax: Axes, x: np.ndarray, y: np.ndarray, z: np.ndarray,
     :param y: y coordinates (meshgrid)
     :param z: z data
     :param style: the plot type
-    :axLabels: labels for the x, y axes, and the colorbar.
+    :param axLabels: labels for the x, y axes, and the colorbar.
 
     all keywords are passed to the actual plotting functions:
+    
     - :attr:`PlotType.image` --
         :func:`plotImage`
     - :attr:`PlotType.colormesh` --
@@ -240,7 +265,7 @@ def colorplot2d(ax: Axes, x: np.ndarray, y: np.ndarray, z: np.ndarray,
 
 
 def ppcolormesh_from_meshgrid(ax: Axes, x: np.ndarray, y: np.ndarray,
-                              z: np.ndarray, **kw) -> Union[AxesImage, None]:
+                              z: np.ndarray, **kw: Any) -> Union[AxesImage, None]:
     r"""Plot a pcolormesh with some reasonable defaults.
     Input are the corresponding arrays from a 2D ``MeshgridDataDict``.
 
@@ -269,7 +294,7 @@ def ppcolormesh_from_meshgrid(ax: Axes, x: np.ndarray, y: np.ndarray,
 
 
 def plotImage(ax: Axes, x: np.ndarray, y: np.ndarray,
-              z: np.ndarray, **kw) -> AxesImage:
+              z: np.ndarray, **kw: Any) -> AxesImage:
     """Plot 2d meshgrid data as image.
 
     :param ax: matplotlib axes to plot the image in.
@@ -327,7 +352,7 @@ def attachColorBar(ax: Axes, im: AxesImage) -> Axes:
 def plot1dTrace(ax: Axes, x: np.ndarray, y: np.ndarray,
                 axLabels: Tuple[Union[None, str], Union[None, str]] = (None, None),
                 curveLabel: Union[None, str] = None,
-                addLegend: bool = False, **kw) -> None:
+                addLegend: bool = False, **kw: Any) -> None:
     """Plot 1D data.
 
     :param ax: Axes to plot into
@@ -348,7 +373,7 @@ def plot1dTrace(ax: Axes, x: np.ndarray, y: np.ndarray,
 
     plot_kw = dict(lw=1, mew=1, mfc='w')
     plot_kw.update(kw)
-    fmt = plot_kw.pop('fmt', 'o-')
+    fmt = cast(str, plot_kw.pop('fmt', 'o-'))
 
     # if we're plotting real and imaginary parts, modify the label
     lbl = None
@@ -387,7 +412,7 @@ class MPLPlot(FCanvas):
     It can be used as any QT widget.
     """
 
-    def __init__(self, parent: QtGui.QWidget = None, width: float = 4.0,
+    def __init__(self, parent: Optional[QtWidgets.QWidget] = None, width: float = 4.0,
                  height: float = 3.0, dpi: int = 150, nrows: int = 1,
                  ncols: int = 1):
         """
@@ -404,7 +429,7 @@ class MPLPlot(FCanvas):
         self.fig = Figure(figsize=(width, height), dpi=dpi)
         super().__init__(self.fig)
 
-        self.axes = []
+        self.axes: List[Axes] = []
         self._tightLayout = False
         self._showInfo = False
         self._infoArtist = None
@@ -413,7 +438,7 @@ class MPLPlot(FCanvas):
         self.clearFig(nrows, ncols)
         self.setParent(parent)
 
-    def autosize(self):
+    def autosize(self) -> None:
         """
         Sets some default spacings/margins.
         :return:
@@ -459,7 +484,7 @@ class MPLPlot(FCanvas):
         self.autosize()
         return self.axes
 
-    def resizeEvent(self, event):
+    def resizeEvent(self, event: QtGui.QResizeEvent) -> None:
         """
         Re-implementation of the widget resizeEvent method.
         Makes sure we resize the plots appropriately.
@@ -467,7 +492,7 @@ class MPLPlot(FCanvas):
         self.autosize()
         super().resizeEvent(event)
 
-    def setTightLayout(self, tight: bool):
+    def setTightLayout(self, tight: bool) -> None:
         """
         Set tight layout mode.
         :param tight: if true, use tight layout for autosizing.
@@ -475,12 +500,12 @@ class MPLPlot(FCanvas):
         self._tightLayout = tight
         self.autosize()
 
-    def setShowInfo(self, show: bool):
+    def setShowInfo(self, show: bool) -> None:
         """Whether to show additional info in the plot"""
         self._showInfo = show
         self.updateInfo()
 
-    def updateInfo(self):
+    def updateInfo(self) -> None:
         if self._infoArtist is not None:
             self._infoArtist.remove()
             self._infoArtist = None
@@ -493,18 +518,18 @@ class MPLPlot(FCanvas):
             )
         self.draw()
 
-    def toClipboard(self):
+    def toClipboard(self) -> None:
         """
         Copy the current canvas to the clipboard.
         """
         buf = io.BytesIO()
         self.fig.savefig(buf, dpi=300, facecolor='w', format='png',
                          transparent=True)
-        QtGui.QApplication.clipboard().setImage(
+        QtWidgets.QApplication.clipboard().setImage(
             QtGui.QImage.fromData(buf.getvalue()))
         buf.close()
 
-    def setFigureTitle(self, title: str):
+    def setFigureTitle(self, title: str) -> None:
         """Add a title to the figure."""
         self.fig.text(0.5, 0.99, title,
                       horizontalalignment='center',
@@ -512,7 +537,7 @@ class MPLPlot(FCanvas):
                       fontsize='small')
         self.draw()
 
-    def setFigureInfo(self, info: str):
+    def setFigureInfo(self, info: str) -> None:
         """Display an info string in the figure"""
         self._info = info
         self.updateInfo()
@@ -536,7 +561,7 @@ class _MPLPlotWidget(PlotWidget):
     Per default, add a canvas and the matplotlib NavBar.
     """
 
-    def __init__(self, parent=None):
+    def __init__(self, parent: Optional[QtWidgets.QWidget] = None):
         super().__init__(parent=parent)
 
         setMplDefaults()
@@ -546,22 +571,23 @@ class _MPLPlotWidget(PlotWidget):
         self.addMplBarOptions()
         self.mplBar.setIconSize(QtCore.QSize(16,16))
 
-        self.layout = QtGui.QVBoxLayout(self)
-        self.layout.addWidget(self.plot)
-        self.layout.addWidget(self.mplBar)
+        layout = QtWidgets.QVBoxLayout(self)
+        layout.addWidget(self.plot)
+        layout.addWidget(self.mplBar)
+        self.setLayout(layout)
 
-    def setMeta(self, data: DataDictBase):
+    def setMeta(self, data: DataDictBase) -> None:
         if data.has_meta('title'):
             self.plot.setFigureTitle(data.meta_val('title'))
 
         if data.has_meta('info'):
             self.plot.setFigureInfo(data.meta_val('info'))
 
-    def addMplBarOptions(self):
-        tlCheck = QtGui.QCheckBox('Tight layout')
+    def addMplBarOptions(self) -> None:
+        tlCheck = QtWidgets.QCheckBox('Tight layout')
         tlCheck.toggled.connect(self.plot.setTightLayout)
 
-        infoCheck = QtGui.QCheckBox('Info')
+        infoCheck = QtWidgets.QCheckBox('Info')
         infoCheck.toggled.connect(self.plot.setShowInfo)
 
         self.mplBar.addSeparator()
@@ -573,7 +599,7 @@ class _MPLPlotWidget(PlotWidget):
 
 
 # A toolbar for setting options on the MPL autoplot
-class _AutoPlotToolBar(QtGui.QToolBar):
+class _AutoPlotToolBar(QtWidgets.QToolBar):
     """
     A toolbar that allows the user to configure AutoPlot.
 
@@ -587,19 +613,18 @@ class _AutoPlotToolBar(QtGui.QToolBar):
     #: signal emitted when the complex data option has been changed
     complexPolarSelected = Signal(bool)
 
-
-    def __init__(self, name: str, parent: QtGui.QWidget = None):
+    def __init__(self, name: str, parent: Optional[QtWidgets.QWidget] = None):
         """Constructor for :class:`AutoPlotToolBar`"""
 
         super().__init__(name, parent=parent)
 
-        self.plotasMultiTraces = self.addAction(multiTracePlotIcon,
+        self.plotasMultiTraces = self.addAction(get_multiTracePlotIcon(),
                                                 'Multiple traces')
         self.plotasMultiTraces.setCheckable(True)
         self.plotasMultiTraces.triggered.connect(
             lambda: self.selectPlotType(PlotType.multitraces))
 
-        self.plotasSingleTraces = self.addAction(singleTracePlotIcon,
+        self.plotasSingleTraces = self.addAction(get_singleTracePlotIcon(),
                                                  'Individual traces')
         self.plotasSingleTraces.setCheckable(True)
         self.plotasSingleTraces.triggered.connect(
@@ -607,19 +632,19 @@ class _AutoPlotToolBar(QtGui.QToolBar):
 
         self.addSeparator()
 
-        self.plotasImage = self.addAction(imagePlotIcon,
+        self.plotasImage = self.addAction(get_imagePlotIcon(),
                                           'Image')
         self.plotasImage.setCheckable(True)
         self.plotasImage.triggered.connect(
             lambda: self.selectPlotType(PlotType.image))
 
-        self.plotasMesh = self.addAction(colormeshPlotIcon,
+        self.plotasMesh = self.addAction(get_colormeshPlotIcon(),
                                          'Color mesh')
         self.plotasMesh.setCheckable(True)
         self.plotasMesh.triggered.connect(
             lambda: self.selectPlotType(PlotType.colormesh))
 
-        self.plotasScatter2d = self.addAction(scatterPlot2dIcon,
+        self.plotasScatter2d = self.addAction(get_scatterPlot2dIcon(),
                                               'Scatter 2D')
         self.plotasScatter2d.setCheckable(True)
         self.plotasScatter2d.triggered.connect(
@@ -630,7 +655,7 @@ class _AutoPlotToolBar(QtGui.QToolBar):
 
         self.plotComplexPolar = self.addAction('Mag/Phase')
         self.plotComplexPolar.setCheckable(True)
-        self.plotComplexPolar.triggered.connect(self.complexPolarSelected)
+        self.plotComplexPolar.triggered.connect(self._trigger_complex_mag_phase)
 
         self.plotTypeActions = OrderedDict({
             PlotType.multitraces: self.plotasMultiTraces,
@@ -641,9 +666,12 @@ class _AutoPlotToolBar(QtGui.QToolBar):
         })
 
         self._currentPlotType = PlotType.empty
-        self._currentlyAllowedPlotTypes = []
+        self._currentlyAllowedPlotTypes: Tuple[PlotType, ...] = ()
 
-    def selectPlotType(self, plotType: PlotType):
+    def _trigger_complex_mag_phase(self, enable: bool) -> None:
+        self.complexPolarSelected.emit(enable)
+
+    def selectPlotType(self, plotType: PlotType) -> None:
         """makes sure that the selected `plotType` is active (checked), all
         others are not active.
 
@@ -665,7 +693,7 @@ class _AutoPlotToolBar(QtGui.QToolBar):
             self._currentPlotType = plotType
             self.plotTypeSelected.emit(plotType)
 
-    def setAllowedPlotTypes(self, *args: PlotType):
+    def setAllowedPlotTypes(self, *args: PlotType) -> None:
         """Disable all choices that are not allowed.
         If the current selection is now disabled, instead select the first
         enabled one.
@@ -730,7 +758,7 @@ class AutoPlot(_MPLPlotWidget):
     whereas magnitude and phase are separated into two panels.
     """
 
-    def __init__(self, parent=None):
+    def __init__(self, parent: Optional[QtWidgets.QWidget] = None):
         super().__init__(parent=parent)
 
         self.plotDataType = PlotDataType.unknown
@@ -738,14 +766,14 @@ class AutoPlot(_MPLPlotWidget):
         self.complexRepresentation = ComplexRepresentation.real
         self.complexPreference = ComplexRepresentation.realAndImag
 
-        self.dataType = type(None)
-        self.dataStructure = None
-        self.dataShapes = None
-        self.dataLimits = None
+        self.dataType: Optional[Type[DataDictBase]] = None
+        self.dataStructure: Optional[DataDictBase] = None
+        self.dataShapes: Optional[Dict[str, Tuple[int, ...]]] = None
+        self.dataLimits: Optional[Dict[str, Tuple[float, float]]] = None
 
         # A toolbar for configuring the plot
         self.plotOptionsToolBar = _AutoPlotToolBar('Plot options', self)
-        self.layout.insertWidget(1, self.plotOptionsToolBar)
+        self.layout().insertWidget(1, self.plotOptionsToolBar)
 
         self.plotOptionsToolBar.plotTypeSelected.connect(
             self._plotTypeFromToolBar
@@ -758,9 +786,12 @@ class AutoPlot(_MPLPlotWidget):
 
         self.setMinimumSize(640, 480)
 
-    def _analyzeData(self, data: DataDictBase) -> Dict[str, bool]:
+    def _analyzeData(self, data: Optional[DataDictBase]) -> Dict[str, bool]:
         """checks data and compares with previous properties."""
-        dataType = type(data)
+        if data is not None:
+            dataType: Optional[Type[DataDictBase]] = type(data)
+        else:
+            dataType = None
 
         if data is None:
             dataStructure = None
@@ -788,7 +819,7 @@ class AutoPlot(_MPLPlotWidget):
 
         return result
 
-    def dataIsComplex(self, dependentName=None):
+    def dataIsComplex(self, dependentName: Optional[str] = None) -> bool:
         """Determine whether our data is complex.
         If dependent_name is not given, check all dependents, return True if any
         of them is complex.
@@ -806,7 +837,7 @@ class AutoPlot(_MPLPlotWidget):
 
         return False
 
-    def setData(self, data: DataDictBase):
+    def setData(self, data: Optional[DataDictBase]) -> None:
         """Analyses data and determines whether/what to plot.
 
         :param data: input data
@@ -819,7 +850,7 @@ class AutoPlot(_MPLPlotWidget):
         self._processPlotTypeOptions()
         self._plotData(adjustSize=True)
 
-    def _processPlotTypeOptions(self):
+    def _processPlotTypeOptions(self) -> None:
         """Given the current data type, figure out what the plot options are."""
         if self.plotDataType == PlotDataType.grid2d:
             self.plotOptionsToolBar.setAllowedPlotTypes(
@@ -838,16 +869,16 @@ class AutoPlot(_MPLPlotWidget):
             )
 
         else:
-            self.plotOptionsToolBar.setAllowedPlotTypes([])
+            self.plotOptionsToolBar.setAllowedPlotTypes()
 
     @Slot(PlotType)
-    def _plotTypeFromToolBar(self, plotType: PlotType):
+    def _plotTypeFromToolBar(self, plotType: PlotType) -> None:
         if plotType is not self.plotType:
             self.plotType = plotType
             self._plotData(adjustSize=True)
 
     @Slot(bool)
-    def _complexPreferenceFromToolBar(self, magPhasePreferred):
+    def _complexPreferenceFromToolBar(self, magPhasePreferred: bool) -> None:
         if magPhasePreferred:
             self.complexPreference = ComplexRepresentation.magAndPhase
         else:
@@ -855,16 +886,16 @@ class AutoPlot(_MPLPlotWidget):
 
         self._plotData(adjustSize=True)
 
-    def _makeAxes(self, nAxes: int) -> Axes:
+    def _makeAxes(self, nAxes: int) -> List[Axes]:
         """Create a grid of axes.
         We try to keep the grid as square as possible.
         """
         nrows = int(nAxes ** .5 + .5)
-        ncols = np.ceil(nAxes / nrows)
+        ncols = int(np.ceil(nAxes / nrows))
         axes = self.plot.clearFig(nrows, ncols, nAxes)
         return axes
 
-    def _plotData(self, adjustSize: bool = False):
+    def _plotData(self, adjustSize: bool = False) -> None:
         """Plot the data using previously determined data and plot types."""
 
         if self.plotDataType is PlotDataType.unknown:
@@ -896,7 +927,7 @@ class AutoPlot(_MPLPlotWidget):
         else:
             logger.info(f"No plot routine defined for {self.plotType}")
             return
-
+        assert self.data is not None
         self.setMeta(self.data)
         if adjustSize:
             self.plot.autosize()
@@ -906,9 +937,10 @@ class AutoPlot(_MPLPlotWidget):
         QtCore.QCoreApplication.processEvents()
 
     # Plotting functions
-    def _plot1dSinglepanel(self):
+    def _plot1dSinglepanel(self) -> None:
+        assert self.data is not None
         xname = self.data.axes()[0]
-        xvals = self.data.data_vals(xname)
+        xvals = np.asanyarray(self.data.data_vals(xname))
         depnames = self.data.dependents()
         depvals = [self.data.data_vals(d) for d in depnames]
 
@@ -921,7 +953,7 @@ class AutoPlot(_MPLPlotWidget):
 
         if len(depvals) > 1:
             ylbl = self.data.label(depnames[0])
-            phlbl = f"Arg({depnames[0]})"
+            phlbl: Optional[str] = f"Arg({depnames[0]})"
         else:
             ylbl = None
             phlbl = None
@@ -934,7 +966,7 @@ class AutoPlot(_MPLPlotWidget):
 
             if self.complexRepresentation in [ComplexRepresentation.real,
                                               ComplexRepresentation.realAndImag]:
-                plot1dTrace(axes[0], xvals, yvals,
+                plot1dTrace(axes[0], xvals, np.asanyarray(yvals),
                             axLabels=(self.data.label(xname), ylbl),
                             curveLabel=self.data.label(yname),
                             addLegend=(yname == depnames[-1]))
@@ -946,18 +978,19 @@ class AutoPlot(_MPLPlotWidget):
                                 curveLabel=f"Abs({self.data.label(yname)})",
                                 addLegend=(yname == depnames[-1]))
                     plot1dTrace(axes[1], xvals, np.angle(yvals),
-                                axLabels=(self.data.label(xname, phlbl)),
+                                axLabels=(self.data.label(xname), phlbl),
                                 curveLabel=f"Arg({yname})",
                                 addLegend=(yname == depnames[-1]))
                 else:
-                    plot1dTrace(axes[0], xvals, yvals,
+                    plot1dTrace(axes[0], xvals, np.asanyarray(yvals),
                                 axLabels=(self.data.label(xname), ylbl),
                                 curveLabel=self.data.label(yname),
                                 addLegend=(yname == depnames[-1]))
 
-    def _plot1dSeparatePanels(self):
+    def _plot1dSeparatePanels(self) -> None:
+        assert self.data is not None
         xname = self.data.axes()[0]
-        xvals = self.data.data_vals(xname)
+        xvals = np.asanyarray(self.data.data_vals(xname))
         depnames = self.data.dependents()
         depvals = [self.data.data_vals(d) for d in depnames]
 
@@ -984,7 +1017,7 @@ class AutoPlot(_MPLPlotWidget):
 
             if self.complexRepresentation in [ComplexRepresentation.real,
                                               ComplexRepresentation.realAndImag]:
-                plot1dTrace(axes[iax], xvals, yvals,
+                plot1dTrace(axes[iax], xvals, np.asanyarray(yvals),
                             axLabels=(self.data.label(xname), self.data.label(yname)),
                             addLegend=self.dataIsComplex(yname))
                 iax += 1
@@ -999,16 +1032,17 @@ class AutoPlot(_MPLPlotWidget):
                                           f"Arg({yname})"))
                     iax += 2
                 else:
-                    plot1dTrace(axes[iax], xvals, yvals,
+                    plot1dTrace(axes[iax], xvals, np.asanyarray(yvals),
                                 axLabels=(self.data.label(xname),
                                           self.data.label(yname)))
                     iax += 1
 
-    def _colorplot2d(self):
+    def _colorplot2d(self) -> None:
+        assert self.data is not None
         xname = self.data.axes()[0]
         yname = self.data.axes()[1]
-        xvals = self.data.data_vals(xname)
-        yvals = self.data.data_vals(yname)
+        xvals = np.asanyarray(self.data.data_vals(xname))
+        yvals = np.asanyarray(self.data.data_vals(yname))
         depnames = self.data.dependents()
         depvals = [self.data.data_vals(d) for d in depnames]
 
@@ -1033,7 +1067,7 @@ class AutoPlot(_MPLPlotWidget):
 
             if self.complexRepresentation is ComplexRepresentation.real \
                     or not self.dataIsComplex(zname):
-                colorplot2d(axes[iax], xvals, yvals, zvals.real,
+                colorplot2d(axes[iax], xvals, yvals, np.asanyarray(zvals).real,
                             self.plotType,
                             axLabels=(self.data.label(xname),
                                       self.data.label(yname),
@@ -1041,12 +1075,12 @@ class AutoPlot(_MPLPlotWidget):
                 iax += 1
 
             elif self.complexRepresentation is ComplexRepresentation.realAndImag:
-                colorplot2d(axes[iax], xvals, yvals, zvals.real,
+                colorplot2d(axes[iax], xvals, yvals, np.asanyarray(zvals).real,
                             self.plotType,
                             axLabels=(self.data.label(xname),
                                       self.data.label(yname),
                                       f"Re( {self.data.label(zname)} )"))
-                colorplot2d(axes[iax+1], xvals, yvals, zvals.imag,
+                colorplot2d(axes[iax+1], xvals, yvals, np.asanyarray(zvals).imag,
                             self.plotType,
                             axLabels=(self.data.label(xname),
                                       self.data.label(yname),
@@ -1054,12 +1088,12 @@ class AutoPlot(_MPLPlotWidget):
                 iax += 2
 
             elif self.complexRepresentation is ComplexRepresentation.magAndPhase:
-                colorplot2d(axes[iax], xvals, yvals, np.abs(zvals),
+                colorplot2d(axes[iax], xvals, yvals, np.abs(np.asanyarray(zvals)),
                             self.plotType,
                             axLabels=(self.data.label(xname),
                                       self.data.label(yname),
                                       f"Abs( {self.data.label(zname)} )"))
-                colorplot2d(axes[iax+1], xvals, yvals, np.angle(zvals),
+                colorplot2d(axes[iax+1], xvals, yvals, np.angle(np.asanyarray(zvals)),
                             self.plotType,
                             axLabels=(self.data.label(xname),
                                       self.data.label(yname),

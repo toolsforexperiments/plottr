@@ -1,5 +1,6 @@
 import numpy as np
 import pytest
+from packaging import version
 
 import qcodes as qc
 from qcodes import load_or_create_experiment, initialise_or_create_database_at
@@ -97,11 +98,48 @@ def test_load_2dsoftsweep(experiment):
     assert ddict == dd_expected
 
 
+@pytest.mark.skipif(version.parse(qc.__version__)
+                    < version.parse("0.20.0"),
+                    reason="Requires QCoDes 0.20.0 or later")
+def test_load_2dsoftsweep_known_shape(experiment):
+    N = 1
+    m = qc.Measurement(exp=experiment)
+    m.register_custom_parameter('x', unit='cm')
+    m.register_custom_parameter('y')
+
+    # check that unused parameters don't mess with
+    m.register_custom_parameter('foo')
+    dd_expected = DataDict(x=dict(values=np.array([]), unit='cm'),
+                           y=dict(values=np.array([])))
+    for n in range(N):
+        m.register_custom_parameter(f'z_{n}', setpoints=['x', 'y'])
+        dd_expected[f'z_{n}'] = dict(values=np.array([]), axes=['x', 'y'])
+    dd_expected.validate()
+
+    shape = (3, 3)
+
+    m.set_shapes({'z_0': shape})
+
+    with m.run() as datasaver:
+        for result in testdata.generate_2d_scalar_simple(*shape, N):
+            row = [(k, v) for k, v in result.items()] + [('foo', 1)]
+            datasaver.add_result(*row)
+            dd_expected.add_data(**result)
+
+    dd_expected['x']['values'] = dd_expected['x']['values'].reshape(*shape)
+    dd_expected['y']['values'] = dd_expected['y']['values'].reshape(*shape)
+    dd_expected['z_0']['values'] = dd_expected['z_0']['values'].reshape(*shape)
+
+    # retrieve data as data dict
+    ddict = ds_to_datadict(datasaver.dataset)
+    assert ddict == dd_expected
+
+
 def test_get_ds_structure(experiment):
     N = 5
 
     m = qc.Measurement(exp=experiment)
-    m.register_custom_parameter('x', unit='cm')
+    m.register_custom_parameter('x', unit='cm',label='my_x_param')
     m.register_custom_parameter('y')
 
     # check that unused parameters don't mess with
@@ -117,10 +155,12 @@ def test_get_ds_structure(experiment):
     expected_structure = {
         'x': {
             'unit': 'cm',
+            'label': 'my_x_param',
             'values': []
         },
         'y': {
             'unit': '',
+            'label': '',
             'values': []
         }
         # note that parameter 'foo' is not expected to be included
@@ -130,6 +170,7 @@ def test_get_ds_structure(experiment):
         expected_structure.update(
             {f'z_{n}': {
                 'unit': '',
+                'label': '',
                 'axes': ['x', 'y'],
                 'values': []
                 }
@@ -155,23 +196,26 @@ def test_get_ds_info(experiment):
 
         ds_info_with_empty_timestamps = get_ds_info(dataset,
                                                     get_structure=False)
-        assert ds_info_with_empty_timestamps['completed date'] == ''
-        assert ds_info_with_empty_timestamps['completed time'] == ''
+        assert ds_info_with_empty_timestamps['completed_date'] == ''
+        assert ds_info_with_empty_timestamps['completed_time'] == ''
 
     # timestamps are difficult to test for, so we will cheat here and
     # instead of hard-coding timestamps we will just get them from the dataset
+    # The same applies to the guid as it contains the timestamp
     started_ts = dataset.run_timestamp()
     completed_ts = dataset.completed_timestamp()
 
     expected_ds_info = {
         'experiment': '2d_softsweep',
         'sample': 'no sample',
-        'completed date': completed_ts[:10],
-        'completed time': completed_ts[11:],
-        'started date': started_ts[:10],
-        'started time': started_ts[11:],
+        'completed_date': completed_ts[:10],
+        'completed_time': completed_ts[11:],
+        'started_date': started_ts[:10],
+        'started_time': started_ts[11:],
+        'name': 'results',
+        'structure': None,
         'records': 0,
-        'guid': 'aaaaaaaa-0d00-0000-0000-000000000000'
+        'guid': dataset.guid
     }
 
     ds_info = get_ds_info(dataset, get_structure=False)

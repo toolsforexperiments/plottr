@@ -2,9 +2,9 @@
 plottr/plot/base.py : Contains the base classes for plotting nodes and widgets.
 """
 
-from typing import Dict, List, Type, Tuple
+from typing import Dict, List, Type, Tuple, Optional
 
-from .. import QtGui, Signal, Flowchart
+from .. import Signal, Flowchart, QtWidgets
 from ..data.datadict import DataDictBase
 from ..node import Node, linearFlowchart
 
@@ -29,9 +29,9 @@ class PlotNode(Node):
     def __init__(self, name: str):
         """Constructor for :class:`PlotNode`. """
         super().__init__(name=name)
-        self.plotWidgetContainer = None
+        self.plotWidgetContainer: Optional['PlotWidgetContainer'] = None
 
-    def setPlotWidgetContainer(self, w: 'PlotWidgetContainer'):
+    def setPlotWidgetContainer(self, w: 'PlotWidgetContainer') -> None:
         """Set the plot widget container.
 
         Makes sure that newly arriving data is sent to plot GUI elements.
@@ -41,7 +41,7 @@ class PlotNode(Node):
         self.plotWidgetContainer = w
         self.newPlotData.connect(self.plotWidgetContainer.setData)
 
-    def process(self, dataIn: DataDictBase = None) -> Dict[str, DataDictBase]:
+    def process(self, dataIn: Optional[DataDictBase] = None) -> Dict[str, Optional[DataDictBase]]:
         """Emits the :attr:`newPlotData` signal when called.
         Note: does not call the parent method :meth:`plottr.node.node.Node.process`.
 
@@ -52,7 +52,7 @@ class PlotNode(Node):
         return dict(dataOut=dataIn)
 
 
-class PlotWidgetContainer(QtGui.QWidget):
+class PlotWidgetContainer(QtWidgets.QWidget):
     """
     This is the base widget for Plots, derived from `QWidget`.
 
@@ -64,17 +64,18 @@ class PlotWidgetContainer(QtGui.QWidget):
     added to this container.
     """
 
-    def __init__(self, parent: QtGui.QWidget = None):
+    def __init__(self, parent: Optional[QtWidgets.QWidget] = None):
         """Constructor for :class:`PlotWidgetContainer`. """
         super().__init__(parent=parent)
 
-        self.plotWidget = None
-        self.data = None
+        self.plotWidget: Optional["PlotWidget"] = None
+        self.data: Optional[DataDictBase] = None
 
-        self.layout = QtGui.QVBoxLayout(self)
-        self.layout.setContentsMargins(0, 0, 0, 0)
+        layout: QtWidgets.QVBoxLayout = QtWidgets.QVBoxLayout(self)
+        layout.setContentsMargins(0, 0, 0, 0)
+        self.setLayout(layout)
 
-    def setPlotWidget(self, widget: "PlotWidget"):
+    def setPlotWidget(self, widget: "PlotWidget") -> None:
         """Set the plot widget.
 
         Makes sure that the added widget receives new data.
@@ -88,15 +89,15 @@ class PlotWidgetContainer(QtGui.QWidget):
             return
 
         if self.plotWidget is not None:
-            self.layout.removeWidget(self.plotWidget)
+            self.layout().removeWidget(self.plotWidget)
             self.plotWidget.deleteLater()
 
         self.plotWidget = widget
         if self.plotWidget is not None:
-            self.layout.addWidget(widget)
+            self.layout().addWidget(widget)
             self.plotWidget.setData(self.data)
 
-    def setData(self, data: DataDictBase):
+    def setData(self, data: DataDictBase) -> None:
         """set Data. If a plot widget is defined, call the widget's
         :meth:`PlotWidget.setData` method.
 
@@ -107,7 +108,7 @@ class PlotWidgetContainer(QtGui.QWidget):
             self.plotWidget.setData(self.data)
 
 
-class PlotWidget(QtGui.QWidget):
+class PlotWidget(QtWidgets.QWidget):
     """
     Base class for Plot Widgets, this just defines the API. Derived from
     `QWidget`.
@@ -115,12 +116,12 @@ class PlotWidget(QtGui.QWidget):
     Implement a child class for actual plotting.
     """
 
-    def __init__(self, parent=None):
+    def __init__(self, parent: Optional[QtWidgets.QWidget] = None) -> None:
         super().__init__(parent=parent)
 
-        self.data = None
+        self.data: Optional[DataDictBase] = None
 
-    def setData(self, data: DataDictBase):
+    def setData(self, data: Optional[DataDictBase]) -> None:
         """Set data. Use this to trigger plotting.
 
         :param data: data to be plotted.
@@ -133,4 +134,3 @@ def makeFlowchartWithPlot(nodes: List[Tuple[str, Type[Node]]],
     nodes.append((plotNodeName, PlotNode))
     fc = linearFlowchart(*nodes)
     return fc
-

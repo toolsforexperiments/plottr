@@ -6,7 +6,9 @@ Dealing with qcodes dataset (the database) data in plottr.
 import os
 from itertools import chain
 from operator import attrgetter
-from typing import Dict, List, Set, Union, TYPE_CHECKING
+from typing import Dict, List, Set, Union, TYPE_CHECKING, Any, Tuple, Optional, cast
+
+from typing_extensions import TypedDict
 
 import pandas as pd
 
@@ -35,19 +37,50 @@ def _get_names_of_standalone_parameters(paramspecs: List['ParamSpec']
     return standalones
 
 
+class IndependentParameterDict(TypedDict):
+    unit: str
+    label: str
+    values: List[Any]
+
+
+class DependentParameterDict(IndependentParameterDict):
+    axes: List[str]
+
+
+DataSetStructureDict = Dict[str, Union[IndependentParameterDict, DependentParameterDict]]
+
+
+class DataSetInfoDict(TypedDict):
+    experiment: str
+    sample: str
+    name: str
+    completed_date: str
+    completed_time: str
+    started_date: str
+    started_time: str
+    structure: Optional[DataSetStructureDict]
+    records: int
+    guid: str
+
+
 # Tools for extracting information on runs in a database
 
-def get_ds_structure(ds: 'DataSet'):
+
+def get_ds_structure(
+        ds: 'DataSet'
+) -> DataSetStructureDict:
     """
     Return the structure of the dataset, i.e., a dictionary in the form
         {
             'dependent_parameter_name': {
                 'unit': unit,
+                'label': label,
                 'axes': list of names of independent parameters,
                 'values': []
             },
             'independent_parameter_name': {
                 'unit': unit,
+                'label': label,
                 'values': []
             },
             ...
@@ -58,7 +91,7 @@ def get_ds_structure(ds: 'DataSet'):
     in the returned structure.
     """
 
-    structure = {}
+    structure: DataSetStructureDict = {}
 
     paramspecs = ds.get_parameters()
 
@@ -66,48 +99,60 @@ def get_ds_structure(ds: 'DataSet'):
 
     for spec in paramspecs:
         if spec.name not in standalones:
-            structure[spec.name] = {'unit': spec.unit, 'values': []}
             if len(spec.depends_on_) > 0:
-                structure[spec.name]['axes'] = list(spec.depends_on_)
-
+                structure[spec.name] = DependentParameterDict(unit=spec.unit,
+                                                              label=spec.label,
+                                                              values=[],
+                                                              axes=list(spec.depends_on_))
+            else:
+                structure[spec.name] = IndependentParameterDict(unit=spec.unit,
+                                                                label=spec.label,
+                                                                values=[])
     return structure
 
 
-def get_ds_info(ds: 'DataSet', get_structure: bool = True) -> Dict[str, str]:
+def get_ds_info(ds: 'DataSet', get_structure: bool = True) -> DataSetInfoDict:
     """
     Get some info on a DataSet in dict.
 
     if get_structure is True: return the datastructure in that dataset
     as well (key is `structure' then).
     """
-    ret = {}
-    ret['experiment'] = ds.exp_name
-    ret['sample'] = ds.sample_name
-    ret['name'] = ds.name
-
     _complete_ts = ds.completed_timestamp()
     if _complete_ts is not None:
-        ret['completed date'] = _complete_ts[:10]
-        ret['completed time'] = _complete_ts[11:]
+        completed_date = _complete_ts[:10]
+        completed_time = _complete_ts[11:]
     else:
-        ret['completed date'] = ''
-        ret['completed time'] = ''
+        completed_date = ''
+        completed_time = ''
 
     _start_ts = ds.run_timestamp()
     if _start_ts is not None:
-        ret['started date'] = _start_ts[:10]
-        ret['started time'] = _start_ts[11:]
+        started_date = _start_ts[:10]
+        started_time = _start_ts[11:]
     else:
-        ret['started date'] = ''
-        ret['started time'] = ''
+        started_date = ''
+        started_time = ''
 
     if get_structure:
-        ret['structure'] = get_ds_structure(ds)
+        structure: Optional[DataSetStructureDict] = get_ds_structure(ds)
+    else:
+        structure = None
 
-    ret['records'] = ds.number_of_results
-    ret['guid'] = ds.guid
+    data = DataSetInfoDict(
+        experiment=ds.exp_name,
+        sample=ds.sample_name,
+        name=ds.name,
+        completed_date=completed_date,
+        completed_time=completed_time,
+        started_date=started_date,
+        started_time=started_time,
+        structure=structure,
+        records=ds.number_of_results,
+        guid=ds.guid
+    )
 
-    return ret
+    return data
 
 
 def load_dataset_from(path: str, run_id: int) -> 'DataSet':
@@ -124,7 +169,7 @@ def load_dataset_from(path: str, run_id: int) -> 'DataSet':
 
 def get_runs_from_db(path: str, start: int = 0,
                      stop: Union[None, int] = None,
-                     get_structure: bool = False):
+                     get_structure: bool = False) -> Dict[int, DataSetInfoDict]:
     """
     Get a db ``overview`` dictionary from the db located in ``path``. The
     ``overview`` dictionary maps ``DataSet.run_id``s to dataset information as
@@ -152,7 +197,7 @@ def get_runs_from_db(path: str, start: int = 0,
     return overview
 
 
-def get_runs_from_db_as_dataframe(path):
+def get_runs_from_db_as_dataframe(path: str) -> pd.DataFrame:
     """
     Wrapper around `get_runs_from_db` that returns the overview
     as pandas dataframe.
@@ -175,15 +220,20 @@ def ds_to_datadicts(ds: 'DataSet') -> Dict[str, DataDict]:
                      axes.
     """
     ret = {}
-    pdata = ds.get_parameter_data()
+    has_cache = hasattr(ds, 'cache')
+    if has_cache:
+        pdata = ds.cache.data()
+    else:
+        # qcodes < 0.17
+        pdata = ds.get_parameter_data()
     for p, spec in ds.paramspecs.items():
         if spec.depends_on != '':
             axes = spec.depends_on_
             data = dict()
-            data[p] = dict(unit=spec.unit, axes=axes, values=pdata[p][p])
+            data[p] = dict(unit=spec.unit, label=spec.label, axes=axes, values=pdata[p][p])
             for ax in axes:
                 axspec = ds.paramspecs[ax]
-                data[ax] = dict(unit=axspec.unit, values=pdata[p][ax])
+                data[ax] = dict(unit=axspec.unit, label=axspec.label, values=pdata[p][ax])
             ret[p] = DataDict(**data)
             ret[p].validate()
 
@@ -203,51 +253,58 @@ class QCodesDSLoader(Node):
     uiClass = None
     useUi = False
 
-    def __init__(self, *arg, **kw):
-        self._pathAndId = (None, None)
+    def __init__(self, *arg: Any, **kw: Any):
+        self._pathAndId: Tuple[Optional[str], Optional[int]] = (None, None)
         self.nLoadedRecords = 0
+        self._dataset: Optional[DataSet] = None
 
         super().__init__(*arg, **kw)
 
     ### Properties
 
     @property
-    def pathAndId(self):
+    def pathAndId(self) -> Tuple[Optional[str], Optional[int]]:
         return self._pathAndId
 
-    @pathAndId.setter
+    # see https://github.com/python/mypy/issues/1362
+    @pathAndId.setter  # type: ignore
     @updateOption('pathAndId')
-    def pathAndId(self, val):
+    def pathAndId(self, val: Tuple[Optional[str], Optional[int]]) -> None:
         if val != self.pathAndId:
             self._pathAndId = val
             self.nLoadedRecords = 0
+            self._dataset = None
 
-    ### processing
-
-    def process(self, **kw):
+    def process(self, dataIn: Optional[DataDictBase] = None) -> Optional[Dict[str, Any]]:
+        if dataIn is not None:
+            raise RuntimeError("QCodesDSLoader.process does not take a dataIn argument")
         if None not in self._pathAndId:
-            path, runId = self._pathAndId
+            path, runId = cast(Tuple[str, int], self._pathAndId)
 
-            ds = load_dataset_from(path, runId)
+            if self._dataset is None:
+                self._dataset = load_dataset_from(path, runId)
 
-            if ds.number_of_results > self.nLoadedRecords:
+            if self._dataset.number_of_results > self.nLoadedRecords:
 
-                guid = ds.guid
+                guid = self._dataset.guid
                 title = f"{os.path.split(path)[-1]} | " \
                         f"run ID: {runId} | GUID: {guid}"
                 info = """Started: {}
 Finished: {}
 GUID: {}
-DB-File [ID]: {} [{}]""".format(ds.run_timestamp(), ds.completed_timestamp(),
+DB-File [ID]: {} [{}]""".format(self._dataset.run_timestamp(), self._dataset.completed_timestamp(),
                                 guid, path, runId)
 
-                data = ds_to_datadict(ds)
+                data = ds_to_datadict(self._dataset)
                 data.add_meta('title', title)
                 data.add_meta('info', info)
                 data.add_meta('qcodes_guid', guid)
                 data.add_meta('qcodes_db', path)
                 data.add_meta('qcodes_runId', runId)
-                data.add_meta('qcodes_completedTS', ds.completed_timestamp())
-                data.add_meta('qcodes_runTS', ds.run_timestamp())
-                self.nLoadedRecords = ds.number_of_results
+                data.add_meta('qcodes_completedTS', self._dataset.completed_timestamp())
+                data.add_meta('qcodes_runTS', self._dataset.run_timestamp())
+                qcodes_shape = getattr(self._dataset.description, "shapes", None)
+                data.add_meta('qcodes_shape', qcodes_shape)
+                self.nLoadedRecords = self._dataset.number_of_results
                 return dict(dataOut=data)
+        return None
