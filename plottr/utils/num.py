@@ -46,7 +46,7 @@ def largest_numtype(arr: np.ndarray, include_integers: bool = True) \
         return None
 
 
-def _are_close(a: np.ndarray, b: np.ndarray, rtol: float = 1e-8) -> np.ndarray:
+def _are_close(a: np.ndarray, b: np.ndarray, rtol: float = 1e-8) -> Union[np.ndarray, np.bool_]:
     return np.isclose(a, b, rtol=rtol)
 
 
@@ -98,7 +98,7 @@ def arrays_equal(a: np.ndarray, b: np.ndarray,
         else:
             return False
 
-    close = np.zeros(a.shape, dtype=bool)
+    close: Union[np.ndarray, np.bool_] = np.zeros(a.shape, dtype=bool)
     if a.dtype in FLOATTYPES and b.dtype in FLOATTYPES:
         close = _are_close(a, b, rtol=rtol)
 
@@ -178,7 +178,7 @@ def _find_switches(arr: np.ndarray,
 
 
 def find_direction_period(vals: np.ndarray, ignore_last: bool = False) \
-        -> Union[None, int]:
+        -> Optional[float]:
     """
     Find the period with which the values in an array change direction.
 
@@ -234,7 +234,7 @@ def guess_grid_from_sweep_direction(**axes: np.ndarray) \
     :raises: `ValueError` for incorrect input
     """
     periods_list = []
-    sorting = []
+    sorting: List[float] = []
     names_list = []
     size: Optional[int] = None
 
