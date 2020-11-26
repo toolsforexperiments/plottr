@@ -68,5 +68,5 @@ class ScaleUnits(Node):
     def state(self, value: str) -> None:
         self._state = value
 
-    def process(self, dataIn: Optional[DataDictBase]=None) -> Optional[Dict[str, Optional[DataDictBase]]]:
+    def process(self, dataIn: Optional[DataDictBase] = None) -> Optional[Dict[str, Optional[DataDictBase]]]:
         return dict(dataOut=dataIn)
