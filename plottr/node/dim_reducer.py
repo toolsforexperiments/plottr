@@ -172,7 +172,7 @@ class DimensionAssignmentWidget(QtWidgets.QTreeWidget):
                     combo.addItem(o)
 
         scaling = np.rint(self.logicalDpiX() / 96.0)
-        combo.setMinimumSize(50, 22)
+        combo.setMinimumSize(50*scaling, 22*scaling)
         combo.setMaximumHeight(22 * scaling)
         self.setItemWidget(item, 1, combo)
         self.updateSizes()
@@ -310,8 +310,10 @@ class DimensionReductionAssignmentWidget(DimensionAssignmentWidget):
                     lambda x: self.elementSelectionSliderChange(dim))
 
                 scaling = np.rint(self.logicalDpiX() / 96.0)
-                w.setMinimumSize(150, 22)
-                w.setMaximumHeight(22 * scaling)
+                width = 150 + 50*(scaling - 1)
+                height = 22*scaling
+                w.setMinimumSize(width, height)
+                w.setMaximumHeight(height)
 
                 self.choices[dim]['optionsWidget'] = w
                 self.setItemWidget(item, 2, w)
