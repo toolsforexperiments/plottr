@@ -320,7 +320,8 @@ class QCodesDBInspector(QtWidgets.QMainWindow):
         fileMenu.addAction(refreshAction)
 
         # sizing
-        self.resize(640, 640)
+        scaledSize = 640 * self.logicalDpiX() / 96.0
+        self.resize(scaledSize, scaledSize)
 
         ### Thread workers
 
