@@ -169,12 +169,9 @@ class SymmetricNorm(colors.Normalize):
         return super().__call__(value, clip)
 
 
-def setMplDefaults(obj: Any) -> None:
+def setMplDefaults(obj: QtWidgets.QWidget) -> None:
     """Set some reasonable matplotlib defaults for appearance."""
-    if isinstance(obj, _MPLPlotWidget):
-        fontSize = 6 * obj.devicePixelRatio()
-    else:
-        fontSize = 6
+    scaling = obj.logicalDpiX() / 96.0
 
     rcParams['figure.dpi'] = 300
     rcParams['figure.figsize'] = (4.5, 3)
@@ -183,7 +180,7 @@ def setMplDefaults(obj: Any) -> None:
     rcParams['grid.linewidth'] = 0.5
     rcParams['grid.linestyle'] = ':'
     rcParams['font.family'] = 'Arial', 'Helvetica', 'DejaVu Sans'
-    rcParams['font.size'] = fontSize
+    rcParams['font.size'] = 6 * scaling
     rcParams['lines.markersize'] = 3
     rcParams['lines.linestyle'] = '-'
     rcParams['savefig.transparent'] = False
@@ -569,8 +566,8 @@ class _MPLPlotWidget(PlotWidget):
         super().__init__(parent=parent)
 
         setMplDefaults(self)
-
-        defaultIconSize = 16*self.devicePixelRatio()
+        scaling = self.logicalDpiX() / 96.0
+        defaultIconSize = 16 * scaling
 
         self.plot = MPLPlot()
         self.mplBar = NavBar(self.plot, self)
@@ -787,10 +784,11 @@ class AutoPlot(_MPLPlotWidget):
         self.plotOptionsToolBar.complexPolarSelected.connect(
             self._complexPreferenceFromToolBar
         )
-        iconSize = 32 + 4*(self.devicePixelRatio() - 1)
+        scaling = self.logicalDpiX() / 96.0
+        iconSize = 32 + 8*(scaling - 1)
         self.plotOptionsToolBar.setIconSize(QtCore.QSize(iconSize, iconSize))
 
-        self.setMinimumSize(640, 480)
+        self.setMinimumSize(640*scaling, 480*scaling)
 
     def _analyzeData(self, data: Optional[DataDictBase]) -> Dict[str, bool]:
         """checks data and compares with previous properties."""
