@@ -169,8 +169,9 @@ class SymmetricNorm(colors.Normalize):
         return super().__call__(value, clip)
 
 
-def setMplDefaults() -> None:
+def setMplDefaults(obj: QtWidgets.QWidget) -> None:
     """Set some reasonable matplotlib defaults for appearance."""
+    scaling = np.rint(obj.logicalDpiX() / 96.0)
 
     rcParams['figure.dpi'] = 300
     rcParams['figure.figsize'] = (4.5, 3)
@@ -179,7 +180,7 @@ def setMplDefaults() -> None:
     rcParams['grid.linewidth'] = 0.5
     rcParams['grid.linestyle'] = ':'
     rcParams['font.family'] = 'Arial', 'Helvetica', 'DejaVu Sans'
-    rcParams['font.size'] = 6
+    rcParams['font.size'] = 6 * scaling
     rcParams['lines.markersize'] = 3
     rcParams['lines.linestyle'] = '-'
     rcParams['savefig.transparent'] = False
@@ -463,7 +464,7 @@ class MPLPlot(FCanvas):
         :returns: the created axes in the grid
         """
         self.fig.clear()
-        setMplDefaults()
+        setMplDefaults(self)
 
         self.axes = []
         iax = 1
@@ -564,12 +565,14 @@ class _MPLPlotWidget(PlotWidget):
     def __init__(self, parent: Optional[QtWidgets.QWidget] = None):
         super().__init__(parent=parent)
 
-        setMplDefaults()
+        setMplDefaults(self)
+        scaling = np.rint(self.logicalDpiX() / 96.0)
+        defaultIconSize = 16 * scaling
 
         self.plot = MPLPlot()
         self.mplBar = NavBar(self.plot, self)
         self.addMplBarOptions()
-        self.mplBar.setIconSize(QtCore.QSize(16,16))
+        self.mplBar.setIconSize(QtCore.QSize(defaultIconSize, defaultIconSize))
 
         layout = QtWidgets.QVBoxLayout(self)
         layout.addWidget(self.plot)
@@ -781,10 +784,11 @@ class AutoPlot(_MPLPlotWidget):
         self.plotOptionsToolBar.complexPolarSelected.connect(
             self._complexPreferenceFromToolBar
         )
+        scaling = np.rint(self.logicalDpiX() / 96.0)
+        iconSize = 32 + 8*(scaling - 1)
+        self.plotOptionsToolBar.setIconSize(QtCore.QSize(iconSize, iconSize))
 
-        self.plotOptionsToolBar.setIconSize(QtCore.QSize(32, 32))
-
-        self.setMinimumSize(640, 480)
+        self.setMinimumSize(640*scaling, 480*scaling)
 
     def _analyzeData(self, data: Optional[DataDictBase]) -> Dict[str, bool]:
         """checks data and compares with previous properties."""

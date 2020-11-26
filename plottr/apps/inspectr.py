@@ -20,6 +20,7 @@ import logging
 from typing import Optional, Sequence, List, Dict, Iterable, Union, cast
 from typing_extensions import TypedDict
 
+from numpy import rint
 import pandas
 
 from plottr import QtCore, QtWidgets, Signal, Slot, QtGui, Flowchart
@@ -320,7 +321,8 @@ class QCodesDBInspector(QtWidgets.QMainWindow):
         fileMenu.addAction(refreshAction)
 
         # sizing
-        self.resize(640, 640)
+        scaledSize = 640 * rint(self.logicalDpiX() / 96.0)
+        self.resize(scaledSize, scaledSize)
 
         ### Thread workers
 
