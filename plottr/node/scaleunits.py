@@ -65,7 +65,7 @@ class ScaleUnits(Node):
 
     @state.setter  # type: ignore[misc]
     @updateOption('state')
-    def averagingAxis(self, value: str) -> None:
+    def state(self, value: str) -> None:
         self._state = value
 
     def process(self, dataIn: Optional[DataDictBase]=None) -> Optional[Dict[str, Optional[DataDictBase]]]:
