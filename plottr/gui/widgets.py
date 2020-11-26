@@ -91,7 +91,8 @@ class PlotWindow(QtWidgets.QMainWindow):
         self.setDefaultStyle()
 
     def setDefaultStyle(self) -> None:
-        fontSize = 10*self.devicePixelRatio()
+        scaling = self.logicalDpiX() / 96.0
+        fontSize = 10*scaling
         self.setStyleSheet(
             f"""
             QToolButton {{
