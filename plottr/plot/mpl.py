@@ -171,7 +171,7 @@ class SymmetricNorm(colors.Normalize):
 
 def setMplDefaults(obj: QtWidgets.QWidget) -> None:
     """Set some reasonable matplotlib defaults for appearance."""
-    scaling = obj.logicalDpiX() / 96.0
+    scaling = np.rint(obj.logicalDpiX() / 96.0)
 
     rcParams['figure.dpi'] = 300
     rcParams['figure.figsize'] = (4.5, 3)
@@ -566,7 +566,7 @@ class _MPLPlotWidget(PlotWidget):
         super().__init__(parent=parent)
 
         setMplDefaults(self)
-        scaling = self.logicalDpiX() / 96.0
+        scaling = np.rint(self.logicalDpiX() / 96.0)
         defaultIconSize = 16 * scaling
 
         self.plot = MPLPlot()
@@ -784,7 +784,7 @@ class AutoPlot(_MPLPlotWidget):
         self.plotOptionsToolBar.complexPolarSelected.connect(
             self._complexPreferenceFromToolBar
         )
-        scaling = self.logicalDpiX() / 96.0
+        scaling = np.rint(self.logicalDpiX() / 96.0)
         iconSize = 32 + 8*(scaling - 1)
         self.plotOptionsToolBar.setIconSize(QtCore.QSize(iconSize, iconSize))
 

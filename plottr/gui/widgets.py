@@ -3,7 +3,7 @@ widgets.py
 
 Common GUI widgets that are re-used across plottr.
 """
-
+from numpy import rint
 from typing import Union, List, Tuple, Optional, Type, Sequence, Dict, Any
 
 from .tools import dictToTreeWidgetItems
@@ -91,7 +91,7 @@ class PlotWindow(QtWidgets.QMainWindow):
         self.setDefaultStyle()
 
     def setDefaultStyle(self) -> None:
-        scaling = self.logicalDpiX() / 96.0
+        scaling = rint(self.logicalDpiX() / 96.0)
         fontSize = 10*scaling
         self.setStyleSheet(
             f"""
