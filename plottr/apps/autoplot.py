@@ -110,7 +110,7 @@ class UpdateToolBar(QtWidgets.QToolBar):
         """
         self.monitor.stop()
         if val > 0:
-            self.monitor.start(val * 1000)
+            self.monitor.start(int(val * 1000))
 
         self.monitorInput.spin.setValue(val)
 
