@@ -1,12 +1,12 @@
 from enum import Enum, unique
 from typing import Optional, Dict
 
-from plottr import QtWidgets
+from plottr import QtWidgets, Signal, Slot
 from plottr.node import Node, NodeWidget, updateOption
 from plottr.data.datadict import DataDictBase
 
 @unique
-class StateOption(Enum):
+class ScaleUnitsOption(Enum):
     """Options for how to scale units."""
 
     #: do not scale units
@@ -21,18 +21,20 @@ class StateOption(Enum):
 
 class ScaleUnitOptionWidget(QtWidgets.QWidget):
 
+    unitscaleselected = Signal(ScaleUnitsOption)
+
     def __init__(self, parent: Optional[QtWidgets.QWidget] = None):
         super().__init__(parent)
 
         self.buttons = {
-            StateOption.never: QtWidgets.QRadioButton('Never'),
-            StateOption.simpleunits: QtWidgets.QRadioButton('Simple Units'),
-            StateOption.always: QtWidgets.QRadioButton('Always'),
+            ScaleUnitsOption.never: QtWidgets.QRadioButton('Never'),
+            ScaleUnitsOption.simpleunits: QtWidgets.QRadioButton('Simple Units'),
+            ScaleUnitsOption.always: QtWidgets.QRadioButton('Always'),
         }
         btnLayout = QtWidgets.QVBoxLayout()
         self.btnGroup = QtWidgets.QButtonGroup(self)
 
-        for opt in StateOption:
+        for opt in ScaleUnitsOption:
             btn = self.buttons[opt]
             self.btnGroup.addButton(btn, opt.value)
             btnLayout.addWidget(btn)
@@ -41,13 +43,51 @@ class ScaleUnitOptionWidget(QtWidgets.QWidget):
         layout.addLayout(btnLayout)
         layout.addStretch()
         self.setLayout(layout)
-        self.buttons[StateOption.never].setChecked(True)
+        self.buttons[ScaleUnitsOption.never].setChecked(True)
+
+        self.btnGroup.buttonToggled.connect(self.unitscale_button_selected)
+
+    @Slot(QtWidgets.QAbstractButton, bool)
+    def unitscale_button_selected(
+            self,
+            btn: QtWidgets.QAbstractButton,
+            checked: bool
+    ) -> None:
+        if checked:
+            self.unitscaleselected.emit(ScaleUnitsOption(self.btnGroup.id(btn)))
 
 
 class ScaleUnitsWidget(NodeWidget):
 
     def __init__(self, node: Optional[Node] = None):
         super().__init__(node=node, embedWidgetClass=ScaleUnitOptionWidget)
+        assert self.widget is not None
+        self.widget.unitscaleselected.connect(
+            lambda x: self.signalOption('scale_unit_option')
+        )
+
+        self.optSetters = {
+            'scale_unit_option': self.set_scale_unit_option,
+        }
+
+        self.optGetters = {
+            'scale_unit_option': self.get_scale_units_option,
+        }
+
+    def get_scale_units_option(self) -> ScaleUnitsOption:
+        assert self.widget is not None
+        activeBtn = self.widget.btnGroup.checkedButton()
+        activeId = self.widget.btnGroup.id(activeBtn)
+        return ScaleUnitsOption(activeId)
+
+    def set_scale_unit_option(self, option: ScaleUnitsOption) -> None:
+        assert self.widget is not None
+        self._emitUpdate = False
+        for k, btn in self.widget.buttons.items():
+            if k == option:
+                print(f"setting {btn}")
+                btn.setChecked(True)
+        self._emitUpdate = True
 
 
 class ScaleUnits(Node):
@@ -57,16 +97,18 @@ class ScaleUnits(Node):
 
     def __init__(self, name: str):
         super().__init__(name)
-        self._state: Optional[str] = None
+        self._scale_unit_option: ScaleUnitsOption = ScaleUnitsOption.never
 
     @property
-    def state(self):
-        return self._state
+    def scale_unit_option(self) -> ScaleUnitsOption:
+        return self._scale_unit_option
 
-    @state.setter  # type: ignore[misc]
-    @updateOption('state')
-    def state(self, value: str) -> None:
-        self._state = value
+    @scale_unit_option.setter  # type: ignore[misc]
+    @updateOption('scale_unit_option')
+    def scale_unit_option(self, value: ScaleUnitsOption) -> None:
+        self._scale_unit_option = value
 
     def process(self, dataIn: Optional[DataDictBase] = None) -> Optional[Dict[str, Optional[DataDictBase]]]:
+        print(f"processing with {self.scale_unit_option}")
+
         return dict(dataOut=dataIn)
