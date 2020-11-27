@@ -345,8 +345,8 @@ class NodeWidget(QtWidgets.QWidget):
                  node: Optional[Node] = None):
         super().__init__(parent)
 
-        self.optGetters: Dict[str, Any] = {}
-        self.optSetters: Dict[str, Any] = {}
+        self.optGetters: Dict[str, Callable[[], Any]] = {}
+        self.optSetters: Dict[str, Callable[[Any], None]] = {}
         self.node = node
 
         self._emitGuiChange = True
