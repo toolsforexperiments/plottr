@@ -1,6 +1,12 @@
 from enum import Enum, unique
 from typing import Optional, Dict
 
+try:
+    from qcodes.utils.plotting import find_scale_and_prefix
+except ImportError:
+    # fallback for qcodes < 0.21
+    from plottr.utils.find_scale_and_prefix import find_scale_and_prefix
+
 from plottr import QtWidgets, Signal, Slot
 from plottr.node import Node, NodeWidget, updateOption
 from plottr.data.datadict import DataDictBase
@@ -12,11 +18,8 @@ class ScaleUnitsOption(Enum):
     #: do not scale units
     never = 0
 
-    #: only simple units
-    simpleunits = 1
-
     #: all units
-    always = 2
+    always = 1
 
 
 class ScaleUnitOptionWidget(QtWidgets.QWidget):
@@ -28,7 +31,6 @@ class ScaleUnitOptionWidget(QtWidgets.QWidget):
 
         self.buttons = {
             ScaleUnitsOption.never: QtWidgets.QRadioButton('Never'),
-            ScaleUnitsOption.simpleunits: QtWidgets.QRadioButton('Simple Units'),
             ScaleUnitsOption.always: QtWidgets.QRadioButton('Always'),
         }
         btnLayout = QtWidgets.QVBoxLayout()
@@ -43,7 +45,7 @@ class ScaleUnitOptionWidget(QtWidgets.QWidget):
         layout.addLayout(btnLayout)
         layout.addStretch()
         self.setLayout(layout)
-        self.buttons[ScaleUnitsOption.never].setChecked(True)
+        self.buttons[ScaleUnitsOption.always].setChecked(True)
 
         self.btnGroup.buttonToggled.connect(self.unitscale_button_selected)
 
@@ -85,7 +87,6 @@ class ScaleUnitsWidget(NodeWidget):
         self._emitUpdate = False
         for k, btn in self.widget.buttons.items():
             if k == option:
-                print(f"setting {btn}")
                 btn.setChecked(True)
         self._emitUpdate = True
 
@@ -97,7 +98,7 @@ class ScaleUnits(Node):
 
     def __init__(self, name: str):
         super().__init__(name)
-        self._scale_unit_option: ScaleUnitsOption = ScaleUnitsOption.never
+        self._scale_unit_option: ScaleUnitsOption = ScaleUnitsOption.always
 
     @property
     def scale_unit_option(self) -> ScaleUnitsOption:
@@ -109,6 +110,19 @@ class ScaleUnits(Node):
         self._scale_unit_option = value
 
     def process(self, dataIn: Optional[DataDictBase] = None) -> Optional[Dict[str, Optional[DataDictBase]]]:
-        print(f"processing with {self.scale_unit_option}")
+        if super().process(dataIn=dataIn) is None:
+            return None
+        data = dataIn.copy()
 
-        return dict(dataOut=dataIn)
+        for name, data_item in data.data_items():
+            if self.scale_unit_option != ScaleUnitsOption.never:
+                prefix, selected_scale = find_scale_and_prefix(
+                    data_item['values'],
+                    data_item["unit"]
+                )
+                data_item["unit"] = prefix + data_item["unit"]
+                data_item['values'] = data_item['values'] * 10**(-selected_scale)
+
+            # todo handle categorical data
+
+        return dict(dataOut=data)
