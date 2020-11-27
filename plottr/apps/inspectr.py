@@ -140,7 +140,7 @@ class RunList(QtWidgets.QTreeWidget):
         self.setHeaderLabels(self.cols)
 
         self.itemSelectionChanged.connect(self.selectRun)
-        self.itemActivated.connect(self.activateRun)
+        self.itemPressed.connect(self.activateRun)
 
     def addRun(self, runId: int, **vals: str) -> None:
         lst = [str(runId)]
