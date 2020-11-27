@@ -23,6 +23,7 @@ R = TypeVar('R', bound="Node")
 S = TypeVar('S')
 T = TypeVar('T')
 
+
 def updateOption(optName: Optional[str] = None) -> Callable[[Callable[[R, S], T]], Callable[[R, S], T]]:
     """Decorator for property setters that are handy for user options.
 
@@ -47,9 +48,9 @@ def updateOption(optName: Optional[str] = None) -> Callable[[Callable[[R, S], T]
 
     return decorator
 
+
 U = TypeVar('U', bound="NodeWidget")
 V = TypeVar('V',)
-
 
 
 def updateGuiFromNode(func: Callable[..., V]) -> Callable[..., V]:
