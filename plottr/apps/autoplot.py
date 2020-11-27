@@ -101,8 +101,8 @@ class UpdateToolBar(QtWidgets.QToolBar):
         logger().debug('Emit trigger')
         self.trigger.emit()
 
-    @Slot(int)
-    def setMonitorInterval(self, val: int) -> None:
+    @Slot(float)
+    def setMonitorInterval(self, val: float) -> None:
         """
         Start a background timer that is triggered every `val' seconds.
 
@@ -130,7 +130,7 @@ class AutoPlotMainWindow(PlotWindow):
     def __init__(self, fc: Flowchart,
                  parent: Optional[QtWidgets.QMainWindow] = None,
                  monitor: bool = False,
-                 monitorInterval: Union[int, None] = None,
+                 monitorInterval: Union[float, None] = None,
                  loaderName: Optional[str] = None,
                  **kwargs: Any):
 
@@ -173,7 +173,7 @@ class AutoPlotMainWindow(PlotWindow):
         else:
             self.monitorToolBar = None
 
-    def setMonitorInterval(self, val: int) -> None:
+    def setMonitorInterval(self, val: float) -> None:
         if self.monitorToolBar is not None:
             self.monitorToolBar.setMonitorInterval(val)
 
@@ -331,13 +331,13 @@ def autoplotDDH5(filepath: str = '', groupname: str = 'data') \
     )
 
     win = AutoPlotMainWindow(fc, loaderName='Data loader', monitor=True,
-                             monitorInterval=2)
+                             monitorInterval=2.0)
     win.show()
 
     fc.nodes()['Data loader'].filepath = filepath
     fc.nodes()['Data loader'].groupname = groupname
     win.refreshData()
-    win.setMonitorInterval(2)
+    win.setMonitorInterval(2.0)
 
     return fc, win
 

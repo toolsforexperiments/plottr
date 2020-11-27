@@ -440,8 +440,8 @@ class QCodesDBInspector(QtWidgets.QMainWindow):
 
             self.loadFullDB()
 
-    @Slot(int)
-    def setMonitorInterval(self, val: int) -> None:
+    @Slot(float)
+    def setMonitorInterval(self, val: float) -> None:
         self.monitor.stop()
         if val > 0:
             self.monitor.start(val * 1000)
