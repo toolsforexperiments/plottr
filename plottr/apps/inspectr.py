@@ -169,6 +169,35 @@ class RunList(QtWidgets.QTreeWidget):
         for i in range(len(self.cols)):
             self.resizeColumnToContents(i)
 
+    def updateRuns(self, selection: Dict[int, Dict[str, str]]) -> None:
+
+        run_added = False
+        item_count = self.topLevelItemCount()
+        top_level_run_ids = dict()
+        for i in range(item_count):
+            top_level_run_ids[i] = self.topLevelItem(i).text(0)
+        for runId, record in selection.items():
+            if str(runId) in top_level_run_ids.values():
+                index = [key
+                         for key, val in top_level_run_ids.items()
+                         if val == str(runId)]
+
+                completed = record.get('completed_date', '') + ' ' + record.get(
+                    'completed_time', '')
+                if completed != self.topLevelItem(index[0]).text(5):
+                    self.topLevelItem(index[0]).setText(5, completed)
+
+                num_records = str(record.get('records', ''))
+                if num_records != self.topLevelItem(index[0]).text(6):
+                    self.topLevelItem(index[0]).setText(6, num_records)
+            else:
+                self.addRun(runId, **record)
+                run_added = True
+
+        if run_added:
+            for i in range(len(self.cols)):
+                self.resizeColumnToContents(i)
+
     @Slot()
     def selectRun(self) -> None:
         selection = self.selectedItems()
