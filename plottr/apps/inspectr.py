@@ -406,6 +406,9 @@ class QCodesDBInspector(QtWidgets.QMainWindow):
                 self.loadDBProcess.setPath(self.filepath)
 
     def DBLoaded(self, dbdf: pandas.DataFrame) -> None:
+        if dbdf.equals(self.dbdf):
+            logger().debug('DB reloaded with no changes. Skipping update')
+            return None
         self.dbdf = dbdf
         self.dbdfUpdated.emit()
         self.dateList.sendSelectedDates()
