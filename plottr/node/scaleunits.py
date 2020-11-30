@@ -11,6 +11,7 @@ from plottr import QtWidgets, Signal, Slot
 from plottr.node import Node, NodeWidget, updateOption
 from plottr.data.datadict import DataDictBase
 
+
 @unique
 class ScaleUnitsOption(Enum):
     """Options for how to scale units."""
@@ -25,7 +26,7 @@ class ScaleUnitsOption(Enum):
 class ScaleUnitOptionWidget(QtWidgets.QWidget):
     """A widget that allows the user to specify if units should be scaled."""
 
-    unitscaleselected = Signal(ScaleUnitsOption)
+    unit_scale_selected = Signal(ScaleUnitsOption)
 
     def __init__(self, parent: Optional[QtWidgets.QWidget] = None):
         super().__init__(parent)
@@ -57,7 +58,7 @@ class ScaleUnitOptionWidget(QtWidgets.QWidget):
             checked: bool
     ) -> None:
         if checked:
-            self.unitscaleselected.emit(ScaleUnitsOption(self.btnGroup.id(btn)))
+            self.unit_scale_selected.emit(ScaleUnitsOption(self.btnGroup.id(btn)))
 
 
 class ScaleUnitsWidget(NodeWidget):
@@ -66,7 +67,7 @@ class ScaleUnitsWidget(NodeWidget):
     def __init__(self, node: Optional[Node] = None):
         super().__init__(node=node, embedWidgetClass=ScaleUnitOptionWidget)
         assert self.widget is not None
-        self.widget.unitscaleselected.connect(
+        self.widget.unit_scale_selected.connect(
             lambda x: self.signalOption('scale_unit_option')
         )
 
