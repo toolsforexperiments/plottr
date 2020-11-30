@@ -2,7 +2,7 @@ from enum import Enum, unique
 from typing import Optional, Dict
 
 try:
-    from qcodes.utils.plotting import find_scale_and_prefix
+    from qcodes.utils.plotting import find_scale_and_prefix  #  type: ignore[attr-defined]
 except ImportError:
     # fallback for qcodes < 0.21
     from plottr.utils.find_scale_and_prefix import find_scale_and_prefix
@@ -112,6 +112,7 @@ class ScaleUnits(Node):
     def process(self, dataIn: Optional[DataDictBase] = None) -> Optional[Dict[str, Optional[DataDictBase]]]:
         if super().process(dataIn=dataIn) is None:
             return None
+        assert dataIn is not None
         data = dataIn.copy()
 
         for name, data_item in data.data_items():
