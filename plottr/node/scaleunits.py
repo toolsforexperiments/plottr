@@ -23,6 +23,7 @@ class ScaleUnitsOption(Enum):
 
 
 class ScaleUnitOptionWidget(QtWidgets.QWidget):
+    """A widget that allows the user to specify if units should be scaled."""
 
     unitscaleselected = Signal(ScaleUnitsOption)
 
@@ -60,6 +61,7 @@ class ScaleUnitOptionWidget(QtWidgets.QWidget):
 
 
 class ScaleUnitsWidget(NodeWidget):
+    """Node widget for :class:`ScaleUnits`."""
 
     def __init__(self, node: Optional[Node] = None):
         super().__init__(node=node, embedWidgetClass=ScaleUnitOptionWidget)
@@ -92,7 +94,13 @@ class ScaleUnitsWidget(NodeWidget):
 
 
 class ScaleUnits(Node):
-
+    """
+    A Node that automatically scales the units and values such that
+    for example 1e-9 V will be rendered as 1 nV. The logic for how to scale units
+    in inherited from QCoDeS. Basically pure SI units are scaled with enginering prefixes
+    while more complex units are scaled by adding a power of 10 prefix to the unit
+    e.g (1*10**3 complexunit)
+    """
     useUi = True
     uiClass = ScaleUnitsWidget
 
@@ -123,7 +131,5 @@ class ScaleUnits(Node):
                 )
                 data_item["unit"] = prefix + data_item["unit"]
                 data_item['values'] = data_item['values'] * 10**(-selected_scale)
-
-            # todo handle categorical data
 
         return dict(dataOut=data)
