@@ -169,6 +169,33 @@ class RunList(QtWidgets.QTreeWidget):
         for i in range(len(self.cols)):
             self.resizeColumnToContents(i)
 
+    def updateRuns(self, selection: Dict[int, Dict[str, str]]) -> None:
+
+        run_added = False
+        for runId, record in selection.items():
+            item = self.findItems(str(runId), QtCore.Qt.MatchExactly)
+            if len(item) == 0:
+                self.setSortingEnabled(False)
+                self.addRun(runId, **record)
+                run_added = True
+            elif len(item) == 1:
+                completed = record.get('completed_date', '') + ' ' + record.get(
+                    'completed_time', '')
+                if completed != item[0].text(5):
+                    item[0].setText(5, completed)
+
+                num_records = str(record.get('records', ''))
+                if num_records != item[0].text(6):
+                    item[0].setText(6, num_records)
+            else:
+                raise RuntimeError(f"More than one runs found with runId: "
+                                   f"{runId}")
+
+        if run_added:
+            self.setSortingEnabled(True)
+            for i in range(len(self.cols)):
+                self.resizeColumnToContents(i)
+
     @Slot()
     def selectRun(self) -> None:
         selection = self.selectedItems()
@@ -443,11 +470,11 @@ class QCodesDBInspector(QtWidgets.QMainWindow):
 
             self.loadFullDB()
 
-    @Slot(int)
-    def setMonitorInterval(self, val: int) -> None:
+    @Slot(float)
+    def setMonitorInterval(self, val: float) -> None:
         self.monitor.stop()
         if val > 0:
-            self.monitor.start(val * 1000)
+            self.monitor.start(int(val * 1000))
 
         self.monitorInput.spin.setValue(val)
 
@@ -462,7 +489,12 @@ class QCodesDBInspector(QtWidgets.QMainWindow):
         if len(dates) > 0:
             assert self.dbdf is not None
             selection = self.dbdf.loc[self.dbdf['started_date'].isin(dates)].sort_index(ascending=False)
-            self.runList.setRuns(selection.to_dict(orient='index'))
+            old_selection = [item.text()
+                             for item in self.dateList.selectedItems()]
+            if not all(date in old_selection for date in dates):
+                self.runList.setRuns(selection.to_dict(orient='index'))
+            else:
+                self.runList.updateRuns(selection.to_dict(orient='index'))
         else:
             self.runList.clear()
 

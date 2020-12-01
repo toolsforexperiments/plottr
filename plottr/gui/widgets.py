@@ -42,24 +42,27 @@ class MonitorIntervalInput(QtWidgets.QWidget):
     Simple form-like widget for entering a monitor/refresh interval.
     Only has a label and a spin-box as input.
 
-    It's signal `intervalChanged(int)' is emitted when the value
+    It's signal `intervalChanged(float)' is emitted when the value
     of the spinbox has changed.
     """
 
-    intervalChanged = Signal(int)
+    intervalChanged = Signal(float)
 
     def __init__(self, parent: Optional[QtWidgets.QWidget] = None):
         super().__init__(parent)
 
-        self.spin = QtWidgets.QSpinBox()
+        self.spin = QtWidgets.QDoubleSpinBox()
+        self.spin.setSingleStep(0.1)
+        self.spin.setDecimals(1)
+
         layout = QtWidgets.QFormLayout()
         layout.addRow('Refresh interval (s)', self.spin)
         self.setLayout(layout)
 
         self.spin.valueChanged.connect(self.spinValueChanged)
 
-    @Slot(int)
-    def spinValueChanged(self, val: int) -> None:
+    @Slot(float)
+    def spinValueChanged(self, val: float) -> None:
         self.intervalChanged.emit(val)
 
 
