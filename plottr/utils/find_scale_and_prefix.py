@@ -77,7 +77,7 @@ def find_scale_and_prefix(data: np.ndarray, unit: str) -> Tuple[str, int]:
             largest_scale = max(list(_ENGINEERING_PREFIXES.keys()))
             selected_scale = largest_scale
             prefix = _ENGINEERING_PREFIXES[largest_scale]
-    else:
+    elif unit != "":
         if maxval > 0:
             selected_scale = 3 * (np.floor(np.floor(np.log10(maxval)) / 3))
         else:
@@ -86,4 +86,7 @@ def find_scale_and_prefix(data: np.ndarray, unit: str) -> Tuple[str, int]:
             prefix = f'$10^{{{selected_scale:.0f}}}$ '
         else:
             prefix = ''
+    else:
+        prefix = ""
+        selected_scale = 0
     return prefix, selected_scale
