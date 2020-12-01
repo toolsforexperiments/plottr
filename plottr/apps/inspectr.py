@@ -172,29 +172,27 @@ class RunList(QtWidgets.QTreeWidget):
     def updateRuns(self, selection: Dict[int, Dict[str, str]]) -> None:
 
         run_added = False
-        item_count = self.topLevelItemCount()
-        top_level_run_ids = dict()
-        for i in range(item_count):
-            top_level_run_ids[i] = self.topLevelItem(i).text(0)
         for runId, record in selection.items():
-            if str(runId) in top_level_run_ids.values():
-                index = [key
-                         for key, val in top_level_run_ids.items()
-                         if val == str(runId)]
-
-                completed = record.get('completed_date', '') + ' ' + record.get(
-                    'completed_time', '')
-                if completed != self.topLevelItem(index[0]).text(5):
-                    self.topLevelItem(index[0]).setText(5, completed)
-
-                num_records = str(record.get('records', ''))
-                if num_records != self.topLevelItem(index[0]).text(6):
-                    self.topLevelItem(index[0]).setText(6, num_records)
-            else:
+            item = self.findItems(str(runId), QtCore.Qt.MatchExactly)
+            if len(item) == 0:
+                self.setSortingEnabled(False)
                 self.addRun(runId, **record)
                 run_added = True
+            elif len(item) == 1:
+                completed = record.get('completed_date', '') + ' ' + record.get(
+                    'completed_time', '')
+                if completed != item[0].text(5):
+                    item[0].setText(5, completed)
+
+                num_records = str(record.get('records', ''))
+                if num_records != item[0].text(6):
+                    item[0].setText(6, num_records)
+            else:
+                raise RuntimeError(f"More than one runs found with runId: "
+                                   f"{runId}")
 
         if run_added:
+            self.setSortingEnabled(True)
             for i in range(len(self.cols)):
                 self.resizeColumnToContents(i)
 
@@ -490,7 +488,7 @@ class QCodesDBInspector(QtWidgets.QMainWindow):
             selection = self.dbdf.loc[self.dbdf['started_date'].isin(dates)].sort_index(ascending=False)
             old_selection = [item.text()
                              for item in self.dateList.selectedItems()]
-            if dates not in old_selection:
+            if not all(date in old_selection for date in dates):
                 self.runList.setRuns(selection.to_dict(orient='index'))
             else:
                 self.runList.updateRuns(selection.to_dict(orient='index'))
