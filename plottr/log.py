@@ -12,7 +12,8 @@ widget will capture the log and display it.
 # TODO: unify with the one from instrumentserver. should maybe go into labcore?
 
 import sys
-from PyQt5 import QtWidgets, QtGui
+from typing import Optional, Union
+from plottr import QtWidgets, QtGui
 import logging
 
 __author__ = 'Wolfgang Pfaff'
@@ -29,12 +30,12 @@ LEVEL = logging.INFO
 
 class QLogHandler(logging.Handler):
 
-    def __init__(self, parent):
+    def __init__(self, parent: QtWidgets.QWidget):
         super().__init__()
         self.widget = QtWidgets.QTextEdit(parent)
         self.widget.setReadOnly(True)
 
-    def emit(self, record):
+    def emit(self, record: logging.LogRecord) -> None:
         msg = self.format(record)
         clr = COLORS.get(record.levelno, QtGui.QColor('black'))
         self.widget.setTextColor(clr)
@@ -49,7 +50,8 @@ class LogWidget(QtWidgets.QWidget):
     A simple logger widget. Uses QLogHandler as handler.
     Does not do much else.
     """
-    def __init__(self, parent=None, level=logging.INFO):
+    def __init__(self, parent: Optional[QtWidgets.QWidget] = None,
+                 level: int = logging.INFO):
         super().__init__(parent)
 
         ### set up the graphical handler
@@ -78,11 +80,11 @@ class LogWidget(QtWidgets.QWidget):
         self.logger.setLevel(level)
 
 
-    def setLevel(self, level):
+    def setLevel(self, level: int) -> None:
         self.logger.setLevel(level)
 
 
-def logDialog(widget):
+def logDialog(widget: QtWidgets.QWidget) -> QtWidgets.QDialog:
     layout = QtWidgets.QVBoxLayout()
     d = QtWidgets.QDialog()
     d.setLayout(layout)
@@ -91,7 +93,8 @@ def logDialog(widget):
     return d
 
 
-def setupLogging(level=logging.INFO, makeDialog=True):
+def setupLogging(level: int = logging.INFO,
+                 makeDialog: bool = True) -> Union[QtWidgets.QDialog, LogWidget]:
     """
     Setup logging for plottr. Creates the widget and handler.
     if makeDialog is True, embed the widget into the dialog.
@@ -122,7 +125,7 @@ def getLogger(module: str = '') -> logging.Logger:
     return logger
 
 
-def enableStreamHandler(enable: bool = False):
+def enableStreamHandler(enable: bool = False) -> None:
     """
     enable/disable output to stderr. Enabling is useful when not
     using the UI logging window.

@@ -2,16 +2,16 @@
 
 nodes and widgets for reducing data dimensionality.
 """
-from typing import Dict, Any, Tuple, Type
+from typing import Dict, Any, Tuple, Type, Optional, List, Union, cast
 from enum import Enum, unique
-from collections import OrderedDict
 
+from typing_extensions import TypedDict
 import numpy as np
 
 from .node import Node, updateOption, NodeWidget
 from ..data.datadict import MeshgridDataDict, DataDict, DataDictBase
-from .. import QtGui, QtCore
-from plottr.icons import xySelectIcon
+from .. import QtCore, QtWidgets, Signal, Slot
+from plottr.icons import get_xySelectIcon
 
 __author__ = 'Wolfgang Pfaff'
 __license__ = 'MIT'
@@ -44,7 +44,7 @@ def selectAxisElement(arr: np.ndarray, index: int, axis: int) -> np.ndarray:
     :param axis: dimension on which to perform the reduction
     :return: reduced array
     """
-    return np.squeeze(sliceAxis(arr, np.s_[index:index+1:], axis))
+    return np.squeeze(sliceAxis(arr, np.s_[index:index+1:], axis), axis=axis)
 
 
 # Translation between reduction functions and convenient naming
@@ -61,7 +61,17 @@ reductionFunc = {
     ReductionMethod.average: np.mean,
 }
 
-class DimensionAssignmentWidget(QtGui.QTreeWidget):
+
+ReductionType = Tuple[ReductionMethod, List[Any], Dict[str, int]]
+RoleOptionsDict = dict
+
+
+class RoleDict(TypedDict):
+    role: Optional[str]
+    options: RoleOptionsDict
+
+
+class DimensionAssignmentWidget(QtWidgets.QTreeWidget):
     """
     A Widget that allows to assign options ('roles') to dimensions of a
     dataset.
@@ -69,18 +79,18 @@ class DimensionAssignmentWidget(QtGui.QTreeWidget):
     This needs to be done by inheriting classes.
     """
 
-    rolesChanged = QtCore.pyqtSignal(object)
+    rolesChanged = Signal(object)
 
-    def __init__(self, parent=None):
+    def __init__(self, parent: Optional[QtWidgets.QWidget] = None):
         super().__init__(parent)
 
         self.setColumnCount(4)
         self.setHeaderLabels(['Dimension', 'Role', 'Options', 'Info'])
 
-        self._dataStructure = None
-        self._dataShapes = None
-        self._dataType = None
-        self._currentRoles = {}
+        self._dataStructure: Optional[DataDictBase] = None
+        self._dataShapes: Optional[Dict[str, Dict[int, int]]] = None
+        self._dataType: Optional[Type[DataDictBase]] = None
+        self._currentRoles: Dict[str, RoleDict] = {}
 
         #: This is a flag to control whether we need to emit signals when
         #: a role has changed. broadly speaking, this is only desired when
@@ -88,14 +98,14 @@ class DimensionAssignmentWidget(QtGui.QTreeWidget):
         #: it might lead to undesired recursion.
         self.emitRoleChangeSignal = True
 
-        self.choices = {}
-        self.availableChoices = OrderedDict({
+        self.choices: Dict[str, dict] = {}
+        self.availableChoices: Dict[Type[DataDictBase], List[str]] = {
             DataDictBase: ['None', ],
             DataDict: [],
             MeshgridDataDict: [],
-        })
+        }
 
-    def clear(self):
+    def clear(self) -> None:
         """
         Clear the widget, delete all accessory widgets.
         """
@@ -115,13 +125,13 @@ class DimensionAssignmentWidget(QtGui.QTreeWidget):
         self._dataType = None
         self.choices = {}
 
-    def updateSizes(self):
+    def updateSizes(self) -> None:
         """update column widths to fit content."""
         for i in range(4):
             self.resizeColumnToContents(i)
 
     def setData(self, structure: DataDictBase,
-                shapes: dict, dtype: Type[DataDictBase]):
+                shapes: Dict[str, Dict[int, int]], dtype: Type[DataDictBase]) -> None:
         """
         set data: add all dimensions to the list, and populate choices.
 
@@ -130,10 +140,10 @@ class DimensionAssignmentWidget(QtGui.QTreeWidget):
         if structure is None:
             self.clear()
             return
-
-        if DataDictBase.same_structure(structure, self._dataStructure) \
-                and shapes == self._dataShapes \
-                and dtype == self._dataType:
+        if (self._dataStructure is not None
+                and DataDictBase.same_structure(structure, self._dataStructure)
+                and shapes == self._dataShapes
+                and dtype == self._dataType):
             return
 
         self.clear()
@@ -145,23 +155,25 @@ class DimensionAssignmentWidget(QtGui.QTreeWidget):
         for ax in self._dataStructure.axes():
             self.addDimension(ax)
 
-    def addDimension(self, name: str):
+    def addDimension(self, name: str) -> None:
         """
         add a new dimension.
 
         :param name: name of the dimension.
         """
-        item = QtGui.QTreeWidgetItem([name, '', '', ''])
+        assert self._dataType is not None
+        item = QtWidgets.QTreeWidgetItem([name, '', '', ''])
         self.addTopLevelItem(item)
 
-        combo = QtGui.QComboBox()
+        combo = QtWidgets.QComboBox()
         for t, opts in self.availableChoices.items():
             if t == self._dataType or issubclass(self._dataType, t):
                 for o in opts:
                     combo.addItem(o)
 
-        combo.setMinimumSize(50, 22)
-        combo.setMaximumHeight(22)
+        scaling = np.rint(self.logicalDpiX() / 96.0)
+        combo.setMinimumSize(50*scaling, 22*scaling)
+        combo.setMaximumHeight(22 * scaling)
         self.setItemWidget(item, 1, combo)
         self.updateSizes()
 
@@ -174,7 +186,7 @@ class DimensionAssignmentWidget(QtGui.QTreeWidget):
         )
         self.setDimInfo(name, '')
 
-    def processSelectionChange(self, name: str, val: str):
+    def processSelectionChange(self, name: str, val: str) -> None:
         """
         Call to notify that a dimension's role should be changed.
         any specific actions should be implemented in :func:`setRole`.
@@ -192,7 +204,7 @@ class DimensionAssignmentWidget(QtGui.QTreeWidget):
             self.rolesChanged.emit(self.getRoles())
             self.emitRoleChangeSignal = True
 
-    def setRole(self, dim: str, role: str = None):
+    def setRole(self, dim: str, role: Optional[str] = None) -> None:
         """
         Set the role for a dimension, including options.
 
@@ -210,25 +222,25 @@ class DimensionAssignmentWidget(QtGui.QTreeWidget):
                     w.deleteLater()
                     self.choices[dim]['optionsWidget'] = None
 
-            self.setItemWidget(item, 2, None)
+            self.setItemWidget(item, 2, QtWidgets.QWidget())
             self.setDimInfo(dim, '')
 
-            self._currentRoles[dim] = {
-                'role' : role,
-                'options' : {},
-            }
+            self._currentRoles[dim] = RoleDict(
+                role=role,
+                options={},
+            )
 
-    def getRole(self, name: str) -> Tuple[str, Any]:
+    def getRole(self, name: str) -> Tuple[str, RoleOptionsDict]:
         """
         Get the current role and its options for a dimension.
         :param name: 
         :return: 
         """
         role = self.choices[name]['roleSelectionWidget'].currentText()
-        opts = {}
+        opts: Dict = {}
         return role, opts
 
-    def getRoles(self) -> Dict[str, Dict[str, Any]]:
+    def getRoles(self) -> Dict[str, RoleDict]:
         """
         Get all roles as set in the UI.
         :return: Dictionary with information on all current roles/options.
@@ -236,29 +248,29 @@ class DimensionAssignmentWidget(QtGui.QTreeWidget):
         ret = {}
         for name, val in self.choices.items():
             role, opts = self.getRole(name)
-            ret[name] = {
-                'role': role,
-                'options': opts,
-            }
+            ret[name] = RoleDict(
+                role=role,
+                options=opts,
+            )
         return ret
 
-    @QtCore.pyqtSlot(str, str)
-    def setDimInfo(self, dim: str, info: str = ''):
+    @Slot(str, str)
+    def setDimInfo(self, dim: str, info: str = '') -> None:
         try:
             item = self.findItems(dim, QtCore.Qt.MatchExactly, 0)[0]
             item.setText(3, info)
         except IndexError:
             pass
 
-    @QtCore.pyqtSlot(dict)
-    def setDimInfos(self, infos: Dict[str, str]):
+    @Slot(dict)
+    def setDimInfos(self, infos: Dict[str, str]) -> None:
         for ax, info in infos.items():
             self.setInfo(ax, info)
 
 
 class DimensionReductionAssignmentWidget(DimensionAssignmentWidget):
 
-    def __init__(self, parent=None):
+    def __init__(self, parent: Optional[QtWidgets.QWidget] = None):
         super().__init__(parent)
 
         self.availableChoices[MeshgridDataDict] += [
@@ -266,7 +278,7 @@ class DimensionReductionAssignmentWidget(DimensionAssignmentWidget):
             ReductionMethod.elementSelection.value,
         ]
 
-    def getRole(self, name: str):
+    def getRole(self, name: str) -> Tuple[str, Dict]:
         role, opts = super().getRole(name)
 
         if role == ReductionMethod.elementSelection.value:
@@ -274,7 +286,7 @@ class DimensionReductionAssignmentWidget(DimensionAssignmentWidget):
 
         return role, opts
 
-    def setRole(self, dim: str, role: str = None, **kw):
+    def setRole(self, dim: str, role: Optional[str] = None, **kw: Any) -> None:
         super().setRole(dim, role)
 
         # at this point, we've already populated the dropdown.
@@ -285,7 +297,10 @@ class DimensionReductionAssignmentWidget(DimensionAssignmentWidget):
             value = kw.get('index', 0)
 
             # only create the slider widget if it doesn't exist yet
-            if self.itemWidget(item, 2) is None:
+            if (self.itemWidget(item, 2) is None) or \
+                    (self.choices[dim]['optionsWidget'] is None):
+                assert self._dataStructure is not None
+                assert self._dataShapes is not None
                 # get the number of elements in this dimension
                 axidx = self._dataStructure.axes().index(dim)
                 naxvals = self._dataShapes[dim][axidx]
@@ -294,8 +309,11 @@ class DimensionReductionAssignmentWidget(DimensionAssignmentWidget):
                 w.valueChanged.connect(
                     lambda x: self.elementSelectionSliderChange(dim))
 
-                w.setMinimumSize(150, 22)
-                w.setMaximumHeight(22)
+                scaling = np.rint(self.logicalDpiX() / 96.0)
+                width = 150 + 50*(scaling - 1)
+                height = 22*scaling
+                w.setMinimumSize(width, height)
+                w.setMaximumHeight(height)
 
                 self.choices[dim]['optionsWidget'] = w
                 self.setItemWidget(item, 2, w)
@@ -303,24 +321,26 @@ class DimensionReductionAssignmentWidget(DimensionAssignmentWidget):
 
             self._setElementSelectionInfo(dim)
 
-    def elementSelectionSlider(self, nvals: int, value: int = 0):
-        w = QtGui.QSlider(0x01)
+    def elementSelectionSlider(self, nvals: int, value: int = 0) -> QtWidgets.QSlider:
+        w = QtWidgets.QSlider(QtCore.Qt.Horizontal)
         w.setMinimum(0)
         w.setMaximum(nvals - 1)
         w.setSingleStep(1)
         w.setPageStep(1)
         w.setTickInterval(max(1, nvals//10))
-        w.setTickPosition(QtGui.QSlider.TicksBelow)
+        w.setTickPosition(QtWidgets.QSlider.TicksBelow)
         w.setValue(value)
         return w
 
-    def elementSelectionSliderChange(self, dim: str):
+    def elementSelectionSliderChange(self, dim: str) -> None:
         self._setElementSelectionInfo(dim)
         roles = self.getRoles()
         self.rolesChanged.emit(roles)
 
-    def _setElementSelectionInfo(self, dim):
+    def _setElementSelectionInfo(self, dim: str) -> None:
         # get the number of elements in this dimension
+        assert self._dataStructure is not None
+        assert self._dataShapes is not None
         roles = self.getRoles()
         axidx = self._dataStructure.axes().index(dim)
         naxvals = self._dataShapes[dim][axidx]
@@ -329,12 +349,12 @@ class DimensionReductionAssignmentWidget(DimensionAssignmentWidget):
 
 
 class XYSelectionWidget(DimensionReductionAssignmentWidget):
-    def __init__(self, parent=None):
+    def __init__(self, parent: Optional[QtWidgets.QWidget] = None):
         super().__init__(parent)
 
         self.availableChoices[DataDictBase] += ["x-axis", "y-axis"]
 
-    def setRole(self, dim: str, role: str = None, **kw):
+    def setRole(self, dim: str, role: Optional[str] = None, **kw: Any) -> None:
         super().setRole(dim, role, **kw)
 
         # there can only be one x and y axis element.
@@ -349,9 +369,9 @@ class XYSelectionWidget(DimensionReductionAssignmentWidget):
 
 class DimensionReducerNodeWidget(NodeWidget):
 
-    def __init__(self, node: Node = None):
+    def __init__(self, node: Optional[Node] = None):
         super().__init__(embedWidgetClass=DimensionReductionAssignmentWidget)
-
+        assert self.widget is not None
         self.optSetters = {
             'reductions': self.setReductions,
         }
@@ -362,9 +382,10 @@ class DimensionReducerNodeWidget(NodeWidget):
         self.widget.rolesChanged.connect(
             lambda x: self.signalOption('reductions'))
 
-    def getReductions(self):
+    def getReductions(self) -> Dict[str, Optional[ReductionType]]:
+        assert self.widget is not None
         roles = self.widget.getRoles()
-        reductions = {}
+        reductions: Dict[str, Optional[ReductionType]] = {}
         for dimName, rolesOptions in roles.items():
             role = rolesOptions['role']
             opts = rolesOptions['options']
@@ -374,8 +395,11 @@ class DimensionReducerNodeWidget(NodeWidget):
 
         return reductions
 
-    def setReductions(self, reductions):
-        for dimName, (method, arg, kw) in reductions.items():
+    def setReductions(self, reductions: Dict[str, Optional[ReductionType]]) -> None:
+        assert self.widget is not None
+        for dimName, reduction in reductions.items():
+            assert reduction is not None
+            (method, arg, kw) = reduction
             role = method.value
             self.widget.setRole(dimName, role, **kw)
 
@@ -383,7 +407,11 @@ class DimensionReducerNodeWidget(NodeWidget):
             if dimName not in reductions.keys():
                 self.widget.setRole(dimName, 'None')
 
-    def setData(self, structure, shapes, dtype):
+    def setData(self,
+                structure: DataDictBase,
+                shapes: Dict[str, Dict[int, int]],
+                dtype: Type[DataDictBase]) -> None:
+        assert self.widget is not None
         self.widget.setData(structure, shapes, dtype)
 
 
@@ -416,42 +444,42 @@ class DimensionReducer(Node):
     """
 
     nodeName = 'DimensionReducer'
-    uiClass = DimensionReducerNodeWidget
+    uiClass: Type["NodeWidget"] = DimensionReducerNodeWidget
 
     #: A signal that emits (structure, shapes, type) when data structure has
     #: changed.
-    newDataStructure = QtCore.pyqtSignal(object, object, object)
+    newDataStructure = Signal(object, object, object)
 
-    def __init__(self, *arg, **kw):
-        self._reductions = {}
-        self._targetNames = None
+    def __init__(self,  name: str):
+        self._reductions: Dict[str, Optional[ReductionType]] = {}
+        self._targetNames: Optional[List[str]] = None
         self._dataStructure = None
 
-        super().__init__(*arg, **kw)
+        super().__init__(name)
 
     # Properties
 
     @property
-    def reductions(self):
+    def reductions(self) -> Dict[str, Optional[ReductionType]]:
         return self._reductions
 
-    @reductions.setter
+    @reductions.setter  # type: ignore[misc]
     @updateOption('reductions')
-    def reductions(self, val):
+    def reductions(self, val: Dict[str, Optional[ReductionType]]) -> None:
         self._reductions = val
 
     @property
-    def targetNames(self):
+    def targetNames(self) -> Optional[List[str]]:
         return self._targetNames
 
-    @targetNames.setter
+    @targetNames.setter  # type: ignore[misc]
     @updateOption()
-    def targetNames(self, val):
+    def targetNames(self, val: Optional[List[str]]) -> None:
         self._targetNames = val
 
     # Data processing
 
-    def _applyDimReductions(self, data):
+    def _applyDimReductions(self, data: DataDictBase) -> Optional[DataDictBase]:
         """Apply the reductions"""
         if self._targetNames is not None:
             dnames = self._targetNames
@@ -465,6 +493,7 @@ class DimensionReducer(Node):
 
         for n in dnames:
             for ax, reduction in self._reductions.items():
+                fun: Optional[ReductionMethod]
                 if reduction is not None:
                     fun, arg, kw = reduction
                 else:
@@ -483,9 +512,9 @@ class DimensionReducer(Node):
 
                     # check that the new shape is actually correct
                     # get target shape by removing the right axis
-                    targetShape = list(data[n]['values'].shape)
-                    del targetShape[idx]
-                    targetShape = tuple(targetShape)
+                    targetShape_list = list(data[n]['values'].shape)
+                    del targetShape_list[idx]
+                    targetShape = tuple(targetShape_list)
 
                     # support for both pre-defined and custom functions
                     if isinstance(fun, ReductionMethod):
@@ -506,7 +535,8 @@ class DimensionReducer(Node):
                     # since we are on a meshgrid, we also need to reduce
                     # the dimensions of the coordinate meshes
                     for ax in data[n]['axes']:
-                        if len(data.data_vals(ax).shape) > len(targetShape):
+                        axdata = data.data_vals(ax)
+                        if len(axdata.shape) > len(targetShape):
                             newaxvals = funCall(data[ax]['values'], *arg, **kw)
                             data[ax]['values'] = newaxvals
 
@@ -516,7 +546,7 @@ class DimensionReducer(Node):
         data.validate()
         return data
 
-    def validateOptions(self, data):
+    def validateOptions(self, data: DataDictBase) -> bool:
         """
         Checks performed:
         * each item in reduction must be of the form (fun, [*arg], {**kw}),
@@ -541,7 +571,7 @@ class DimensionReducer(Node):
                 fun = reduction[0]
                 if len(reduction) == 1:
                     arg = []
-                    kw = {}
+                    kw: Dict[str, int] = {}
                 elif len(reduction) == 2:
                     arg = reduction[1]
                     kw = {}
@@ -576,7 +606,10 @@ class DimensionReducer(Node):
 
         return True
 
-    def process(self, dataIn: DataDictBase = None):
+    def process(
+            self,
+            dataIn: Optional[DataDictBase] = None) -> \
+            Optional[Dict[str, Optional[DataDictBase]]]:
         if dataIn is None:
             return None
 
@@ -585,24 +618,27 @@ class DimensionReducer(Node):
         if data is None:
             return None
 
-        data = data['dataOut'].copy()
+        dataout = data['dataOut']
+        assert dataout is not None
+        data = dataout.copy()
         data = data.mask_invalid()
         data = self._applyDimReductions(data)
 
         return dict(dataOut=data)
 
     # FIXME: include connection to a method that helps updating sliders etc.
-    def setupUi(self):
+    def setupUi(self) -> None:
         super().setupUi()
+        assert self.ui is not None
         self.newDataStructure.connect(self.ui.setData)
 
 
 class XYSelectorNodeWidget(NodeWidget):
 
-    icon = xySelectIcon
-
-    def __init__(self, node: Node = None):
+    def __init__(self, node: Optional[Node] = None):
+        self.icon = get_xySelectIcon()
         super().__init__(embedWidgetClass=XYSelectionWidget)
+        assert self.widget is not None
 
         self.optSetters = {
             'dimensionRoles': self.setRoles,
@@ -615,7 +651,8 @@ class XYSelectorNodeWidget(NodeWidget):
             lambda x: self.signalOption('dimensionRoles')
         )
 
-    def getRoles(self):
+    def getRoles(self) -> Dict[str, str]:
+        assert self.widget is not None
         widgetRoles = self.widget.getRoles()
         roles = {}
         for dimName, rolesOptions in widgetRoles.items():
@@ -632,7 +669,8 @@ class XYSelectorNodeWidget(NodeWidget):
 
         return roles
 
-    def setRoles(self, roles):
+    def setRoles(self, roles: Dict[str, str]) -> None:
+        assert isinstance(self.widget, XYSelectionWidget)
         # when this is called, we do not want the UI to signal changes.
         self.widget.emitRoleChangeSignal = False
 
@@ -652,7 +690,11 @@ class XYSelectorNodeWidget(NodeWidget):
 
         self.widget.emitRoleChangeSignal = True
 
-    def setData(self, structure, shapes, dtype):
+    def setData(self,
+                structure: DataDictBase,
+                shapes: Dict[str, Dict[int, int]],
+                dtype: Type[DataDictBase]) -> None:
+        assert self.widget is not None
         self.widget.setData(structure, shapes, dtype)
 
 
@@ -661,22 +703,22 @@ class XYSelector(DimensionReducer):
     nodeName = 'XYSelector'
     uiClass = XYSelectorNodeWidget
 
-    def __init__(self, *arg, **kw):
-        self._xyAxes = (None, None)
-        super().__init__(*arg, **kw)
+    def __init__(self, name: str):
+        self._xyAxes: Tuple[Optional[str], Optional[str]] = (None, None)
+        super().__init__(name)
 
     @property
-    def xyAxes(self):
+    def xyAxes(self) -> Tuple[Optional[str], Optional[str]]:
         return self._xyAxes
 
-    @xyAxes.setter
+    @xyAxes.setter  # type: ignore[misc]
     @updateOption('xyAxes')
-    def xyAxes(self, val):
+    def xyAxes(self, val: Tuple[Optional[str], Optional[str]]) -> None:
         self._xyAxes = val
 
     @property
-    def dimensionRoles(self):
-        dr = {}
+    def dimensionRoles(self) -> Dict[str, Union[str, ReductionType, None]]:
+        dr: Dict[str, Union[str, ReductionType, None]] = {}
         if self.xyAxes[0] is not None:
             dr[self.xyAxes[0]] = 'x-axis'
         if self.xyAxes[1] is not None:
@@ -685,20 +727,21 @@ class XYSelector(DimensionReducer):
             dr[dim] = red
         return dr
 
-    @dimensionRoles.setter
+    @dimensionRoles.setter  # type: ignore[misc]
     @updateOption('dimensionRoles')
-    def dimensionRoles(self, val):
-        xy = [None, None]
+    def dimensionRoles(self, val: Dict[str, str]) -> None:
+        x = None
+        y = None
         for dimName, role in val.items():
             if role == 'x-axis':
-                xy[0] = dimName
+                x = dimName
             elif role == 'y-axis':
-                xy[1] = dimName
+                y = dimName
             else:
-                self._reductions[dimName] = role
-        self._xyAxes = tuple(xy)
+                self._reductions[dimName] = cast(Optional[ReductionType], role)
+        self._xyAxes = (x, y)
 
-    def validateOptions(self, data):
+    def validateOptions(self, data: DataDictBase) -> bool:
         """
         Checks performed:
         * values for xAxis and yAxis must be axes that exist for the input
@@ -759,7 +802,7 @@ class XYSelector(DimensionReducer):
 
                     # reductions are only supported on GridData
                     if isinstance(data, MeshgridDataDict):
-                        red = (ReductionMethod.elementSelection, [],
+                        red: Optional[ReductionType] = (ReductionMethod.elementSelection, [],
                                dict(index=0))
                     else:
                         red = None
@@ -775,19 +818,23 @@ class XYSelector(DimensionReducer):
 
         return True
 
-    def process(self, **kw):
-        data = kw['dataIn']
-        if data is None:
+    def process(
+            self,
+            dataIn: Optional[DataDictBase] = None
+    ) -> Optional[Dict[str, Optional[DataDictBase]]]:
+        if dataIn is None:
             return None
 
-        data = super().process(dataIn=data)
+        data = super().process(dataIn=dataIn)
         if data is None:
             return None
-        data = data['dataOut'].copy()
+        dataout = data['dataOut']
+        assert dataout is not None
+        data = dataout.copy()
 
         if self._xyAxes[0] is not None and self._xyAxes[1] is not None:
             _kw = {self._xyAxes[0]: 0, self._xyAxes[1]: 1}
-            data = data.reorder_axes(**_kw)
+            data = data.reorder_axes(None, **_kw)
 
         # it is possible that UI options have been re-generated, while the
         # options in the node have not been changed. to make sure everything

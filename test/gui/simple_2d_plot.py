@@ -1,7 +1,7 @@
 import logging
 import time
 
-from plottr import QtGui
+from plottr import QtWidgets
 from plottr import log
 from plottr.data.datadict import DataDict, datadict_to_meshgrid
 from plottr.utils import testdata
@@ -20,7 +20,7 @@ logger = setup_logging()
 
 
 def simple_2d_plot():
-    app = QtGui.QApplication([])
+    app = QtWidgets.QApplication([])
     win = PlotWindow()
     plot = AutoPlot(parent=win)
     win.plot.setPlotWidget(plot)

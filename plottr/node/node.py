@@ -7,10 +7,10 @@ import traceback
 from logging import Logger
 
 from functools import wraps
-from typing import Any, Union, Tuple, Dict
+from typing import Any, Union, Tuple, Dict, Optional, Type, List, Callable, TypeVar
 
 from .. import NodeBase
-from .. import QtGui, QtCore, Signal, Slot
+from .. import QtGui, QtCore, Signal, Slot, QtWidgets
 from ..data.datadict import DataDictBase, MeshgridDataDict
 from .. import log
 
@@ -19,9 +19,12 @@ __license__ = 'MIT'
 
 
 # TODO: implement a threaded version of Node
+R = TypeVar('R', bound="Node")
+S = TypeVar('S')
+T = TypeVar('T')
 
 
-def updateOption(optName: Union[None, str] = None):
+def updateOption(optName: Optional[str] = None) -> Callable[[Callable[[R, S], T]], Callable[[R, S], T]]:
     """Decorator for property setters that are handy for user options.
 
     Property setters in nodes that are decorated with this will do two things:
@@ -31,9 +34,9 @@ def updateOption(optName: Union[None, str] = None):
     :param optName: name of the property.
     """
 
-    def decorator(func):
+    def decorator(func: Callable[[R, S], T]) -> Callable[[R, S], T]:
         @wraps(func)
-        def wrap(self, val):
+        def wrap(self: R, val: S) -> T:
             ret = func(self, val)
             if optName is not None and self.ui is not None and \
                     optName in self.ui.optSetters:
@@ -46,7 +49,11 @@ def updateOption(optName: Union[None, str] = None):
     return decorator
 
 
-def updateGuiFromNode(func):
+U = TypeVar('U', bound="NodeWidget")
+V = TypeVar('V',)
+
+
+def updateGuiFromNode(func: Callable[..., V]) -> Callable[..., V]:
     """
     Decorator for the UI to set an internal flag to during execution of
     the wrapped function. Prevents recursive updating (i.e., if
@@ -55,7 +62,7 @@ def updateGuiFromNode(func):
     """
 
     @wraps(func)
-    def wrap(self, *arg, **kw):
+    def wrap(self: U, *arg: Any, **kw: Any) -> V:
         self._emitGuiChange = False
         ret = func(self, *arg, **kw)
         self._emitGuiChange = True
@@ -66,8 +73,10 @@ def updateGuiFromNode(func):
 
 updateGuiQuietly = updateGuiFromNode
 
+W = TypeVar('W')
 
-def emitGuiUpdate(signalName: str):
+
+def emitGuiUpdate(signalName: str) -> Callable[[Callable[..., Any]], Callable[..., None]]:
     """
     Decorator for UI functions to emit the signal ``signalName``
     (given as argument the decorator), with the return of the wrapped function.
@@ -79,9 +88,9 @@ def emitGuiUpdate(signalName: str):
     :param signalName: name of the signal to emit.
     """
 
-    def decorator(func):
+    def decorator(func: Callable[..., Any]) -> Callable[..., None]:
         @wraps(func)
-        def wrap(self, *arg, **kw):
+        def wrap(self: W, *arg: Any, **kw: Any) -> None:
             ret = func(self, *arg, **kw)
             emit = getattr(self, '_emitGuiChange', True)
             if emit:
@@ -111,7 +120,7 @@ class Node(NodeBase):
 
     #: UI node widget class. If not None, and ``useUi`` is ``True``, an
     #: instance of the widget is created, and signal/slots are connected.
-    uiClass = None
+    uiClass: Optional[Type["NodeWidget"]] = None
 
     #: Whether or not to automatically set up a UI widget.
     useUi = True
@@ -121,7 +130,7 @@ class Node(NodeBase):
 
     #: A signal to notify the UI of option changes
     #: arguments is a dictionary of options and new values.
-    optionChangeNotification = QtCore.pyqtSignal(dict)
+    optionChangeNotification = Signal(dict)
 
     #: signal emitted when available data axes change
     #: emits a the list of names of new axes
@@ -141,7 +150,7 @@ class Node(NodeBase):
     dataShapesChanged = Signal(dict)
 
     #: when data structure changes, emits (structure, shapes, type)
-    newDataStructure = QtCore.pyqtSignal(object, object, object)
+    newDataStructure = Signal(object, object, object)
 
     #: developer flag for whether we actually want to raise of use the logging
     #: system
@@ -155,19 +164,19 @@ class Node(NodeBase):
         super().__init__(name, terminals=self.__class__.terminals)
 
         self.signalUpdate = True
-        self.dataAxes = None
-        self.dataDependents = None
-        self.dataType = None
-        self.dataShapes = None
-        self.dataStructure = None
+        self.dataAxes: Optional[List[str]] = None
+        self.dataDependents: Optional[List[str]] = None
+        self.dataType: Optional[Type[DataDictBase]] = None
+        self.dataShapes: Optional[Dict[str, Tuple[int, ...]]] = None
+        self.dataStructure: Optional[DataDictBase] = None
 
         if self.useUi and self.__class__.uiClass is not None:
-            self.ui = self.__class__.uiClass(node=self)
+            self.ui: Optional["NodeWidget"] = self.__class__.uiClass(node=self)
             self.setupUi()
         else:
             self.ui = None
 
-    def setupUi(self):
+    def setupUi(self) -> None:
         """ setting up the UI widget.
 
         Gets called automatically in the node initialization.
@@ -177,16 +186,17 @@ class Node(NodeBase):
         UI widget (like connecting additional signals/slots between node and
         node widget).
         """
+        assert self.ui is not None
         self.ui.optionToNode.connect(self.setOption)
         self.ui.allOptionsToNode.connect(self.setOptions)
         self.optionChangeNotification.connect(self.ui.setOptionsFromNode)
 
-    def ctrlWidget(self) -> Union[QtGui.QWidget, None]:
+    def ctrlWidget(self) -> Union[QtWidgets.QWidget, None]:
         """Returns the node widget, if it exists.
         """
         return self.ui
 
-    def setOption(self, nameAndVal: Tuple[str, Any]):
+    def setOption(self, nameAndVal: Tuple[str, Any]) -> None:
         """Set an option.
 
         name is the name of the property, not the string used for referencing
@@ -197,7 +207,7 @@ class Node(NodeBase):
         name, val = nameAndVal
         setattr(self, name, val)
 
-    def setOptions(self, opts: Dict[str, Any]):
+    def setOptions(self, opts: Dict[str, Any]) -> None:
         """Set multiple options.
 
         :param opts: a dictionary of property name : value pairs.
@@ -205,7 +215,7 @@ class Node(NodeBase):
         for opt, val in opts.items():
             setattr(self, opt, val)
 
-    def update(self, signal=True):
+    def update(self, signal: bool = True) -> None:
         super().update(signal=signal)
         if Node._raiseExceptions and self.exception is not None:
             raise self.exception[1]
@@ -221,13 +231,12 @@ class Node(NodeBase):
 
         :return: logger with a name that can be traced back easily to this node.
         """
-        name = self.__module__ + '.' + self.__class__.__name__ + '.' \
-               + self.name()
-        logger = log.getLogger()
+        name = f"{self.__module__}.{self.__class__.__name__}.{self.name()}"
+        logger = log.getLogger(name)
         logger.setLevel(log.LEVEL)
         return logger
 
-    def validateOptions(self, data: Any) -> bool:
+    def validateOptions(self, data: DataDictBase) -> bool:
         """Validate the user options
 
         Does nothing in this base implementation. Can be reimplemented by any
@@ -237,7 +246,7 @@ class Node(NodeBase):
         """
         return True
 
-    def process(self, dataIn: DataDictBase=None):
+    def process(self, dataIn: Optional[DataDictBase]=None) -> Optional[Dict[str, Optional[DataDictBase]]]:
         if dataIn is None:
             return None
 
@@ -310,7 +319,7 @@ class Node(NodeBase):
         return dict(dataOut=dataIn)
 
 
-class NodeWidget(QtGui.QWidget):
+class NodeWidget(QtWidgets.QWidget):
     """
     Base class for Node control widgets.
 
@@ -320,32 +329,33 @@ class NodeWidget(QtGui.QWidget):
     """
 
     #: icon for this node
-    icon = None
+    icon: Optional[QtGui.QIcon] = None
 
     #: preferred location of the widget when used as dock widget
     preferredDockWidgetArea = QtCore.Qt.LeftDockWidgetArea
 
     #: signal (args: object)) to emit to notify the node of a (changed)
     #: user option.
-    optionToNode = QtCore.pyqtSignal(object)
+    optionToNode = Signal(object)
 
     #: signal (args: (object)) all options to the node.
-    allOptionsToNode = QtCore.pyqtSignal(object)
+    allOptionsToNode = Signal(object)
 
-    def __init__(self, parent: QtGui.QWidget = None,
-                 embedWidgetClass: QtGui.QWidget = None,
-                 node: Node = None):
+    def __init__(self, parent: Optional[QtWidgets.QWidget] = None,
+                 embedWidgetClass: Optional[Type[QtWidgets.QWidget]] = None,
+                 node: Optional[Node] = None):
         super().__init__(parent)
 
-        self.optGetters = {}
-        self.optSetters = {}
+        self.optGetters: Dict[str, Callable[[], Any]] = {}
+        self.optSetters: Dict[str, Callable[[Any], None]] = {}
         self.node = node
 
         self._emitGuiChange = True
 
-        self.widget = None
+        self.widget: Optional[QtWidgets.QWidget] = None
+
         if embedWidgetClass is not None:
-            layout = QtGui.QVBoxLayout()
+            layout = QtWidgets.QVBoxLayout()
             layout.setContentsMargins(0, 0, 0, 0)
             self.widget = embedWidgetClass()
             layout.addWidget(self.widget)
@@ -360,7 +370,7 @@ class NodeWidget(QtGui.QWidget):
         return ret
 
     @updateGuiFromNode
-    def setOptionFromNode(self, opt: str, value: Any):
+    def setOptionFromNode(self, opt: str, value: Any) -> None:
         """Set an option from the node
 
         Calls the set function specified in the class' ``optSetters``.
@@ -371,8 +381,8 @@ class NodeWidget(QtGui.QWidget):
         """
         self.optSetters[opt](value)
 
-    @QtCore.pyqtSlot(dict)
-    def setOptionsFromNode(self, opts: Dict[str, Any]):
+    @Slot(dict)
+    def setOptionsFromNode(self, opts: Dict[str, Any]) -> None:
         """Set all options without triggering updates back to the node."""
         for opt, val in opts.items():
             self.setOptionFromNode(opt, val)
