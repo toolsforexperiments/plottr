@@ -124,8 +124,8 @@ class ScaleUnits(Node):
         assert dataIn is not None
         data = dataIn.copy()
 
-        for name, data_item in data.data_items():
-            if self.scale_unit_option != ScaleUnitsOption.never:
+        if self.scale_unit_option != ScaleUnitsOption.never:
+            for name, data_item in data.data_items():        
                 prefix, selected_scale = find_scale_and_prefix(
                     data_item['values'],
                     data_item["unit"]
