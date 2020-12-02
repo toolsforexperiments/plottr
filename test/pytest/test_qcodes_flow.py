@@ -9,6 +9,7 @@ from plottr.node.tools import linearFlowchart
 from plottr.data.qcodes_dataset import QCodesDSLoader
 from plottr.node.data_selector import DataSelector
 from plottr.node.grid import DataGridder, GridOption
+from plottr.node.scaleunits import ScaleUnits
 
 
 @pytest.mark.skipif(version.parse(qc.__version__)
@@ -20,6 +21,7 @@ def test_qcodes_flow_shaped_data(qtbot, dataset_with_shape):
         ('Data loader', QCodesDSLoader),
         ('Data selection', DataSelector),
         ('Grid', DataGridder),
+        ('Scale Units', ScaleUnits)
     )
     loader = fc.nodes()['Data loader']
     selector = fc.nodes()['Data selection']
