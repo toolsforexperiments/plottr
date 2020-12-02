@@ -490,8 +490,8 @@ class QCodesDBInspector(QtWidgets.QMainWindow):
         if len(dates) > 0:
             assert self.dbdf is not None
             selection = self.dbdf.loc[self.dbdf['started_date'].isin(dates)].sort_index(ascending=False)
-            old_selection = self._selected_dates
-            if not all(date in old_selection for date in dates):
+            old_dates = self._selected_dates
+            if not all(date in old_dates for date in dates):
                 self.runList.setRuns(selection.to_dict(orient='index'))
             else:
                 self.runList.updateRuns(selection.to_dict(orient='index'))
