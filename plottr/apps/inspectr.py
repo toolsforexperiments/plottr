@@ -17,7 +17,7 @@ import time
 import sys
 import argparse
 import logging
-from typing import Optional, Sequence, List, Dict, Iterable, Union, cast
+from typing import Optional, Sequence, List, Dict, Iterable, Union, cast, Tuple
 from typing_extensions import TypedDict
 
 from numpy import rint
@@ -292,6 +292,7 @@ class QCodesDBInspector(QtWidgets.QMainWindow):
 
         # Main Selection widgets
         self.dateList = DateList()
+        self._selected_dates: Tuple[str, ...] = ()
         self.runList = RunList()
         self.runInfo = RunInfo()
 
@@ -489,13 +490,14 @@ class QCodesDBInspector(QtWidgets.QMainWindow):
         if len(dates) > 0:
             assert self.dbdf is not None
             selection = self.dbdf.loc[self.dbdf['started_date'].isin(dates)].sort_index(ascending=False)
-            old_selection = [item.text()
-                             for item in self.dateList.selectedItems()]
+            old_selection = self._selected_dates
             if not all(date in old_selection for date in dates):
                 self.runList.setRuns(selection.to_dict(orient='index'))
             else:
                 self.runList.updateRuns(selection.to_dict(orient='index'))
+            self._selected_dates = tuple(dates)
         else:
+            self._selected_dates = ()
             self.runList.clear()
 
     @Slot(int)
