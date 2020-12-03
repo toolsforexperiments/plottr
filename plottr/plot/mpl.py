@@ -951,9 +951,9 @@ class AutoPlot(_MPLPlotWidget):
         else:
             if ComplexRepresentation.realAndImag:
                 self.complexRepresentation is ComplexRepresentation.realAndImag
-            if self.complexRepresentation is ComplexRepresentation.real:
+            if ComplexRepresentation.real:
                 self.complexRepresentation is ComplexRepresentation.real
-            if self.complexRepresentation is ComplexRepresentation.magAndPhase:
+            if ComplexRepresentation.magAndPhase:
                 self.complexRepresentation is ComplexRepresentation.magAndPhase
 
         if self.plotType is PlotType.multitraces:
