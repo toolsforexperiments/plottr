@@ -10,7 +10,8 @@ from plottr import log as plottrlog
 
 def make_data():
     # d = testdata.three_incompatible_3d_sets(51, 51, 21)
-    d = testdata.three_compatible_3d_sets(51, 51, 21)
+    # d = testdata.three_compatible_3d_sets(51, 51, 21)
+    d = testdata.get_1d_scalar_cos_data(21, 3)
     return d
 
 

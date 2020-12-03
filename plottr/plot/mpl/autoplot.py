@@ -1,317 +1,505 @@
 """
-plottr.plot.mpl.autoplot -- tools for automatically generating plots from
-input data.
+plottr/plot/mpl/autoplot.py  -- tools for automatically generating matplotlib
+plots from input data.
 """
 
-
-from typing import Dict, List, Tuple, Union
+import logging
+from typing import Dict, List, Tuple, Union, Callable, Optional, Any, Type
 from collections import OrderedDict
 
 import numpy as np
-from matplotlib import pyplot as plt
+from matplotlib import rc, pyplot as plt
 from matplotlib.axes import Axes
+from matplotlib.figure import Figure
+from matplotlib.gridspec import GridSpec
 from matplotlib.image import AxesImage
 
-from . import PlotDataType, ComplexRepresentation
-from .utils import attach_color_ax
+from plottr import QtWidgets, QtCore, Signal, Slot
+from plottr.data.datadict import DataDictBase
+from plottr.icons import (get_singleTracePlotIcon, get_multiTracePlotIcon, get_imagePlotIcon,
+                          get_colormeshPlotIcon, get_scatterPlot2dIcon)
+from ..base import AutoFigureMaker as BaseFM, PlotType, PlotDataType, \
+    PlotItem, SubPlot, ComplexRepresentation, determinePlotDataType
+from .widgets import MPLPlotWidget
+from .utils import attachColorAx
 
 
-def _generate_auto_dict_key(d: Dict):
-    guess = 0
-    while guess in d.keys():
-        guess += 1
-    return guess
+logger = logging.getLogger(__name__)
+logger.setLevel(logging.INFO)
 
 
-class FigureMakerBase(object):
-    """Automatic creation of figures based on input data.
+class FigureMaker(BaseFM):
+    """Matplotlib implementation for :class:`.AutoFigureMaker`."""
 
-    FigureMakerBase is a context manager. The user should eventually only need to
-    add data and specify what kind of data it is. FigureMakerBase will then generate
-    plots from that.
-
-    In the simplest form, usage looks something like this::
-
-        >>> with FigureMakerBase() as fm:
-        >>>     fm.add_plot(plot_func, xvals, yvals)
-        >>>     [...]
-
-    See :method:`add_plot` for details on how to specify data and how to plot it.
-
-    This base class still requires specifying a plot function when adding data.
-    This is mainly to create a uniform blueprint on how to implement data adding
-    and plotting.
-    Inheriting classes have more specific methods for adding data, which automatically
-    use predefined plot functions.
-    """
-
-    # TODO: implement feature for always plotting certain traces with other
-    #   other ones ('children'). This is mainly used for models/fits.
-    #   needs a system to copy certain style aspects from the parents.
-    # TODO: similar, but with siblings (imagine Re/Im parts)
-    # TODO: need a system for styling based on a name filter
-    # TODO: need a system for styling with style sets
-    # TODO: support for error bars
-    # TODO: marker filling with a different alpha/tint than the rest of the curve
-
-    default_style = None
-
-    def __init__(self):
-
-        self.axes = OrderedDict()
-        self.plot_items = OrderedDict()
-        self.images = OrderedDict()
-        self.layout = 'grid-square'
-        self.figsize = 'auto'
-        self.fig = None
-
-    def __enter__(self):
-        return self
+    def __init__(self, fig: Figure):
+        super().__init__()
+        self.fig = fig
 
     def __exit__(self, exc_type, exc_value, traceback):
-        self._make_axes()
-        for axname in self.axes.keys():
-            self._plot_axes(axname)
+        self.fig.clear()
+        super().__exit__(exc_type, exc_value, traceback)
 
-        self.fig.tight_layout()
-
-    # private methods
-    def _make_axes(self):
-        nax = len(self.axes)
-        if self.layout == 'grid-square':
-            nrows = int(nax ** .5 + .5)
-            ncols = np.ceil(nax / nrows)
+    def makeAxes(self, nSubPlots: int) -> List[Axes]:
+        if nSubPlots > 0:
+            nrows = int(nSubPlots ** .5 + .5)
+            ncols = int(np.ceil(nSubPlots / nrows))
+            gs = GridSpec(nrows, ncols, self.fig)
+            axes = [self.fig.add_subplot(gs[i]) for i in range(nSubPlots)]
         else:
-            raise ValueError('only grid-square layout supported.')
+            axes = []
+        return axes
 
-        if self.figsize == 'auto':
-            size = ncols * 3 + 1, nrows * 2 + 1
-        else:
-            size = self.figsize
+    def formatSubPlot(self, subPlotId: int):
+        labels = self.subPlotLabels(subPlotId)
+        axes = self.subPlots[subPlotId].axes
 
-        if self.default_style is not None:
-            plt.style.use(self.default_style)
+        if len(axes) > 0:
+            if len(labels) > 0 and len(set(labels[0])) == 1:
+                axes[0].set_xlabel(labels[0][0])
+            if len(labels) > 1 and len(set(labels[1])) == 1:
+                axes[0].set_ylabel(labels[1][0])
 
-        self.fig = plt.figure(figsize=size)
-        for i, ax_name in zip(range(1, nax + 1), self.axes.keys()):
-            self.axes[ax_name]['axes'] = self.fig.add_subplot(nrows, ncols, i)
+        if len(labels) == 2 and len(set(labels[1])) > 1:
+            axes[0].legend(loc='best', fontsize='small')
 
-    def _plot_axes(self, axname):
-        plot_names = self._find_ax_plots(axname)
+        if len(axes) > 1:
+            if len(labels) > 2 and len(set(labels[2])) == 1:
+                axes[1].set_ylabel(labels[2][0])
 
-        xlbls = {}
-        ylbls = {}
-        clbls = {}
-        for n in plot_names:
-            dlbls = self.plot_items[n]['dim_labels']
-            if dlbls is not None:
-                if len(dlbls) >= 1 and dlbls[0] is not None:
-                    xlbls[n] = dlbls[0]
-                if len(dlbls) >= 2 and dlbls[1] is not None:
-                    ylbls[n] = dlbls[1]
-                if len(dlbls) >= 3 and dlbls[2] is not None:
-                    clbls[n] = dlbls[2]
+    def plot_line(self, plotItem: PlotItem):
+        ax = self.subPlots[plotItem.subPlot].axes[0]
+        return ax.plot(*plotItem.data, label=plotItem.labels[-1],
+                       **plotItem.plotOptions)
 
-        xlabel = ''
-        ylabel = ''
-        clabel = ''
-
-        if len(set(xlbls.values())) == 1:
-            xlabel = list(xlbls.values())[0]
-        if len(set(ylbls.values())) == 1:
-            ylabel = list(ylbls.values())[0]
-        if len(set(clbls.values())) == 1:
-            clabel = list(clbls.values())[0]
-
-        has_legend = False
-        for n in plot_names:
-            label = self.plot_items[n]['plot_kwargs'].pop('label', None)
-            if len(set(xlbls.values())) > 1 and n in xlbls:
-                if label is None:
-                    label = f"vs. {xlbls[n]}"
-                else:
-                    label = f"vs. {xlbls[n]}: {label}"
-
-            if len(set(ylbls.values())) > 1 and n in ylbls:
-                if label is None:
-                    label = f"{ylbls[n]}"
-                else:
-                    if len(label) > 3 and label[:3] == 'vs.':
-                        label = f"{ylbls[n]} {label}"
-                    else:
-                        label = f"{ylbls[n]}: {label}"
-
-            if label is not None:
-                has_legend = True
-            self._plot(n, label=label)
-
-        ax = self.axes[axname]['axes']
-        ax.set_xlabel(xlabel)
-        ax.set_ylabel(ylabel)
-        if has_legend:
-            ax.legend(loc=1)
-
-        if self.axes[axname]['cax'] is not None:
-            self.axes[axname]['cax'].set_ylabel(clabel)
-
-    def _find_ax_plots(self, axname: str) -> List[str]:
-        plotnames = []
-        for tn, to in self.plot_items.items():
-            if to['ax'] == axname:
-                plotnames.append(tn)
-        return plotnames
-
-    def _plot(self, name, **plot_kwargs):
-        item = self.plot_items[name]
-        pf = item['plot_func']
-        data = list(item['data'])
-        ax = self.axes[item['ax']]
-
-        # if we have z-values, then that means we need to have a color axes
-        axlst = [ax['axes']]
-        if len(data) > 2 and ax['cax'] is None:
-            ax['cax'] = attach_color_ax(ax['axes'])
-
-        # assemble the call to the plot function
-        args = axlst + data
-        opts = item['plot_kwargs'].copy()
-        opts.update(plot_kwargs)
-
-        ret = self.plot_items[name]['artist'] = pf(*args, **opts)
-        if len(data) > 2 and isinstance(ret, AxesImage):
-            if 'colorbar' not in self.plot_items[name]:
-                cb = self.plot_items[name]['colorbar'] = \
-                    self.fig.colorbar(ret, cax=ax['cax'])
-
-    # public methods
-    def add_plot(self, plot_func, *data, ax=None, name=None, join=None,
-                 dim_labels=None, **plot_kwargs) -> str:
-
-        if name is None:
-            name = _generate_auto_dict_key(self.plot_items)
-
-        if ax is None and join is None:
-            ax = self.add_axes()
-        elif join is not None:
-            ax = self.plot_items[join]['ax']
-        elif ax == 'prev':
-            ax = next(reversed(self.axes))
-
-        self.plot_items[name] = dict(
-            ax=ax,
-            plot_func=plot_func,
-            data=data,
-            dim_labels=dim_labels,
-            plot_kwargs=plot_kwargs,
-        )
-
-        return name
-
-    def add_axes(self, name=None) -> str:
-        if name is None:
-            name = _generate_auto_dict_key(self.axes)
-
-        self.axes[name] = dict(
-            axes=None,
-            cax=None,
-        )
-
-        return name
+    # def _plot(self, name, **plot_kwargs):
+    #     item = self.plotItems[name]
+    #     pf = item['plot_func']
+    #     data = list(item['data'])
+    #     ax = self.subPlots[item['ax']]
+    #
+    #     # if we have z-values, then that means we need to have a color subPlots
+    #     axlst = [ax['subPlots']]
+    #     if len(data) > 2 and ax['cax'] is None:
+    #         ax['cax'] = attach_color_ax(ax['subPlots'])
+    #
+    #     # assemble the call to the plot function
+    #     args = axlst + data
+    #     opts = item['plot_kwargs'].copy()
+    #     opts.update(plot_kwargs)
+    #
+    #     ret = self.plotItems[name]['artist'] = pf(*args, **opts)
+    #     if len(data) > 2 and isinstance(ret, AxesImage):
+    #         if 'colorbar' not in self.plotItems[name]:
+    #             cb = self.plotItems[name]['colorbar'] = \
+    #                 self.fig.colorbar(ret, cax=ax['cax'])
 
 
-class FigureMaker(FigureMakerBase):
-    """A context manager for (somewhat-)automatic plotting of data.
+# A toolbar for setting options on the MPL autoplot
+class AutoPlotToolBar(QtWidgets.QToolBar):
+    """
+    A toolbar that allows the user to configure AutoPlot.
 
-    The idea is that the user only needs to describe the type of data that's
-    added to the Figure Maker.
-    The appropriate plotting method is inferred, but the user can still customize
-    when needed.
-
-    Basic usage principle::
-
-        >>> with FigureMaker() as fm:
-        >>>     fm.add_*(*data, **opts)
-        >>>     [...]
-
-    Here, `add_*` is a place holder for several ways to add different kinds of
-    data.
-
-    At the moment there are the following methods to add plot data:
-
-    - :meth:`add_line` --
-      add a 1d trace of data, x and y values. Will result in a line plot.
-      If complex data is given in y, :attr:`complex_representation` governs how the
-      data is plotted.
+    Currently, the user can select between the plots that are possible, given
+    the data that AutoPlot has.
     """
 
-    def __init__(self):
-        super().__init__()
+    #: signal emitted when the plot type has been changed
+    plotTypeSelected = Signal(PlotType)
 
-        #: how to represent complex data.
-        self.complex_representation = ComplexRepresentation.realAndImag
+    #: signal emitted when the complex data option has been changed
+    complexPolarSelected = Signal(bool)
 
-    def add_line(self, x, y, **kwarg):
-        if isinstance(x, np.ma.MaskedArray):
-            x = x.filled(np.nan)
-        if isinstance(y, np.ma.MaskedArray):
-            y = y.filled(np.nan)
+    def __init__(self, name: str, parent: Optional[QtWidgets.QWidget] = None):
+        """Constructor for :class:`AutoPlotToolBar`"""
 
-        if np.issubsctype(y, np.complexfloating):
+        super().__init__(name, parent=parent)
 
-            if self.complex_representation is ComplexRepresentation.realAndImag:
+        self.plotasMultiTraces = self.addAction(get_multiTracePlotIcon(),
+                                                'Multiple traces')
+        self.plotasMultiTraces.setCheckable(True)
+        self.plotasMultiTraces.triggered.connect(
+            lambda: self.selectPlotType(PlotType.multitraces))
 
-                label = kwarg.pop('label', None)
-                if label is None:
-                    re_label = 'Real'
-                    im_label = 'Imag'
-                else:
-                    re_label = label + ' (Real)'
-                    im_label = label + ' (Imag)'
+        self.plotasSingleTraces = self.addAction(get_singleTracePlotIcon(),
+                                                 'Individual traces')
+        self.plotasSingleTraces.setCheckable(True)
+        self.plotasSingleTraces.triggered.connect(
+            lambda: self.selectPlotType(PlotType.singletraces))
 
-                kwarg['label'] = re_label
-                re = self.add_plot(lambda ax, *arg, **kw: ax.plot(*arg, **kw),
-                                   x, y.real, **kwarg)
-                kw_im = kwarg.copy()
-                kw_im['join'] = re
-                kw_im['label'] = im_label
-                im = self.add_plot(lambda ax, *arg, **kw: ax.plot(*arg, **kw),
-                                   x, y.imag, **kw_im)
-                return re
+        self.addSeparator()
 
-            elif self.complex_representation is ComplexRepresentation.magAndPhase:
+        self.plotasImage = self.addAction(get_imagePlotIcon(),
+                                          'Image')
+        self.plotasImage.setCheckable(True)
+        self.plotasImage.triggered.connect(
+            lambda: self.selectPlotType(PlotType.image))
 
-                label = kwarg.pop('label', None)
-                if label is None:
-                    mag_label = 'Mag'
-                    phase_label = 'Phase'
-                else:
-                    mag_label = label + ' (Mag)'
-                    phase_label = label + ' (Phase)'
+        self.plotasMesh = self.addAction(get_colormeshPlotIcon(),
+                                         'Color mesh')
+        self.plotasMesh.setCheckable(True)
+        self.plotasMesh.triggered.connect(
+            lambda: self.selectPlotType(PlotType.colormesh))
 
-                kw_mag = kwarg.copy()
-                kw_mag['label'] = mag_label
-                mag = self.add_plot(lambda ax, *arg, **kw: ax.plot(*arg, **kw),
-                                    x, np.abs(y), **kw_mag)
+        self.plotasScatter2d = self.addAction(get_scatterPlot2dIcon(),
+                                              'Scatter 2D')
+        self.plotasScatter2d.setCheckable(True)
+        self.plotasScatter2d.triggered.connect(
+            lambda: self.selectPlotType(PlotType.scatter2d))
 
-                kw_phase = kwarg.copy()
-                kw_phase['label'] = phase_label
-                join = kwarg.pop('join', None)
-                if join is not None:
-                    kw_phase['join'] = self.plot_items[join].get('phase_plot', None)
-                phase = self.add_plot(lambda ax, *arg, **kw: ax.plot(*arg, **kw),
-                                      x, np.angle(y), **kw_phase)
-                self.plot_items[mag]['phase_plot'] = phase
+        # other options
+        self.addSeparator()
 
-                if join is not None and 'phase_plot' not in self.plot_items[join]:
-                    self.plot_items[join]['phase_plot'] = phase
+        self.plotComplexPolar = self.addAction('Mag/Phase')
+        self.plotComplexPolar.setCheckable(True)
+        self.plotComplexPolar.triggered.connect(self._trigger_complex_mag_phase)
 
-                return mag
+        self.plotTypeActions = OrderedDict({
+            PlotType.multitraces: self.plotasMultiTraces,
+            PlotType.singletraces: self.plotasSingleTraces,
+            PlotType.image: self.plotasImage,
+            PlotType.colormesh: self.plotasMesh,
+            PlotType.scatter2d: self.plotasScatter2d,
+        })
 
-            elif self.complex_representation is ComplexRepresentation.real:
+        self._currentPlotType = PlotType.empty
+        self._currentlyAllowedPlotTypes: Tuple[PlotType, ...] = ()
 
-                return self.add_plot(lambda ax, *arg, **kw: ax.plot(*arg, **kw),
-                                     x, y.real, **kwarg)
+    def _trigger_complex_mag_phase(self, enable: bool) -> None:
+        self.complexPolarSelected.emit(enable)
+
+    def selectPlotType(self, plotType: PlotType) -> None:
+        """makes sure that the selected `plotType` is active (checked), all
+        others are not active.
+
+        This method should be used to catch a trigger from the UI.
+
+        If the active plot type has been changed by using this method,
+        we emit `plotTypeSelected`.
+        """
+
+        # deselect all other types
+        for k, v in self.plotTypeActions.items():
+            if k is not plotType and v is not None:
+                v.setChecked(False)
+
+        # don't want un-toggling - can only be done by selecting another type
+        self.plotTypeActions[plotType].setChecked(True)
+
+        if plotType is not self._currentPlotType:
+            self._currentPlotType = plotType
+            self.plotTypeSelected.emit(plotType)
+
+    def setAllowedPlotTypes(self, *args: PlotType) -> None:
+        """Disable all choices that are not allowed.
+        If the current selection is now disabled, instead select the first
+        enabled one.
+        """
+
+        if args == self._currentlyAllowedPlotTypes:
+            return
+
+        for k, v in self.plotTypeActions.items():
+            if k not in args:
+                v.setChecked(False)
+                v.setEnabled(False)
+            else:
+                v.setEnabled(True)
+
+        if self._currentPlotType not in args:
+            self._currentPlotType = PlotType.empty
+            for k, v in self.plotTypeActions.items():
+                if k in args:
+                    v.setChecked(True)
+                    self._currentPlotType = k
+                    break
+
+            self.plotTypeSelected.emit(self._currentPlotType)
+
+        self._currentlyAllowedPlotTypes = args
+
+
+class AutoPlot(MPLPlotWidget):
+    """A widget for plotting with matplotlib.
+
+    When data is set using :meth:`setData` the class will automatically try
+    to determine what good plot options are from the structure of the data.
+
+    User options (for different types of plots, styling, etc) are
+    presented through a toolbar.
+
+    **Plot types:**
+
+    The following types of data allow for different types of plots:
+
+    *1D data* --
+
+    * 1D data (of type ``DataDict``) --
+      Plot will be a simple scatter plot with markers, connected by lines.
+
+    For 1D plots the user has the option of plotting all data in the same panel,
+    or each dataset in its own panel.
+
+    *2D data* --
+
+    * 2D scatter data --
+      2D scatter plot with color bar.
+
+    * 2D grid data --
+      Either display as image, or as pcolormesh, with colorbar.
+
+    For 2D plots, we always create one panel per dataset.
+
+    If the input data is complex, the user has the option to plot real/imaginary
+    parts, or magnitude and phase. Real/Imaginary are plotted in the same panel,
+    whereas magnitude and phase are separated into two panels.
+    """
+
+    def __init__(self, parent: Optional[QtWidgets.QWidget] = None):
+        super().__init__(parent=parent)
+
+        self.plotDataType = PlotDataType.unknown
+        self.plotType = PlotType.empty
+        self.complexRepresentation = ComplexRepresentation.real
+        self.complexPreference = ComplexRepresentation.realAndImag
+
+        self.dataType: Optional[Type[DataDictBase]] = None
+        self.dataStructure: Optional[DataDictBase] = None
+        self.dataShapes: Optional[Dict[str, Tuple[int, ...]]] = None
+        self.dataLimits: Optional[Dict[str, Tuple[float, float]]] = None
+
+        # A toolbar for configuring the plot
+        self.plotOptionsToolBar = AutoPlotToolBar('Plot options', self)
+        self.layout().insertWidget(1, self.plotOptionsToolBar)
+
+        self.plotOptionsToolBar.plotTypeSelected.connect(
+            self._plotTypeFromToolBar
+        )
+        self.plotOptionsToolBar.complexPolarSelected.connect(
+            self._complexPreferenceFromToolBar
+        )
+
+        self.plotOptionsToolBar.setIconSize(QtCore.QSize(32, 32))
+
+        self.setMinimumSize(640, 480)
+
+    def _analyzeData(self, data: Optional[DataDictBase]) -> Dict[str, bool]:
+        """checks data and compares with previous properties."""
+        if data is not None:
+            dataType: Optional[Type[DataDictBase]] = type(data)
+        else:
+            dataType = None
+
+        if data is None:
+            dataStructure = None
+            dataShapes = None
+            dataLimits = None
+        else:
+            dataStructure = data.structure(include_meta=False)
+            dataShapes = data.shapes()
+            dataLimits = {}
+            for n in data.axes() + data.dependents():
+                vals = data.data_vals(n)
+                dataLimits[n] = vals.min(), vals.max()
+
+        result = {
+            'dataTypeChanged': dataType != self.dataType,
+            'dataStructureChanged': dataStructure != self.dataStructure,
+            'dataShapesChanged': dataShapes != self.dataShapes,
+            'dataLimitsChanged': dataLimits != self.dataLimits,
+        }
+
+        self.dataType = dataType
+        self.dataStructure = dataStructure
+        self.dataShapes = dataShapes
+        self.dataLimits = dataLimits
+
+        return result
+
+    def dataIsComplex(self, dependentName: Optional[str] = None) -> bool:
+        """Determine whether our data is complex.
+        If dependent_name is not given, check all dependents, return True if any
+        of them is complex.
+        """
+        if self.data is None:
+            return False
+
+        if dependentName is None:
+            for d in self.data.dependents():
+                if np.issubsctype(self.data.data_vals(d), np.complexfloating):
+                    return True
+        else:
+            if np.issubsctype(self.data.data_vals(dependentName), np.complexfloating):
+                return True
+
+        return False
+
+    def setData(self, data: Optional[DataDictBase]) -> None:
+        """Analyses data and determines whether/what to plot.
+
+        :param data: input data
+        """
+        super().setData(data)
+
+        changes = self._analyzeData(data)
+        self.plotDataType = determinePlotDataType(data)
+
+        self._processPlotTypeOptions()
+        self._plotData()
+
+    def _processPlotTypeOptions(self) -> None:
+        """Given the current data type, figure out what the plot options are."""
+        if self.plotDataType == PlotDataType.grid2d:
+            self.plotOptionsToolBar.setAllowedPlotTypes(
+                PlotType.image, PlotType.colormesh, PlotType.scatter2d
+            )
+
+        elif self.plotDataType == PlotDataType.scatter2d:
+            self.plotOptionsToolBar.setAllowedPlotTypes(
+                PlotType.scatter2d,
+            )
+
+        elif self.plotDataType in [PlotDataType.scatter1d,
+                                   PlotDataType.line1d]:
+            self.plotOptionsToolBar.setAllowedPlotTypes(
+                PlotType.multitraces, PlotType.singletraces,
+            )
 
         else:
-            return self.add_plot(lambda ax, *arg, **kw: ax.plot(*arg, **kw),
-                                 x, y, **kwarg)
+            self.plotOptionsToolBar.setAllowedPlotTypes()
+
+    @Slot(PlotType)
+    def _plotTypeFromToolBar(self, plotType: PlotType) -> None:
+        if plotType is not self.plotType:
+            self.plotType = plotType
+            self._plotData()
+
+    @Slot(bool)
+    def _complexPreferenceFromToolBar(self, magPhasePreferred: bool) -> None:
+        if magPhasePreferred:
+            self.complexPreference = ComplexRepresentation.magAndPhase
+        else:
+            self.complexPreference = ComplexRepresentation.realAndImag
+
+        self._plotData()
+
+    def _plotData(self) -> None:
+        """Plot the data using previously determined data and plot types."""
+
+        if self.plotDataType is PlotDataType.unknown:
+            logger.debug("No plotable data.")
+
+        if self.plotType is PlotType.empty:
+            logger.debug("No plot routine determined.")
+            return
+
+        if not self.dataIsComplex():
+            self.complexRepresentation = ComplexRepresentation.real
+        else:
+            self.complexRepresentation = self.complexPreference
+
+        if self.plotType is PlotType.multitraces:
+            logger.debug(f"Plotting lines in a single panel")
+            self._plotLine(singlePanel=True)
+
+        elif self.plotType is PlotType.singletraces:
+            logger.debug(f"Plotting one line per panel")
+            self._plotLine(singlePanel=False)
+
+        elif self.plotType in [PlotType.image,
+                               PlotType.colormesh,
+                               PlotType.scatter2d]:
+            logger.debug(f"Plot 2D data.")
+            self._colorplot2d()
+
+        else:
+            logger.info(f"No plot routine defined for {self.plotType}")
+            return
+        assert self.data is not None
+        self.setMeta(self.data)
+        self.plot.draw()
+
+        QtCore.QCoreApplication.processEvents()
+
+    # Plotting functions
+    def _plotLine(self, singlePanel: bool = True):
+        xname = self.data.axes()[0]
+        xvals = np.asanyarray(self.data.data_vals(xname))
+        depnames = self.data.dependents()
+        depvals = [self.data.data_vals(d) for d in depnames]
+
+        kw = {}
+        with FigureMaker(self.plot.fig) as fm:
+            for yname, yvals in zip(depnames, depvals):
+                curveId = fm.addData(xvals, yvals,
+                                     labels=[self.data.label(xname),
+                                             self.data.label(yname)],
+                                     style='line',
+                                     **kw)
+                if singlePanel:
+                    kw['join'] = curveId
+
+
+    # def _colorplot2d(self) -> None:
+    #     assert self.data is not None
+    #     xname = self.data.axes()[0]
+    #     yname = self.data.axes()[1]
+    #     xvals = np.asanyarray(self.data.data_vals(xname))
+    #     yvals = np.asanyarray(self.data.data_vals(yname))
+    #     depnames = self.data.dependents()
+    #     depvals = [self.data.data_vals(d) for d in depnames]
+    #
+    #     if self.complexRepresentation is ComplexRepresentation.real:
+    #         nAxes = len(depnames)
+    #     else:
+    #         nAxes = 0
+    #         for d in depnames:
+    #             if self.dataIsComplex(d):
+    #                 nAxes += 2
+    #             else:
+    #                 nAxes += 1
+    #     axes = self._makeAxes(nAxes)
+    #
+    #     iax = 0
+    #     for zname, zvals in zip(depnames, depvals):
+    #
+    #         # otherwise we sometimes raise ComplexWarning. This is basically just
+    #         # cosmetic.
+    #         if isinstance(zvals, np.ma.MaskedArray):
+    #             zvals = zvals.filled(np.nan)
+    #
+    #         if self.complexRepresentation is ComplexRepresentation.real \
+    #                 or not self.dataIsComplex(zname):
+    #             colorplot2d(axes[iax], xvals, yvals, np.asanyarray(zvals).real,
+    #                         self.plotType,
+    #                         axLabels=(self.data.label(xname),
+    #                                   self.data.label(yname),
+    #                                   self.data.label(zname)))
+    #             iax += 1
+    #
+    #         elif self.complexRepresentation is ComplexRepresentation.realAndImag:
+    #             colorplot2d(axes[iax], xvals, yvals, np.asanyarray(zvals).real,
+    #                         self.plotType,
+    #                         axLabels=(self.data.label(xname),
+    #                                   self.data.label(yname),
+    #                                   f"Re( {self.data.label(zname)} )"))
+    #             colorplot2d(axes[iax+1], xvals, yvals, np.asanyarray(zvals).imag,
+    #                         self.plotType,
+    #                         axLabels=(self.data.label(xname),
+    #                                   self.data.label(yname),
+    #                                   f"Im( {self.data.label(zname)} )"))
+    #             iax += 2
+    #
+    #         elif self.complexRepresentation is ComplexRepresentation.magAndPhase:
+    #             colorplot2d(axes[iax], xvals, yvals, np.abs(np.asanyarray(zvals)),
+    #                         self.plotType,
+    #                         axLabels=(self.data.label(xname),
+    #                                   self.data.label(yname),
+    #                                   f"Abs( {self.data.label(zname)} )"))
+    #             colorplot2d(axes[iax+1], xvals, yvals, np.angle(np.asanyarray(zvals)),
+    #                         self.plotType,
+    #                         axLabels=(self.data.label(xname),
+    #                                   self.data.label(yname),
+    #                                   f"Arg( {self.data.label(zname)} )"),
+    #                         norm=SymmetricNorm(), cmap=symmetric_cmap
+    #                         )
+    #             iax += 2
