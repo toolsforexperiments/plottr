@@ -17,9 +17,10 @@ import time
 import sys
 import argparse
 import logging
-from typing import Optional, Sequence, List, Dict, Iterable, Union, cast
+from typing import Optional, Sequence, List, Dict, Iterable, Union, cast, Tuple
 from typing_extensions import TypedDict
 
+from numpy import rint
 import pandas
 
 from plottr import QtCore, QtWidgets, Signal, Slot, QtGui, Flowchart
@@ -168,6 +169,33 @@ class RunList(QtWidgets.QTreeWidget):
         for i in range(len(self.cols)):
             self.resizeColumnToContents(i)
 
+    def updateRuns(self, selection: Dict[int, Dict[str, str]]) -> None:
+
+        run_added = False
+        for runId, record in selection.items():
+            item = self.findItems(str(runId), QtCore.Qt.MatchExactly)
+            if len(item) == 0:
+                self.setSortingEnabled(False)
+                self.addRun(runId, **record)
+                run_added = True
+            elif len(item) == 1:
+                completed = record.get('completed_date', '') + ' ' + record.get(
+                    'completed_time', '')
+                if completed != item[0].text(5):
+                    item[0].setText(5, completed)
+
+                num_records = str(record.get('records', ''))
+                if num_records != item[0].text(6):
+                    item[0].setText(6, num_records)
+            else:
+                raise RuntimeError(f"More than one runs found with runId: "
+                                   f"{runId}")
+
+        if run_added:
+            self.setSortingEnabled(True)
+            for i in range(len(self.cols)):
+                self.resizeColumnToContents(i)
+
     @Slot()
     def selectRun(self) -> None:
         selection = self.selectedItems()
@@ -264,6 +292,7 @@ class QCodesDBInspector(QtWidgets.QMainWindow):
 
         # Main Selection widgets
         self.dateList = DateList()
+        self._selected_dates: Tuple[str, ...] = ()
         self.runList = RunList()
         self.runInfo = RunInfo()
 
@@ -320,7 +349,8 @@ class QCodesDBInspector(QtWidgets.QMainWindow):
         fileMenu.addAction(refreshAction)
 
         # sizing
-        self.resize(640, 640)
+        scaledSize = 640 * rint(self.logicalDpiX() / 96.0)
+        self.resize(scaledSize, scaledSize)
 
         ### Thread workers
 
@@ -404,6 +434,9 @@ class QCodesDBInspector(QtWidgets.QMainWindow):
                 self.loadDBProcess.setPath(self.filepath)
 
     def DBLoaded(self, dbdf: pandas.DataFrame) -> None:
+        if dbdf.equals(self.dbdf):
+            logger().debug('DB reloaded with no changes. Skipping update')
+            return None
         self.dbdf = dbdf
         self.dbdfUpdated.emit()
         self.dateList.sendSelectedDates()
@@ -438,11 +471,11 @@ class QCodesDBInspector(QtWidgets.QMainWindow):
 
             self.loadFullDB()
 
-    @Slot(int)
-    def setMonitorInterval(self, val: int) -> None:
+    @Slot(float)
+    def setMonitorInterval(self, val: float) -> None:
         self.monitor.stop()
         if val > 0:
-            self.monitor.start(val * 1000)
+            self.monitor.start(int(val * 1000))
 
         self.monitorInput.spin.setValue(val)
 
@@ -457,8 +490,14 @@ class QCodesDBInspector(QtWidgets.QMainWindow):
         if len(dates) > 0:
             assert self.dbdf is not None
             selection = self.dbdf.loc[self.dbdf['started_date'].isin(dates)].sort_index(ascending=False)
-            self.runList.setRuns(selection.to_dict(orient='index'))
+            old_dates = self._selected_dates
+            if not all(date in old_dates for date in dates):
+                self.runList.setRuns(selection.to_dict(orient='index'))
+            else:
+                self.runList.updateRuns(selection.to_dict(orient='index'))
+            self._selected_dates = tuple(dates)
         else:
+            self._selected_dates = ()
             self.runList.clear()
 
     @Slot(int)
