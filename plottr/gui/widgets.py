@@ -9,7 +9,7 @@ from typing import Union, List, Tuple, Optional, Type, Sequence, Dict, Any
 from .tools import dictToTreeWidgetItems
 from plottr import QtCore, Flowchart, QtWidgets, Signal, Slot
 from plottr.node import Node, linearFlowchart
-from ..plot import PlotNode, PlotWidgetContainer, MPLAutoPlot
+from ..plot import PlotNode, PlotWidgetContainer, PlotWidget
 
 __author__ = 'Wolfgang Pfaff'
 __license__ = 'MIT'
@@ -71,15 +71,20 @@ class PlotWindow(QtWidgets.QMainWindow):
     :meth:`addNodeWidgetFromFlowchart`.
     """
 
-    plotWidgetClass = MPLAutoPlot
-
     def __init__(self, parent: Optional[QtWidgets.QMainWindow] = None,
-                 fc: Optional[Flowchart] = None, **kw: Any):
+                 fc: Optional[Flowchart] = None,
+                 plotWidgetClass: Optional[Any] = None,
+                 **kw: Any):
         super().__init__(parent)
 
+        if plotWidgetClass is None:
+            from ..plot.mpl import AutoPlot
+            plotWidgetClass = AutoPlot
+
+        self.plotWidgetClass = plotWidgetClass
         self.plot = PlotWidgetContainer(parent=self)
         self.setCentralWidget(self.plot)
-        self.plotWidget: Optional[MPLAutoPlot] = None
+        self.plotWidget: Optional[PlotWidget] = None
 
         self.nodeToolBar = QtWidgets.QToolBar('Node control', self)
         self.addToolBar(self.nodeToolBar)
