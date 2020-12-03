@@ -32,14 +32,13 @@ class DataSelectionWidget(QtWidgets.QTreeWidget):
 
     def _makeItem(self, name: str) -> QtWidgets.QTreeWidgetItem:
         shape = self._dataShapes.get(name, tuple())
-        label = f"{name} [{self._dataStructure.label(name)}]"
-        deps = "("
+        label = f"{self._dataStructure.label(name)}"
+        deps = ""
         for i, d in enumerate(self._dataStructure.axes(name)):
             if i > 0:
                 deps += ", "
             axlabel = self._dataStructure.label(d)
-            deps += f"{d} [{axlabel}]"
-        deps += ")"
+            deps += f"{axlabel}"
 
         return QtWidgets.QTreeWidgetItem([
             label, deps, str(shape)
