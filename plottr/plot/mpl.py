@@ -91,12 +91,15 @@ class PlotType(Enum):
 class ComplexRepresentation(Enum):
     """Options for plotting complex-valued data."""
 
-    #: only real
-    real = auto()
-
+    #: no plot defined
+    empty = auto()
+    
     #: real and imaginary
     realAndImag = auto()
 
+    #: only real
+    real = auto()
+    
     #: magnitude and phase
     magAndPhase = auto()
 
@@ -614,7 +617,7 @@ class _AutoPlotToolBar(QtWidgets.QToolBar):
     plotTypeSelected = Signal(PlotType)
 
     #: signal emitted when the complex data option has been changed
-    complexPolarSelected = Signal(bool)
+    complexPolarSelected = Signal(ComplexRepresentation)
 
     def __init__(self, name: str, parent: Optional[QtWidgets.QWidget] = None):
         """Constructor for :class:`AutoPlotToolBar`"""
@@ -656,9 +659,20 @@ class _AutoPlotToolBar(QtWidgets.QToolBar):
         # other options
         self.addSeparator()
 
-        self.plotComplexPolar = self.addAction('Mag/Phase')
-        self.plotComplexPolar.setCheckable(True)
-        self.plotComplexPolar.triggered.connect(self._trigger_complex_mag_phase)
+        self.plotComplexReIm = self.addAction('Real/Imag')
+        self.plotComplexReIm.setCheckable(True)
+        self.plotComplexReIm.triggered.connect(
+            lambda: self.setAllowedComplexTypes(ComplexRepresentation.realAndImag))
+
+        self.plotReal = self.addAction('Real')
+        self.plotReal.setCheckable(True)
+        self.plotReal.triggered.connect(
+            lambda: self.setAllowedComplexTypes(ComplexRepresentation.real))
+
+        self.plotMagPhase = self.addAction('Mag/Phase')
+        self.plotMagPhase.setCheckable(True)
+        self.plotMagPhase.triggered.connect(
+            lambda: self.setAllowedComplexTypes(ComplexRepresentation.magAndPhase))
 
         self.plotTypeActions = OrderedDict({
             PlotType.multitraces: self.plotasMultiTraces,
@@ -668,11 +682,17 @@ class _AutoPlotToolBar(QtWidgets.QToolBar):
             PlotType.scatter2d: self.plotasScatter2d,
         })
 
+        self.ComplexActions = OrderedDict({
+            ComplexRepresentation.realAndImag: self.plotComplexReIm,
+            ComplexRepresentation.real: self.plotReal,
+            ComplexRepresentation.magAndPhase: self.plotMagPhase
+        })
+
         self._currentPlotType = PlotType.empty
         self._currentlyAllowedPlotTypes: Tuple[PlotType, ...] = ()
 
-    def _trigger_complex_mag_phase(self, enable: bool) -> None:
-        self.complexPolarSelected.emit(enable)
+        self._currentComplex = ComplexRepresentation.empty
+        self._currentlyAllowedComplex: Tuple[ComplexRepresentation, ...] = ()
 
     def selectPlotType(self, plotType: PlotType) -> None:
         """makes sure that the selected `plotType` is active (checked), all
@@ -724,6 +744,26 @@ class _AutoPlotToolBar(QtWidgets.QToolBar):
 
         self._currentlyAllowedPlotTypes = args
 
+    def setAllowedComplexTypes(self, comp:ComplexRepresentation) -> None:
+        """makes sure that the selected `comp` is active (checked), all
+        others are not active.
+
+        This method should be used to catch a trigger from the UI.
+
+        If the active plot type has been changed by using this method,
+        we emit `complexPolarSelected`.
+        """
+        # deselect all other types
+        for k, v in self.ComplexActions.items():
+            if k is not comp and v is not None:
+                v.setChecked(False)
+
+        # don't want un-toggling - can only be done by selecting another type
+        self.ComplexActions[comp].setChecked(True)
+
+        if comp is not self._currentComplex:
+            self._currentComplex = comp
+            self.complexPolarSelected.emit(comp)
 
 class AutoPlot(_MPLPlotWidget):
     """A widget for plotting with matplotlib.
@@ -766,7 +806,7 @@ class AutoPlot(_MPLPlotWidget):
 
         self.plotDataType = PlotDataType.unknown
         self.plotType = PlotType.empty
-        self.complexRepresentation = ComplexRepresentation.real
+        self.complexRepresentation = ComplexRepresentation.realAndImag
         self.complexPreference = ComplexRepresentation.realAndImag
 
         self.dataType: Optional[Type[DataDictBase]] = None
@@ -881,14 +921,11 @@ class AutoPlot(_MPLPlotWidget):
             self.plotType = plotType
             self._plotData(adjustSize=True)
 
-    @Slot(bool)
-    def _complexPreferenceFromToolBar(self, magPhasePreferred: bool) -> None:
-        if magPhasePreferred:
-            self.complexPreference = ComplexRepresentation.magAndPhase
-        else:
-            self.complexPreference = ComplexRepresentation.realAndImag
-
-        self._plotData(adjustSize=True)
+    @Slot(ComplexRepresentation)
+    def _complexPreferenceFromToolBar(self, complexRepresentation: ComplexRepresentation) -> None:
+        if complexRepresentation is not self.complexRepresentation:
+            self.complexRepresentation = complexRepresentation
+            self._plotData(adjustSize=True)
 
     def _makeAxes(self, nAxes: int) -> List[Axes]:
         """Create a grid of axes.
@@ -912,7 +949,12 @@ class AutoPlot(_MPLPlotWidget):
         if not self.dataIsComplex():
             self.complexRepresentation = ComplexRepresentation.real
         else:
-            self.complexRepresentation = self.complexPreference
+            if ComplexRepresentation.realAndImag:
+                self.complexRepresentation is ComplexRepresentation.realAndImag
+            if self.complexRepresentation is ComplexRepresentation.real:
+                self.complexRepresentation is ComplexRepresentation.real
+            if self.complexRepresentation is ComplexRepresentation.magAndPhase:
+                self.complexRepresentation is ComplexRepresentation.magAndPhase
 
         if self.plotType is PlotType.multitraces:
             logger.debug(f"Plotting lines in a single panel")
