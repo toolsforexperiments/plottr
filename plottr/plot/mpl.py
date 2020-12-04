@@ -91,9 +91,6 @@ class PlotType(Enum):
 class ComplexRepresentation(Enum):
     """Options for plotting complex-valued data."""
 
-    #: no plot defined
-    empty = auto()
-    
     #: real and imaginary
     realAndImag = auto()
 
@@ -691,8 +688,11 @@ class _AutoPlotToolBar(QtWidgets.QToolBar):
         self._currentPlotType = PlotType.empty
         self._currentlyAllowedPlotTypes: Tuple[PlotType, ...] = ()
 
-        self._currentComplex = ComplexRepresentation.empty
-        self._currentlyAllowedComplex: Tuple[ComplexRepresentation, ...] = ()
+        # This chooses the default complex behavior and activates it the GUI.
+        # This should be the same choice set for self.complexRepresentation in
+        # class AutoPlot
+        self._currentComplex = ComplexRepresentation.realAndImag
+        self.ComplexActions[self._currentComplex].setChecked(True)
 
     def selectPlotType(self, plotType: PlotType) -> None:
         """makes sure that the selected `plotType` is active (checked), all
@@ -760,10 +760,10 @@ class _AutoPlotToolBar(QtWidgets.QToolBar):
 
         # don't want un-toggling - can only be done by selecting another type
         self.ComplexActions[comp].setChecked(True)
-
-        if comp is not self._currentComplex:
-            self._currentComplex = comp
-            self.complexPolarSelected.emit(comp)
+        
+        # Change the _curentComplex to the selected comp in the UI and emit it.
+        self._currentComplex = comp
+        self.complexPolarSelected.emit(self._currentComplex)
 
 class AutoPlot(_MPLPlotWidget):
     """A widget for plotting with matplotlib.
@@ -806,8 +806,10 @@ class AutoPlot(_MPLPlotWidget):
 
         self.plotDataType = PlotDataType.unknown
         self.plotType = PlotType.empty
+
+        # The default complex behavior is set here. This should be the same choice
+        # set for self._currentComplex in class _AutoPlotToolBar
         self.complexRepresentation = ComplexRepresentation.realAndImag
-        self.complexPreference = ComplexRepresentation.realAndImag
 
         self.dataType: Optional[Type[DataDictBase]] = None
         self.dataStructure: Optional[DataDictBase] = None
@@ -948,13 +950,6 @@ class AutoPlot(_MPLPlotWidget):
 
         if not self.dataIsComplex():
             self.complexRepresentation = ComplexRepresentation.real
-        else:
-            if ComplexRepresentation.realAndImag:
-                self.complexRepresentation is ComplexRepresentation.realAndImag
-            if ComplexRepresentation.real:
-                self.complexRepresentation is ComplexRepresentation.real
-            if ComplexRepresentation.magAndPhase:
-                self.complexRepresentation is ComplexRepresentation.magAndPhase
 
         if self.plotType is PlotType.multitraces:
             logger.debug(f"Plotting lines in a single panel")
