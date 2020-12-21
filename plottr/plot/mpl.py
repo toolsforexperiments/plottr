@@ -91,6 +91,9 @@ class PlotType(Enum):
 class ComplexRepresentation(Enum):
     """Options for plotting complex-valued data."""
 
+    #: no complex defined
+    empty = auto()
+    
     #: real and imaginary
     realAndImag = auto()
 
@@ -659,17 +662,17 @@ class _AutoPlotToolBar(QtWidgets.QToolBar):
         self.plotComplexReIm = self.addAction('Real/Imag')
         self.plotComplexReIm.setCheckable(True)
         self.plotComplexReIm.triggered.connect(
-            lambda: self.setAllowedComplexTypes(ComplexRepresentation.realAndImag))
+            lambda: self.selectComplexType(ComplexRepresentation.realAndImag))
 
         self.plotReal = self.addAction('Real')
         self.plotReal.setCheckable(True)
         self.plotReal.triggered.connect(
-            lambda: self.setAllowedComplexTypes(ComplexRepresentation.real))
+            lambda: self.selectComplexType(ComplexRepresentation.real))
 
         self.plotMagPhase = self.addAction('Mag/Phase')
         self.plotMagPhase.setCheckable(True)
         self.plotMagPhase.triggered.connect(
-            lambda: self.setAllowedComplexTypes(ComplexRepresentation.magAndPhase))
+            lambda: self.selectComplexType(ComplexRepresentation.magAndPhase))
 
         self.plotTypeActions = OrderedDict({
             PlotType.multitraces: self.plotasMultiTraces,
@@ -688,11 +691,8 @@ class _AutoPlotToolBar(QtWidgets.QToolBar):
         self._currentPlotType = PlotType.empty
         self._currentlyAllowedPlotTypes: Tuple[PlotType, ...] = ()
 
-        # This chooses the default complex behavior and activates it the GUI.
-        # This should be the same choice set for self.complexRepresentation in
-        # class AutoPlot
-        self._currentComplex = ComplexRepresentation.realAndImag
-        self.ComplexActions[self._currentComplex].setChecked(True)
+        self._currentComplex = ComplexRepresentation.empty
+        self._currentlyAllowedComplexTypes: Tuple[ComplexRepresentation, ...] = ()
 
     def selectPlotType(self, plotType: PlotType) -> None:
         """makes sure that the selected `plotType` is active (checked), all
@@ -744,7 +744,7 @@ class _AutoPlotToolBar(QtWidgets.QToolBar):
 
         self._currentlyAllowedPlotTypes = args
 
-    def setAllowedComplexTypes(self, comp:ComplexRepresentation) -> None:
+    def selectComplexType(self, comp:ComplexRepresentation) -> None:
         """makes sure that the selected `comp` is active (checked), all
         others are not active.
 
@@ -760,10 +760,38 @@ class _AutoPlotToolBar(QtWidgets.QToolBar):
 
         # don't want un-toggling - can only be done by selecting another type
         self.ComplexActions[comp].setChecked(True)
-        
-        # Change the _curentComplex to the selected comp in the UI and emit it.
-        self._currentComplex = comp
-        self.complexPolarSelected.emit(self._currentComplex)
+
+        if comp is not self._currentPlotType:
+            self._currentComplex = comp
+            self.complexPolarSelected.emit(self._currentComplex)
+
+    def setAllowedComplexTypes(self, *args: ComplexRepresentation) -> None:
+        """Disable all choices that are not allowed.
+        If the current selection is now disabled, instead select the first
+        enabled one.
+        """
+
+        if args == self._currentlyAllowedComplexTypes:
+            return
+
+        for k, v in self.ComplexActions.items():
+            if k not in args:
+                v.setChecked(False)
+                v.setEnabled(False)
+            else:
+                v.setEnabled(True)
+
+        if self._currentComplex not in args:
+            self._currentComplex = ComplexRepresentation.empty
+            for k, v in self.ComplexActions.items():
+                if k in args:
+                    v.setChecked(True)
+                    self._currentComplex = k
+                    break
+
+            self.complexPolarSelected.emit(self._currentComplex)
+
+        self._currentlyAllowedComplexTypes = args
 
 class AutoPlot(_MPLPlotWidget):
     """A widget for plotting with matplotlib.
@@ -807,8 +835,8 @@ class AutoPlot(_MPLPlotWidget):
         self.plotDataType = PlotDataType.unknown
         self.plotType = PlotType.empty
 
-        # The default complex behavior is set here. This should be the same choice
-        # set for self._currentComplex in class _AutoPlotToolBar
+        # The default complex behavior is set here. This choice is according to
+        # the first item in ComplexActions in class _AutoPlotToolBar
         self.complexRepresentation = ComplexRepresentation.realAndImag
 
         self.dataType: Optional[Type[DataDictBase]] = None
@@ -894,6 +922,7 @@ class AutoPlot(_MPLPlotWidget):
         self.plotDataType = determinePlotDataType(data)
 
         self._processPlotTypeOptions()
+        self._processComplexTypeOptions()
         self._plotData(adjustSize=True)
 
     def _processPlotTypeOptions(self) -> None:
@@ -916,6 +945,17 @@ class AutoPlot(_MPLPlotWidget):
 
         else:
             self.plotOptionsToolBar.setAllowedPlotTypes()
+
+    def _processComplexTypeOptions(self) -> None:
+        """Given the current data type, figure out what the complex options are."""
+        if self.dataIsComplex() == True:
+            self.plotOptionsToolBar.setAllowedComplexTypes(
+                ComplexRepresentation.realAndImag,
+                ComplexRepresentation.real,
+                ComplexRepresentation.magAndPhase,
+            )
+        else:
+            self.plotOptionsToolBar.setAllowedComplexTypes(None)
 
     @Slot(PlotType)
     def _plotTypeFromToolBar(self, plotType: PlotType) -> None:
@@ -986,7 +1026,8 @@ class AutoPlot(_MPLPlotWidget):
         depvals = [self.data.data_vals(d) for d in depnames]
 
         # count the number of panels we need.
-        if self.complexRepresentation is ComplexRepresentation.magAndPhase:
+        if self.complexRepresentation is ComplexRepresentation.magAndPhase or\
+         self.complexRepresentation is ComplexRepresentation.realAndImag:
             nAxes = 2
         else:
             nAxes = 1
@@ -1005,15 +1046,17 @@ class AutoPlot(_MPLPlotWidget):
             if isinstance(yvals, np.ma.MaskedArray):
                 yvals = yvals.filled(np.nan)
 
-            if self.complexRepresentation in [ComplexRepresentation.real,
-                                              ComplexRepresentation.realAndImag]:
-                plot1dTrace(axes[0], xvals, np.asanyarray(yvals),
-                            axLabels=(self.data.label(xname), ylbl),
-                            curveLabel=self.data.label(yname),
-                            addLegend=(yname == depnames[-1]))
-
-            elif self.complexRepresentation is ComplexRepresentation.magAndPhase:
-                if self.dataIsComplex(yname):
+            if self.dataIsComplex(yname):
+                if self.complexRepresentation is ComplexRepresentation.realAndImag:
+                    plot1dTrace(axes[0], xvals, np.asanyarray(yvals).real,
+                                axLabels=(self.data.label(xname), ylbl),
+                                curveLabel=f"Re({self.data.label(yname)})",
+                                addLegend=(yname == depnames[-1]))
+                    plot1dTrace(axes[1], xvals, np.asanyarray(yvals).imag,
+                                axLabels=(self.data.label(xname), ylbl),
+                                curveLabel=f"Im({yname})",
+                                addLegend=(yname == depnames[-1]))
+                elif self.complexRepresentation is ComplexRepresentation.magAndPhase:
                     plot1dTrace(axes[0], xvals, np.real(np.abs(yvals)),
                                 axLabels=(self.data.label(xname), ylbl),
                                 curveLabel=f"Abs({self.data.label(yname)})",
@@ -1022,11 +1065,16 @@ class AutoPlot(_MPLPlotWidget):
                                 axLabels=(self.data.label(xname), phlbl),
                                 curveLabel=f"Arg({yname})",
                                 addLegend=(yname == depnames[-1]))
-                else:
-                    plot1dTrace(axes[0], xvals, np.asanyarray(yvals),
+                elif self.complexRepresentation is ComplexRepresentation.real:
+                    plot1dTrace(axes[0], xvals, np.asanyarray(yvals).real,
                                 axLabels=(self.data.label(xname), ylbl),
-                                curveLabel=self.data.label(yname),
+                                curveLabel=f"Re({self.data.label(yname)})",
                                 addLegend=(yname == depnames[-1]))
+            else:
+                plot1dTrace(axes[0], xvals, np.asanyarray(yvals),
+                            axLabels=(self.data.label(xname), ylbl),
+                            curveLabel=self.data.label(yname),
+                            addLegend=(yname == depnames[-1]))
 
     def _plot1dSeparatePanels(self) -> None:
         assert self.data is not None
@@ -1035,8 +1083,7 @@ class AutoPlot(_MPLPlotWidget):
         depnames = self.data.dependents()
         depvals = [self.data.data_vals(d) for d in depnames]
 
-        if self.complexRepresentation in [ComplexRepresentation.real,
-                                          ComplexRepresentation.realAndImag]:
+        if self.complexRepresentation is ComplexRepresentation.real:
             nAxes = len(depnames)
         else:
             nAxes = 0
@@ -1056,27 +1103,36 @@ class AutoPlot(_MPLPlotWidget):
             if isinstance(yvals, np.ma.MaskedArray):
                 yvals = yvals.filled(np.nan)
 
-            if self.complexRepresentation in [ComplexRepresentation.real,
-                                              ComplexRepresentation.realAndImag]:
-                plot1dTrace(axes[iax], xvals, np.asanyarray(yvals),
-                            axLabels=(self.data.label(xname), self.data.label(yname)),
-                            addLegend=self.dataIsComplex(yname))
-                iax += 1
-
-            elif self.complexRepresentation is ComplexRepresentation.magAndPhase:
-                if self.dataIsComplex(yname):
-                    plot1dTrace(axes[iax], xvals, np.real(np.abs(yvals)),
+            if self.dataIsComplex(yname):
+                if self.complexRepresentation is ComplexRepresentation.realAndImag:
+                    plot1dTrace(axes[iax], xvals, np.real(yvals),
                                 axLabels=(self.data.label(xname),
-                                          f"Abs({self.data.label(yname)})"))
-                    plot1dTrace(axes[iax+1], xvals, np.angle(yvals),
+                                          f"Re({self.data.label(yname)})"))
+                    plot1dTrace(axes[iax+1], xvals, np.imag(yvals),
                                 axLabels=(self.data.label(xname),
-                                          f"Arg({yname})"))
+                                          f"Im({self.data.label(yname)})"))
                     iax += 2
-                else:
-                    plot1dTrace(axes[iax], xvals, np.asanyarray(yvals),
-                                axLabels=(self.data.label(xname),
-                                          self.data.label(yname)))
-                    iax += 1
+                elif self.complexRepresentation is ComplexRepresentation.magAndPhase:
+                    if self.dataIsComplex(yname):
+                        plot1dTrace(axes[iax], xvals, np.real(np.abs(yvals)),
+                                    axLabels=(self.data.label(xname),
+                                            f"Abs({self.data.label(yname)})"))
+                        plot1dTrace(axes[iax+1], xvals, np.angle(yvals),
+                                    axLabels=(self.data.label(xname),
+                                            f"Arg({yname})"))
+                        iax += 2
+                elif self.complexRepresentation is ComplexRepresentation.real:
+                    if self.dataIsComplex(yname):
+                        plot1dTrace(axes[iax], xvals, np.asanyarray(yvals).real,
+                                    axLabels=(self.data.label(xname),
+                                    f"Re({self.data.label(yname)})"),
+                                )
+                        iax += 1
+            else:
+                plot1dTrace(axes[iax], xvals, np.asanyarray(yvals),
+                axLabels=(self.data.label(xname),
+                        self.data.label(yname)))
+                iax += 1
 
     def _colorplot2d(self) -> None:
         assert self.data is not None
