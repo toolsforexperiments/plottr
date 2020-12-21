@@ -955,7 +955,9 @@ class AutoPlot(_MPLPlotWidget):
                 ComplexRepresentation.magAndPhase,
             )
         else:
-            self.plotOptionsToolBar.setAllowedComplexTypes(None)
+            self.plotOptionsToolBar.setAllowedComplexTypes(
+                ComplexRepresentation.empty
+            )
 
     @Slot(PlotType)
     def _plotTypeFromToolBar(self, plotType: PlotType) -> None:
