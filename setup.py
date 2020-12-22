@@ -34,12 +34,11 @@ setup(
         'Intended Audience :: Science/Research',
         'License :: OSI Approved :: MIT License',
         'Programming Language :: Python :: 3 :: Only',
-        'Programming Language :: Python :: 3.6',
         'Programming Language :: Python :: 3.7',
         'Programming Language :: Python :: 3.8',
         'Topic :: Scientific/Engineering'
     ],
-    python_requires='>=3.6',
+    python_requires='>=3.7',
     extras_require={'PyQt5': "PyQt5", "PySide2": "PySide2"},
     entry_points={
         "console_scripts": [
