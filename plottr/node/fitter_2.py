@@ -1,5 +1,6 @@
 import sys
 import pkgutil
+from importlib import reload, import_module
 import warnings
 from typing import Dict, Optional, Type
 import inspect
@@ -10,6 +11,7 @@ import lmfit
 
 from plottr import QtGui, QtCore, Slot, Signal, QtWidgets
 from plottr.analyzer import fitters
+from plottr.analyzer.fitters import generic_functions
 from plottr.analyzer.fitters.fitter_base import Fit
 
 from ..data.datadict import DataDictBase
@@ -41,6 +43,13 @@ def get_modules_in_pkg(pkg):
     modules = []
     for importer, modname, ispkg in pkgutil.iter_modules(pkg.__path__):
         if modname != "fitter_base":
+            module_ = import_module('.'+modname, pkg.__name__)
+            try:
+                del sys.modules[module_.__name__]
+            except:
+                pass
+            module_ = import_module('.'+modname, pkg.__name__)
+            # reload(module_)
             modules.append(modname)
     return modules
 
@@ -51,7 +60,7 @@ def get_all_models_in_pkg(pkg):
         model_dict[m] = get_models_in_module(getattr(pkg, m))
     return model_dict
 
-MODELS = get_all_models_in_pkg(fitters)
+INITIAL_MODELS = get_all_models_in_pkg(fitters)
 #TODO: this requires putting the modules in the init of fitters, there should
 # be a better way to do this.
 
@@ -101,16 +110,45 @@ class FittingGui(NodeWidget):
         """ Set up the model function drop down manual widget.
         """
         combo = QtWidgets.QComboBox()
-        for module_name in MODELS:
+        for module_name in INITIAL_MODELS:
             combo.addItem(module_name)
+        combo.addItem("<New Module>")
         self.layout.addWidget(combo)
         return combo
 
     @Slot(str)
     def moduleChanged(self, current_module):
+        print (current_module)
         self.model_list.clear()
-        for model_name in MODELS[current_module]:
-            self.model_list.addItem(model_name)
+        if current_module == "<New Module>":
+            self.module_combo.setCurrentIndex(0)
+            self.get_user_module()
+        else:
+            new_models = get_all_models_in_pkg(fitters)
+            for model_name in new_models[current_module]:
+                self.model_list.addItem(model_name)
+
+            # debug-------------------------------------------
+            """
+            fitters.generic_functions.Cosine.pp(1)
+            try:
+                test = fitters.generic_functions.Exponential2
+                print("Exponential2 is here!!!!!")
+            except :
+                print("No Exponential2 :( ")
+            """
+            #-------------------------------------------------
+
+    def get_user_module(self):
+        mod_path = QtWidgets.QFileDialog.getOpenFileName(self, 'Open file',
+                                            'c:\\', "Python files (*.py)")[0]
+        mod_name = mod_path.split('/')[-1][:-3]
+        import importlib.util
+        spec = importlib.util.spec_from_file_location(mod_name, mod_path)
+        foo = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(foo)
+        self.module_combo.insertItem(0, mod_name)
+        self.module_combo.setCurrentIndex(0)
 
 
     @Slot(QtWidgets.QListWidgetItem, QtWidgets.QListWidgetItem)
