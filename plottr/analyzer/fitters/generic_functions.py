@@ -3,7 +3,7 @@ from typing import Tuple, Any, Optional, Union, Dict, List
 import numpy as np
 import lmfit
 
-from .fitter_base import Fit, FitResult
+from plottr.analyzer.fitters.fitter_base import Fit, FitResult
 
 
 class Cosine(Fit):
@@ -26,7 +26,7 @@ class Cosine(Fit):
 
         return dict(A=A, of=of, f=f, phi=phi)
 
-class Exponential(Fit):
+class Exponential0(Fit):
     @staticmethod
     def model(coordinates, a, b) -> np.ndarray:
         """ a * b ** x"""

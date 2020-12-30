@@ -1,6 +1,6 @@
 import sys
 import warnings
-from typing import Dict, Optional, Type
+from typing import Dict, Optional
 import inspect
 from dataclasses import dataclass
 import numbers
@@ -8,9 +8,7 @@ import numbers
 import lmfit
 
 from plottr import QtGui, QtCore, Slot, Signal
-from plottr.analyzer.fitters import generic_functions
-from plottr.analyzer.fitters.fitter_base import Fit
-
+from ..fitting_models import fitting_models
 from plottr.icons import paramFixIcon
 from ..data.datadict import DataDictBase
 from .node import Node, NodeWidget, updateOption, updateGuiFromNode
@@ -19,29 +17,22 @@ __author__ = 'Chao Zhou'
 __license__ = 'MIT'
 
 
-def get_models_in_module(module):
-    '''Gather the model classes in the the fitting module
+def index_model_functions():
+    '''Gather the model funcs in the the fitting model package
     '''
-    def is_Fit_subclass(cls: Type[Fit]):
-        """ check if a class is the subclass of analyzer.fitters.fitter_base.Fit
-        """
-        try:
-            if issubclass(cls, Fit) and (cls is not Fit):
-                return True
-            else:
-                return False
-        except TypeError:
-            return False
+    func_classes = inspect.getmembers(fitting_models, inspect.isclass)
+    func_dict = {}
+    for c in func_classes:
+        funcs = inspect.getmembers(c[1], inspect.isfunction)
+        func_dict[c[0]] = {name: func for (name, func) in funcs}
+    return func_dict
 
-    model_classes = inspect.getmembers(module, is_Fit_subclass)
-    return model_classes
 
-MODELS = get_models_in_module(generic_functions)
-
+MODEL_FUNCS = index_model_functions()
 MAX_FLOAT = sys.float_info.max
 
 
-@dataclass  # TODO : add other options for parameters, e.g. constrains
+@dataclass  # TODO : add opther options for parameters, e.g. constrains
 class ParamOptions:  # Maybe just use the lmfit.Parameter object instead?
     fixed: bool = False
     initialGuess: float = 0
