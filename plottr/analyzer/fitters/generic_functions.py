@@ -13,7 +13,7 @@ class Cosine(Fit):
         return A * np.cos(2 * np.pi * coordinates * f + phi) + of
 
     @staticmethod
-    def guess(self, coordinates, data):
+    def guess(coordinates, data):
         of = np.mean(data)
         A = (np.max(data) - np.min(data)) / 2.
 
@@ -33,5 +33,5 @@ class Exponential0(Fit):
         return a * b ** x
 
     @staticmethod
-    def guess(self, coordinates, data):
+    def guess(coordinates, data):
         return dict(a=1, b=2)

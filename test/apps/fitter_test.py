@@ -8,8 +8,8 @@ from plottr import QtGui, QtWidgets
 from plottr.data.datadict import DataDictBase, MeshgridDataDict
 from plottr.gui.widgets import makeFlowchartWithPlotWindow
 from plottr.node.dim_reducer import XYSelector
-from plottr.node.fitter_2 import FittingNode, FittingOptions, ParamOptions
-
+from plottr.node.fitter_2 import FittingNode, FittingOptions
+from plottr.analyzer.fitters.generic_functions import Cosine
 
 def makeData():
     xvals = np.linspace(0, 10, 51)
@@ -19,14 +19,10 @@ def makeData():
     noise = np.random.normal(scale=0.2, size=data.shape)
     data += noise
 
-    amp = ParamOptions(False, 1)
-    omega = ParamOptions(False, 2)
-    phase = ParamOptions(False, 0)
-
-    parameters = {'amp': amp,
-                  'omega': omega,
-                  'phase': phase}
-    fitting_options = FittingOptions('GenericFunctions.Sinusoidal', parameters)
+    params = lmfit.Parameters()
+    for pn, pv in Cosine.guess(xvals, data[0]).items():
+        params.add(pn, value=pv)
+    fitting_options = FittingOptions(Cosine, params)
 
 
 

@@ -18,7 +18,7 @@ class Fit(Analysis):
         _params = lmfit.Parameters()
         for pn, pv in self.guess(coordinates, data).items():
             _params.add(pn, value=pv)
-        for pn, pv in params:
+        for pn, pv in params.items():
             _params[pn] = pv
 
         if dry:
@@ -32,7 +32,7 @@ class Fit(Analysis):
         return FitResult(lmfit_result)
 
     @staticmethod
-    def guess(self, coordinates, data) -> Dict[str, Any]:
+    def guess(coordinates, data) -> Dict[str, Any]:
         raise NotImplementedError
 
 

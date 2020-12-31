@@ -4,12 +4,12 @@ import matplotlib.pyplot as plt
 # from analyzer.fitters.Cosine import Cosine
 # this is the how at did it at first, but kind of redundant
 
-import plottr.analyzer.fitters as ftr
+from plottr.analyzer.fitters.generic_functions import Cosine
 
 tvals = np.linspace(0, 2, 51)
 data = 1.5 * np.cos(2*np.pi*1 * tvals + np.pi) + 0.5 + np.random.normal(scale=0.2, size=tvals.size)
 
-fit = ftr.Cosine(tvals, data)
+fit = Cosine(tvals, data)
 fit_guess = fit.run(dry=True)
 fit_result = fit.run()
 

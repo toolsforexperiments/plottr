@@ -110,3 +110,9 @@ def get_modules_in_pkg(pkg):
 #     return model_dict
 
 INITIAL_MODULES = get_modules_in_pkg(fitters)
+
+
+ef = INITIAL_MODULES['experiment_functions']
+from plottr.analyzer.fitters.generic_functions import Cosine as cc
+from plottr.analyzer.fitters import generic_functions
+gc = generic_functions.Cosine

@@ -11,7 +11,7 @@ class T1_Decay(Fit):
         """ amp * exp(-1.0 * x / tau)"""
         return amp * np.exp(-1.0 * coordinates / tau)
     @staticmethod
-    def guess(self, coordinates, data):
+    def guess(coordinates, data):
         return dict(amp=1, tau=2)
 
 
@@ -22,5 +22,5 @@ class T2_Ramsey(Fit):
         return amp * np.exp(-1.0 * coordinates / tau) * \
                np.sin(2 * np.pi * freq * coordinates + phase)
     @staticmethod
-    def guess(self, coordinates, data):
+    def guess(coordinates, data):
         return dict(amp=1, tau=2, freq=3, phase=4)
