@@ -8,7 +8,7 @@ from plottr import QtGui, QtWidgets
 from plottr.data.datadict import DataDictBase, MeshgridDataDict
 from plottr.gui.widgets import makeFlowchartWithPlotWindow
 from plottr.node.dim_reducer import XYSelector
-from plottr.node.fitter_2 import FittingNode, FittingOptions
+from plottr.node.fitter import FittingNode, FittingOptions
 from plottr.analyzer.fitters.generic_functions import Cosine
 
 def makeData():

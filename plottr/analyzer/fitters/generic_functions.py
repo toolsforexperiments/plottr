@@ -26,11 +26,11 @@ class Cosine(Fit):
 
         return dict(A=A, of=of, f=f, phi=phi)
 
-class Exponential0(Fit):
+class Exponential(Fit):
     @staticmethod
     def model(coordinates, a, b) -> np.ndarray:
         """ a * b ** x"""
-        return a * b ** x
+        return a * b ** coordinates
 
     @staticmethod
     def guess(coordinates, data):
