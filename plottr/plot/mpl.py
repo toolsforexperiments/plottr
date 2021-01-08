@@ -91,9 +91,6 @@ class PlotType(Enum):
 class ComplexRepresentation(Enum):
     """Options for plotting complex-valued data."""
 
-    #: no complex defined
-    empty = auto()
-    
     #: real and imaginary
     realAndImag = auto()
 
@@ -691,7 +688,8 @@ class _AutoPlotToolBar(QtWidgets.QToolBar):
         self._currentPlotType = PlotType.empty
         self._currentlyAllowedPlotTypes: Tuple[PlotType, ...] = ()
 
-        self._currentComplex = ComplexRepresentation.empty
+        self._currentComplex = ComplexRepresentation.realAndImag
+        self.ComplexActions[self._currentComplex].setChecked(True)
         self._currentlyAllowedComplexTypes: Tuple[ComplexRepresentation, ...] = ()
 
     def selectPlotType(self, plotType: PlotType) -> None:
@@ -744,7 +742,7 @@ class _AutoPlotToolBar(QtWidgets.QToolBar):
 
         self._currentlyAllowedPlotTypes = args
 
-    def selectComplexType(self, comp:ComplexRepresentation) -> None:
+    def selectComplexType(self, comp: ComplexRepresentation) -> None:
         """makes sure that the selected `comp` is active (checked), all
         others are not active.
 
@@ -770,7 +768,7 @@ class _AutoPlotToolBar(QtWidgets.QToolBar):
         If the current selection is now disabled, instead select the first
         enabled one.
         """
-
+        
         if args == self._currentlyAllowedComplexTypes:
             return
 
@@ -782,7 +780,7 @@ class _AutoPlotToolBar(QtWidgets.QToolBar):
                 v.setEnabled(True)
 
         if self._currentComplex not in args:
-            self._currentComplex = ComplexRepresentation.empty
+            self._currentComplex = ComplexRepresentation.realAndImag
             for k, v in self.ComplexActions.items():
                 if k in args:
                     v.setChecked(True)
@@ -947,17 +945,18 @@ class AutoPlot(_MPLPlotWidget):
             self.plotOptionsToolBar.setAllowedPlotTypes()
 
     def _processComplexTypeOptions(self) -> None:
-        """Given the current data type, figure out what the complex options are."""
-        if self.dataIsComplex() == True:
-            self.plotOptionsToolBar.setAllowedComplexTypes(
-                ComplexRepresentation.realAndImag,
-                ComplexRepresentation.real,
-                ComplexRepresentation.magAndPhase,
-            )
-        else:
-            self.plotOptionsToolBar.setAllowedComplexTypes(
-                ComplexRepresentation.empty
-            )
+        """Given data is complex or not, define what complex options to be selected."""
+        if self.data is not None:
+            if self.dataIsComplex() == True:
+                self.plotOptionsToolBar.setAllowedComplexTypes(
+                    ComplexRepresentation.realAndImag,
+                    ComplexRepresentation.real,
+                    ComplexRepresentation.magAndPhase,
+                )
+            else:
+                self.plotOptionsToolBar.setAllowedComplexTypes(
+                    ComplexRepresentation.real
+                )
 
     @Slot(PlotType)
     def _plotTypeFromToolBar(self, plotType: PlotType) -> None:
