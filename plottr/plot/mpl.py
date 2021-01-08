@@ -91,15 +91,14 @@ class PlotType(Enum):
 class ComplexRepresentation(Enum):
     """Options for plotting complex-valued data."""
 
+    #: only real
+    real = auto()
+
     #: real and imaginary
     realAndImag = auto()
 
-    #: only real
-    real = auto()
-    
     #: magnitude and phase
     magAndPhase = auto()
-
 
 def determinePlotDataType(data: Optional[DataDictBase]) -> PlotDataType:
     """
@@ -656,15 +655,15 @@ class _AutoPlotToolBar(QtWidgets.QToolBar):
         # other options
         self.addSeparator()
 
-        self.plotComplexReIm = self.addAction('Real/Imag')
-        self.plotComplexReIm.setCheckable(True)
-        self.plotComplexReIm.triggered.connect(
-            lambda: self.selectComplexType(ComplexRepresentation.realAndImag))
-
         self.plotReal = self.addAction('Real')
         self.plotReal.setCheckable(True)
         self.plotReal.triggered.connect(
             lambda: self.selectComplexType(ComplexRepresentation.real))
+
+        self.plotComplexReIm = self.addAction('Real/Imag')
+        self.plotComplexReIm.setCheckable(True)
+        self.plotComplexReIm.triggered.connect(
+            lambda: self.selectComplexType(ComplexRepresentation.realAndImag))
 
         self.plotMagPhase = self.addAction('Mag/Phase')
         self.plotMagPhase.setCheckable(True)
@@ -680,8 +679,8 @@ class _AutoPlotToolBar(QtWidgets.QToolBar):
         })
 
         self.ComplexActions = OrderedDict({
-            ComplexRepresentation.realAndImag: self.plotComplexReIm,
             ComplexRepresentation.real: self.plotReal,
+            ComplexRepresentation.realAndImag: self.plotComplexReIm,
             ComplexRepresentation.magAndPhase: self.plotMagPhase
         })
 
@@ -949,8 +948,8 @@ class AutoPlot(_MPLPlotWidget):
         if self.data is not None:
             if self.dataIsComplex() == True:
                 self.plotOptionsToolBar.setAllowedComplexTypes(
-                    ComplexRepresentation.realAndImag,
                     ComplexRepresentation.real,
+                    ComplexRepresentation.realAndImag,
                     ComplexRepresentation.magAndPhase,
                 )
             else:
