@@ -762,33 +762,33 @@ class _AutoPlotToolBar(QtWidgets.QToolBar):
             self._currentComplex = comp
             self.complexPolarSelected.emit(self._currentComplex)
 
-    def setAllowedComplexTypes(self, *args: ComplexRepresentation) -> None:
+    def setAllowedComplexTypes(self, *complexOptions: ComplexRepresentation) -> None:
         """Disable all choices that are not allowed.
         If the current selection is now disabled, instead select the first
         enabled one.
         """
         
-        if args == self._currentlyAllowedComplexTypes:
+        if complexOptions == self._currentlyAllowedComplexTypes:
             return
 
         for k, v in self.ComplexActions.items():
-            if k not in args:
+            if k not in complexOptions:
                 v.setChecked(False)
                 v.setEnabled(False)
             else:
                 v.setEnabled(True)
 
-        if self._currentComplex not in args:
+        if self._currentComplex not in complexOptions:
             self._currentComplex = ComplexRepresentation.realAndImag
             for k, v in self.ComplexActions.items():
-                if k in args:
+                if k in complexOptions:
                     v.setChecked(True)
                     self._currentComplex = k
                     break
 
             self.complexPolarSelected.emit(self._currentComplex)
 
-        self._currentlyAllowedComplexTypes = args
+        self._currentlyAllowedComplexTypes = complexOptions
 
 class AutoPlot(_MPLPlotWidget):
     """A widget for plotting with matplotlib.
