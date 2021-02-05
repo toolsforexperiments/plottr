@@ -222,11 +222,11 @@ def colorplot2d(ax: Axes, x: np.ndarray, y: np.ndarray, z: np.ndarray,
         z = z.astype(float)
 
         # first check if we need to fill some masked values in
-        if np.ma.is_masked(x):
+        if isinstance(x, np.ma.MaskedArray) and np.ma.is_masked(x):
             x = x.filled(np.nan)
-        if np.ma.is_masked(y):
+        if isinstance(y, np.ma.MaskedArray) and np.ma.is_masked(y):
             y = y.filled(np.nan)
-        if np.ma.is_masked(z):
+        if isinstance(z, np.ma.MaskedArray) and np.ma.is_masked(z):
             z = z.filled(np.nan)
 
         # next: try some surgery, if possible
@@ -874,7 +874,7 @@ class AutoPlot(_MPLPlotWidget):
             dataLimits = {}
             for n in data.axes() + data.dependents():
                 vals = data.data_vals(n)
-                dataLimits[n] = vals.min(), vals.max()
+                dataLimits[n] = float(vals.min()), float(vals.max())
 
         result = {
             'dataTypeChanged': dataType != self.dataType,
