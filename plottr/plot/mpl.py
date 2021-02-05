@@ -1055,7 +1055,7 @@ class AutoPlot(_MPLPlotWidget):
                                 addLegend=(yname == depnames[-1]))
                     plot1dTrace(axes[1], xvals, np.asanyarray(yvals).imag,
                                 axLabels=(self.data.label(xname), ylbl),
-                                curveLabel=f"Im({yname})",
+                                curveLabel=f"Im({self.data.label(yname)})",
                                 addLegend=(yname == depnames[-1]))
                 elif self.complexRepresentation is ComplexRepresentation.magAndPhase:
                     plot1dTrace(axes[0], xvals, np.real(np.abs(yvals)),
