@@ -1035,10 +1035,10 @@ class AutoPlot(_MPLPlotWidget):
 
         if len(depvals) > 1:
             ylbl = None
-            phlbl = None
+            phlbl: Optional[str] = None
         else:
             ylbl = self.data.label(depnames[0])
-            phlbl: Optional[str] = f"Arg({depnames[0]})"
+            phlbl = f"Arg({depnames[0]})"
             
 
         for yname, yvals in zip(depnames, depvals):
