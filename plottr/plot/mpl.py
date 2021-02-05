@@ -1034,11 +1034,12 @@ class AutoPlot(_MPLPlotWidget):
         axes = self._makeAxes(nAxes)
 
         if len(depvals) > 1:
-            ylbl = self.data.label(depnames[0])
-            phlbl: Optional[str] = f"Arg({depnames[0]})"
-        else:
             ylbl = None
-            phlbl = None
+            phlbl: Optional[str] = None
+        else:
+            ylbl = self.data.label(depnames[0])
+            phlbl = f"Arg({depnames[0]})"
+            
 
         for yname, yvals in zip(depnames, depvals):
             # otherwise we sometimes raise ComplexWarning. This is basically just
@@ -1054,7 +1055,7 @@ class AutoPlot(_MPLPlotWidget):
                                 addLegend=(yname == depnames[-1]))
                     plot1dTrace(axes[1], xvals, np.asanyarray(yvals).imag,
                                 axLabels=(self.data.label(xname), ylbl),
-                                curveLabel=f"Im({yname})",
+                                curveLabel=f"Im({self.data.label(yname)})",
                                 addLegend=(yname == depnames[-1]))
                 elif self.complexRepresentation is ComplexRepresentation.magAndPhase:
                     plot1dTrace(axes[0], xvals, np.real(np.abs(yvals)),
