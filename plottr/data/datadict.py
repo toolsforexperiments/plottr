@@ -913,7 +913,7 @@ class DataDict(DataDictBase):
                 rows = self.data_vals(d)
             else:
                 datavals = self.data_vals(d)
-                rows = datavals.reshape(-1, np.prod(ishp[d]))
+                rows = datavals.reshape(-1, int(np.prod(ishp[d])))
 
             _idxs = np.array([])
 
