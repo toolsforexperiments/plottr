@@ -1033,12 +1033,11 @@ class AutoPlot(_MPLPlotWidget):
             nAxes = 1
         axes = self._makeAxes(nAxes)
 
-        if len(depvals) > 1:
-            ylbl = self.data.label(depnames[0])
-            phlbl: Optional[str] = f"Arg({depnames[0]})"
-        else:
-            ylbl = None
-            phlbl = None
+        # For singlepanel, y-axis label might be different for different plots,
+        # so we set it to None. Instead of y-axis label, each plot shows the y-axis
+        # label and unit as a legend inside the plot using curveLabel. 
+        ylbl = None
+        phlbl: Optional[str] = None
 
         for yname, yvals in zip(depnames, depvals):
             # otherwise we sometimes raise ComplexWarning. This is basically just
