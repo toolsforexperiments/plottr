@@ -14,6 +14,11 @@ https://plottr.readthedocs.io (work in progress...)
 
 ## Recent changes:
 
+## 2021-02-08
+
+- Drop support for Python 3.6 and support type-checking with qcodes 0.21.0
+- Fix type-checking with numpy 1.20
+
 ## 2020-08-21
 
 - Workaround for bug with pyqt installed via conda that would result in blank icons.
@@ -76,7 +81,7 @@ Note: this package is not compatible with the original `plottr` tool.
 You might want to install freshly if you still use the old version.
 
 ## Requirements:
-* python >= 3.6 (f-strings...)
+* python >= 3.7 (f-strings...)
 * the usual: numpy, mpl, ...
 * pandas >= 0.22
 * xarray
