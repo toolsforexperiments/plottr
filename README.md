@@ -19,6 +19,9 @@ https://plottr.readthedocs.io (work in progress...)
 - Drop support for Python 3.6 and support type-checking with qcodes 0.21.0
 - Fix type-checking with numpy 1.20
 
+#### Fixed
+- Fixed y-axis to not show axis-label if more than one plot is selected in 1D single-plot show.
+
 ## 2020-08-21
 
 - Workaround for bug with pyqt installed via conda that would result in blank icons.
