@@ -434,6 +434,7 @@ class MPLPlot(FCanvas):
         self._showInfo = False
         self._infoArtist = None
         self._info = ''
+        self._meta_info: Dict[str, str] = {}
 
         self.clearFig(nrows, ncols)
         self.setParent(parent)
@@ -525,9 +526,15 @@ class MPLPlot(FCanvas):
         buf = io.BytesIO()
         self.fig.savefig(buf, dpi=300, facecolor='w', format='png',
                          transparent=True)
-        QtWidgets.QApplication.clipboard().setImage(
-            QtGui.QImage.fromData(buf.getvalue()))
+        clipboard = QtWidgets.QApplication.clipboard()
+        clipboard.setImage(QtGui.QImage.fromData(buf.getvalue()))
         buf.close()
+
+    def metaToClipboard(self) -> None:
+        clipboard = QtWidgets.QApplication.clipboard()
+        meta_info_string = "\n".join(f"{k}: {v}"
+                                     for k, v in self._meta_info.items())
+        clipboard.setText(meta_info_string)
 
     def setFigureTitle(self, title: str) -> None:
         """Add a title to the figure."""
@@ -541,6 +548,9 @@ class MPLPlot(FCanvas):
         """Display an info string in the figure"""
         self._info = info
         self.updateInfo()
+
+    def setMetaInfo(self, meta_info: Dict[str, str]) -> None:
+        self._meta_info = meta_info
 
 
 # class MPLPlotContainer(QtGui.QWidget):
@@ -585,6 +595,21 @@ class _MPLPlotWidget(PlotWidget):
         if data.has_meta('info'):
             self.plot.setFigureInfo(data.meta_val('info'))
 
+        meta_info = {}
+        for meta_key in ('qcodes_guid', 'qcodes_sample_name',
+                         'qcodes_experiment_name', 'qcodes_dataset_name',
+                         'qcodes_runId', 'qcodes_db', 'qcodes_completedTS',
+                         'qcodes_runTS'):
+            if data.has_meta(meta_key):
+                key_without_prefix = (
+                    meta_key.replace("qcodes_", "")
+                    if meta_key.startswith("qcodes_")
+                    else meta_key
+                )
+                meta_info[key_without_prefix] = data.meta_val(meta_key)
+
+        self.plot.setMetaInfo(meta_info=meta_info)
+
     def addMplBarOptions(self) -> None:
         tlCheck = QtWidgets.QCheckBox('Tight layout')
         tlCheck.toggled.connect(self.plot.setTightLayout)
@@ -597,7 +622,8 @@ class _MPLPlotWidget(PlotWidget):
         self.mplBar.addSeparator()
         self.mplBar.addWidget(infoCheck)
         self.mplBar.addSeparator()
-        self.mplBar.addAction('Copy', self.plot.toClipboard)
+        self.mplBar.addAction('Copy plot', self.plot.toClipboard)
+        self.mplBar.addAction('Copy metadata', self.plot.metaToClipboard)
 
 
 # A toolbar for setting options on the MPL autoplot
