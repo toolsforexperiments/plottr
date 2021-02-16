@@ -14,6 +14,13 @@ https://plottr.readthedocs.io (work in progress...)
 
 ## Recent changes:
 
+## 2021-02-16
+
+- Add copy content features to inspectr and autoplot windows, specifically
+  - a new Copy pop up menu for copying content of cells in inspectr
+  - a new Copy metadata button in plot window for copying info about the dataset to clipboard
+  - remove redundant information between the optional "info" box on the plot and the plot title
+
 ## 2021-02-08
 
 - Drop support for Python 3.6 and support type-checking with qcodes 0.21.0
