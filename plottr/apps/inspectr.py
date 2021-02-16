@@ -19,8 +19,6 @@ import argparse
 import logging
 from typing import Optional, Sequence, List, Dict, Iterable, Union, cast, Tuple
 
-from PyQt5.QtCore import QPoint
-from PyQt5.QtWidgets import QMenu
 from typing_extensions import TypedDict
 
 from numpy import rint
@@ -148,9 +146,9 @@ class RunList(QtWidgets.QTreeWidget):
         self.setContextMenuPolicy(QtCore.Qt.CustomContextMenu)
         self.customContextMenuRequested.connect(self.copy_to_clipboard)
 
-    @Slot(QPoint)
-    def copy_to_clipboard(self, position: QPoint) -> None:
-        menu = QMenu()
+    @Slot(QtCore.QPoint)
+    def copy_to_clipboard(self, position: QtCore.QPoint) -> None:
+        menu = QtWidgets.QMenu()
         copy_icon = self.style().standardIcon(QtWidgets.QStyle.SP_DialogSaveButton)
         copy_action = menu.addAction(copy_icon, "Copy")
         action = menu.exec_(self.mapToGlobal(position))
