@@ -21,5 +21,5 @@ from ._version import get_versions
 __version__ = get_versions()['version']
 del get_versions
 
-log = logging.getLogger(__name__)
-log.info(f"Imported plottr version: {__version__}")
+logger = logging.getLogger(__name__)
+logger.info(f"Imported plottr version: {__version__}")
