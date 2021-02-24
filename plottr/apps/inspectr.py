@@ -377,7 +377,7 @@ class QCodesDBInspector(QtWidgets.QMainWindow):
         self.loadDBProcess.pathSet.connect(self.loadDBThread.start)
         self.loadDBProcess.dbdfLoaded.connect(self.DBLoaded)
         self.loadDBProcess.dbdfLoaded.connect(self.loadDBThread.quit)
-        self.loadDBThread.started.connect(self.loadDBProcess.loadDB)  # type: ignore[attr-defined]
+        self.loadDBThread.started.connect(self.loadDBProcess.loadDB)
 
         ### connect signals/slots
 
@@ -561,7 +561,9 @@ def main(dbPath: Optional[str]) -> None:
     win.show()
 
     if (sys.flags.interactive != 1) or not hasattr(QtCore, 'PYQT_VERSION'):
-        QtWidgets.QApplication.instance().exec_()
+        appinstance = QtWidgets.QApplication.instance()
+        assert appinstance is not None
+        appinstance.exec_()
 
 
 def script() -> None:
