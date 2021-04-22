@@ -2,7 +2,7 @@
 
 nodes and widgets for reducing data dimensionality.
 """
-from typing import Dict, Any, Tuple, Type, Optional, List, Union, cast
+from typing import Dict, Any, Tuple, Type, Optional, List, Union, cast, Callable
 from enum import Enum, unique
 
 from typing_extensions import TypedDict
@@ -56,7 +56,7 @@ class ReductionMethod(Enum):
 
 
 #: mapping from reduction method Enum to functions
-reductionFunc = {
+reductionFunc: Dict[ReductionMethod, Callable[..., Any]] = {
     ReductionMethod.elementSelection: selectAxisElement,
     ReductionMethod.average: np.mean,
 }
@@ -518,10 +518,12 @@ class DimensionReducer(Node):
 
                     # support for both pre-defined and custom functions
                     if isinstance(fun, ReductionMethod):
-                        funCall = reductionFunc[fun]
+                        funCall: Optional[Callable[..., Any]] = reductionFunc[fun]
                     else:
                         funCall = fun
 
+                    if funCall is None:
+                        raise RuntimeError("Reduction function is None")
                     newvals = funCall(data[n]['values'], *arg, **kw)
                     if newvals.shape != targetShape:
                         self.logger().error(
