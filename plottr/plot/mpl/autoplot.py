@@ -6,6 +6,7 @@ plots from input data.
 import logging
 from typing import Dict, List, Tuple, Union, Callable, Optional, Any, Type
 from collections import OrderedDict
+from enum import Enum, auto, unique
 
 import numpy as np
 from matplotlib import rc, pyplot as plt
@@ -18,7 +19,7 @@ from plottr import QtWidgets, QtCore, Signal, Slot
 from plottr.data.datadict import DataDictBase
 from plottr.icons import (get_singleTracePlotIcon, get_multiTracePlotIcon, get_imagePlotIcon,
                           get_colormeshPlotIcon, get_scatterPlot2dIcon)
-from ..base import AutoFigureMaker as BaseFM, PlotType, PlotDataType, \
+from ..base import AutoFigureMaker as BaseFM, PlotDataType, \
     PlotItem, SubPlot, ComplexRepresentation, determinePlotDataType
 from .widgets import MPLPlotWidget
 from .utils import attachColorAx
@@ -26,6 +27,29 @@ from .utils import attachColorAx
 
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
+
+
+@unique
+class PlotType(Enum):
+    """Plot types"""
+
+    #: no plot defined
+    empty = auto()
+
+    #: a single 1D line/scatter plot per panel
+    singletraces = auto()
+
+    #: multiple 1D lines/scatter plots per panel
+    multitraces = auto()
+
+    #: image plot of 2D data
+    image = auto()
+
+    #: colormesh plot of 2D data
+    colormesh = auto()
+
+    #: 2D scatter plot
+    scatter2d = auto()
 
 
 class FigureMaker(BaseFM):
@@ -65,6 +89,10 @@ class FigureMaker(BaseFM):
         if len(axes) > 1:
             if len(labels) > 2 and len(set(labels[2])) == 1:
                 axes[1].set_ylabel(labels[2][0])
+
+    def plot(self, plotItem: PlotItem):
+        if plotItem.plotDataType in [PlotDataType.line1d, PlotDataType.scatter1d]:
+            return self.plot_line(plotItem)
 
     def plot_line(self, plotItem: PlotItem):
         ax = self.subPlots[plotItem.subPlot].axes[0]
@@ -433,7 +461,7 @@ class AutoPlot(MPLPlotWidget):
                 curveId = fm.addData(xvals, yvals,
                                      labels=[self.data.label(xname),
                                              self.data.label(yname)],
-                                     style='line',
+                                     plotDataType=self.plotDataType,
                                      **kw)
                 if singlePanel:
                     kw['join'] = curveId

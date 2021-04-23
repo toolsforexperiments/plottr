@@ -149,7 +149,7 @@ def makeFlowchartWithPlot(nodes: List[Tuple[str, Type[Node]]],
 # Types of plots and plottable data
 @unique
 class PlotDataType(Enum):
-    """Types of (plotable) data"""
+    """Types of (plottable) data"""
 
     #: unplottable data
     unknown = auto()
@@ -165,29 +165,6 @@ class PlotDataType(Enum):
 
     #: grid data with 2 dependents
     grid2d = auto()
-
-
-@unique
-class PlotType(Enum):
-    """Plot types"""
-
-    #: no plot defined
-    empty = auto()
-
-    #: a single 1D line/scatter plot per panel
-    singletraces = auto()
-
-    #: multiple 1D lines/scatter plots per panel
-    multitraces = auto()
-
-    #: image plot of 2D data
-    image = auto()
-
-    #: colormesh plot of 2D data
-    colormesh = auto()
-
-    #: 2D scatter plot
-    scatter2d = auto()
 
 
 @unique
@@ -255,8 +232,8 @@ class PlotItem:
     data: List[np.ndarray]
     id: int
     subPlot: int
+    plotDataType: PlotDataType
     labels: Optional[List[str]] = None
-    style: Optional[str] = None
     plotOptions: Optional[Dict[str, Any]] = None
     plotReturn: Optional[Any] = None
 
@@ -326,25 +303,8 @@ class AutoFigureMaker(object):
     def _makeSubPlot(self, id: int):
         items = self.subPlotItems(id)
         for name, item in items.items():
-            self._plot(item)
+            item.plotReturn = self.plot(item)
         self.formatSubPlot(id)
-
-    def _plot(self, plotItem: PlotItem):
-        if plotItem.style is None:
-            if len(plotItem.data) == 2:
-                style = 'line'
-            elif len(plotItem.data) == 3:
-                style = 'image'
-            else:
-                raise ValueError("Cannot automatically determine plot style.")
-        else:
-            style = plotItem.style
-
-        if hasattr(self, f'plot_{style}'):
-            plotFunc = getattr(self, f'plot_{style}')
-        else:
-            raise ValueError(f"No plot function for style '{style}'.")
-        plotItem.plotReturn = plotFunc(plotItem)
 
     def _splitComplexData(self, plotItem: PlotItem) -> List[PlotItem]:
         if not np.issubsctype(plotItem.data[-1], np.complexfloating):
@@ -417,7 +377,8 @@ class AutoFigureMaker(object):
         return ret
 
     def addData(self, *data: np.ndarray, join: Optional[int] = None,
-                labels: Optional[List[str]] = None, style: Optional[str] = None,
+                labels: Optional[List[str]] = None,
+                plotDataType: PlotDataType = PlotDataType.unknown,
                 **plotOptions: Any) -> int:
 
         id = _generate_auto_dict_key(self.plotItems)
@@ -430,7 +391,7 @@ class AutoFigureMaker(object):
             labels = [''] * len(data)
 
         plotItem = PlotItem(list(data), id, subPlotId,
-                            labels, style, plotOptions)
+                            plotDataType, labels, plotOptions)
 
         for p in self._splitComplexData(plotItem):
             self.plotItems[p.id] = p
@@ -444,10 +405,7 @@ class AutoFigureMaker(object):
     def formatSubPlot(self, subPlotId: int):
         pass
 
-    def plot_line(self, plotItem: PlotItem):
-        raise NotImplementedError
-
-    def plot_image(self, plotItem: PlotItem):
+    def plot(self, plotItem: PlotItem):
         raise NotImplementedError
 
 
