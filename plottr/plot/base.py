@@ -10,6 +10,7 @@ from dataclasses import dataclass
 from enum import Enum, unique, auto
 from typing import Dict, List, Type, Tuple, Optional, Any, \
     OrderedDict as OrderedDictType
+from types import TracebackType
 
 import numpy as np
 
@@ -312,7 +313,7 @@ class AutoFigureMaker(object):
 
     In the simplest form, usage looks something like this::
 
-        >>> with FigureMaker() as fm:
+        >>> with AutoFigureMaker() as fm:
         >>>     fm.addData(x, y, [...])
         >>>     [...]
 
@@ -333,10 +334,12 @@ class AutoFigureMaker(object):
         #: must be set before adding data to the plot to have an effect.
         self.complexRepresentation = ComplexRepresentation.realAndImag
 
-    def __enter__(self) -> None:
+    def __enter__(self) -> "AutoFigureMaker":
         return self
 
-    def __exit__(self, exc_type, exc_value, traceback) -> None:
+    def __exit__(self, exc_type: Optional[Type[BaseException]],
+                 exc_value: Optional[BaseException],
+                 traceback: Optional[TracebackType]) -> None:
         self._makeAxes()
         for id in self.subPlots.keys():
             self._makeSubPlot(id)
