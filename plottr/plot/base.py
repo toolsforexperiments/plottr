@@ -151,9 +151,9 @@ class PlotWidget(QtWidgets.QWidget):
             dataType = None
 
         if data is None:
-            dataStructure = None
-            dataShapes = None
-            dataLimits = None
+            dataStructure: Optional[DataDictBase] = None
+            dataShapes: Optional[Dict[str, Tuple[int, ...]]] = None
+            dataLimits: Optional[Dict[str, Tuple[Any, Any]]] = None
         else:
             dataStructure = data.structure(include_meta=False)
             dataShapes = data.shapes()
@@ -349,19 +349,24 @@ class AutoFigureMaker(object):
             if not isinstance(axes, list):
                 axes = [axes]
             self.subPlots[id] = SubPlot(id, axes)
+        return None
 
     def _makeSubPlot(self, id: int):
         items = self.subPlotItems(id)
         for name, item in items.items():
             item.plotReturn = self.plot(item)
         self.formatSubPlot(id)
+        return None
 
     def _splitComplexData(self, plotItem: PlotItem) -> List[PlotItem]:
+        if plotItem.labels is None:
+            plotItem.labels = [''] * len(plotItem.data)
+        label = plotItem.labels[-1]
+
         if not np.issubsctype(plotItem.data[-1], np.complexfloating):
             return [plotItem]
 
-        label = plotItem.labels[-1]
-        if self.complexRepresentation is ComplexRepresentation.realAndImag:
+        elif self.complexRepresentation is ComplexRepresentation.realAndImag:
             re_data = plotItem.data[-1].real
             im_data = plotItem.data[-1].imag
 
@@ -375,13 +380,19 @@ class AutoFigureMaker(object):
 
             # FIXME: for > 1d data we should have separate panels!
             re_plotItem.data[-1] = re_data
-            re_plotItem.labels[-1] = re_label
             im_plotItem.data[-1] = im_data
-            im_plotItem.labels[-1] = im_label
             im_plotItem.id = re_plotItem.id + 1
+
+            # this is a bit of a silly check (see top of the function -- should certainly be True!).
+            # but it keeps mypy happy.
+            if isinstance(re_plotItem.labels, list):
+                re_plotItem.labels[-1] = re_label
+            if isinstance(im_plotItem.labels, list):
+                im_plotItem.labels[-1] = im_label
+
             return [re_plotItem, im_plotItem]
 
-        if self.complexRepresentation is ComplexRepresentation.magAndPhase:
+        else:  # means that self.complexRepresentation is ComplexRepresentation.magAndPhase:
             mag_data = np.abs(plotItem.data[-1])
             phase_data = np.angle(plotItem.data[-1])
 
@@ -394,11 +405,17 @@ class AutoFigureMaker(object):
             phase_plotItem = deepcopy(mag_plotItem)
 
             mag_plotItem.data[-1] = mag_data
-            mag_plotItem.labels[-1] = mag_label
             phase_plotItem.data[-1] = phase_data
-            phase_plotItem.labels[-1] = phase_label
             phase_plotItem.id = mag_plotItem.id + 1
             phase_plotItem.subPlot = mag_plotItem.subPlot + 1
+
+            # this is a bit of a silly check (see top of the function -- should certainly be True!).
+            # but it keeps mypy happy.
+            if isinstance(mag_plotItem.labels, list):
+                mag_plotItem.labels[-1] = mag_label
+            if isinstance(phase_plotItem.labels, list):
+                phase_plotItem.labels[-1] = phase_label
+
             return [mag_plotItem, phase_plotItem]
 
     # public methods
@@ -434,7 +451,7 @@ class AutoFigureMaker(object):
         return items
 
     def subPlotLabels(self, subPlotId: int) -> List[List[str]]:
-        ret = []
+        ret: List[List[str]] = []
         items = self.subPlotItems(subPlotId)
         for id, item in items.items():
             if item.labels is not None:

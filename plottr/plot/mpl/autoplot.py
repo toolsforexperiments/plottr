@@ -9,8 +9,10 @@ from collections import OrderedDict
 
 import numpy as np
 from matplotlib.axes import Axes
+from matplotlib.artist import Artist
 from matplotlib.figure import Figure
 from matplotlib.gridspec import GridSpec
+from matplotlib.lines import Line2D
 
 from plottr import QtWidgets, QtCore, Signal, Slot
 from plottr.data.datadict import DataDictBase
@@ -63,37 +65,49 @@ class FigureMaker(BaseFM):
         labels = self.subPlotLabels(subPlotId)
         axes = self.subPlots[subPlotId].axes
 
-        if len(axes) > 0:
+        if isinstance(axes, list) and len(axes) > 0:
             if len(labels) > 0 and len(set(labels[0])) == 1:
                 axes[0].set_xlabel(labels[0][0])
             if len(labels) > 1 and len(set(labels[1])) == 1:
                 axes[0].set_ylabel(labels[1][0])
 
-        if len(labels) == 2 and len(set(labels[1])) > 1:
+        if isinstance(axes, list) and len(labels) == 2 and len(set(labels[1])) > 1:
             axes[0].legend(loc='best', fontsize='small')
 
-        if len(axes) > 1:
+        if isinstance(axes, list) and len(axes) > 1:
             if len(labels) > 2 and len(set(labels[2])) == 1:
                 axes[1].set_ylabel(labels[2][0])
+        return None
 
-    def plot(self, plotItem: PlotItem):
+    def plot(self, plotItem: PlotItem) -> Optional[Union[Artist, List[Artist]]]:
         if self.plotType in [PlotType.singletraces, PlotType.multitraces]:
             return self.plotLine(plotItem)
-        if self.plotType in [PlotType.image, PlotType.scatter2d, PlotType.colormesh]:
+        elif self.plotType in [PlotType.image, PlotType.scatter2d, PlotType.colormesh]:
             return self.plotImage(plotItem)
+        else:
+            return None
 
     # methods specific to this class
-    def plotLine(self, plotItem: PlotItem):
-        ax = self.subPlots[plotItem.subPlot].axes[0]
-        return ax.plot(*plotItem.data, label=plotItem.labels[-1],
-                       **plotItem.plotOptions)
+    def plotLine(self, plotItem: PlotItem) -> Optional[List[Line2D]]:
+        axes = self.subPlots[plotItem.subPlot].axes
+        if isinstance(axes, list) and len(axes) > 0:
+            lbl = plotItem.labels[-1] if isinstance(plotItem.labels, list) and len(plotItem.labels) > 0 else ''
+            return axes[0].plot(*plotItem.data, label=lbl, **plotItem.plotOptions)
+        else:
+            return None
 
-    def plotImage(self, plotItem: PlotItem):
-        ax = self.subPlots[plotItem.subPlot].axes[0]
-        im = colorplot2d(ax, *plotItem.data, plotType=self.plotType)
-        cb = self.fig.colorbar(im, ax=ax, shrink=0.75, pad=0.02)
-        cb.set_label(plotItem.labels[-1])
-        return im
+    def plotImage(self, plotItem: PlotItem) -> Optional[Artist]:
+        assert len(plotItem.data) == 3
+        x, y, z = plotItem.data
+        axes = self.subPlots[plotItem.subPlot].axes
+        if isinstance(axes, list) and len(axes) > 0:
+            im = colorplot2d(axes[0], x, y, z, plotType=self.plotType)
+            cb = self.fig.colorbar(im, ax=axes[0], shrink=0.75, pad=0.02)
+            lbl = plotItem.labels[-1] if isinstance(plotItem.labels, list) and len(plotItem.labels) > 0 else ''
+            cb.set_label(lbl)
+            return im
+        else:
+            return None
 
 
 # A toolbar for setting options on the MPL autoplot

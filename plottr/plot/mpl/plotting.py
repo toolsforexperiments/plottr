@@ -1,13 +1,14 @@
-from typing import Optional, Tuple, Any, Union
 from enum import Enum, auto, unique
+from typing import Optional, Tuple, Any, Union
 
 import numpy as np
-from matplotlib import colors, rcParams
-from matplotlib.axes import Axes
-from matplotlib.image import AxesImage
+from matplotlib import colors, rcParams  # type: ignore
+from matplotlib.axes import Axes  # type: ignore
+from matplotlib.image import AxesImage  # type: ignore
 
 from plottr.utils import num
 from plottr.utils.num import interp_meshgrid_2d, centers2edges_2d
+
 
 @unique
 class PlotType(Enum):
@@ -34,6 +35,7 @@ class PlotType(Enum):
 
 class SymmetricNorm(colors.Normalize):
     """Color norm that's symmetric and linear around a center value."""
+
     def __init__(self, vmin: Optional[float] = None,
                  vmax: Optional[float] = None,
                  vcenter: float = 0,
@@ -42,9 +44,9 @@ class SymmetricNorm(colors.Normalize):
         self.vcenter = vcenter
 
     def __call__(self, value: float, clip: Optional[bool] = None) -> np.ma.core.MaskedArray:
-        vlim = max(abs(self.vmin-self.vcenter), abs(self.vmax-self.vcenter))
-        self.vmax: float = vlim+self.vcenter
-        self.vmin: float = -vlim+self.vcenter
+        vlim = max(abs(self.vmin - self.vcenter), abs(self.vmax - self.vcenter))
+        self.vmax: float = vlim + self.vcenter
+        self.vmin: float = -vlim + self.vcenter
         return super().__call__(value, clip)
 
 

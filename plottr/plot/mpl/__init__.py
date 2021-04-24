@@ -16,7 +16,7 @@ directories and applies it to matplotlib plots using `pyplot.style.use`.
 """
 import logging
 
-from matplotlib import rcParams, cm, pyplot as plt
+from matplotlib import rcParams, cm, pyplot as plt  # type: ignore
 
 from plottr import configFiles
 from .autoplot import AutoPlot, FigureMaker
@@ -38,5 +38,4 @@ def setStyle() -> None:
 setStyle()
 
 # matplotlib tools and settings
-default_prop_cycle = rcParams['axes.prop_cycle']
 symmetric_cmap = cm.get_cmap('bwr')
