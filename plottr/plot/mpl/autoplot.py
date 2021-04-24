@@ -5,7 +5,8 @@ plots from input data.
 
 import logging
 from collections import OrderedDict
-from typing import Dict, List, Tuple, Union, Optional, Any
+from typing import Dict, List, Tuple, Union, Optional, Any, Type
+from types import TracebackType
 
 import numpy as np
 from matplotlib.artist import Artist
@@ -35,9 +36,11 @@ class FigureMaker(BaseFM):
         self.fig = fig
         self.plotType = PlotType.empty
 
-    def __exit__(self, exc_type, exc_value, traceback) -> None:
+    def __exit__(self, exc_type: Optional[Type[BaseException]],
+                 exc_value: Optional[BaseException],
+                 traceback: Optional[TracebackType]) -> None:
         self.fig.clear()
-        super().__exit__(exc_type, exc_value, traceback)
+        return super().__exit__(exc_type, exc_value, traceback)
 
     # inherited methods
     def addData(self, *data: np.ndarray, join: Optional[int] = None,
