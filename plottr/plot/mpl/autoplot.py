@@ -4,12 +4,12 @@ plots from input data.
 """
 
 import logging
-from typing import Dict, List, Tuple, Union, Callable, Optional, Any, Type
 from collections import OrderedDict
+from typing import Dict, List, Tuple, Union, Optional, Any
 
 import numpy as np
-from matplotlib.axes import Axes
 from matplotlib.artist import Artist
+from matplotlib.axes import Axes
 from matplotlib.figure import Figure
 from matplotlib.gridspec import GridSpec
 from matplotlib.lines import Line2D
@@ -18,11 +18,10 @@ from plottr import QtWidgets, QtCore, Signal, Slot
 from plottr.data.datadict import DataDictBase
 from plottr.icons import (get_singleTracePlotIcon, get_multiTracePlotIcon, get_imagePlotIcon,
                           get_colormeshPlotIcon, get_scatterPlot2dIcon)
-from ..base import AutoFigureMaker as BaseFM, PlotDataType, \
-    PlotItem, SubPlot, ComplexRepresentation, determinePlotDataType
-from .widgets import MPLPlotWidget
 from .plotting import PlotType, colorplot2d
-
+from .widgets import MPLPlotWidget
+from ..base import AutoFigureMaker as BaseFM, PlotDataType, \
+    PlotItem, ComplexRepresentation, determinePlotDataType
 
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
@@ -31,12 +30,12 @@ logger.setLevel(logging.INFO)
 class FigureMaker(BaseFM):
     """Matplotlib implementation for :class:`.AutoFigureMaker`."""
 
-    def __init__(self, fig: Figure):
+    def __init__(self, fig: Figure) -> None:
         super().__init__()
         self.fig = fig
         self.plotType = PlotType.empty
 
-    def __exit__(self, exc_type, exc_value, traceback):
+    def __exit__(self, exc_type, exc_value, traceback) -> None:
         self.fig.clear()
         super().__exit__(exc_type, exc_value, traceback)
 
@@ -61,7 +60,7 @@ class FigureMaker(BaseFM):
             axes = []
         return axes
 
-    def formatSubPlot(self, subPlotId: int):
+    def formatSubPlot(self, subPlotId: int) -> None:
         labels = self.subPlotLabels(subPlotId)
         axes = self.subPlots[subPlotId].axes
 
@@ -350,7 +349,7 @@ class AutoPlot(MPLPlotWidget):
 
         assert self.data is not None
 
-        kw = {}
+        kw: Dict[str, Any] = {}
         with FigureMaker(self.plot.fig) as fm:
             fm.plotType = self.plotType
             if not self.dataIsComplex():
@@ -362,8 +361,8 @@ class AutoPlot(MPLPlotWidget):
             for dn in self.data.dependents():
                 dvals = self.data.data_vals(dn)
                 plotId = fm.addData(
-                    *[np.asanyarray(self.data.data_vals(n)) for n in indeps]+[dvals],
-                    labels=[self.data.label(n) for n in indeps]+[self.data.label(dn)],
+                    *[np.asanyarray(self.data.data_vals(n)) for n in indeps] + [dvals],
+                    labels=[self.data.label(n) for n in indeps] + [self.data.label(dn)],
                     plotDataType=self.plotDataType,
                     **kw)
 

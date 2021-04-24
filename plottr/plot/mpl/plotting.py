@@ -2,9 +2,9 @@ from enum import Enum, auto, unique
 from typing import Optional, Tuple, Any, Union
 
 import numpy as np
-from matplotlib import colors, rcParams  # type: ignore
-from matplotlib.axes import Axes  # type: ignore
-from matplotlib.image import AxesImage  # type: ignore
+from matplotlib import colors, rcParams
+from matplotlib.axes import Axes
+from matplotlib.image import AxesImage
 
 from plottr.utils import num
 from plottr.utils.num import interp_meshgrid_2d, centers2edges_2d

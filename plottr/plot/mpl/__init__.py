@@ -16,7 +16,7 @@ directories and applies it to matplotlib plots using `pyplot.style.use`.
 """
 import logging
 
-from matplotlib import rcParams, cm, pyplot as plt  # type: ignore
+from matplotlib import rcParams, cm, pyplot as plt
 
 from plottr import configFiles
 from .autoplot import AutoPlot, FigureMaker

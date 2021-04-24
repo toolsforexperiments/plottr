@@ -4,19 +4,18 @@ plottr/plot/base.py : Contains the base classes for plotting nodes and widgets.
 Most things that are independent of plotting backend are in here.
 """
 
+from collections import OrderedDict
+from copy import deepcopy
+from dataclasses import dataclass
 from enum import Enum, unique, auto
 from typing import Dict, List, Type, Tuple, Optional, Any, \
     OrderedDict as OrderedDictType
-from collections import OrderedDict
-from dataclasses import dataclass
-from copy import copy, deepcopy
 
 import numpy as np
 
 from .. import Signal, Flowchart, QtWidgets
 from ..data.datadict import DataDictBase, DataDict, MeshgridDataDict
 from ..node import Node, linearFlowchart
-
 
 __author__ = 'Wolfgang Pfaff'
 __license__ = 'MIT'
@@ -317,7 +316,7 @@ class AutoFigureMaker(object):
         >>>     fm.addData(x, y, [...])
         >>>     [...]
 
-    See :method:`addData` for details on how to specify data and how to pass
+    See :meth:`addData` for details on how to specify data and how to pass
     plot options to it.
     """
 
@@ -326,7 +325,7 @@ class AutoFigureMaker(object):
     #   needs a system to copy certain style aspects from the parents.
     # TODO: similar, but with siblings (imagine Re/Im parts)
 
-    def __init__(self):
+    def __init__(self) -> None:
         self.subPlots: OrderedDictType[int, SubPlot] = OrderedDict()
         self.plotItems: OrderedDictType[int, PlotItem] = OrderedDict()
 
@@ -334,10 +333,10 @@ class AutoFigureMaker(object):
         #: must be set before adding data to the plot to have an effect.
         self.complexRepresentation = ComplexRepresentation.realAndImag
 
-    def __enter__(self):
+    def __enter__(self) -> None:
         return self
 
-    def __exit__(self, exc_type, exc_value, traceback):
+    def __exit__(self, exc_type, exc_value, traceback) -> None:
         self._makeAxes()
         for id in self.subPlots.keys():
             self._makeSubPlot(id)
@@ -351,7 +350,7 @@ class AutoFigureMaker(object):
             self.subPlots[id] = SubPlot(id, axes)
         return None
 
-    def _makeSubPlot(self, id: int):
+    def _makeSubPlot(self, id: int) -> None:
         items = self.subPlotItems(id)
         for name, item in items.items():
             item.plotReturn = self.plot(item)
@@ -428,7 +427,7 @@ class AutoFigureMaker(object):
         self.subPlots[id] = SubPlot(id, [])
         return id
 
-    def nSubPlots(self):
+    def nSubPlots(self) -> int:
         """Count the subplots in the figure.
 
         :return: number of subplots
@@ -456,7 +455,7 @@ class AutoFigureMaker(object):
         for id, item in items.items():
             if item.labels is not None:
                 for i, l in enumerate(item.labels):
-                    while(len(ret)) <= i:
+                    while (len(ret)) <= i:
                         ret.append([])
                     ret[i].append(l)
         return ret
@@ -493,14 +492,14 @@ class AutoFigureMaker(object):
     def makeSubPlots(self, nSubPlots: int) -> List[Any]:
         raise NotImplementedError
 
-    def formatSubPlot(self, subPlotId: int):
+    def formatSubPlot(self, subPlotId: int) -> Any:
         pass
 
-    def plot(self, plotItem: PlotItem):
+    def plot(self, plotItem: PlotItem) -> Any:
         raise NotImplementedError
 
 
-def _generate_auto_dict_key(d: Dict):
+def _generate_auto_dict_key(d: Dict) -> int:
     guess = 0
     while guess in d.keys():
         guess += 1
