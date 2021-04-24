@@ -130,6 +130,10 @@ class PlotWidget(QtWidgets.QWidget):
         super().__init__(parent=parent)
 
         self.data: Optional[DataDictBase] = None
+        self.dataType: Optional[Type[DataDictBase]] = None
+        self.dataStructure: Optional[DataDictBase] = None
+        self.dataShapes: Optional[Dict[str, Tuple[int, ...]]] = None
+        self.dataLimits: Optional[Dict[str, Tuple[float, float]]] = None
 
     def setData(self, data: Optional[DataDictBase]) -> None:
         """Set data. Use this to trigger plotting.
@@ -137,6 +141,57 @@ class PlotWidget(QtWidgets.QWidget):
         :param data: data to be plotted.
         """
         self.data = data
+        changes = self.analyzeData(data)
+
+    def analyzeData(self, data: Optional[DataDictBase]) -> Dict[str, bool]:
+        """checks data and compares with previous properties."""
+        if data is not None:
+            dataType: Optional[Type[DataDictBase]] = type(data)
+        else:
+            dataType = None
+
+        if data is None:
+            dataStructure = None
+            dataShapes = None
+            dataLimits = None
+        else:
+            dataStructure = data.structure(include_meta=False)
+            dataShapes = data.shapes()
+            dataLimits = {}
+            for n in data.axes() + data.dependents():
+                vals = data.data_vals(n)
+                dataLimits[n] = vals.min(), vals.max()
+
+        result = {
+            'dataTypeChanged': dataType != self.dataType,
+            'dataStructureChanged': dataStructure != self.dataStructure,
+            'dataShapesChanged': dataShapes != self.dataShapes,
+            'dataLimitsChanged': dataLimits != self.dataLimits,
+        }
+
+        self.dataType = dataType
+        self.dataStructure = dataStructure
+        self.dataShapes = dataShapes
+        self.dataLimits = dataLimits
+        return result
+
+    def dataIsComplex(self, dependentName: Optional[str] = None) -> bool:
+        """Determine whether our data is complex.
+        If dependent_name is not given, check all dependents, return True if any
+        of them is complex.
+        """
+        if self.data is None:
+            return False
+
+        if dependentName is None:
+            for d in self.data.dependents():
+                if np.issubsctype(self.data.data_vals(d), np.complexfloating):
+                    return True
+        else:
+            if np.issubsctype(self.data.data_vals(dependentName), np.complexfloating):
+                return True
+
+        return False
 
 
 def makeFlowchartWithPlot(nodes: List[Tuple[str, Type[Node]]],
@@ -277,7 +332,7 @@ class AutoFigureMaker(object):
 
         #: how to represent complex data.
         #: must be set before adding data to the plot to have an effect.
-        self.complex_representation = ComplexRepresentation.realAndImag
+        self.complexRepresentation = ComplexRepresentation.realAndImag
 
     def __enter__(self):
         return self
@@ -290,15 +345,10 @@ class AutoFigureMaker(object):
     # private methods
     def _makeAxes(self) -> None:
         n = self.nSubPlots()
-        for id, axes in zip(range(n), self.makeAxes(n)):
+        for id, axes in zip(range(n), self.makeSubPlots(n)):
             if not isinstance(axes, list):
                 axes = [axes]
             self.subPlots[id] = SubPlot(id, axes)
-
-    def addPanel(self) -> int:
-        id = _generate_auto_dict_key(self.subPlots)
-        self.subPlots[id] = SubPlot(id, [])
-        return id
 
     def _makeSubPlot(self, id: int):
         items = self.subPlotItems(id)
@@ -311,7 +361,7 @@ class AutoFigureMaker(object):
             return [plotItem]
 
         label = plotItem.labels[-1]
-        if self.complex_representation is ComplexRepresentation.realAndImag:
+        if self.complexRepresentation is ComplexRepresentation.realAndImag:
             re_data = plotItem.data[-1].real
             im_data = plotItem.data[-1].imag
 
@@ -331,7 +381,7 @@ class AutoFigureMaker(object):
             im_plotItem.id = re_plotItem.id + 1
             return [re_plotItem, im_plotItem]
 
-        if self.complex_representation is ComplexRepresentation.magAndPhase:
+        if self.complexRepresentation is ComplexRepresentation.magAndPhase:
             mag_data = np.abs(plotItem.data[-1])
             phase_data = np.angle(plotItem.data[-1])
 
@@ -352,13 +402,31 @@ class AutoFigureMaker(object):
             return [mag_plotItem, phase_plotItem]
 
     # public methods
+    def addSubPlot(self) -> int:
+        """Add a new subplot.
+
+        :return: ID of the new subplot.
+        """
+        id = _generate_auto_dict_key(self.subPlots)
+        self.subPlots[id] = SubPlot(id, [])
+        return id
+
     def nSubPlots(self):
+        """Count the subplots in the figure.
+
+        :return: number of subplots
+        """
         ids = []
         for id, item in self.plotItems.items():
             ids.append(item.subPlot)
         return len(set(ids))
 
     def subPlotItems(self, subPlotId: int) -> OrderedDictType[int, PlotItem]:
+        """Get items in a given subplot.
+
+        :param subPlotId: ID of the subplot
+        :return: Dictionary with all plot items and their ids.
+        """
         items = OrderedDict()
         for id, item in self.plotItems.items():
             if item.subPlot == subPlotId:
@@ -382,6 +450,12 @@ class AutoFigureMaker(object):
                 **plotOptions: Any) -> int:
 
         id = _generate_auto_dict_key(self.plotItems)
+
+        if join == -1:
+            if len(self.plotItems) > 0:
+                join = [k for k in self.plotItems.keys()][-1]
+            else:
+                join = None
         if join is None:
             subPlotId = self.nSubPlots()
         else:
@@ -399,7 +473,7 @@ class AutoFigureMaker(object):
         return id
 
     # Methods to be implemented by inheriting classes
-    def makeAxes(self, nSubPlots: int) -> List[Any]:
+    def makeSubPlots(self, nSubPlots: int) -> List[Any]:
         raise NotImplementedError
 
     def formatSubPlot(self, subPlotId: int):

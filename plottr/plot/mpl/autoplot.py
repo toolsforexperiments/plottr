@@ -58,12 +58,24 @@ class FigureMaker(BaseFM):
     def __init__(self, fig: Figure):
         super().__init__()
         self.fig = fig
+        self.plotType = PlotType.empty
 
     def __exit__(self, exc_type, exc_value, traceback):
         self.fig.clear()
         super().__exit__(exc_type, exc_value, traceback)
 
-    def makeAxes(self, nSubPlots: int) -> List[Axes]:
+    # inherited methods
+    def addData(self, *data: np.ndarray, join: Optional[int] = None,
+                labels: Optional[List[str]] = None,
+                plotDataType: PlotDataType = PlotDataType.unknown,
+                **plotOptions: Any) -> int:
+
+        if self.plotType == PlotType.multitraces and join is None:
+            join = -1
+        return super().addData(*data, join=join, labels=labels,
+                               plotDataType=plotDataType, **plotOptions)
+
+    def makeSubPlots(self, nSubPlots: int) -> List[Axes]:
         if nSubPlots > 0:
             nrows = int(nSubPlots ** .5 + .5)
             ncols = int(np.ceil(nSubPlots / nrows))
@@ -92,12 +104,19 @@ class FigureMaker(BaseFM):
 
     def plot(self, plotItem: PlotItem):
         if plotItem.plotDataType in [PlotDataType.line1d, PlotDataType.scatter1d]:
-            return self.plot_line(plotItem)
+            return self.plotLine(plotItem)
+        if plotItem.plotDataType == PlotDataType.grid2d:
+            return self.plotImage(plotItem)
 
-    def plot_line(self, plotItem: PlotItem):
+    # methods specific to this class
+    def plotLine(self, plotItem: PlotItem):
         ax = self.subPlots[plotItem.subPlot].axes[0]
         return ax.plot(*plotItem.data, label=plotItem.labels[-1],
                        **plotItem.plotOptions)
+
+    def plotImage(self, plotItem: PlotItem):
+        ax = self.subPlots[plotItem.subPlot].axes[0]
+        return ax.imshow(plotItem.data[-1], origin='lower')
 
     # def _plot(self, name, **plot_kwargs):
     #     item = self.plotItems[name]
@@ -290,11 +309,6 @@ class AutoPlot(MPLPlotWidget):
         self.complexRepresentation = ComplexRepresentation.real
         self.complexPreference = ComplexRepresentation.realAndImag
 
-        self.dataType: Optional[Type[DataDictBase]] = None
-        self.dataStructure: Optional[DataDictBase] = None
-        self.dataShapes: Optional[Dict[str, Tuple[int, ...]]] = None
-        self.dataLimits: Optional[Dict[str, Tuple[float, float]]] = None
-
         # A toolbar for configuring the plot
         self.plotOptionsToolBar = AutoPlotToolBar('Plot options', self)
         self.layout().insertWidget(1, self.plotOptionsToolBar)
@@ -310,67 +324,13 @@ class AutoPlot(MPLPlotWidget):
 
         self.setMinimumSize(640, 480)
 
-    def _analyzeData(self, data: Optional[DataDictBase]) -> Dict[str, bool]:
-        """checks data and compares with previous properties."""
-        if data is not None:
-            dataType: Optional[Type[DataDictBase]] = type(data)
-        else:
-            dataType = None
-
-        if data is None:
-            dataStructure = None
-            dataShapes = None
-            dataLimits = None
-        else:
-            dataStructure = data.structure(include_meta=False)
-            dataShapes = data.shapes()
-            dataLimits = {}
-            for n in data.axes() + data.dependents():
-                vals = data.data_vals(n)
-                dataLimits[n] = vals.min(), vals.max()
-
-        result = {
-            'dataTypeChanged': dataType != self.dataType,
-            'dataStructureChanged': dataStructure != self.dataStructure,
-            'dataShapesChanged': dataShapes != self.dataShapes,
-            'dataLimitsChanged': dataLimits != self.dataLimits,
-        }
-
-        self.dataType = dataType
-        self.dataStructure = dataStructure
-        self.dataShapes = dataShapes
-        self.dataLimits = dataLimits
-
-        return result
-
-    def dataIsComplex(self, dependentName: Optional[str] = None) -> bool:
-        """Determine whether our data is complex.
-        If dependent_name is not given, check all dependents, return True if any
-        of them is complex.
-        """
-        if self.data is None:
-            return False
-
-        if dependentName is None:
-            for d in self.data.dependents():
-                if np.issubsctype(self.data.data_vals(d), np.complexfloating):
-                    return True
-        else:
-            if np.issubsctype(self.data.data_vals(dependentName), np.complexfloating):
-                return True
-
-        return False
-
     def setData(self, data: Optional[DataDictBase]) -> None:
         """Analyses data and determines whether/what to plot.
 
         :param data: input data
         """
         super().setData(data)
-
-        changes = self._analyzeData(data)
         self.plotDataType = determinePlotDataType(data)
-
         self._processPlotTypeOptions()
         self._plotData()
 
@@ -407,65 +367,40 @@ class AutoPlot(MPLPlotWidget):
             self.complexPreference = ComplexRepresentation.magAndPhase
         else:
             self.complexPreference = ComplexRepresentation.realAndImag
-
         self._plotData()
 
     def _plotData(self) -> None:
         """Plot the data using previously determined data and plot types."""
 
         if self.plotDataType is PlotDataType.unknown:
-            logger.debug("No plotable data.")
-
+            logger.debug("No plottable data.")
+            return
         if self.plotType is PlotType.empty:
             logger.debug("No plot routine determined.")
             return
 
-        if not self.dataIsComplex():
-            self.complexRepresentation = ComplexRepresentation.real
-        else:
-            self.complexRepresentation = self.complexPreference
-
-        if self.plotType is PlotType.multitraces:
-            logger.debug(f"Plotting lines in a single panel")
-            self._plotLine(singlePanel=True)
-
-        elif self.plotType is PlotType.singletraces:
-            logger.debug(f"Plotting one line per panel")
-            self._plotLine(singlePanel=False)
-
-        elif self.plotType in [PlotType.image,
-                               PlotType.colormesh,
-                               PlotType.scatter2d]:
-            logger.debug(f"Plot 2D data.")
-            self._colorplot2d()
-
-        else:
-            logger.info(f"No plot routine defined for {self.plotType}")
-            return
         assert self.data is not None
-        self.setMeta(self.data)
-        self.plot.draw()
-
-        QtCore.QCoreApplication.processEvents()
-
-    # Plotting functions
-    def _plotLine(self, singlePanel: bool = True):
-        xname = self.data.axes()[0]
-        xvals = np.asanyarray(self.data.data_vals(xname))
-        depnames = self.data.dependents()
-        depvals = [self.data.data_vals(d) for d in depnames]
 
         kw = {}
         with FigureMaker(self.plot.fig) as fm:
-            for yname, yvals in zip(depnames, depvals):
-                curveId = fm.addData(xvals, yvals,
-                                     labels=[self.data.label(xname),
-                                             self.data.label(yname)],
-                                     plotDataType=self.plotDataType,
-                                     **kw)
-                if singlePanel:
-                    kw['join'] = curveId
+            fm.plotType = self.plotType
+            if not self.dataIsComplex():
+                fm.complexRepresentation = ComplexRepresentation.real
+            else:
+                fm.complexRepresentation = self.complexPreference
 
+            indeps = self.data.axes()
+            for dn in self.data.dependents():
+                dvals = self.data.data_vals(dn)
+                plotId = fm.addData(
+                    *[np.asanyarray(self.data.data_vals(n)) for n in indeps]+[dvals],
+                    labels=[self.data.label(n) for n in indeps]+[self.data.label(dn)],
+                    plotDataType=self.plotDataType,
+                    **kw)
+
+        self.setMeta(self.data)
+        self.plot.draw()
+        QtCore.QCoreApplication.processEvents()
 
     # def _colorplot2d(self) -> None:
     #     assert self.data is not None

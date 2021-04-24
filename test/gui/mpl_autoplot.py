@@ -38,7 +38,7 @@ def test_complex_line_plots(single_panel: bool = False,
 
     with FigureMaker(fig) as fm:
         if mag_and_phase_format:
-            fm.complex_representation = ComplexRepresentation.magAndPhase
+            fm.complexRepresentation = ComplexRepresentation.magAndPhase
 
         line_1 = fm.addData(setpts, data_1, labels=['x', r'$\exp(-ix)$'])
         kwargs = {}
