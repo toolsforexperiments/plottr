@@ -49,10 +49,13 @@ class SymmetricNorm(colors.Normalize):
 
 
 # 2D plots
-def colorplot2d(ax: Axes, x: np.ndarray, y: np.ndarray, z: np.ndarray,
+def colorplot2d(ax: Axes,
+                x: Union[np.ndarray, np.ma.MaskedArray],
+                y: Union[np.ndarray, np.ma.MaskedArray],
+                z: Union[np.ndarray, np.ma.MaskedArray],
                 plotType: PlotType = PlotType.image,
                 axLabels: Tuple[Optional[str], Optional[str], Optional[str]] = ('', '', ''),
-                **kw: Any) -> Optional[Tuple[AxesImage, Axes]]:
+                **kw: Any) -> Optional[AxesImage]:
     """make a 2d colorplot. what plot is made, depends on `plotType`.
     Any of the 2d plot types in :class:`PlotType` works.
 
@@ -81,11 +84,11 @@ def colorplot2d(ax: Axes, x: np.ndarray, y: np.ndarray, z: np.ndarray,
         z = z.astype(float)
 
         # first check if we need to fill some masked values in
-        if np.ma.is_masked(x):
+        if isinstance(x, np.ma.MaskedArray) and np.ma.is_masked(x):
             x = x.filled(np.nan)
-        if np.ma.is_masked(y):
+        if isinstance(y, np.ma.MaskedArray) and np.ma.is_masked(y):
             y = y.filled(np.nan)
-        if np.ma.is_masked(z):
+        if isinstance(z, np.ma.MaskedArray) and np.ma.is_masked(z):
             z = z.filled(np.nan)
 
         # next: try some surgery, if possible
@@ -117,7 +120,7 @@ def colorplot2d(ax: Axes, x: np.ndarray, y: np.ndarray, z: np.ndarray,
         im = None
 
     if im is None:
-        return
+        return None
 
     ax.set_xlabel(axLabels[0])
     ax.set_ylabel(axLabels[1])
