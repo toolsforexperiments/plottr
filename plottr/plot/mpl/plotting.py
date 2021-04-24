@@ -1,83 +1,70 @@
-"""
-plottr/plot/mpl.py : Tools for plotting with matplotlib.
+from typing import Optional, Tuple, Any, Union
+from enum import Enum, auto, unique
 
-
-"""
-
-import logging
-import io
-from enum import Enum, unique, auto
-from typing import Dict, List, Tuple, Union, cast, Type, Optional, Any
-from collections import OrderedDict
-
-# standard scientific computing imports
 import numpy as np
-from matplotlib.image import AxesImage
-from matplotlib import rcParams, cm, colors, pyplot as plt
+from matplotlib import colors, rcParams
 from matplotlib.axes import Axes
-from matplotlib.backends.backend_qt5agg import (
-    FigureCanvasQTAgg as FCanvas,
-    NavigationToolbar2QT as NavBar,
-)
-from matplotlib.figure import Figure
-from mpl_toolkits.axes_grid1 import make_axes_locatable
+from matplotlib.image import AxesImage
 
-from plottr import QtGui, QtCore, Signal, Slot, QtWidgets, configFiles
 from plottr.utils import num
 from plottr.utils.num import interp_meshgrid_2d, centers2edges_2d
-from plottr.data.datadict import DataDictBase, DataDict, MeshgridDataDict
-from plottr.icons import (get_singleTracePlotIcon, get_multiTracePlotIcon, get_imagePlotIcon,
-                          get_colormeshPlotIcon, get_scatterPlot2dIcon)
 
-from ..base import PlotWidget
+@unique
+class PlotType(Enum):
+    """Plot types"""
 
-__author__ = 'Wolfgang Pfaff'
-__license__ = 'MIT'
+    #: no plot defined
+    empty = auto()
+
+    #: a single 1D line/scatter plot per panel
+    singletraces = auto()
+
+    #: multiple 1D lines/scatter plots per panel
+    multitraces = auto()
+
+    #: image plot of 2D data
+    image = auto()
+
+    #: colormesh plot of 2D data
+    colormesh = auto()
+
+    #: 2D scatter plot
+    scatter2d = auto()
 
 
-# TODO: might be handy to develop some form of figure manager class,
-#   into which we can dump various types of data, and that figures
-#   out the general layout/labeling, etc.
-#   could be a context manager, where during the enter we just accumulate infos,
-#   and do the plotting only at the end.
+class SymmetricNorm(colors.Normalize):
+    """Color norm that's symmetric and linear around a center value."""
+    def __init__(self, vmin: Optional[float] = None,
+                 vmax: Optional[float] = None,
+                 vcenter: float = 0,
+                 clip: bool = False):
+        super().__init__(vmin, vmax, clip)
+        self.vcenter = vcenter
 
-# def setMplDefaults() -> None:
-#     """Set some reasonable matplotlib defaults for appearance."""
-#
-#     rcParams['figure.dpi'] = 300
-#     rcParams['figure.figsize'] = (4.5, 3)
-#     rcParams['savefig.dpi'] = 300
-#     rcParams['subPlots.grid'] = True
-#     rcParams['grid.linewidth'] = 0.5
-#     rcParams['grid.linestyle'] = ':'
-#     rcParams['font.family'] = 'Arial', 'Helvetica', 'DejaVu Sans'
-#     rcParams['font.size'] = 6
-#     rcParams['lines.markersize'] = 3
-#     rcParams['lines.linestyle'] = '-'
-#     rcParams['savefig.transparent'] = False
-#     rcParams['figure.subplot.bottom'] = 0.15
-#     rcParams['figure.subplot.top'] = 0.85
-#     rcParams['figure.subplot.left'] = 0.15
-#     rcParams['figure.subplot.right'] = 0.9
+    def __call__(self, value: float, clip: Optional[bool] = None) -> np.ma.core.MaskedArray:
+        vlim = max(abs(self.vmin-self.vcenter), abs(self.vmax-self.vcenter))
+        self.vmax: float = vlim+self.vcenter
+        self.vmin: float = -vlim+self.vcenter
+        return super().__call__(value, clip)
 
 
 # 2D plots
 def colorplot2d(ax: Axes, x: np.ndarray, y: np.ndarray, z: np.ndarray,
-                style: PlotType = PlotType.image,
+                plotType: PlotType = PlotType.image,
                 axLabels: Tuple[Optional[str], Optional[str], Optional[str]] = ('', '', ''),
-                **kw: Any) -> None:
-    """make a 2d colorplot. what plot is made, depends on `style`.
+                **kw: Any) -> Optional[Tuple[AxesImage, Axes]]:
+    """make a 2d colorplot. what plot is made, depends on `plotType`.
     Any of the 2d plot types in :class:`PlotType` works.
 
     :param ax: matplotlib subPlots to plot in
     :param x: x coordinates (meshgrid)
     :param y: y coordinates (meshgrid)
     :param z: z data
-    :param style: the plot type
+    :param plotType: the plot type
     :param axLabels: labels for the x, y subPlots, and the colorbar.
 
     all keywords are passed to the actual plotting functions:
-    
+
     - :attr:`PlotType.image` --
         :func:`plotImage`
     - :attr:`PlotType.colormesh` --
@@ -85,10 +72,10 @@ def colorplot2d(ax: Axes, x: np.ndarray, y: np.ndarray, z: np.ndarray,
     - :attr:`PlotType.scatter2d` --
         matplotlib's `scatter`
     """
-    cmap = kw.pop('cmap', default_cmap)
+    cmap = kw.pop('cmap', rcParams['image.cmap'])
 
     # first we need to check if our grid can be plotted nicely.
-    if style in [PlotType.image, PlotType.colormesh]:
+    if plotType in [PlotType.image, PlotType.colormesh]:
         x = x.astype(float)
         y = y.astype(float)
         z = z.astype(float)
@@ -118,22 +105,23 @@ def colorplot2d(ax: Axes, x: np.ndarray, y: np.ndarray, z: np.ndarray,
 
             # special case: if we have a single line, a pcolor-type plot won't work.
             elif min(g.shape) < 2:
-                style = PlotType.scatter2d
+                plotType = PlotType.scatter2d
 
-    if style is PlotType.image:
+    if plotType is PlotType.image:
         im = plotImage(ax, x, y, z, cmap=cmap, **kw)
-    elif style is PlotType.colormesh:
+    elif plotType is PlotType.colormesh:
         im = ppcolormesh_from_meshgrid(ax, x, y, z, cmap=cmap, **kw)
-    elif style is PlotType.scatter2d:
+    elif plotType is PlotType.scatter2d:
         im = ax.scatter(x, y, c=z, cmap=cmap, **kw)
+    else:
+        im = None
 
     if im is None:
         return
 
-    cax = attachColorBar(ax, im)
     ax.set_xlabel(axLabels[0])
     ax.set_ylabel(axLabels[1])
-    cax.set_ylabel(axLabels[2])
+    return im
 
 
 def ppcolormesh_from_meshgrid(ax: Axes, x: np.ndarray, y: np.ndarray,
@@ -185,12 +173,12 @@ def plotImage(ax: Axes, x: np.ndarray, y: np.ndarray,
     if x0 > x1:
         extentx = extentx[::-1]
     if x0 == x1:
-        extentx = [x0, x0+1]
+        extentx = [x0, x0 + 1]
     extenty = [y0, y1]
     if y0 > y1:
         extenty = extenty[::-1]
     if y0 == y1:
-        extenty = [y0, y0+1]
+        extenty = [y0, y0 + 1]
     extent = tuple(extentx + extenty)
 
     if x.shape[0] > 1:
@@ -206,9 +194,3 @@ def plotImage(ax: Axes, x: np.ndarray, y: np.ndarray,
     im = ax.imshow(z.T, aspect='auto', origin='lower',
                    extent=extent, **kw)
     return im
-
-
-
-
-
-

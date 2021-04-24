@@ -6,14 +6,11 @@ plots from input data.
 import logging
 from typing import Dict, List, Tuple, Union, Callable, Optional, Any, Type
 from collections import OrderedDict
-from enum import Enum, auto, unique
 
 import numpy as np
-from matplotlib import rc, pyplot as plt
 from matplotlib.axes import Axes
 from matplotlib.figure import Figure
 from matplotlib.gridspec import GridSpec
-from matplotlib.image import AxesImage
 
 from plottr import QtWidgets, QtCore, Signal, Slot
 from plottr.data.datadict import DataDictBase
@@ -22,34 +19,11 @@ from plottr.icons import (get_singleTracePlotIcon, get_multiTracePlotIcon, get_i
 from ..base import AutoFigureMaker as BaseFM, PlotDataType, \
     PlotItem, SubPlot, ComplexRepresentation, determinePlotDataType
 from .widgets import MPLPlotWidget
-from .utils import attachColorAx
+from .plotting import PlotType, colorplot2d
 
 
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
-
-
-@unique
-class PlotType(Enum):
-    """Plot types"""
-
-    #: no plot defined
-    empty = auto()
-
-    #: a single 1D line/scatter plot per panel
-    singletraces = auto()
-
-    #: multiple 1D lines/scatter plots per panel
-    multitraces = auto()
-
-    #: image plot of 2D data
-    image = auto()
-
-    #: colormesh plot of 2D data
-    colormesh = auto()
-
-    #: 2D scatter plot
-    scatter2d = auto()
 
 
 class FigureMaker(BaseFM):
@@ -103,9 +77,9 @@ class FigureMaker(BaseFM):
                 axes[1].set_ylabel(labels[2][0])
 
     def plot(self, plotItem: PlotItem):
-        if plotItem.plotDataType in [PlotDataType.line1d, PlotDataType.scatter1d]:
+        if self.plotType in [PlotType.singletraces, PlotType.multitraces]:
             return self.plotLine(plotItem)
-        if plotItem.plotDataType == PlotDataType.grid2d:
+        if self.plotType in [PlotType.image, PlotType.scatter2d, PlotType.colormesh]:
             return self.plotImage(plotItem)
 
     # methods specific to this class
@@ -116,29 +90,10 @@ class FigureMaker(BaseFM):
 
     def plotImage(self, plotItem: PlotItem):
         ax = self.subPlots[plotItem.subPlot].axes[0]
-        return ax.imshow(plotItem.data[-1], origin='lower')
-
-    # def _plot(self, name, **plot_kwargs):
-    #     item = self.plotItems[name]
-    #     pf = item['plot_func']
-    #     data = list(item['data'])
-    #     ax = self.subPlots[item['ax']]
-    #
-    #     # if we have z-values, then that means we need to have a color subPlots
-    #     axlst = [ax['subPlots']]
-    #     if len(data) > 2 and ax['cax'] is None:
-    #         ax['cax'] = attach_color_ax(ax['subPlots'])
-    #
-    #     # assemble the call to the plot function
-    #     args = axlst + data
-    #     opts = item['plot_kwargs'].copy()
-    #     opts.update(plot_kwargs)
-    #
-    #     ret = self.plotItems[name]['artist'] = pf(*args, **opts)
-    #     if len(data) > 2 and isinstance(ret, AxesImage):
-    #         if 'colorbar' not in self.plotItems[name]:
-    #             cb = self.plotItems[name]['colorbar'] = \
-    #                 self.fig.colorbar(ret, cax=ax['cax'])
+        im = colorplot2d(ax, *plotItem.data, plotType=self.plotType)
+        cb = self.fig.colorbar(im, ax=ax, shrink=0.75, pad=0.02)
+        cb.set_label(plotItem.labels[-1])
+        return im
 
 
 # A toolbar for setting options on the MPL autoplot
@@ -401,68 +356,3 @@ class AutoPlot(MPLPlotWidget):
         self.setMeta(self.data)
         self.plot.draw()
         QtCore.QCoreApplication.processEvents()
-
-    # def _colorplot2d(self) -> None:
-    #     assert self.data is not None
-    #     xname = self.data.axes()[0]
-    #     yname = self.data.axes()[1]
-    #     xvals = np.asanyarray(self.data.data_vals(xname))
-    #     yvals = np.asanyarray(self.data.data_vals(yname))
-    #     depnames = self.data.dependents()
-    #     depvals = [self.data.data_vals(d) for d in depnames]
-    #
-    #     if self.complexRepresentation is ComplexRepresentation.real:
-    #         nAxes = len(depnames)
-    #     else:
-    #         nAxes = 0
-    #         for d in depnames:
-    #             if self.dataIsComplex(d):
-    #                 nAxes += 2
-    #             else:
-    #                 nAxes += 1
-    #     axes = self._makeAxes(nAxes)
-    #
-    #     iax = 0
-    #     for zname, zvals in zip(depnames, depvals):
-    #
-    #         # otherwise we sometimes raise ComplexWarning. This is basically just
-    #         # cosmetic.
-    #         if isinstance(zvals, np.ma.MaskedArray):
-    #             zvals = zvals.filled(np.nan)
-    #
-    #         if self.complexRepresentation is ComplexRepresentation.real \
-    #                 or not self.dataIsComplex(zname):
-    #             colorplot2d(axes[iax], xvals, yvals, np.asanyarray(zvals).real,
-    #                         self.plotType,
-    #                         axLabels=(self.data.label(xname),
-    #                                   self.data.label(yname),
-    #                                   self.data.label(zname)))
-    #             iax += 1
-    #
-    #         elif self.complexRepresentation is ComplexRepresentation.realAndImag:
-    #             colorplot2d(axes[iax], xvals, yvals, np.asanyarray(zvals).real,
-    #                         self.plotType,
-    #                         axLabels=(self.data.label(xname),
-    #                                   self.data.label(yname),
-    #                                   f"Re( {self.data.label(zname)} )"))
-    #             colorplot2d(axes[iax+1], xvals, yvals, np.asanyarray(zvals).imag,
-    #                         self.plotType,
-    #                         axLabels=(self.data.label(xname),
-    #                                   self.data.label(yname),
-    #                                   f"Im( {self.data.label(zname)} )"))
-    #             iax += 2
-    #
-    #         elif self.complexRepresentation is ComplexRepresentation.magAndPhase:
-    #             colorplot2d(axes[iax], xvals, yvals, np.abs(np.asanyarray(zvals)),
-    #                         self.plotType,
-    #                         axLabels=(self.data.label(xname),
-    #                                   self.data.label(yname),
-    #                                   f"Abs( {self.data.label(zname)} )"))
-    #             colorplot2d(axes[iax+1], xvals, yvals, np.angle(np.asanyarray(zvals)),
-    #                         self.plotType,
-    #                         axLabels=(self.data.label(xname),
-    #                                   self.data.label(yname),
-    #                                   f"Arg( {self.data.label(zname)} )"),
-    #                         norm=SymmetricNorm(), cmap=symmetric_cmap
-    #                         )
-    #             iax += 2

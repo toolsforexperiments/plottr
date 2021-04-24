@@ -37,8 +37,6 @@ def setStyle() -> None:
 
 setStyle()
 
-
 # matplotlib tools and settings
 default_prop_cycle = rcParams['axes.prop_cycle']
-default_cmap = cm.get_cmap('magma')
 symmetric_cmap = cm.get_cmap('bwr')
