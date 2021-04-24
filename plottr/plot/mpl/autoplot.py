@@ -36,6 +36,10 @@ class FigureMaker(BaseFM):
         self.fig = fig
         self.plotType = PlotType.empty
 
+    # re-implementing to get correct type annotation.
+    def __enter__(self) -> "FigureMaker":
+        return self
+
     def __exit__(self, exc_type: Optional[Type[BaseException]],
                  exc_value: Optional[BaseException],
                  traceback: Optional[TracebackType]) -> None:
@@ -365,7 +369,7 @@ class AutoPlot(MPLPlotWidget):
                 dvals = self.data.data_vals(dn)
                 plotId = fm.addData(
                     *[np.asanyarray(self.data.data_vals(n)) for n in indeps] + [dvals],
-                    labels=[self.data.label(n) for n in indeps] + [self.data.label(dn)],
+                    labels=[str(self.data.label(n)) for n in indeps] + [str(self.data.label(dn))],
                     plotDataType=self.plotDataType,
                     **kw)
 
