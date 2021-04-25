@@ -47,13 +47,14 @@ class FigureMaker(BaseFM):
         return super().__exit__(exc_type, exc_value, traceback)
 
     # inherited methods
-    def addData(self, *data: np.ndarray, join: Optional[int] = None,
+    def addData(self, *data: Union[np.ndarray, np.ma.MaskedArray],
+                join: Optional[int] = None,
                 labels: Optional[List[str]] = None,
                 plotDataType: PlotDataType = PlotDataType.unknown,
                 **plotOptions: Any) -> int:
 
         if self.plotType == PlotType.multitraces and join is None:
-            join = -1
+            join = self.previousPlotId()
         return super().addData(*data, join=join, labels=labels,
                                plotDataType=plotDataType, **plotOptions)
 
@@ -96,24 +97,22 @@ class FigureMaker(BaseFM):
     # methods specific to this class
     def plotLine(self, plotItem: PlotItem) -> Optional[List[Line2D]]:
         axes = self.subPlots[plotItem.subPlot].axes
-        if isinstance(axes, list) and len(axes) > 0:
-            lbl = plotItem.labels[-1] if isinstance(plotItem.labels, list) and len(plotItem.labels) > 0 else ''
-            return axes[0].plot(*plotItem.data, label=lbl, **plotItem.plotOptions)
-        else:
-            return None
+        assert isinstance(axes, list) and len(axes) > 0
+        assert len(plotItem.data) == 2
+        lbl = plotItem.labels[-1] if isinstance(plotItem.labels, list) and len(plotItem.labels) > 0 else ''
+        x, y = plotItem.data
+        return axes[0].plot(x, y.real, label=lbl, **plotItem.plotOptions)
 
     def plotImage(self, plotItem: PlotItem) -> Optional[Artist]:
         assert len(plotItem.data) == 3
         x, y, z = plotItem.data
         axes = self.subPlots[plotItem.subPlot].axes
-        if isinstance(axes, list) and len(axes) > 0:
-            im = colorplot2d(axes[0], x, y, z, plotType=self.plotType)
-            cb = self.fig.colorbar(im, ax=axes[0], shrink=0.75, pad=0.02)
-            lbl = plotItem.labels[-1] if isinstance(plotItem.labels, list) and len(plotItem.labels) > 0 else ''
-            cb.set_label(lbl)
-            return im
-        else:
-            return None
+        assert isinstance(axes, list) and len(axes) > 0
+        im = colorplot2d(axes[0], x, y, z.real, plotType=self.plotType)
+        cb = self.fig.colorbar(im, ax=axes[0], shrink=0.75, pad=0.02)
+        lbl = plotItem.labels[-1] if isinstance(plotItem.labels, list) and len(plotItem.labels) > 0 else ''
+        cb.set_label(lbl)
+        return im
 
 
 # A toolbar for setting options on the MPL autoplot
