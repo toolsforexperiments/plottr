@@ -1,8 +1,10 @@
+"""A set of simple tests of the MPL FigureMaker classes."""
+
 import numpy as np
 
 from plottr import QtWidgets
 from plottr.plot.base import ComplexRepresentation
-from plottr.plot.mpl import FigureMaker, AutoPlot
+from plottr.plot.mpl.autoplot import FigureMaker, PlotType
 from plottr.plot.mpl.widgets import figureDialog
 
 
@@ -14,15 +16,11 @@ def test_multiple_line_plots(single_panel: bool = False):
     data_1 = np.cos(setpts)
 
     with FigureMaker(fig) as fm:
-        line_1 = fm.addData(setpts, data_1, labels=['x', r'$\cos(x)$'])
+        fm.plotType = PlotType.multitraces if single_panel else PlotType.singletraces
 
-        kwargs = {}
-        if single_panel:
-            kwargs['join'] = line_1
-        _ = fm.addData(setpts, data_1 ** 2,
-                       labels=['x', r'$\cos^2(x)$'], **kwargs)
-        _ = fm.addData(setpts, data_1 ** 3,
-                       labels=['x', r'$\cos^3(x)$'], **kwargs)
+        line_1 = fm.addData(setpts, data_1, labels=['x', r'$\cos(x)$'])
+        _ = fm.addData(setpts, data_1 ** 2, labels=['x', r'$\cos^2(x)$'])
+        _ = fm.addData(setpts, data_1 ** 3, labels=['x', r'$\cos^3(x)$'])
 
     return win
 
@@ -39,13 +37,10 @@ def test_complex_line_plots(single_panel: bool = False,
     with FigureMaker(fig) as fm:
         if mag_and_phase_format:
             fm.complexRepresentation = ComplexRepresentation.magAndPhase
+        fm.plotType = PlotType.multitraces if single_panel else PlotType.singletraces
 
         line_1 = fm.addData(setpts, data_1, labels=['x', r'$\exp(-ix)$'])
-        kwargs = {}
-        if single_panel:
-            kwargs['join'] = line_1
-        _ = fm.addData(setpts, data_2,
-                        labels=['x', r'$\exp(ix)$'], **kwargs)
+        _ = fm.addData(setpts, data_2, labels=['x', r'$\exp(ix)$'])
 
     return win
 
