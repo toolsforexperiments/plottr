@@ -7,7 +7,7 @@ from numpy import rint
 from typing import Union, List, Tuple, Optional, Type, Sequence, Dict, Any
 
 from .tools import dictToTreeWidgetItems
-from plottr import QtCore, Flowchart, QtWidgets, Signal, Slot
+from plottr import QtGui, QtCore, Flowchart, QtWidgets, Signal, Slot
 from plottr.node import Node, linearFlowchart
 from ..plot import PlotNode, PlotWidgetContainer, PlotWidget
 
@@ -73,6 +73,9 @@ class PlotWindow(QtWidgets.QMainWindow):
     All keyword arguments supplied will be propagated to
     :meth:`addNodeWidgetFromFlowchart`.
     """
+
+    #: Signal() -- emitted when the window is closed
+    windowClosed = Signal()
 
     def __init__(self, parent: Optional[QtWidgets.QMainWindow] = None,
                  fc: Optional[Flowchart] = None,
@@ -184,6 +187,14 @@ class PlotWindow(QtWidgets.QMainWindow):
                     pn.setPlotWidgetContainer(self.plot)
                     self.plotWidget = self.plotWidgetClass(parent=self.plot)
                     self.plot.setPlotWidget(self.plotWidget)
+
+    def closeEvent(self, event: QtGui.QCloseEvent) -> None:
+        """
+        When closing the inspectr window, do some house keeping:
+        * stop the monitor, if running
+        """
+        self.windowClosed.emit()
+        return event.accept()
 
 
 def makeFlowchartWithPlotWindow(nodes: List[Tuple[str, Type[Node]]], **kwargs: Any) \

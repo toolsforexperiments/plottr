@@ -125,9 +125,6 @@ class UpdateToolBar(QtWidgets.QToolBar):
 
 class AutoPlotMainWindow(PlotWindow):
 
-    #: Signal() -- emitted when the window is closed
-    windowClosed = Signal()
-
     def __init__(self, fc: Flowchart,
                  parent: Optional[QtWidgets.QMainWindow] = None,
                  monitor: bool = False,
@@ -185,8 +182,7 @@ class AutoPlotMainWindow(PlotWindow):
         """
         if self.monitorToolBar is not None:
             self.monitorToolBar.stop()
-        self.windowClosed.emit()
-        return event.accept()
+        return super().closeEvent(event)
 
     def showTime(self) -> None:
         """
