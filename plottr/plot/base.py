@@ -1,7 +1,36 @@
 """
 plottr/plot/base.py : Contains the base classes for plotting nodes and widgets.
+Everything in here is independent of actual plotting backend, and does not contain plotting commands.
+Contains the following public objects:
 
-Most things that are independent of plotting backend are in here.
+Classes for plotting functionality
+----------------------------------
+
+* :class:`.PlotNode` : The base class for a `.Node` with the purpose of receiving data for visualization
+
+* :class:`.PlotWidgetContainer` : A class that contains a `PlotWidget` (and can change it during runtime)
+
+* :class:`.PlotWidget` : An abstract widget that can be inherited to implement actual plotting.
+
+* :class:`.AutoFigureMaker` : A convenience class for semi-automatic generation of figures.
+  The purpose is to keep actual plotting code out of the plot widget. This is not mandatory, just convenient.
+
+Data structures
+---------------
+
+* :class:`.PlotDataType` : Enum with types of data that can be plotted.
+
+* :class:`.ComplexRepresentation`: Enum with ways to represent complex-valued data.
+
+
+
+Additional tools
+----------------
+
+* :meth:`.makeFlowChartWithPlot` : convenience function for creating a flowchart that leads to a plot node.
+
+* :meth:`.determinePlotDataType` : try to infer which type of plot data is in a data set.
+
 """
 
 from collections import OrderedDict
@@ -9,7 +38,7 @@ from copy import deepcopy
 from dataclasses import dataclass
 from enum import Enum, unique, auto
 from typing import Dict, List, Type, Tuple, Optional, Any, \
-    OrderedDict as OrderedDictType
+    OrderedDict as OrderedDictType, Union
 from types import TracebackType
 
 import numpy as np
@@ -144,7 +173,21 @@ class PlotWidget(QtWidgets.QWidget):
         changes = self.analyzeData(data)
 
     def analyzeData(self, data: Optional[DataDictBase]) -> Dict[str, bool]:
-        """checks data and compares with previous properties."""
+        """checks data and compares with previous properties.
+
+        :param data: incoming data to compare to already existing data in the object.
+        :return: dictionary with information on what has changed from previous to new data.
+            contains key/value pairs where the key is the property analyzed, and the value is True of False. Keys are:
+
+            * `dataTypeChanged` : has the data class changed?
+
+            * `dataStructureChanged` : has the internal structure (data fields, etc) changed?
+
+            * `dataShapesChanged`: have the data fields changed shape?
+
+            * `dataLimitsChanged`: have the maxima/minima of the data fields changed?
+
+        """
         if data is not None:
             dataType: Optional[Type[DataDictBase]] = type(data)
         else:
@@ -177,8 +220,9 @@ class PlotWidget(QtWidgets.QWidget):
 
     def dataIsComplex(self, dependentName: Optional[str] = None) -> bool:
         """Determine whether our data is complex.
-        If dependent_name is not given, check all dependents, return True if any
-        of them is complex.
+
+        :param dependentName: name of the dependent to check. if `None`, check all.
+        :return: `True` if data is complex, `False` if not.
         """
         if self.data is None:
             return False
@@ -196,6 +240,12 @@ class PlotWidget(QtWidgets.QWidget):
 
 def makeFlowchartWithPlot(nodes: List[Tuple[str, Type[Node]]],
                           plotNodeName: str = 'plot') -> Flowchart:
+    """create a linear FlowChart terminated with a plot node.
+
+    :param nodes: List of Node classes, in the order they are to be arranged.
+    :param plotNodeName: name of the plot node that will be appended.
+    :return: the resulting FlowChart instance
+    """
     nodes.append((plotNodeName, PlotNode))
     fc = linearFlowchart(*nodes)
     return fc
@@ -243,6 +293,7 @@ def determinePlotDataType(data: Optional[DataDictBase]) -> PlotDataType:
     Analysis is simply based on number of dependents and data type.
 
     :param data: data to analyze.
+    :return: type of plot data inferred
     """
     # TODO:
     #   there's probably ways to be more liberal about what can be plotted.
@@ -284,18 +335,29 @@ def determinePlotDataType(data: Optional[DataDictBase]) -> PlotDataType:
 
 @dataclass
 class PlotItem:
-    data: List[np.ndarray]
+    """Data class describing a plot item in :class:`.AutoFigureMaker`."""
+    #: List of data arrays (independents and one dependent)
+    data: List[Union[np.ndarray, np.ma.MaskedArray]]
+    #: unique ID of the plot item
     id: int
+    #: ID of the subplot the item will be plotted in
     subPlot: int
+    #: type of plot data (unknown is typically OK)
     plotDataType: PlotDataType = PlotDataType.unknown
+    #: labels of the data arrays
     labels: Optional[List[str]] = None
+    #: options to be passed to plotting functions (depends on backend). Could be formatting options, for example.
     plotOptions: Optional[Dict[str, Any]] = None
+    #: return value from the plot command (like matplotlib Artists)
     plotReturn: Optional[Any] = None
 
 
 @dataclass
 class SubPlot:
+    """Data class describing a subplot in a :class:`.AutoFigureMaker`."""
+    #: ID of the subplot (unique per figure)
     id: int
+    #: list of subplot objects (type depends on backend)
     axes: Optional[List[Any]] = None
 
 
@@ -327,8 +389,14 @@ class AutoFigureMaker(object):
     # TODO: similar, but with siblings (imagine Re/Im parts)
 
     def __init__(self) -> None:
+
+        #: subplots to create
         self.subPlots: OrderedDictType[int, SubPlot] = OrderedDict()
+
+        #: items that will be plotted
         self.plotItems: OrderedDictType[int, PlotItem] = OrderedDict()
+
+        #: ids of all main plot items (does not contain derived/secondary plot items)
         self.plotIds: List = []
 
         #: how to represent complex data.
@@ -461,6 +529,12 @@ class AutoFigureMaker(object):
         return items
 
     def subPlotLabels(self, subPlotId: int) -> List[List[str]]:
+        """Get the data labels for a given subplot.
+
+        :param subPlotId: ID of the subplot.
+        :return: a list with one element per plot item in the subplot.
+            Each element contains a list of the labels for that item.
+        """
         ret: List[List[str]] = []
         items = self.subPlotItems(subPlotId)
         for id, item in items.items():
@@ -471,10 +545,20 @@ class AutoFigureMaker(object):
                     ret[i].append(l)
         return ret
 
-    def addData(self, *data: np.ndarray, join: Optional[int] = None,
+    def addData(self, *data: Union[np.ndarray, np.ma.MaskedArray],
+                join: Optional[int] = None,
                 labels: Optional[List[str]] = None,
                 plotDataType: PlotDataType = PlotDataType.unknown,
                 **plotOptions: Any) -> int:
+        """Add data to the figure.
+
+        :param data: data arrays describing the plot (one or more independents, one dependent)
+        :param join: ID of a plot item the new item should be shown together with in the same subplot
+        :param labels: list of labels for the data arrays
+        :param plotDataType: what kind of plot data the supplied data contains (not needed, typically)
+        :param plotOptions: options (as kwargs) to be passed to the actual plot functions (depends on the backend)
+        :return: ID of the new plot item.
+        """
 
         id = _generate_auto_dict_key(self.plotItems)
 
@@ -502,6 +586,9 @@ class AutoFigureMaker(object):
         return id
 
     def previousPlotId(self) -> Optional[int]:
+        """Get the ID of the most recently added plot item.
+        :return: the ID.
+        """
         if len(self.plotIds) > 0:
             return self.plotIds[-1]
         else:
@@ -509,12 +596,29 @@ class AutoFigureMaker(object):
 
     # Methods to be implemented by inheriting classes
     def makeSubPlots(self, nSubPlots: int) -> List[Any]:
+        """Generate the subplots. Called after all data has been added.
+        Must be implemented by an inheriting class.
+
+        :param nSubPlots: number of subplots
+        :return: return values of the subplot generation methods.
+        """
         raise NotImplementedError
 
     def formatSubPlot(self, subPlotId: int) -> Any:
-        pass
+        """Format a subplot.
+        Must be implemented by an inheriting class.
+
+        :param subPlotId: ID of the subplot.
+        :return: Depends on inheriting class.
+        """
 
     def plot(self, plotItem: PlotItem) -> Any:
+        """Plot an item.
+        Must be implemented by an inheriting class.
+
+        :param plotItem: the item to plot.
+        :return: Depends on the inheriting class.
+        """
         raise NotImplementedError
 
 
