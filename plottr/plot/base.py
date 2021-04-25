@@ -287,7 +287,7 @@ class PlotItem:
     data: List[np.ndarray]
     id: int
     subPlot: int
-    plotDataType: PlotDataType
+    plotDataType: PlotDataType = PlotDataType.unknown
     labels: Optional[List[str]] = None
     plotOptions: Optional[Dict[str, Any]] = None
     plotReturn: Optional[Any] = None
@@ -329,6 +329,7 @@ class AutoFigureMaker(object):
     def __init__(self) -> None:
         self.subPlots: OrderedDictType[int, SubPlot] = OrderedDict()
         self.plotItems: OrderedDictType[int, PlotItem] = OrderedDict()
+        self.plotIds: List = []
 
         #: how to represent complex data.
         #: must be set before adding data to the plot to have an effect.
@@ -340,6 +341,7 @@ class AutoFigureMaker(object):
     def __exit__(self, exc_type: Optional[Type[BaseException]],
                  exc_value: Optional[BaseException],
                  traceback: Optional[TracebackType]) -> None:
+
         self._makeAxes()
         for id in self.subPlots.keys():
             self._makeSubPlot(id)
@@ -380,23 +382,29 @@ class AutoFigureMaker(object):
             re_plotItem = plotItem
             im_plotItem = deepcopy(re_plotItem)
 
-            # FIXME: for > 1d data we should have separate panels!
             re_plotItem.data[-1] = re_data
             im_plotItem.data[-1] = im_data
             im_plotItem.id = re_plotItem.id + 1
 
+            # TODO: think whether this is universal or might depend on the backend?
+            if len(plotItem.data) > 2:
+                im_plotItem.subPlot = re_plotItem.subPlot + 1
+
             # this is a bit of a silly check (see top of the function -- should certainly be True!).
             # but it keeps mypy happy.
-            if isinstance(re_plotItem.labels, list):
-                re_plotItem.labels[-1] = re_label
-            if isinstance(im_plotItem.labels, list):
-                im_plotItem.labels[-1] = im_label
+            assert isinstance(re_plotItem.labels, list)
+            re_plotItem.labels[-1] = re_label
+            assert isinstance(im_plotItem.labels, list)
+            im_plotItem.labels[-1] = im_label
 
             return [re_plotItem, im_plotItem]
 
         else:  # means that self.complexRepresentation is ComplexRepresentation.magAndPhase:
-            mag_data = np.abs(plotItem.data[-1])
-            phase_data = np.angle(plotItem.data[-1])
+            data = plotItem.data[-1]
+
+            # this check avoids a numpy ComplexWarning when we're working with MaskedArray (almost always)
+            mag_data = np.ma.abs(data) if isinstance(data, np.ma.MaskedArray) else np.abs(data)
+            phase_data = np.angle(data)
 
             if label == '':
                 mag_label, phase_label = 'Mag', 'Phase'
@@ -413,10 +421,10 @@ class AutoFigureMaker(object):
 
             # this is a bit of a silly check (see top of the function -- should certainly be True!).
             # but it keeps mypy happy.
-            if isinstance(mag_plotItem.labels, list):
-                mag_plotItem.labels[-1] = mag_label
-            if isinstance(phase_plotItem.labels, list):
-                phase_plotItem.labels[-1] = phase_label
+            assert isinstance(mag_plotItem.labels, list)
+            mag_plotItem.labels[-1] = mag_label
+            assert isinstance(phase_plotItem.labels, list)
+            phase_plotItem.labels[-1] = phase_label
 
             return [mag_plotItem, phase_plotItem]
 
@@ -470,9 +478,10 @@ class AutoFigureMaker(object):
 
         id = _generate_auto_dict_key(self.plotItems)
 
+        # TODO: allow any negative number
         if join == -1:
             if len(self.plotItems) > 0:
-                join = [k for k in self.plotItems.keys()][-1]
+                join = self.previousPlotId()
             else:
                 join = None
         if join is None:
@@ -489,7 +498,14 @@ class AutoFigureMaker(object):
         for p in self._splitComplexData(plotItem):
             self.plotItems[p.id] = p
 
+        self.plotIds.append(id)
         return id
+
+    def previousPlotId(self) -> Optional[int]:
+        if len(self.plotIds) > 0:
+            return self.plotIds[-1]
+        else:
+            return None
 
     # Methods to be implemented by inheriting classes
     def makeSubPlots(self, nSubPlots: int) -> List[Any]:
