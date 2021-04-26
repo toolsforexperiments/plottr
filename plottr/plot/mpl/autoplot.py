@@ -1,6 +1,4 @@
-"""
-plottr/plot/mpl/autoplot.py  -- tools for automatically generating matplotlib
-plots from input data.
+"""``plottr.plot.mpl.autoplot`` -- This module contains the tools for automatic plotting with matplotlib.
 """
 
 import logging
@@ -29,11 +27,21 @@ logger.setLevel(logging.INFO)
 
 
 class FigureMaker(BaseFM):
-    """Matplotlib implementation for :class:`.AutoFigureMaker`."""
+    """Matplotlib implementation for :class:`.AutoFigureMaker`.
+    Implements plotting routines for data with 1 or 2 dependents, as well as generation
+    and formatting of subplots.
+
+    The class tries to lay out the subplots to be generated on a grid that's as close as possible to square.
+    The allocation of plot to subplots depends on the type of plot we're making, and the type of data.
+    Subplots may contain either one 2d plot (image, 2d scatter, etc) or multiple 1d plots.
+    """
 
     def __init__(self, fig: Figure) -> None:
         super().__init__()
         self.fig = fig
+
+        #: what kind of plot we're making. needs to be set before adding data.
+        #: Incompatibility with the data provided will result in failure.
         self.plotType = PlotType.empty
 
     # re-implementing to get correct type annotation.
@@ -59,6 +67,11 @@ class FigureMaker(BaseFM):
                                plotDataType=plotDataType, **plotOptions)
 
     def makeSubPlots(self, nSubPlots: int) -> List[Axes]:
+        """Create subplots (`Axes`). They are arranged on a grid that's close to square.
+
+        :param nSubPlots: number of subplots to make
+        :return: list of matplotlib axes.
+        """
         if nSubPlots > 0:
             nrows = int(nSubPlots ** .5 + .5)
             ncols = int(np.ceil(nSubPlots / nrows))
@@ -69,6 +82,11 @@ class FigureMaker(BaseFM):
         return axes
 
     def formatSubPlot(self, subPlotId: int) -> None:
+        """Format a subplot. Parses the plot items that go into that subplot,
+        and attaches axis labels and legend handles.
+
+        :param subPlotId: ID of the subplot.
+        """
         labels = self.subPlotLabels(subPlotId)
         axes = self.subPlots[subPlotId].axes
 
@@ -87,6 +105,11 @@ class FigureMaker(BaseFM):
         return None
 
     def plot(self, plotItem: PlotItem) -> Optional[Union[Artist, List[Artist]]]:
+        """Plots data in a PlotItem.
+
+        :param plotItem: the item to plot.
+        :return: matplotlib Artist(s), or ``None`` if nothing was plotted.
+        """
         if self.plotType in [PlotType.singletraces, PlotType.multitraces]:
             return self.plotLine(plotItem)
         elif self.plotType in [PlotType.image, PlotType.scatter2d, PlotType.colormesh]:
@@ -196,6 +219,8 @@ class AutoPlotToolBar(QtWidgets.QToolBar):
 
         If the active plot type has been changed by using this method,
         we emit `plotTypeSelected`.
+
+        :param plotType: type of plot
         """
 
         # deselect all other types
@@ -214,6 +239,8 @@ class AutoPlotToolBar(QtWidgets.QToolBar):
         """Disable all choices that are not allowed.
         If the current selection is now disabled, instead select the first
         enabled one.
+
+        :param args: which types of plots can be selected.
         """
 
         if args == self._currentlyAllowedPlotTypes:
@@ -247,32 +274,6 @@ class AutoPlot(MPLPlotWidget):
 
     User options (for different types of plots, styling, etc) are
     presented through a toolbar.
-
-    **Plot types:**
-
-    The following types of data allow for different types of plots:
-
-    *1D data* --
-
-    * 1D data (of type ``DataDict``) --
-      Plot will be a simple scatter plot with markers, connected by lines.
-
-    For 1D plots the user has the option of plotting all data in the same panel,
-    or each dataset in its own panel.
-
-    *2D data* --
-
-    * 2D scatter data --
-      2D scatter plot with color bar.
-
-    * 2D grid data --
-      Either display as image, or as pcolormesh, with colorbar.
-
-    For 2D plots, we always create one panel per dataset.
-
-    If the input data is complex, the user has the option to plot real/imaginary
-    parts, or magnitude and phase. Real/Imaginary are plotted in the same panel,
-    whereas magnitude and phase are separated into two panels.
     """
 
     def __init__(self, parent: Optional[QtWidgets.QWidget] = None):

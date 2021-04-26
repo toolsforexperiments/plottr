@@ -1,3 +1,7 @@
+"""
+``plottr.plot.mpl.plotting`` -- Plotting tools (mostly used in Autoplot)
+"""
+
 from enum import Enum, auto, unique
 from typing import Optional, Tuple, Any, Union
 
@@ -10,9 +14,13 @@ from plottr.utils import num
 from plottr.utils.num import interp_meshgrid_2d, centers2edges_2d
 
 
+__author__ = 'Wolfgang Pfaff'
+__license__ = 'MIT'
+
+
 @unique
 class PlotType(Enum):
-    """Plot types"""
+    """Plot types currently supported in Autoplot."""
 
     #: no plot defined
     empty = auto()
@@ -68,7 +76,7 @@ def colorplot2d(ax: Axes,
     :param plotType: the plot type
     :param axLabels: labels for the x, y subPlots, and the colorbar.
 
-    all keywords are passed to the actual plotting functions:
+    all keywords are passed to the actual plotting functions, depending on the ``plotType``:
 
     - :attr:`PlotType.image` --
         :func:`plotImage`

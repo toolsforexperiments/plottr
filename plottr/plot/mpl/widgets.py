@@ -1,3 +1,7 @@
+"""
+``plottr.plot.mpl.widgets`` -- This module contains general matplotlib plotting tools.
+"""
+
 import io
 from typing import Tuple, Optional, List
 
@@ -123,17 +127,26 @@ class MPLPlotWidget(PlotWidget):
     def __init__(self, parent: Optional[QtWidgets.QWidget] = None):
         super().__init__(parent=parent)
 
+        #: the plot widget
         self.plot = MPLPlot()
+
+        #: the matplotlib toolbar
         self.mplBar = NavBar(self.plot, self)
+
         self.addMplBarOptions()
         self.mplBar.setIconSize(QtCore.QSize(16, 16))
-
         layout = QtWidgets.QVBoxLayout(self)
         layout.addWidget(self.plot)
         layout.addWidget(self.mplBar)
         self.setLayout(layout)
 
     def setMeta(self, data: DataDictBase) -> None:
+        """Add meta info contained in the data to the figure.
+
+        :param data: data object containing the meta information
+            if meta field ``title`` or ``info`` are in the data object, then
+            they will be added as text info to the figure.
+        """
         if data.has_meta('title'):
             self.plot.setFigureTitle(data.meta_val('title'))
 
@@ -141,6 +154,8 @@ class MPLPlotWidget(PlotWidget):
             self.plot.setFigureInfo(data.meta_val('info'))
 
     def addMplBarOptions(self) -> None:
+        """Add options for displaying ``info`` meta data and copying the figure to the clipboard to the
+        plot toolbar."""
         self.mplBar.addSeparator()
         infoAction = self.mplBar.addAction('Show Info')
         infoAction.setCheckable(True)
@@ -151,6 +166,10 @@ class MPLPlotWidget(PlotWidget):
 
 
 def figureDialog() -> Tuple[Figure, QtWidgets.QDialog]:
+    """Make a dialog window containing a :class:`.MPLPlotWidget`.
+
+    :return: The figure object of the plot, and the dialog window object.
+    """
     widget = MPLPlotWidget()
     return widget.plot.fig, widgetDialog(widget)
 

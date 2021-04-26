@@ -1,36 +1,6 @@
 """
-plottr/plot/base.py : Contains the base classes for plotting nodes and widgets.
+``plottr.plot.base`` -- Contains the base classes for plotting nodes and widgets.
 Everything in here is independent of actual plotting backend, and does not contain plotting commands.
-Contains the following public objects:
-
-Classes for plotting functionality
-----------------------------------
-
-* :class:`.PlotNode` : The base class for a `.Node` with the purpose of receiving data for visualization
-
-* :class:`.PlotWidgetContainer` : A class that contains a `PlotWidget` (and can change it during runtime)
-
-* :class:`.PlotWidget` : An abstract widget that can be inherited to implement actual plotting.
-
-* :class:`.AutoFigureMaker` : A convenience class for semi-automatic generation of figures.
-  The purpose is to keep actual plotting code out of the plot widget. This is not mandatory, just convenient.
-
-Data structures
----------------
-
-* :class:`.PlotDataType` : Enum with types of data that can be plotted.
-
-* :class:`.ComplexRepresentation`: Enum with ways to represent complex-valued data.
-
-
-
-Additional tools
-----------------
-
-* :func:`.makeFlowchartWithPlot` : convenience function for creating a flowchart that leads to a plot node.
-
-* :func:`.determinePlotDataType` : try to infer which type of plot data is in a data set.
-
 """
 
 from collections import OrderedDict
@@ -179,13 +149,10 @@ class PlotWidget(QtWidgets.QWidget):
         :return: dictionary with information on what has changed from previous to new data.
             contains key/value pairs where the key is the property analyzed, and the value is True of False. Keys are:
 
-            * `dataTypeChanged` : has the data class changed?
-
-            * `dataStructureChanged` : has the internal structure (data fields, etc) changed?
-
-            * `dataShapesChanged`: have the data fields changed shape?
-
-            * `dataLimitsChanged`: have the maxima/minima of the data fields changed?
+            * `dataTypeChanged` -- has the data class changed?
+            * `dataStructureChanged` -- has the internal structure (data fields, etc) changed?
+            * `dataShapesChanged` -- have the data fields changed shape?
+            * `dataLimitsChanged` -- have the maxima/minima of the data fields changed?
 
         """
         if data is not None:
