@@ -249,6 +249,9 @@ class ComplexRepresentation(Enum):
     #: real and imaginary
     realAndImag = auto()
 
+    #: real and imaginary, separated
+    realAndImagSeparate = auto()
+
     #: magnitude and phase
     magAndPhase = auto()
 
@@ -405,7 +408,18 @@ class AutoFigureMaker(object):
         if not np.issubsctype(plotItem.data[-1], np.complexfloating):
             return [plotItem]
 
-        elif self.complexRepresentation is ComplexRepresentation.realAndImag:
+        elif self.complexRepresentation is ComplexRepresentation.real:
+            plotItem.data[-1] = plotItem.data[-1].real
+            assert isinstance(plotItem.labels, list)
+            if label == '':
+                plotItem.labels[-1] = 'Real'
+            else:
+                plotItem.labels[-1] = label + ' (Real)'
+            return [plotItem]
+
+        elif self.complexRepresentation in \
+                [ComplexRepresentation.realAndImag, ComplexRepresentation.realAndImagSeparate]:
+
             re_data = plotItem.data[-1].real
             im_data = plotItem.data[-1].imag
 
@@ -421,8 +435,8 @@ class AutoFigureMaker(object):
             im_plotItem.data[-1] = im_data
             im_plotItem.id = re_plotItem.id + 1
 
-            # TODO: think whether this is universal or might depend on the backend?
-            if len(plotItem.data) > 2:
+            if self.complexRepresentation == ComplexRepresentation.realAndImagSeparate \
+                    or len(plotItem.data) > 2:
                 im_plotItem.subPlot = re_plotItem.subPlot + 1
 
             # this is a bit of a silly check (see top of the function -- should certainly be True!).

@@ -151,7 +151,7 @@ class AutoPlotToolBar(QtWidgets.QToolBar):
     plotTypeSelected = Signal(PlotType)
 
     #: signal emitted when the complex data option has been changed
-    complexPolarSelected = Signal(ComplexRepresentation)
+    complexRepresentationSelected = Signal(ComplexRepresentation)
 
     def __init__(self, name: str, parent: Optional[QtWidgets.QWidget] = None):
         """Constructor for :class:`AutoPlotToolBar`"""
@@ -198,10 +198,15 @@ class AutoPlotToolBar(QtWidgets.QToolBar):
         self.plotReal.triggered.connect(
             lambda: self.selectComplexType(ComplexRepresentation.real))
 
-        self.plotReIm = self.addAction('Real/Imag')
+        self.plotReIm = self.addAction('Re/Im')
         self.plotReIm.setCheckable(True)
         self.plotReIm.triggered.connect(
             lambda: self.selectComplexType(ComplexRepresentation.realAndImag))
+
+        self.plotReImSep = self.addAction('Split Re/Im')
+        self.plotReImSep.setCheckable(True)
+        self.plotReImSep.triggered.connect(
+            lambda: self.selectComplexType(ComplexRepresentation.realAndImagSeparate))
 
         self.plotMagPhase = self.addAction('Mag/Phase')
         self.plotMagPhase.setCheckable(True)
@@ -219,6 +224,7 @@ class AutoPlotToolBar(QtWidgets.QToolBar):
         self.ComplexActions = OrderedDict({
             ComplexRepresentation.real: self.plotReal,
             ComplexRepresentation.realAndImag: self.plotReIm,
+            ComplexRepresentation.realAndImagSeparate: self.plotReImSep,
             ComplexRepresentation.magAndPhase: self.plotMagPhase
         })
 
@@ -254,7 +260,7 @@ class AutoPlotToolBar(QtWidgets.QToolBar):
             self.plotTypeSelected.emit(plotType)
 
     def setAllowedPlotTypes(self, *args: PlotType) -> None:
-        """Disable all choices that are not allowed.
+        """Disable all plot type choices that are not allowed.
         If the current selection is now disabled, instead select the first
         enabled one.
 
@@ -300,10 +306,10 @@ class AutoPlotToolBar(QtWidgets.QToolBar):
 
         if comp is not self._currentComplex:
             self._currentComplex = comp
-            self.complexPolarSelected.emit(self._currentComplex)
+            self.complexRepresentationSelected.emit(self._currentComplex)
 
     def setAllowedComplexTypes(self, *complexOptions: ComplexRepresentation) -> None:
-        """Disable all choices that are not allowed.
+        """Disable all complex representation choices that are not allowed.
         If the current selection is now disabled, instead select the first
         enabled one.
         """
@@ -326,7 +332,7 @@ class AutoPlotToolBar(QtWidgets.QToolBar):
                     self._currentComplex = k
                     break
 
-            self.complexPolarSelected.emit(self._currentComplex)
+            self.complexRepresentationSelected.emit(self._currentComplex)
 
         self._currentlyAllowedComplexTypes = complexOptions
 
@@ -357,7 +363,7 @@ class AutoPlot(MPLPlotWidget):
         self.plotOptionsToolBar.plotTypeSelected.connect(
             self._plotTypeFromToolBar
         )
-        self.plotOptionsToolBar.complexPolarSelected.connect(
+        self.plotOptionsToolBar.complexRepresentationSelected.connect(
             self._complexPreferenceFromToolBar
         )
 
@@ -404,6 +410,7 @@ class AutoPlot(MPLPlotWidget):
                 self.plotOptionsToolBar.setAllowedComplexTypes(
                     ComplexRepresentation.real,
                     ComplexRepresentation.realAndImag,
+                    ComplexRepresentation.realAndImagSeparate,
                     ComplexRepresentation.magAndPhase,
                 )
             else:
