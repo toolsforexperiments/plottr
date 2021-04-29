@@ -127,6 +127,8 @@ class ComplexImage(DataSource):
             data=dict(values=zz.flatten(), axes=['time', 'phase']),
             conjugate=dict(values=zz.conj().flatten(), axes=['time', 'phase'])
         )
+        data.add_meta("title", "A complex data image (phasor vs time and phase)")
+        data.add_meta("info", "This is a test data set to test complex data display.")
         yield data
 
 

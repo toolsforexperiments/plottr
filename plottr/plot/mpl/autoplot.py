@@ -97,7 +97,7 @@ class FigureMaker(BaseFM):
                 axes[0].set_ylabel(labels[1][0])
 
         if isinstance(axes, list) and len(labels) == 2 and len(set(labels[1])) > 1:
-            axes[0].legend(loc='best', fontsize='small')
+            axes[0].legend(loc='upper right', fontsize='small')
 
         if isinstance(axes, list) and len(axes) > 1:
             if len(labels) > 2 and len(set(labels[2])) == 1:
@@ -367,9 +367,10 @@ class AutoPlot(MPLPlotWidget):
             self._complexPreferenceFromToolBar
         )
 
-        self.plotOptionsToolBar.setIconSize(QtCore.QSize(32, 32))
-
-        self.setMinimumSize(640, 480)
+        scaling = np.rint(self.logicalDpiX() / 96.0)
+        iconSize = 32 + 8*(scaling - 1)
+        self.plotOptionsToolBar.setIconSize(QtCore.QSize(iconSize, iconSize))
+        self.setMinimumSize(640*scaling, 480*scaling)
 
     def setData(self, data: Optional[DataDictBase]) -> None:
         """Analyses data and determines whether/what to plot.

@@ -3,7 +3,7 @@
 """
 
 import io
-from typing import Tuple, Optional, List
+from typing import Tuple, Optional, List, Dict
 
 from numpy import rint
 from matplotlib import rcParams
@@ -57,6 +57,7 @@ class MPLPlot(FCanvas):
         self._showInfo = False
         self._infoArtist = None
         self._info = ''
+        self._meta_info: Dict[str, str] = {}
         self._constrainedLayout = constrainedLayout
 
         self.clearFig()
@@ -96,9 +97,10 @@ class MPLPlot(FCanvas):
 
         if self._showInfo:
             self._infoArtist = self.fig.text(
-                0, 0, self._info,
-                fontsize='x-small',
-                verticalalignment='bottom',
+                0.02, 0.9, self._info,
+                fontsize='small',
+                verticalalignment='top',
+                bbox=dict(boxstyle='round', facecolor='white', alpha=0.67, lw=1, ec='k')
             )
         self.draw()
 
@@ -109,22 +111,32 @@ class MPLPlot(FCanvas):
         buf = io.BytesIO()
         self.fig.savefig(buf, dpi=300, facecolor='w', format='png',
                          transparent=True)
-        QtWidgets.QApplication.clipboard().setImage(
-            QtGui.QImage.fromData(buf.getvalue()))
+
+        clipboard = QtWidgets.QApplication.clipboard()
+        clipboard.setImage(QtGui.QImage.fromData(buf.getvalue()))
         buf.close()
+
+    def metaToClipboard(self) -> None:
+        clipboard = QtWidgets.QApplication.clipboard()
+        meta_info_string = "\n".join(f"{k}: {v}"
+                                     for k, v in self._meta_info.items())
+        clipboard.setText(meta_info_string)
 
     def setFigureTitle(self, title: str) -> None:
         """Add a title to the figure."""
-        self.fig.text(0.5, 0.99, title,
-                      horizontalalignment='center',
-                      verticalalignment='top',
-                      fontsize='small')
+        self.fig.suptitle(title,
+                          horizontalalignment='center',
+                          verticalalignment='top',
+                          fontsize='small')
         self.draw()
 
     def setFigureInfo(self, info: str) -> None:
         """Display an info string in the figure"""
         self._info = info
         self.updateInfo()
+
+    def setMetaInfo(self, meta_info: Dict[str, str]) -> None:
+        self._meta_info = meta_info
 
 
 class MPLPlotWidget(PlotWidget):
@@ -143,7 +155,9 @@ class MPLPlotWidget(PlotWidget):
         self.mplBar = NavBar(self.plot, self)
 
         self.addMplBarOptions()
-        self.mplBar.setIconSize(QtCore.QSize(16, 16))
+        scaling = rint(self.logicalDpiX() / 96.0)
+        defaultIconSize = 16 * scaling
+        self.mplBar.setIconSize(QtCore.QSize(defaultIconSize, defaultIconSize))
         layout = QtWidgets.QVBoxLayout(self)
         layout.addWidget(self.plot)
         layout.addWidget(self.mplBar)
@@ -162,6 +176,11 @@ class MPLPlotWidget(PlotWidget):
         if data.has_meta('info'):
             self.plot.setFigureInfo(data.meta_val('info'))
 
+        all_meta = {}
+        for k, v in sorted(data.meta_items()):
+            all_meta[k] = str(v)
+        self.plot.setMetaInfo(all_meta)
+
     def addMplBarOptions(self) -> None:
         """Add options for displaying ``info`` meta data and copying the figure to the clipboard to the
         plot toolbar."""
@@ -171,7 +190,8 @@ class MPLPlotWidget(PlotWidget):
         infoAction.toggled.connect(self.plot.setShowInfo)
 
         self.mplBar.addSeparator()
-        self.mplBar.addAction('Copy', self.plot.toClipboard)
+        self.mplBar.addAction('Copy Figure', self.plot.toClipboard)
+        self.mplBar.addAction('Copy Meta', self.plot.metaToClipboard)
 
 
 def figureDialog() -> Tuple[Figure, QtWidgets.QDialog]:
