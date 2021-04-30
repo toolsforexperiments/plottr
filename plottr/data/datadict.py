@@ -1321,7 +1321,7 @@ def datastructure_from_string(description: str) -> DataDict:
       names)
     * axes are separated by commas
     * axes may have a unit when specified as dependency, but besides the name, square brackets, and commas no other
-      symbols are recognized within the round brackets the specify the dependency
+      characters are recognized within the round brackets that specify the dependency
     * in addition to being specified as dependency for a field, axes may be specified also as additional field without
       dependency, for instance to specify the unit (may simplify the string). For example,
       ``z1[x, y]; z2[x, y]; x[V]; y[V]``
