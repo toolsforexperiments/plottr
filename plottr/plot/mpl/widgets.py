@@ -178,7 +178,10 @@ class MPLPlotWidget(PlotWidget):
 
         all_meta = {}
         for k, v in sorted(data.meta_items()):
-            all_meta[k] = str(v)
+            this_meta = str(v)
+            if len(this_meta) > 200:
+                this_meta = this_meta[:200] + "..."
+            all_meta[k] = this_meta
         self.plot.setMetaInfo(all_meta)
 
     def addMplBarOptions(self) -> None:
