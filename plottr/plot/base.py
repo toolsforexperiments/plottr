@@ -331,7 +331,7 @@ class SubPlot:
     axes: Optional[List[Any]] = None
 
 
-class AutoFigureMaker(object):
+class AutoFigureMaker:
     """A class for semi-automatic creation of plot figures.
     It must be inherited to tie it to a specific plotting backend.
 
