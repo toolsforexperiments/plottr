@@ -17,6 +17,7 @@ from plottr import QtWidgets, QtCore, Signal, Slot
 from plottr.data.datadict import DataDictBase
 from plottr.icons import (get_singleTracePlotIcon, get_multiTracePlotIcon, get_imagePlotIcon,
                           get_colormeshPlotIcon, get_scatterPlot2dIcon)
+from plottr.gui.tools import dpiScalingFactor
 from .plotting import PlotType, colorplot2d
 from .widgets import MPLPlotWidget
 from ..base import AutoFigureMaker as BaseFM, PlotDataType, \
@@ -367,8 +368,8 @@ class AutoPlot(MPLPlotWidget):
             self._complexPreferenceFromToolBar
         )
 
-        scaling = np.rint(self.logicalDpiX() / 96.0)
-        iconSize = 32 + 8*(scaling - 1)
+        scaling = dpiScalingFactor(self)
+        iconSize = 16 + 8*(scaling - 1)
         self.plotOptionsToolBar.setIconSize(QtCore.QSize(iconSize, iconSize))
         self.setMinimumSize(640*scaling, 480*scaling)
 

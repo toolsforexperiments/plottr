@@ -6,7 +6,7 @@ Common GUI widgets that are re-used across plottr.
 from numpy import rint
 from typing import Union, List, Tuple, Optional, Type, Sequence, Dict, Any
 
-from .tools import dictToTreeWidgetItems
+from .tools import dictToTreeWidgetItems, dpiScalingFactor
 from plottr import QtGui, QtCore, Flowchart, QtWidgets, Signal, Slot
 from plottr.node import Node, linearFlowchart
 from ..plot import PlotNode, PlotWidgetContainer, PlotWidget
@@ -102,8 +102,7 @@ class PlotWindow(QtWidgets.QMainWindow):
         self.setDefaultStyle()
 
     def setDefaultStyle(self) -> None:
-        scaling = rint(self.logicalDpiX() / 96.0)
-        fontSize = 10*scaling
+        fontSize = 10*dpiScalingFactor(self)
         self.setStyleSheet(
             f"""
             QToolButton {{
@@ -227,7 +226,6 @@ class SnapshotWidget(QtWidgets.QTreeWidget):
             self.addTopLevelItem(item)
             item.setExpanded(True)
 
-        #self.expandAll()
         for i in range(2):
             self.resizeColumnToContents(i)
 

@@ -4,10 +4,19 @@ helpers and tools for creating GUI elements.
 """
 from typing import List, Dict, Union
 
+from numpy import rint
+
 from .. import QtWidgets
 
 __author__ = 'Wolfgang Pfaff'
 __license__ = 'MIT'
+
+
+def dpiScalingFactor(widget: QtWidgets.QWidget) -> float:
+    """based on the logical DPI of ``widget``, return a scaling factor
+    that can be used to compute display size on screens relative to 96 DPI."""
+    scaling = rint(widget.logicalDpiX() / 96.0)
+    return scaling
 
 
 def widgetDialog(widget: QtWidgets.QWidget, title: str = '',

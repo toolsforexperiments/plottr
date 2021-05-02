@@ -14,16 +14,10 @@ from matplotlib.backends.backend_qt5agg import (
     NavigationToolbar2QT as NavBar,
 )
 
-from plottr import QtWidgets, QtGui, QtCore
+from plottr import QtWidgets, QtGui, QtCore, config as plottrconfig
 from plottr.data.datadict import DataDictBase
-from plottr.gui.tools import widgetDialog
+from plottr.gui.tools import widgetDialog, dpiScalingFactor
 from ..base import PlotWidget
-
-
-def _adjustFontScaling(obj: QtWidgets.QWidget) -> None:
-    scaling = rint(obj.logicalDpiX() / 96.0)
-    rcParams['font.size'] = 6. * scaling
-    return
 
 
 class MPLPlot(FCanvas):
@@ -62,6 +56,7 @@ class MPLPlot(FCanvas):
 
         self.clearFig()
         self.setParent(parent)
+        self.setRcParams()
 
     def autosize(self) -> None:
         """Sets some default spacings/margins."""
@@ -75,7 +70,13 @@ class MPLPlot(FCanvas):
         """clear and reset the canvas."""
         self.fig.clear()
         self.autosize()
-        _adjustFontScaling(self)
+
+    def setRcParams(self):
+        """apply matplotlibrc config from plottr configuration files."""
+        cfg = plottrconfig().get('main', {}).get('matplotlibrc', {})
+        for k, v in cfg.items():
+            rcParams[k] = v
+        rcParams['font.size'] = cfg.get('font.size', 6) * dpiScalingFactor(self)
 
     def resizeEvent(self, event: QtGui.QResizeEvent) -> None:
         """

@@ -51,16 +51,5 @@ from .widgets import MPLPlot, MPLPlotWidget
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
 
-
-def setStyle() -> None:
-    """Set the matplotlib style based on available config files."""
-    styleFiles = configFiles('plottr_default.mplstyle')
-    if len(styleFiles) > 0:
-        plt.style.use(styleFiles[0])
-        logger.info(f'Using matplotlib style: {styleFiles[0]}')
-
-
-setStyle()
-
 # matplotlib tools and settings
 symmetric_cmap = cm.get_cmap('bwr')
