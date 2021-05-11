@@ -71,7 +71,7 @@ class MPLPlot(FCanvas):
         self.fig.clear()
         self.autosize()
 
-    def setRcParams(self):
+    def setRcParams(self) -> None:
         """apply matplotlibrc config from plottr configuration files."""
         cfg = plottrconfig().get('main', {}).get('matplotlibrc', {})
         for k, v in cfg.items():
