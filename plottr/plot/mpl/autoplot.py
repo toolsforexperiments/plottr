@@ -369,9 +369,9 @@ class AutoPlot(MPLPlotWidget):
         )
 
         scaling = dpiScalingFactor(self)
-        iconSize = 36 + 8*(scaling - 1)
+        iconSize = int(36 + 8*(scaling - 1))
         self.plotOptionsToolBar.setIconSize(QtCore.QSize(iconSize, iconSize))
-        self.setMinimumSize(640*scaling, 480*scaling)
+        self.setMinimumSize(int(640*scaling), int(480*scaling))
 
     def setData(self, data: Optional[DataDictBase]) -> None:
         """Analyses data and determines whether/what to plot.
