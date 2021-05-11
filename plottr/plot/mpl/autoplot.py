@@ -369,7 +369,7 @@ class AutoPlot(MPLPlotWidget):
         )
 
         scaling = dpiScalingFactor(self)
-        iconSize = 16 + 8*(scaling - 1)
+        iconSize = 36 + 8*(scaling - 1)
         self.plotOptionsToolBar.setIconSize(QtCore.QSize(iconSize, iconSize))
         self.setMinimumSize(640*scaling, 480*scaling)
 
