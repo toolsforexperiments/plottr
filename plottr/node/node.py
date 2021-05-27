@@ -23,6 +23,7 @@ R = TypeVar('R', bound="Node")
 S = TypeVar('S')
 T = TypeVar('T')
 
+
 def updateOption(optName: Optional[str] = None) -> Callable[[Callable[[R, S], T]], Callable[[R, S], T]]:
     """Decorator for property setters that are handy for user options.
 
@@ -47,9 +48,9 @@ def updateOption(optName: Optional[str] = None) -> Callable[[Callable[[R, S], T]
 
     return decorator
 
+
 U = TypeVar('U', bound="NodeWidget")
 V = TypeVar('V',)
-
 
 
 def updateGuiFromNode(func: Callable[..., V]) -> Callable[..., V]:
@@ -345,8 +346,8 @@ class NodeWidget(QtWidgets.QWidget):
                  node: Optional[Node] = None):
         super().__init__(parent)
 
-        self.optGetters: Dict[str, Any] = {}
-        self.optSetters: Dict[str, Any] = {}
+        self.optGetters: Dict[str, Callable[[], Any]] = {}
+        self.optSetters: Dict[str, Callable[[Any], None]] = {}
         self.node = node
 
         self._emitGuiChange = True

@@ -58,7 +58,7 @@ class Ui_MainWindow(object):
         self.retranslateUi(MainWindow)
         MainWindow.dataFileSelected.connect(self.fileContents.setData)
         self.fileList.dataFileSelected.connect(MainWindow.processFileSelection)
-        self.fileContents.customContextMenuRequested['QPoint'].connect(self.fileContents.onCustomContextMenuRequested)  #  type: ignore[index]
+        self.fileContents.customContextMenuRequested['QPoint'].connect(self.fileContents.onCustomContextMenuRequested)
         self.fileContents.plotRequested.connect(MainWindow.plotSelected)
         self.fileList.itemSelectionChanged.connect(self.fileList.processSelection)
         self.fileList.newDataFilesFound.connect(MainWindow.onNewDataFilesFound)

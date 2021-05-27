@@ -2,7 +2,7 @@
 
 nodes and widgets for reducing data dimensionality.
 """
-from typing import Dict, Any, Tuple, Type, Optional, List, Union, cast
+from typing import Dict, Any, Tuple, Type, Optional, List, Union, cast, Callable
 from enum import Enum, unique
 
 from typing_extensions import TypedDict
@@ -56,7 +56,7 @@ class ReductionMethod(Enum):
 
 
 #: mapping from reduction method Enum to functions
-reductionFunc = {
+reductionFunc: Dict[ReductionMethod, Callable[..., Any]] = {
     ReductionMethod.elementSelection: selectAxisElement,
     ReductionMethod.average: np.mean,
 }
@@ -171,8 +171,9 @@ class DimensionAssignmentWidget(QtWidgets.QTreeWidget):
                 for o in opts:
                     combo.addItem(o)
 
-        combo.setMinimumSize(50, 22)
-        combo.setMaximumHeight(22)
+        scaling = np.rint(self.logicalDpiX() / 96.0)
+        combo.setMinimumSize(50*scaling, 22*scaling)
+        combo.setMaximumHeight(22 * scaling)
         self.setItemWidget(item, 1, combo)
         self.updateSizes()
 
@@ -308,8 +309,11 @@ class DimensionReductionAssignmentWidget(DimensionAssignmentWidget):
                 w.valueChanged.connect(
                     lambda x: self.elementSelectionSliderChange(dim))
 
-                w.setMinimumSize(150, 22)
-                w.setMaximumHeight(22)
+                scaling = np.rint(self.logicalDpiX() / 96.0)
+                width = 150 + 50*(scaling - 1)
+                height = 22*scaling
+                w.setMinimumSize(width, height)
+                w.setMaximumHeight(height)
 
                 self.choices[dim]['optionsWidget'] = w
                 self.setItemWidget(item, 2, w)
@@ -514,10 +518,12 @@ class DimensionReducer(Node):
 
                     # support for both pre-defined and custom functions
                     if isinstance(fun, ReductionMethod):
-                        funCall = reductionFunc[fun]
+                        funCall: Optional[Callable[..., Any]] = reductionFunc[fun]
                     else:
                         funCall = fun
 
+                    if funCall is None:
+                        raise RuntimeError("Reduction function is None")
                     newvals = funCall(data[n]['values'], *arg, **kw)
                     if newvals.shape != targetShape:
                         self.logger().error(

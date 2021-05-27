@@ -19,6 +19,7 @@ from ..gui.widgets import MonitorIntervalInput, SnapshotWidget
 from ..node.data_selector import DataSelector
 from ..node.dim_reducer import XYSelector
 from ..node.filter.correct_offset import SubtractAverage
+from ..node.scaleunits import ScaleUnits
 from ..node.grid import DataGridder, GridOption
 from ..node.tools import linearFlowchart
 from ..node.node import Node
@@ -101,8 +102,8 @@ class UpdateToolBar(QtWidgets.QToolBar):
         logger().debug('Emit trigger')
         self.trigger.emit()
 
-    @Slot(int)
-    def setMonitorInterval(self, val: int) -> None:
+    @Slot(float)
+    def setMonitorInterval(self, val: float) -> None:
         """
         Start a background timer that is triggered every `val' seconds.
 
@@ -110,7 +111,7 @@ class UpdateToolBar(QtWidgets.QToolBar):
         """
         self.monitor.stop()
         if val > 0:
-            self.monitor.start(val * 1000)
+            self.monitor.start(int(val * 1000))
 
         self.monitorInput.spin.setValue(val)
 
@@ -130,7 +131,7 @@ class AutoPlotMainWindow(PlotWindow):
     def __init__(self, fc: Flowchart,
                  parent: Optional[QtWidgets.QMainWindow] = None,
                  monitor: bool = False,
-                 monitorInterval: Union[int, None] = None,
+                 monitorInterval: Union[float, None] = None,
                  loaderName: Optional[str] = None,
                  **kwargs: Any):
 
@@ -173,7 +174,7 @@ class AutoPlotMainWindow(PlotWindow):
         else:
             self.monitorToolBar = None
 
-    def setMonitorInterval(self, val: int) -> None:
+    def setMonitorInterval(self, val: float) -> None:
         if self.monitorToolBar is not None:
             self.monitorToolBar.setMonitorInterval(val)
 
@@ -299,6 +300,7 @@ def autoplotQcodesDataset(log: bool = False,
         ('Grid', DataGridder),
         ('Dimension assignment', XYSelector),
         ('Subtract average', SubtractAverage),
+        ('Scale units', ScaleUnits),
         ('plot', PlotNode)
     )
 
@@ -331,13 +333,13 @@ def autoplotDDH5(filepath: str = '', groupname: str = 'data') \
     )
 
     win = AutoPlotMainWindow(fc, loaderName='Data loader', monitor=True,
-                             monitorInterval=2)
+                             monitorInterval=2.0)
     win.show()
 
     fc.nodes()['Data loader'].filepath = filepath
     fc.nodes()['Data loader'].groupname = groupname
     win.refreshData()
-    win.setMonitorInterval(2)
+    win.setMonitorInterval(2.0)
 
     return fc, win
 
