@@ -133,6 +133,12 @@ class PlotWidget(QtWidgets.QWidget):
         self.dataStructure: Optional[DataDictBase] = None
         self.dataShapes: Optional[Dict[str, Tuple[int, ...]]] = None
         self.dataLimits: Optional[Dict[str, Tuple[float, float]]] = None
+        self.dataChanges: Dict[str, bool] = {
+            'dataTypeChanged': False,
+            'dataStructureChanged': False,
+            'dataShapesChanged': False,
+            'dataLimitsChanged': False,
+        }
 
     def setData(self, data: Optional[DataDictBase]) -> None:
         """Set data. Use this to trigger plotting.
@@ -140,7 +146,7 @@ class PlotWidget(QtWidgets.QWidget):
         :param data: data to be plotted.
         """
         self.data = data
-        changes = self.analyzeData(data)
+        self.dataChanges = self.analyzeData(data)
 
     def analyzeData(self, data: Optional[DataDictBase]) -> Dict[str, bool]:
         """checks data and compares with previous properties.
@@ -576,7 +582,7 @@ class AutoFigureMaker:
             return None
 
     # Methods to be implemented by inheriting classes
-    def makeSubPlots(self, nSubPlots: int) -> List[Any]:
+    def makeSubPlots(self, nSubPlots: int) -> Optional[List[Any]]:
         """Generate the subplots. Called after all data has been added.
         Must be implemented by an inheriting class.
 

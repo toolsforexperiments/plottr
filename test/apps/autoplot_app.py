@@ -154,7 +154,7 @@ def main(dataSrc):
 if __name__ == '__main__':
     # src = LineDataMovie(10, 3, 101)
     # src = ImageDataMovie(50, 2, 501)
-    # src = ImageDataLiveAcquisition(101, 101, 67)
-    src = ComplexImage(21, 21)
+    src = ImageDataLiveAcquisition(101, 101, 67)
+    # src = ComplexImage(21, 21)
     src.delay = 0.1
     main(src)
