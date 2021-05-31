@@ -1,5 +1,6 @@
 from typing import TYPE_CHECKING, List, Tuple, Dict, Any, Optional
 import importlib
+import logging
 import os
 import sys
 
@@ -19,6 +20,9 @@ NodeBase = pgNode
 from ._version import get_versions
 __version__ = get_versions()['version']
 del get_versions
+
+logger = logging.getLogger(__name__)
+logger.info(f"Imported plottr version: {__version__}")
 
 
 plottrPath = os.path.split(os.path.abspath(__file__))[0]
