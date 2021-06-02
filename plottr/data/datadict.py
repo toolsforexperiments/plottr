@@ -1288,6 +1288,10 @@ def combine_datadicts(*dicts: DataDict) -> Union[DataDictBase, DataDict]:
                 dep_axes = [ax_map[ax] for ax in d[d_dep]['axes']]
                 ret[newdep] = d[d_dep]
                 ret[newdep]['axes'] = dep_axes
-    assert ret is not None
-    ret.validate()
+
+    if ret is None:
+        ret = DataDictBase()
+    else:
+        ret.validate()
+
     return ret
