@@ -1,5 +1,6 @@
 from typing import TYPE_CHECKING, List, Tuple, Dict, Any, Optional
 import importlib
+from importlib.util import spec_from_file_location, module_from_spec
 import logging
 import os
 import sys
@@ -57,7 +58,7 @@ def configFiles(fileName: str) -> List[str]:
     return ret
 
 
-def config(names: Optional[List[str]] = None, forceReload: bool = True) -> \
+def config(names: Optional[List[str]] = None) -> \
         Dict[str, Any]:
     """Return the plottr configuration as a dictionary.
 
@@ -97,13 +98,11 @@ def config(names: Optional[List[str]] = None, forceReload: bool = True) -> \
         filen = f"{modn}.py"
         this_cfg = {}
         for filep in configFiles(filen)[::-1]:
-            path = os.path.split(filep)[0]
-            sys.path.insert(0, path)
-            mod = importlib.import_module(modn)
-            if forceReload:
-                importlib.reload(mod)
+            spec = spec_from_file_location(modn, filep)
+            mod = module_from_spec(spec)
+            sys.modules[modn] = mod
+            spec.loader.exec_module(mod)
             this_cfg.update(getattr(mod, 'config', {}))
-            sys.path.pop(0)
 
         config[name] = this_cfg
     return config
