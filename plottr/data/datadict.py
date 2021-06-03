@@ -1290,7 +1290,7 @@ def combine_datadicts(*dicts: DataDict) -> Union[DataDictBase, DataDict]:
                 ret[newdep]['axes'] = dep_axes
 
     if ret is None:
-        ret = DataDictBase()
+        ret = DataDict()
     else:
         ret.validate()
 
