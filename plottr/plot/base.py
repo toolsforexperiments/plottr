@@ -587,11 +587,13 @@ class AutoFigureMaker:
 
     def formatSubPlot(self, subPlotId: int) -> Any:
         """Format a subplot.
-        Must be implemented by an inheriting class.
+        May be implemented by an inheriting class.
+        By default, does nothing.
 
         :param subPlotId: ID of the subplot.
         :return: Depends on inheriting class.
         """
+        return None
 
     def plot(self, plotItem: PlotItem) -> Any:
         """Plot an item.
