@@ -1,5 +1,5 @@
 from typing import TYPE_CHECKING, List, Tuple, Dict, Any, Optional
-import importlib
+from importlib.abc import Loader
 from importlib.util import spec_from_file_location, module_from_spec
 import logging
 import os
@@ -101,6 +101,7 @@ def config(names: Optional[List[str]] = None) -> \
             spec = spec_from_file_location(modn, filep)
             mod = module_from_spec(spec)
             sys.modules[modn] = mod
+            assert isinstance(spec.loader, Loader)
             spec.loader.exec_module(mod)
             this_cfg.update(getattr(mod, 'config', {}))
 
