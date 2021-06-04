@@ -6,10 +6,10 @@ Common GUI widgets that are re-used across plottr.
 from numpy import rint
 from typing import Union, List, Tuple, Optional, Type, Sequence, Dict, Any
 
-from .tools import dictToTreeWidgetItems
-from plottr import QtCore, Flowchart, QtWidgets, Signal, Slot
+from .tools import dictToTreeWidgetItems, dpiScalingFactor
+from plottr import QtGui, QtCore, Flowchart, QtWidgets, Signal, Slot
 from plottr.node import Node, linearFlowchart
-from ..plot import PlotNode, PlotWidgetContainer, MPLAutoPlot
+from ..plot import PlotNode, PlotWidgetContainer, PlotWidget
 
 __author__ = 'Wolfgang Pfaff'
 __license__ = 'MIT'
@@ -74,15 +74,23 @@ class PlotWindow(QtWidgets.QMainWindow):
     :meth:`addNodeWidgetFromFlowchart`.
     """
 
-    plotWidgetClass = MPLAutoPlot
+    #: Signal() -- emitted when the window is closed
+    windowClosed = Signal()
 
     def __init__(self, parent: Optional[QtWidgets.QMainWindow] = None,
-                 fc: Optional[Flowchart] = None, **kw: Any):
+                 fc: Optional[Flowchart] = None,
+                 plotWidgetClass: Optional[Any] = None,
+                 **kw: Any):
         super().__init__(parent)
 
+        if plotWidgetClass is None:
+            from ..plot.mpl import AutoPlot
+            plotWidgetClass = AutoPlot
+
+        self.plotWidgetClass = plotWidgetClass
         self.plot = PlotWidgetContainer(parent=self)
         self.setCentralWidget(self.plot)
-        self.plotWidget: Optional[MPLAutoPlot] = None
+        self.plotWidget: Optional[PlotWidget] = None
 
         self.nodeToolBar = QtWidgets.QToolBar('Node control', self)
         self.addToolBar(self.nodeToolBar)
@@ -94,8 +102,7 @@ class PlotWindow(QtWidgets.QMainWindow):
         self.setDefaultStyle()
 
     def setDefaultStyle(self) -> None:
-        scaling = rint(self.logicalDpiX() / 96.0)
-        fontSize = 10*scaling
+        fontSize = 10*dpiScalingFactor(self)
         self.setStyleSheet(
             f"""
             QToolButton {{
@@ -180,6 +187,14 @@ class PlotWindow(QtWidgets.QMainWindow):
                     self.plotWidget = self.plotWidgetClass(parent=self.plot)
                     self.plot.setPlotWidget(self.plotWidget)
 
+    def closeEvent(self, event: QtGui.QCloseEvent) -> None:
+        """
+        When closing the inspectr window, do some house keeping:
+        * stop the monitor, if running
+        """
+        self.windowClosed.emit()
+        return event.accept()
+
 
 def makeFlowchartWithPlotWindow(nodes: List[Tuple[str, Type[Node]]], **kwargs: Any) \
         -> Tuple[PlotWindow, Flowchart]:
@@ -211,7 +226,6 @@ class SnapshotWidget(QtWidgets.QTreeWidget):
             self.addTopLevelItem(item)
             item.setExpanded(True)
 
-        #self.expandAll()
         for i in range(2):
             self.resizeColumnToContents(i)
 

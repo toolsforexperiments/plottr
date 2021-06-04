@@ -18,7 +18,7 @@
 # -- Project information -----------------------------------------------------
 
 project = 'plottr'
-copyright = '2020, Wolfgang Pfaff'
+copyright = '2019-2021, Wolfgang Pfaff'
 author = 'Wolfgang Pfaff'
 
 
