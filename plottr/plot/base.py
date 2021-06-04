@@ -452,7 +452,7 @@ class AutoFigureMaker:
             data = plotItem.data[-1]
 
             # this check avoids a numpy ComplexWarning when we're working with MaskedArray (almost always)
-            mag_data = np.ma.abs(data) if isinstance(data, np.ma.MaskedArray) else np.abs(data)
+            mag_data = np.ma.abs(data).real if isinstance(data, np.ma.MaskedArray) else np.abs(data)
             phase_data = np.angle(data)
 
             if label == '':

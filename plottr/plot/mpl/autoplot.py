@@ -125,14 +125,14 @@ class FigureMaker(BaseFM):
         assert len(plotItem.data) == 2
         lbl = plotItem.labels[-1] if isinstance(plotItem.labels, list) and len(plotItem.labels) > 0 else ''
         x, y = plotItem.data
-        return axes[0].plot(x, y.real, label=lbl, **plotItem.plotOptions)
+        return axes[0].plot(x, y, label=lbl, **plotItem.plotOptions)
 
     def plotImage(self, plotItem: PlotItem) -> Optional[Artist]:
         assert len(plotItem.data) == 3
         x, y, z = plotItem.data
         axes = self.subPlots[plotItem.subPlot].axes
         assert isinstance(axes, list) and len(axes) > 0
-        im = colorplot2d(axes[0], x, y, z.real, plotType=self.plotType)
+        im = colorplot2d(axes[0], x, y, z, plotType=self.plotType)
         cb = self.fig.colorbar(im, ax=axes[0], shrink=0.75, pad=0.02)
         lbl = plotItem.labels[-1] if isinstance(plotItem.labels, list) and len(plotItem.labels) > 0 else ''
         cb.set_label(lbl)
