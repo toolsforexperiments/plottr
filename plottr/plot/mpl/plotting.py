@@ -125,7 +125,7 @@ def colorplot2d(ax: Axes,
     elif plotType is PlotType.colormesh:
         im = ppcolormesh_from_meshgrid(ax, x, y, z, cmap=cmap, **kw)
     elif plotType is PlotType.scatter2d:
-        im = ax.scatter(x, y, c=z, cmap=cmap, **kw)
+        im = ax.scatter(x.squeeze(), y.squeeze(), c=z.squeeze(), cmap=cmap, **kw)
     else:
         im = None
 
