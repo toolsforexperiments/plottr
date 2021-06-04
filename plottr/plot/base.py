@@ -458,7 +458,7 @@ class AutoFigureMaker:
             data = plotItem.data[-1]
 
             # this check avoids a numpy ComplexWarning when we're working with MaskedArray (almost always)
-            mag_data = np.ma.abs(data) if isinstance(data, np.ma.MaskedArray) else np.abs(data)
+            mag_data = np.ma.abs(data).real if isinstance(data, np.ma.MaskedArray) else np.abs(data)
             phase_data = np.angle(data)
 
             if label == '':
@@ -593,11 +593,13 @@ class AutoFigureMaker:
 
     def formatSubPlot(self, subPlotId: int) -> Any:
         """Format a subplot.
-        Must be implemented by an inheriting class.
+        May be implemented by an inheriting class.
+        By default, does nothing.
 
         :param subPlotId: ID of the subplot.
         :return: Depends on inheriting class.
         """
+        return None
 
     def plot(self, plotItem: PlotItem) -> Any:
         """Plot an item.
