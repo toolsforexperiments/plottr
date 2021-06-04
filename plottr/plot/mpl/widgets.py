@@ -156,8 +156,7 @@ class MPLPlotWidget(PlotWidget):
         self.mplBar = NavBar(self.plot, self)
 
         self.addMplBarOptions()
-        scaling = rint(self.logicalDpiX() / 96.0)
-        defaultIconSize = 16 * scaling
+        defaultIconSize = 16 * dpiScalingFactor(self)
         self.mplBar.setIconSize(QtCore.QSize(defaultIconSize, defaultIconSize))
         layout = QtWidgets.QVBoxLayout(self)
         layout.addWidget(self.plot)
@@ -205,5 +204,4 @@ def figureDialog() -> Tuple[Figure, QtWidgets.QDialog]:
     """
     widget = MPLPlotWidget()
     return widget.plot.fig, widgetDialog(widget)
-
 
