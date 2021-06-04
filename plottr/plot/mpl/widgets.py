@@ -156,7 +156,7 @@ class MPLPlotWidget(PlotWidget):
         self.mplBar = NavBar(self.plot, self)
 
         self.addMplBarOptions()
-        defaultIconSize = 16 * dpiScalingFactor(self)
+        defaultIconSize = int(16 * dpiScalingFactor(self))
         self.mplBar.setIconSize(QtCore.QSize(defaultIconSize, defaultIconSize))
         layout = QtWidgets.QVBoxLayout(self)
         layout.addWidget(self.plot)
