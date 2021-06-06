@@ -2,7 +2,7 @@
 
 Tools for numerical operations.
 """
-from typing import Sequence, Tuple, Union, List, Optional
+from typing import List, Optional, Sequence, Tuple, Union
 
 import numpy as np
 import pandas as pd
