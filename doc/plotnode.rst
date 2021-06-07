@@ -19,9 +19,14 @@ The reason why we don't connect the widget directly to the node is that the cont
 
 .. image:: img/plot-node-system.png
 
+See the :ref:`API documentation<Base plot API>` for more details.
+
 
 Automatic plotting with Matplotlib
 ----------------------------------
-The most commonly used plot widget is based on matplotlib: :class:`AutoPlot <plottr.plot.mpl.AutoPlot>`.
+The most commonly used plot widget is based on matplotlib: :class:`AutoPlot <plottr.plot.mpl.autoplot.AutoPlot>`.
 It determines automatically what an appropriate visualization of the received data is, and then plots that (at least if it can determine a good way to plot).
 At the same time it gives the user a little bit of control over the appearance (partially through native matplotlib tools).
+To separate plotting from the GUI elements we use :class:`FigureMaker <plottr.plot.mpl.autoplot.FigureMaker>`.
+
+See the :ref:`API documentation<MPL plot API>` for more details.

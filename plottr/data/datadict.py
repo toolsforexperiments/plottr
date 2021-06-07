@@ -913,7 +913,7 @@ class DataDict(DataDictBase):
                 rows = self.data_vals(d)
             else:
                 datavals = self.data_vals(d)
-                rows = datavals.reshape(-1, np.prod(ishp[d]))
+                rows = datavals.reshape(-1, int(np.prod(ishp[d])))
 
             _idxs = np.array([])
 
@@ -1288,6 +1288,10 @@ def combine_datadicts(*dicts: DataDict) -> Union[DataDictBase, DataDict]:
                 dep_axes = [ax_map[ax] for ax in d[d_dep]['axes']]
                 ret[newdep] = d[d_dep]
                 ret[newdep]['axes'] = dep_axes
-    assert ret is not None
-    ret.validate()
+
+    if ret is None:
+        ret = DataDict()
+    else:
+        ret.validate()
+
     return ret

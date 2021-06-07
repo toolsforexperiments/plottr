@@ -287,24 +287,42 @@ class QCodesDSLoader(Node):
             if self._dataset.number_of_results > self.nLoadedRecords:
 
                 guid = self._dataset.guid
+
+                experiment_name = self._dataset.exp_name
+                sample_name = self._dataset.sample_name
+                dataset_name = self._dataset.name
+
+                run_timestamp = self._dataset.run_timestamp()
+                completed_timestamp = self._dataset.completed_timestamp()
+
                 title = f"{os.path.split(path)[-1]} | " \
-                        f"run ID: {runId} | GUID: {guid}"
-                info = """Started: {}
-Finished: {}
-GUID: {}
-DB-File [ID]: {} [{}]""".format(self._dataset.run_timestamp(), self._dataset.completed_timestamp(),
-                                guid, path, runId)
+                        f"run ID: {runId} | GUID: {guid}" \
+                        "\n" \
+                        f"{sample_name} | {experiment_name} | {dataset_name}"
+
+                info = f"""Started: {run_timestamp}
+Finished: {completed_timestamp}
+DB-File [ID]: {path} [{runId}]"""
 
                 data = ds_to_datadict(self._dataset)
+
+                data.add_meta('qcodes_experiment_name', experiment_name)
+                data.add_meta('qcodes_sample_name', sample_name)
+                data.add_meta('qcodes_dataset_name', dataset_name)
+
                 data.add_meta('title', title)
                 data.add_meta('info', info)
+
                 data.add_meta('qcodes_guid', guid)
                 data.add_meta('qcodes_db', path)
                 data.add_meta('qcodes_runId', runId)
-                data.add_meta('qcodes_completedTS', self._dataset.completed_timestamp())
-                data.add_meta('qcodes_runTS', self._dataset.run_timestamp())
+                data.add_meta('qcodes_completedTS', completed_timestamp)
+                data.add_meta('qcodes_runTS', run_timestamp)
                 qcodes_shape = getattr(self._dataset.description, "shapes", None)
                 data.add_meta('qcodes_shape', qcodes_shape)
+
                 self.nLoadedRecords = self._dataset.number_of_results
+
                 return dict(dataOut=data)
+
         return None

@@ -12,40 +12,6 @@ A particular use case is data filtering and plotting.
 ## Documentation: 
 https://plottr.readthedocs.io (work in progress...)
 
-## Recent changes:
-
-## 2020-08-21
-
-- Workaround for bug with pyqt installed via conda that would result in blank icons.
-- Add experimental support for using Pyside2 as an alternative to PyQt5
-
-
-## 2020-08-06
-
-#### Added
-- Entry points for inspectr (plottr-inspectr) and autoplot (plottr-autoplot-ddh5) 
-- LICENSE file has been added (no change to license of the code)
-- setup.py has been tweeked to ensure that sdist and bdist_wheel packages are generated correctly
-
-### 2020-06-05
-
-#### Added
-- Usable version of hdf5 file support. can use the apps/monitr.py script to launch a tool that allows easy (live) plotting.
-
-### 2020-04-24
-
-#### Fixed
-- there were several issues/annoyances that caused (minor) issues with grid handling and plotting in rare-ish circumstances. Most of them should be fixed now.
-
-#### Added
-- A few docs and examples, mostly about grid usage.
-
-### 2020-04-17
-
-#### Changed
-- the main repo has now moved to to a different organization: https://github.com/toolsforexperiments/plottr 
-  the old repo (https://github.com/data-plottr/plottr) will be kept in sync for a while, but deleted eventually.
-
 # Quickstart
 
 ## Installation
@@ -70,14 +36,72 @@ As an alternative from the root of the cloned plottr repository, run `python app
 
 For basic instructions, check out the Notebook *Live plotting qcodes data* under `/doc/examples`.
 
-# Some notes on installing
+## Some notes on installing
 
 Note: this package is not compatible with the original `plottr` tool.
 You might want to install freshly if you still use the old version.
 
 ## Requirements:
-* python >= 3.6 (f-strings...)
+* python >= 3.7 (f-strings...)
 * the usual: numpy, mpl, ...
 * pandas >= 0.22
 * xarray
 * pyqtgraph >= 0.10.0
+
+# Recent changes:
+
+## 2021-02-16
+
+### Added
+
+- Add copy content features to inspectr and autoplot windows, specifically
+  - a new Copy pop up menu for copying content of cells in inspectr
+  - a new Copy metadata button in plot window for copying info about the dataset to clipboard
+
+### Fixed
+
+- remove redundant information between the optional "info" box on the plot and the plot title
+
+## 2021-02-08
+
+- Drop support for Python 3.6 and support type-checking with qcodes 0.21.0
+- Fix type-checking with numpy 1.20
+
+### Fixed
+- Fixed y-axis to not show axis-label if more than one plot is selected in 1D single-plot show.
+
+## 2020-08-21
+
+- Workaround for bug with pyqt installed via conda that would result in blank icons.
+- Add experimental support for using Pyside2 as an alternative to PyQt5
+
+## 2020-08-06
+
+### Added
+
+- Entry points for inspectr (plottr-inspectr) and autoplot (plottr-autoplot-ddh5) 
+- LICENSE file has been added (no change to license of the code)
+- setup.py has been tweeked to ensure that sdist and bdist_wheel packages are generated correctly
+
+## 2020-06-05
+
+### Added
+
+- Usable version of hdf5 file support. can use the apps/monitr.py script to launch a tool that allows easy (live) plotting.
+
+## 2020-04-24
+
+### Fixed
+
+- there were several issues/annoyances that caused (minor) issues with grid handling and plotting in rare-ish circumstances. Most of them should be fixed now.
+
+### Added
+
+- A few docs and examples, mostly about grid usage.
+
+## 2020-04-17
+
+### Changed
+
+- the main repo has now moved to to a different organization: https://github.com/toolsforexperiments/plottr 
+  the old repo (https://github.com/data-plottr/plottr) will be kept in sync for a while, but deleted eventually.

@@ -2,16 +2,16 @@
 
 Tools for numerical operations.
 """
-from typing import Sequence, Tuple, Union, List, Optional
+from typing import List, Optional, Sequence, Tuple, Union
 
 import numpy as np
 import pandas as pd
 
 from ..utils.misc import unwrap_optional
 
-INTTYPES = [int, np.int, np.int16, np.int32, np.int64]
-FLOATTYPES = [float, np.float, np.float16, np.float32, np.float64,
-              complex, np.complex, np.complex64, np.complex128]
+INTTYPES = [int, np.int16, np.int32, np.int64]
+FLOATTYPES = [float, np.float16, np.float32, np.float64,
+              complex, np.complex64, np.complex128]
 NUMTYPES = INTTYPES + FLOATTYPES
 
 
@@ -105,7 +105,7 @@ def arrays_equal(a: np.ndarray, b: np.ndarray,
     equal = _are_equal(a, b)
     invalid = _are_invalid(a, b)
 
-    return np.all(equal | close | invalid)
+    return bool(np.all(equal | close | invalid))
 
 
 def array1d_to_meshgrid(arr: Union[List, np.ndarray],
@@ -132,7 +132,7 @@ def array1d_to_meshgrid(arr: Union[List, np.ndarray],
         localarr = localarr.copy()
     localarr = localarr.reshape(-1)
 
-    newsize = np.prod(target_shape)
+    newsize = int(np.prod(target_shape))
     if newsize < localarr.size:
         localarr = localarr[:newsize]
     elif newsize > localarr.size:
@@ -351,7 +351,10 @@ def joint_crop2d_rows_cols(*arr: np.ndarray) -> Tuple[np.ndarray, np.ndarray]:
         xs += _x.tolist()
         ys += _y.tolist()
 
-    return np.array(list(set(xs))), np.array(list(set(ys)))
+    return (
+        np.array(list(set(xs)), dtype=np.int64),
+        np.array(list(set(ys)), dtype=np.int64),
+    )
 
 
 def crop2d_from_xy(arr: np.ndarray, xs: np.ndarray,

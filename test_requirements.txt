@@ -3,4 +3,3 @@ pytest
 pytest-qt
 mypy
 PyQt5-stubs
-git+https://github.com/numpy/numpy-stubs.git

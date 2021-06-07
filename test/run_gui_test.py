@@ -54,6 +54,7 @@ if __name__ == '__main__':
     args = parser.parse_args()
 
     print(f'Running {args.name} with options: {args.kwargs}. \n')
-    run(funcs[args.name]['func'], **args.kwargs)
-
-
+    kwargs = {}
+    if args.kwargs != {}:
+        kwargs = eval(args.kwargs)
+    run(funcs[args.name]['func'], **kwargs)

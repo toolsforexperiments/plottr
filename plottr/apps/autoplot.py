@@ -19,6 +19,7 @@ from ..gui.widgets import MonitorIntervalInput, SnapshotWidget
 from ..node.data_selector import DataSelector
 from ..node.dim_reducer import XYSelector
 from ..node.filter.correct_offset import SubtractAverage
+from ..node.scaleunits import ScaleUnits
 from ..node.grid import DataGridder, GridOption
 from ..node.tools import linearFlowchart
 from ..node.node import Node
@@ -124,9 +125,6 @@ class UpdateToolBar(QtWidgets.QToolBar):
 
 class AutoPlotMainWindow(PlotWindow):
 
-    #: Signal() -- emitted when the window is closed
-    windowClosed = Signal()
-
     def __init__(self, fc: Flowchart,
                  parent: Optional[QtWidgets.QMainWindow] = None,
                  monitor: bool = False,
@@ -184,8 +182,7 @@ class AutoPlotMainWindow(PlotWindow):
         """
         if self.monitorToolBar is not None:
             self.monitorToolBar.stop()
-        self.windowClosed.emit()
-        return event.accept()
+        return super().closeEvent(event)
 
     def showTime(self) -> None:
         """
@@ -299,6 +296,7 @@ def autoplotQcodesDataset(log: bool = False,
         ('Grid', DataGridder),
         ('Dimension assignment', XYSelector),
         ('Subtract average', SubtractAverage),
+        ('Scale units', ScaleUnits),
         ('plot', PlotNode)
     )
 

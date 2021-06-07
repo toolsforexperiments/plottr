@@ -17,7 +17,8 @@ import time
 import sys
 import argparse
 import logging
-from typing import Optional, Sequence, List, Dict, Iterable, Union, cast
+from typing import Optional, Sequence, List, Dict, Iterable, Union, cast, Tuple
+
 from typing_extensions import TypedDict
 
 from numpy import rint
@@ -141,6 +142,21 @@ class RunList(QtWidgets.QTreeWidget):
 
         self.itemSelectionChanged.connect(self.selectRun)
         self.itemActivated.connect(self.activateRun)
+
+        self.setContextMenuPolicy(QtCore.Qt.CustomContextMenu)
+        self.customContextMenuRequested.connect(self.copy_to_clipboard)
+
+    @Slot(QtCore.QPoint)
+    def copy_to_clipboard(self, position: QtCore.QPoint) -> None:
+        menu = QtWidgets.QMenu()
+        copy_icon = self.style().standardIcon(QtWidgets.QStyle.SP_DialogSaveButton)
+        copy_action = menu.addAction(copy_icon, "Copy")
+        action = menu.exec_(self.mapToGlobal(position))
+        if action == copy_action:
+            model_index = self.indexAt(position)
+            item = self.itemFromIndex(model_index)
+            QtWidgets.QApplication.clipboard().setText(item.text(
+                model_index.column()))
 
     def addRun(self, runId: int, **vals: str) -> None:
         lst = [str(runId)]
@@ -292,6 +308,7 @@ class QCodesDBInspector(QtWidgets.QMainWindow):
 
         # Main Selection widgets
         self.dateList = DateList()
+        self._selected_dates: Tuple[str, ...] = ()
         self.runList = RunList()
         self.runInfo = RunInfo()
 
@@ -360,7 +377,7 @@ class QCodesDBInspector(QtWidgets.QMainWindow):
         self.loadDBProcess.pathSet.connect(self.loadDBThread.start)
         self.loadDBProcess.dbdfLoaded.connect(self.DBLoaded)
         self.loadDBProcess.dbdfLoaded.connect(self.loadDBThread.quit)
-        self.loadDBThread.started.connect(self.loadDBProcess.loadDB)  # type: ignore[attr-defined]
+        self.loadDBThread.started.connect(self.loadDBProcess.loadDB)
 
         ### connect signals/slots
 
@@ -489,13 +506,14 @@ class QCodesDBInspector(QtWidgets.QMainWindow):
         if len(dates) > 0:
             assert self.dbdf is not None
             selection = self.dbdf.loc[self.dbdf['started_date'].isin(dates)].sort_index(ascending=False)
-            old_selection = [item.text()
-                             for item in self.dateList.selectedItems()]
-            if not all(date in old_selection for date in dates):
+            old_dates = self._selected_dates
+            if not all(date in old_dates for date in dates):
                 self.runList.setRuns(selection.to_dict(orient='index'))
             else:
                 self.runList.updateRuns(selection.to_dict(orient='index'))
+            self._selected_dates = tuple(dates)
         else:
+            self._selected_dates = ()
             self.runList.clear()
 
     @Slot(int)
@@ -543,7 +561,9 @@ def main(dbPath: Optional[str]) -> None:
     win.show()
 
     if (sys.flags.interactive != 1) or not hasattr(QtCore, 'PYQT_VERSION'):
-        QtWidgets.QApplication.instance().exec_()
+        appinstance = QtWidgets.QApplication.instance()
+        assert appinstance is not None
+        appinstance.exec_()
 
 
 def script() -> None:
