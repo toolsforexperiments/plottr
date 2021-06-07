@@ -9,6 +9,8 @@ import numpy as np
 from matplotlib import colors, rcParams
 from matplotlib.axes import Axes
 from matplotlib.image import AxesImage
+from matplotlib.lines import Line2D   
+from matplotlib.cm import ScalarMappable
 
 from plottr.utils import num
 from plottr.utils.num import interp_meshgrid_2d, centers2edges_2d
@@ -39,6 +41,9 @@ class PlotType(Enum):
 
     #: 2D scatter plot
     scatter2d = auto()
+    
+    #: 2D stacked linecuts
+    linecuts2d = auto()
 
 
 class SymmetricNorm(colors.Normalize):
@@ -126,15 +131,22 @@ def colorplot2d(ax: Axes,
         im = ppcolormesh_from_meshgrid(ax, x, y, z, cmap=cmap, **kw)
     elif plotType is PlotType.scatter2d:
         im = ax.scatter(x, y, c=z, cmap=cmap, **kw)
+    elif plotType is PlotType.linecuts2d:
+        im, sm = plot_as_linecuts(ax,x,y,z,cmap=cmap, **kw)
     else:
         im = None
 
     if im is None:
         return None
-
-    ax.set_xlabel(axLabels[0])
-    ax.set_ylabel(axLabels[1])
-    return im
+    
+    if im == "linecuts":
+        ax.set_xlabel(axLabels[0])
+        ax.set_ylabel(axLabels[2])
+        return sm
+    else:
+        ax.set_xlabel(axLabels[0])
+        ax.set_ylabel(axLabels[1])
+        return im
 
 
 def ppcolormesh_from_meshgrid(ax: Axes, x: np.ndarray, y: np.ndarray,
@@ -207,3 +219,29 @@ def plotImage(ax: Axes, x: np.ndarray, y: np.ndarray,
     im = ax.imshow(z.T, aspect='auto', origin='lower',
                    extent=extent, **kw)
     return im
+    
+def plot_as_linecuts(ax: Axes, x: np.ndarray, y: np.ndarray,
+                     z: np.ndarray, cmap, **kw) -> Tuple[Line2D,ScalarMappable]:
+    
+    """Plot a 2D array as the individual linecuts
+    Input are the corresponding arrays from a 2D ``MeshgridDataDict``.
+
+    :param ax: axes to plot the linecuts into.
+    :param x: x component of the meshgrid coordinates
+    :param y: y component of the meshgrid coordinates
+    :param z: data values
+    :returns: `Line2D` and `Scalarmappable`.
+
+    Keywords are passed on to `Axes.plot`.
+    """
+
+    sm = ScalarMappable(cmap=cmap, norm=colors.Normalize(vmin=np.amin(y), vmax=np.amax(y)))
+    
+    if len(x.shape) == 1:
+        line, = ax.plot(x, z, color=sm.to_rgba((y[0,0])), **kw)
+    else:
+        for i in range(x.shape[1]):
+            line, = ax.plot(x[:, i], z[:, i], color=sm.to_rgba((y[0,i])), **kw)
+            
+    return "linecuts", sm
+

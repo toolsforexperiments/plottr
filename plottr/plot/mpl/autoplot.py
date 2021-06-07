@@ -95,7 +95,11 @@ class FigureMaker(BaseFM):
             if len(labels) > 0 and len(set(labels[0])) == 1:
                 axes[0].set_xlabel(labels[0][0])
             if len(labels) > 1 and len(set(labels[1])) == 1:
-                axes[0].set_ylabel(labels[1][0])
+                if self.plotType == PlotType.linecuts2d:
+                    axes[0].set_ylabel(labels[2][0])
+                else:
+                    axes[0].set_ylabel(labels[1][0])
+                
 
         if isinstance(axes, list) and len(labels) == 2 and len(set(labels[1])) > 1:
             axes[0].legend(loc='upper right', fontsize='small')
@@ -113,7 +117,7 @@ class FigureMaker(BaseFM):
         """
         if self.plotType in [PlotType.singletraces, PlotType.multitraces]:
             return self.plotLine(plotItem)
-        elif self.plotType in [PlotType.image, PlotType.scatter2d, PlotType.colormesh]:
+        elif self.plotType in [PlotType.image, PlotType.scatter2d, PlotType.colormesh,PlotType.linecuts2d]:
             return self.plotImage(plotItem)
         else:
             return None
@@ -134,7 +138,10 @@ class FigureMaker(BaseFM):
         assert isinstance(axes, list) and len(axes) > 0
         im = colorplot2d(axes[0], x, y, z, plotType=self.plotType)
         cb = self.fig.colorbar(im, ax=axes[0], shrink=0.75, pad=0.02)
-        lbl = plotItem.labels[-1] if isinstance(plotItem.labels, list) and len(plotItem.labels) > 0 else ''
+        if self.plotType == PlotType.linecuts2d:
+            lbl = plotItem.labels[1] if isinstance(plotItem.labels, list) and len(plotItem.labels) > 0 else ''
+        else:
+            lbl = plotItem.labels[-1] if isinstance(plotItem.labels, list) and len(plotItem.labels) > 0 else ''
         cb.set_label(lbl)
         return im
 
@@ -185,11 +192,19 @@ class AutoPlotToolBar(QtWidgets.QToolBar):
         self.plotasMesh.triggered.connect(
             lambda: self.selectPlotType(PlotType.colormesh))
 
+        self.plotas2dlinecuts = self.addAction(
+                                              'Linecuts 2D')
+        self.plotas2dlinecuts.setCheckable(True)
+        self.plotas2dlinecuts.triggered.connect(
+            lambda: self.selectPlotType(PlotType.linecuts2d))
+        
         self.plotasScatter2d = self.addAction(get_scatterPlot2dIcon(),
                                               'Scatter 2D')
         self.plotasScatter2d.setCheckable(True)
         self.plotasScatter2d.triggered.connect(
             lambda: self.selectPlotType(PlotType.scatter2d))
+            
+
 
         # other options
         self.addSeparator()
@@ -219,6 +234,7 @@ class AutoPlotToolBar(QtWidgets.QToolBar):
             PlotType.singletraces: self.plotasSingleTraces,
             PlotType.image: self.plotasImage,
             PlotType.colormesh: self.plotasMesh,
+            PlotType.linecuts2d: self.plotas2dlinecuts,
             PlotType.scatter2d: self.plotasScatter2d,
         })
 
@@ -388,7 +404,8 @@ class AutoPlot(MPLPlotWidget):
         """Given the current data type, figure out what the plot options are."""
         if self.plotDataType == PlotDataType.grid2d:
             self.plotOptionsToolBar.setAllowedPlotTypes(
-                PlotType.image, PlotType.colormesh, PlotType.scatter2d
+                PlotType.image, PlotType.colormesh, PlotType.scatter2d, 
+                PlotType.linecuts2d,
             )
 
         elif self.plotDataType == PlotDataType.scatter2d:
