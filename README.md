@@ -50,6 +50,25 @@ You might want to install freshly if you still use the old version.
 
 # Recent changes:
 
+## 2021-06-08
+
+### Added
+
+- refactoring the plotting system (#166)
+- Add version log message to main ``__init__`` (#175)
+
+### Fixed
+
+- Fix crop if less than one row is not nan (#198)
+- Fix rgba error (#199)
+- Allow empty dataset if datadict is none (#195)
+
+### Behind the scenes
+
+- Modernize setup files (#194)
+- packaging cleanups (#177)
+- upgrade versioneer to 0.19 (#176)
+
 ## 2021-02-16
 
 ### Added
