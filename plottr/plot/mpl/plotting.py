@@ -3,7 +3,7 @@
 """
 
 from enum import Enum, auto, unique
-from typing import Optional, Tuple, Any, Union
+from typing import Any, Optional, Tuple, Union
 
 import numpy as np
 from matplotlib import colors, rcParams
@@ -13,8 +13,7 @@ from matplotlib.lines import Line2D
 from matplotlib.cm import ScalarMappable
 
 from plottr.utils import num
-from plottr.utils.num import interp_meshgrid_2d, centers2edges_2d
-
+from plottr.utils.num import centers2edges_2d, interp_meshgrid_2d
 
 __author__ = 'Wolfgang Pfaff'
 __license__ = 'MIT'
@@ -130,7 +129,7 @@ def colorplot2d(ax: Axes,
     elif plotType is PlotType.colormesh:
         im = ppcolormesh_from_meshgrid(ax, x, y, z, cmap=cmap, **kw)
     elif plotType is PlotType.scatter2d:
-        im = ax.scatter(x, y, c=z, cmap=cmap, **kw)
+        im = ax.scatter(x.ravel(), y.ravel(), c=z.ravel(), cmap=cmap, **kw)
     elif plotType is PlotType.linecuts2d:
         im, sm = plot_as_linecuts(ax,x,y,z,cmap=cmap, **kw)
     else:
