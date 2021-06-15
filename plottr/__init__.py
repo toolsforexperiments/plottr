@@ -99,6 +99,8 @@ def config(names: Optional[List[str]] = None) -> \
         this_cfg = {}
         for filep in configFiles(filen)[::-1]:
             spec = spec_from_file_location(modn, filep)
+            if spec is None:
+                raise FileNotFoundError(f"Could not locate spec for {modn}, {filep}")
             mod = module_from_spec(spec)
             sys.modules[modn] = mod
             assert isinstance(spec.loader, Loader)
