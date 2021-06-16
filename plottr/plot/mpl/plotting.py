@@ -220,7 +220,7 @@ def plotImage(ax: Axes, x: np.ndarray, y: np.ndarray,
     return im
     
 def plot_as_linecuts(ax: Axes, x: np.ndarray, y: np.ndarray,
-                     z: np.ndarray, cmap, **kw) -> Tuple[str,ScalarMappable]:
+                     z: np.ndarray, cmap: colors.Colormap, **kw: Any) -> Tuple[str,ScalarMappable]:
     
     """Plot a 2D array as the individual linecuts
     Input are the corresponding arrays from a 2D ``MeshgridDataDict``.
