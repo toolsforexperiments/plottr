@@ -375,6 +375,9 @@ class AutoFigureMaker:
         #: ids of all main plot items (does not contain derived/secondary plot items)
         self.plotIds: List = []
 
+        #: ids of all plot items, incl those who are 'joined' with 'main' plot items.
+        self.allPlotIds: List = []
+
         #: how to represent complex data.
         #: must be set before adding data to the plot to have an effect.
         self.complexRepresentation = ComplexRepresentation.realAndImag
@@ -542,7 +545,7 @@ class AutoFigureMaker:
         :param data: data arrays describing the plot (one or more independents, one dependent)
         :param join: ID of a plot item the new item should be shown together with in the same subplot
         :param labels: list of labels for the data arrays
-        :param plotDataType: what kind of plot data the supplied data contains (not needed, typically)
+        :param plotDataType: what kind of plot data the supplied data contains.
         :param plotOptions: options (as kwargs) to be passed to the actual plot functions (depends on the backend)
         :return: ID of the new plot item.
         """
@@ -562,13 +565,15 @@ class AutoFigureMaker:
 
         if labels is None:
             labels = [''] * len(data)
+        elif len(labels) < len(data):
+            labels += [''] * (len(data)-len(labels))
 
         plotItem = PlotItem(list(data), id, subPlotId,
                             plotDataType, labels, plotOptions)
 
         for p in self._splitComplexData(plotItem):
             self.plotItems[p.id] = p
-
+            self.allPlotIds.append(p.id)
         self.plotIds.append(id)
         return id
 
@@ -576,10 +581,46 @@ class AutoFigureMaker:
         """Get the ID of the most recently added plot item.
         :return: the ID.
         """
+        if not len(self.plotIds) > 0:
+            return None
+
         if len(self.plotIds) > 0:
             return self.plotIds[-1]
         else:
             return None
+
+    def findPlotIndexInSubPlot(self, plotId: int) -> int:
+        """find the index of a plot in its subplot
+
+        :param plotId: plot ID to check
+        :return: index at which the plot is located in its subplot.
+        """
+        if plotId not in self.allPlotIds:
+            raise ValueError("Plot ID not found.")
+
+        subPlotId = self.plotItems[plotId].subPlot
+        itemsInSubPlot = [i for i in self.allPlotIds if self.plotItems[i].subPlot == subPlotId]
+        return itemsInSubPlot.index(plotId)
+
+    def plotIdsInSubPlot(self, subPlotId: int) -> List[int]:
+        """return all plot IDs in a given subplot
+
+        :param subPlotId: ID of the subplot
+        :return: list of plot IDs
+        """
+        itemsInSubPlot = [i for i in self.allPlotIds if self.plotItems[i].subPlot == subPlotId]
+        return itemsInSubPlot
+
+    def dataDimensionsInSubPlot(self, subPlotId: int) -> Dict[int, int]:
+        """Determine what the data dimensions are in a subplot.
+
+        :param subPlotId: ID of the subplot
+        :return: dictionary with plot id as key, data dimension (i.e., number of independents) as value.
+        """
+        ret: Dict[int, int] = {}
+        for plotId in self.plotIdsInSubPlot(subPlotId):
+            ret[plotId] = len(self.plotItems[plotId].data) - 1
+        return ret
 
     # Methods to be implemented by inheriting classes
     def makeSubPlots(self, nSubPlots: int) -> Optional[List[Any]]:
