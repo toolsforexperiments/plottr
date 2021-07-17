@@ -43,6 +43,9 @@ def image_test():
     xplot = pgWidget2.addPlot(row=1, col=0)
     yplot = pgWidget2.addPlot(row=0, col=0)
 
+    xplot.addLegend()
+    yplot.addLegend()
+
     # add crosshair to main plot
     vline = pg.InfiniteLine(angle=90, movable=False, pen='r')
     hline = pg.InfiniteLine(angle=0, movable=False, pen='b')
@@ -58,11 +61,11 @@ def image_test():
             vidx = np.argmin(np.abs(origin.x()-x))
             hidx = np.argmin(np.abs(origin.y()-y))
             yplot.clear()
-            yplot.plot(zz[vidx, :], y,
+            yplot.plot(zz[vidx, :], y, name='vertical cut',
                        pen=pg.mkPen('r', width=2),
                        symbol='o', symbolBrush='r', symbolPen=None)
             xplot.clear()
-            xplot.plot(x, zz[:, hidx],
+            xplot.plot(x, zz[:, hidx], name='horizontal cut',
                        pen=pg.mkPen('b', width=2),
                        symbol='o', symbolBrush='b', symbolPen=None)
 
