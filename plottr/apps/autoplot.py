@@ -6,7 +6,7 @@ import logging
 import os
 import time
 import argparse
-from typing import Union, Tuple, Optional, Type, List, Any
+from typing import Union, Tuple, Optional, Type, List, Any, Type
 from packaging import version
 
 from .. import QtCore, Flowchart, Signal, Slot, QtWidgets, QtGui
@@ -23,7 +23,7 @@ from ..node.scaleunits import ScaleUnits
 from ..node.grid import DataGridder, GridOption
 from ..node.tools import linearFlowchart
 from ..node.node import Node
-from ..plot import PlotNode, makeFlowchartWithPlot
+from ..plot import PlotNode, makeFlowchartWithPlot, PlotWidget
 from ..utils.misc import unwrap_optional
 
 __author__ = 'Wolfgang Pfaff'
@@ -39,7 +39,8 @@ def logger() -> logging.Logger:
     return logger
 
 
-def autoplot(inputData: Union[None, DataDictBase] = None) \
+def autoplot(inputData: Union[None, DataDictBase] = None,
+             plotWidgetClass: Optional[Type[PlotWidget]] = None) \
         -> Tuple[Flowchart, 'AutoPlotMainWindow']:
     """
     Sets up a simple flowchart consisting of a data selector, gridder,
@@ -63,7 +64,8 @@ def autoplot(inputData: Union[None, DataDictBase] = None) \
     }
 
     fc = makeFlowchartWithPlot(nodes)
-    win = AutoPlotMainWindow(fc, widgetOptions=widgetOptions)
+    win = AutoPlotMainWindow(fc, widgetOptions=widgetOptions,
+                             plotWidgetClass=plotWidgetClass)
     win.show()
 
     if inputData is not None:
@@ -130,9 +132,11 @@ class AutoPlotMainWindow(PlotWindow):
                  monitor: bool = False,
                  monitorInterval: Union[float, None] = None,
                  loaderName: Optional[str] = None,
+                 plotWidgetClass: Optional[Type[PlotWidget]] = None,
                  **kwargs: Any):
 
-        super().__init__(parent, fc=fc, **kwargs)
+        super().__init__(parent, fc=fc, plotWidgetClass=plotWidgetClass,
+                         **kwargs)
 
         self.fc = fc
         if loaderName is not None:
@@ -236,7 +240,7 @@ class AutoPlotMainWindow(PlotWindow):
         self.fc.nodes()['Data selection'].selectedData = selected
         self.fc.nodes()['Grid'].grid = GridOption.guessShape, {}
         self.fc.nodes()['Dimension assignment'].dimensionRoles = drs
-        unwrap_optional(self.plotWidget).plot.draw()
+        unwrap_optional(self.plotWidget).update()
 
 
 class QCAutoPlotMainWindow(AutoPlotMainWindow):
