@@ -33,5 +33,6 @@ config = {
                         '#8c564b', '#e377c2', '#7f7f7f', '#bcbd22', '#17becf'],
         'line_symbols': ['o', ],
         'line_symbol_size': 7,
+        'minimum_plot_size': (400, 400),
     }
 }
