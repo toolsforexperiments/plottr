@@ -21,6 +21,8 @@ from plottr import log as plottrlog
 from plottr.apps.autoplot import autoplot
 from plottr.data.datadict import DataDictBase, DataDict
 from plottr.utils import testdata
+from plottr.plot.mpl.autoplot import AutoPlot as MPLAutoPlot
+from plottr.plot.pyqtgraph.autoplot import AutoPlot as PGAutoPlot
 
 plottrlog.enableStreamHandler(True)
 logger = plottrlog.getLogger('plottr.test.autoplot_app')
@@ -136,7 +138,7 @@ def main(dataSrc):
     plottrlog.LEVEL = logging.INFO
 
     app = QtWidgets.QApplication([])
-    fc, win = autoplot()
+    fc, win = autoplot(plotWidgetClass=plotWidgetClass)
 
     dataThread = QtCore.QThread()
     dataSrc.moveToThread(dataThread)
@@ -151,10 +153,14 @@ def main(dataSrc):
         QtWidgets.QApplication.instance().exec_()
 
 
+# plotWidgetClass = MPLAutoPlot
+plotWidgetClass = PGAutoPlot
+
+
 if __name__ == '__main__':
-    # src = LineDataMovie(10, 3, 101)
+    src = LineDataMovie(100, 3, 1001)
     # src = ImageDataMovie(50, 2, 501)
-    src = ImageDataLiveAcquisition(101, 101, 67)
+    # src = ImageDataLiveAcquisition(101, 101, 67)
     # src = ComplexImage(21, 21)
-    src.delay = 0.1
+    src.delay = 0.5
     main(src)
