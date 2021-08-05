@@ -125,7 +125,7 @@ class PlotWidget(QtWidgets.QWidget):
     Implement a child class for actual plotting.
     """
 
-    def __init__(self, parent: Optional[QtWidgets.QWidget] = None) -> None:
+    def __init__(self, parent: Optional[PlotWidgetContainer] = None) -> None:
         super().__init__(parent=parent)
 
         self.data: Optional[DataDictBase] = None
@@ -139,6 +139,9 @@ class PlotWidget(QtWidgets.QWidget):
             'dataShapesChanged': False,
             'dataLimitsChanged': False,
         }
+
+    def update(self) -> None:
+        return None
 
     def setData(self, data: Optional[DataDictBase]) -> None:
         """Set data. Use this to trigger plotting.
