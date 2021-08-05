@@ -9,78 +9,110 @@ import numpy as np
 from pyqtgraph import GraphicsLayoutWidget, mkPen, mkBrush, HistogramLUTItem, ImageItem
 
 from plottr import QtWidgets, QtCore, QtGui, config_entry as getcfg
+from plottr.data.datadict import DataDictBase
 from ..base import AutoFigureMaker as BaseFM, PlotDataType, \
     PlotItem, ComplexRepresentation, determinePlotDataType, \
-    PlotWidgetContainer
-from .plots import Plot, PlotWithColorbar
+    PlotWidgetContainer, PlotWidget
+from .plots import Plot, PlotWithColorbar, PlotBase
 
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
+
+
+class _FigureMakerWidget(QtWidgets.QWidget):
+
+    def __init__(self, parent: Optional[QtWidgets.QWidget] = None):
+        super().__init__(parent=parent)
+
+        self.subPlots: List[PlotBase] = []
+
+        self.layout = QtWidgets.QVBoxLayout()
+        self.layout.setContentsMargins(0, 0, 0, 0)
+        self.layout.setSpacing(0)
+        self.setLayout(self.layout)
+        self.setMinimumSize(*getcfg('main', 'pyqtgraph', 'minimum_plot_size',
+                                    default=(400, 400)))
+
+    def addPlot(self, plot: PlotBase):
+        self.layout.addWidget(plot)
+        self.subPlots.append(plot)
+
+    def clearAllPlots(self):
+        for p in self.subPlots:
+            p.clearPlot()
+
+    def deleteAllPlots(self):
+        for p in self.subPlots:
+            p.deleteLater()
+        self.subPlots = []
 
 
 class FigureMaker(BaseFM):
     """pyqtgraph implementation for :class:`.AutoFigureMaker`.
     """
 
-    # TODO: need to figure out how to reuse widgets when we just update data
     # TODO: make scrollable when many figures (set min size)?
-    # TODO: check for valid plot data?
+    # TODO: check for valid plot data
 
-    def __init__(self, parentWidget: Optional[QtWidgets.QWidget] = None):
+    def __init__(self, widget: Optional[_FigureMakerWidget] = None,
+                 clearWidget: bool = True,
+                 parentWidget: Optional[QtWidgets.QWidget] = None):
         super().__init__()
-        self.widget = QtWidgets.QWidget(parentWidget)
 
-        self.layout = QtWidgets.QVBoxLayout()
-        self.layout.setContentsMargins(0, 0, 0, 0)
-        self.layout.setSpacing(0)
-
-        self.widget.setLayout(self.layout)
-        self.widget.setMinimumSize(400, 400)
+        self.clearWidget: bool = clearWidget
+        if widget is None:
+            self.widget = _FigureMakerWidget(parent=parentWidget)
+        else:
+            self.widget = widget
 
     # re-implementing to get correct type annotation.
     def __enter__(self) -> "FigureMaker":
         return self
 
-    def makeSubPlots(self, nSubPlots: int) -> List[Any]:
+    def subPlotFromId(self, subPlotId):
+        subPlots = self.subPlots[subPlotId].axes
+        assert isinstance(subPlots, list) and len(subPlots) > 0 and \
+               isinstance(subPlots[0], PlotBase)
+        return subPlots[0]
 
-        plotWidgets = []  # FIXME: needs correct type
-        for i in range(nSubPlots):
-            if max(self.dataDimensionsInSubPlot(i).values()) == 1:
-                plot = Plot(self.widget)
-                self.layout.addWidget(plot)
-                plotWidgets.append([plot])
+    def makeSubPlots(self, nSubPlots: int) -> List[List[PlotBase]]:
+        if self.clearWidget:
+            self.widget.deleteAllPlots()
 
-            elif max(self.dataDimensionsInSubPlot(i).values()) == 2:
-                plot = PlotWithColorbar(self.widget)
-                self.layout.addWidget(plot)
-                plotWidgets.append([plot])
+            for i in range(nSubPlots):
+                if max(self.dataDimensionsInSubPlot(i).values()) == 1:
+                    plot = Plot(self.widget)
+                    self.widget.addPlot(plot)
+                elif max(self.dataDimensionsInSubPlot(i).values()) == 2:
+                    plot = PlotWithColorbar(self.widget)
+                    self.widget.addPlot(plot)
 
-        return plotWidgets
+        else:
+            self.widget.clearAllPlots()
+
+        return self.widget.subPlots
 
     def formatSubPlot(self, subPlotId: int) -> Any:
         if len(self.plotIdsInSubPlot(subPlotId)) == 0:
             return
 
         labels = self.subPlotLabels(subPlotId)
-        plotwidgets = self.subPlots[subPlotId].axes
-
-        assert isinstance(plotwidgets, list) and len(plotwidgets) > 0
-        pw = plotwidgets[0]
+        subPlot = self.subPlotFromId(subPlotId)
 
         # label the x axis if there's only one x label
-        if isinstance(pw, Plot):
+        if isinstance(subPlot, Plot):
             if len(set(labels[0])) == 1:
-                pw.plot.setLabel("bottom", labels[0][0])
+                subPlot.plot.setLabel("bottom", labels[0][0])
 
-        if isinstance(pw, PlotWithColorbar):
+        if isinstance(subPlot, PlotWithColorbar):
             if len(set(labels[0])) == 1:
-                pw.plot.setLabel("bottom", labels[0][0])
+                subPlot.plot.setLabel("bottom", labels[0][0])
 
             if len(set(labels[1])) == 1:
-                pw.plot.setLabel('left', labels[1][0])
+                subPlot.plot.setLabel('left', labels[1][0])
 
             if len(set(labels[2])) == 1:
-                pw.colorbar.setLabel('left', labels[2][0])
+                subPlot.colorbar.setLabel('left', labels[2][0])
 
     def plot(self, plotItem: PlotItem) -> None:
         if plotItem.plotDataType is PlotDataType.unknown:
@@ -103,9 +135,7 @@ class FigureMaker(BaseFM):
         symbols = getcfg('main', 'pyqtgraph', 'line_symbols', default=['o'])
         symbolSize = getcfg('main', 'pyqtgraph', 'line_symbol_size', default=5)
 
-        plotwidgets = self.subPlots[plotItem.subPlot].axes
-        assert isinstance(plotwidgets, list) and len(plotwidgets) > 0
-        pw = plotwidgets[0]
+        subPlot = self.subPlotFromId(plotItem.subPlot)
 
         assert len(plotItem.data) == 2
         x, y = plotItem.data
@@ -114,27 +144,64 @@ class FigureMaker(BaseFM):
         symbol = symbols[self.findPlotIndexInSubPlot(plotItem.id) % len(symbols)]
 
         if plotItem.plotDataType == PlotDataType.line1d:
-            return pw.plot.plot(x.flatten(), y.flatten(), name=plotItem.labels[-1],
-                                pen=mkPen(color, width=2),
-                                symbol=symbol, symbolBrush=color, symbolPen=None, symbolSize=symbolSize)
+            return subPlot.plot.plot(x.flatten(), y.flatten(), name=plotItem.labels[-1],
+                                    pen=mkPen(color, width=2),
+                                    symbol=symbol, symbolBrush=color, symbolPen=None, symbolSize=symbolSize)
         else:
-            return pw.plot.plot(x.flatten(), y.flatten(), name=plotItem.labels[-1],
-                                pen=None,
-                                symbol=symbol, symbolBrush=color, symbolPen=None, symbolSize=symbolSize)
+            return subPlot.plot.plot(x.flatten(), y.flatten(), name=plotItem.labels[-1],
+                                    pen=None,
+                                    symbol=symbol, symbolBrush=color, symbolPen=None, symbolSize=symbolSize)
 
     def _colorPlot(self, plotItem):
-        plotwidgets = self.subPlots[plotItem.subPlot].axes
-        assert isinstance(plotwidgets, list) and len(plotwidgets) > 0
-        pw = plotwidgets[0]
-
-        assert isinstance(pw, PlotWithColorbar) and len(plotItem.data) == 3
-        pw.setImage(*plotItem.data)
+        subPlot = self.subPlotFromId(plotItem.subPlot)
+        assert isinstance(subPlot, PlotWithColorbar) and len(plotItem.data) == 3
+        subPlot.setImage(*plotItem.data)
 
     def _scatterPlot2d(self, plotItem):
-        plotwidgets = self.subPlots[plotItem.subPlot].axes
-        assert isinstance(plotwidgets, list) and len(plotwidgets) > 0
-        pw = plotwidgets[0]
+        subPlot = self.subPlotFromId(plotItem.subPlot)
+        assert isinstance(subPlot, PlotWithColorbar) and len(plotItem.data) == 3
+        subPlot.setScatter2d(*plotItem.data)
 
-        assert isinstance(pw, PlotWithColorbar) and len(plotItem.data) == 3
-        pw.setScatter2d(*plotItem.data)
 
+class AutoPlot(PlotWidget):
+    """Widget for automatic plotting with pyqtgraph."""
+
+    def __init__(self, parent: Optional[PlotWidgetContainer]):
+        """Constructor for the pyqtgraph auto plot widget.
+
+        :param parent:
+        """
+        super().__init__(parent=parent)
+
+        self.fmWidget: Optional[PlotWidget] = None
+        self.layout = QtWidgets.QVBoxLayout()
+        self.layout.setContentsMargins(0, 0, 0, 0)
+        self.layout.setSpacing(0)
+
+        self.setLayout(self.layout)
+        self.setMinimumSize(*getcfg('main', 'pyqtgraph', 'minimum_plot_size', default=(400, 400)))
+
+    def setData(self, data: Optional[DataDictBase]) -> None:
+        super().setData(data)
+        if self.data is None:
+            return
+
+        fmKwargs = {'widget': self.fmWidget}
+        dc = self.dataChanges
+        if not dc['dataTypeChanged'] and not dc['dataStructureChanged'] \
+                and not dc['dataShapesChanged']:
+            fmKwargs['clearWidget'] = False
+        else:
+            fmKwargs['clearWidget'] = True
+
+        with FigureMaker(parentWidget=self, **fmKwargs) as fm:
+            inds = self.data.axes()
+            for dep in self.data.dependents():
+                dvals = self.data.data_vals(dep)
+                plotId = fm.addData(
+                    *[np.asanyarray(self.data.data_vals(n)) for n in inds] + [dvals]
+                )
+
+        if self.fmWidget is None:
+            self.fmWidget = fm.widget
+            self.layout.addWidget(self.fmWidget)
