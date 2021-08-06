@@ -86,22 +86,22 @@ def main():
 
     widgets.append(
         test_basic_line_plot())
-    widgets.append(
-        test_images())
-    widgets.append(
-        test_scatter2d())
-    widgets.append(
-        test_complex_line_plots())
-    widgets.append(
-        test_complex_line_plots(single_panel=True))
-    widgets.append(
-        test_complex_line_plots(mag_and_phase_format=True))
-    widgets.append(
-        test_complex_line_plots(single_panel=True, mag_and_phase_format=True))
-    widgets.append(
-        test_complex_images())
-    widgets.append(
-        test_complex_images(mag_and_phase_format=True))
+    # widgets.append(
+    #     test_images())
+    # widgets.append(
+    #     test_scatter2d())
+    # widgets.append(
+    #     test_complex_line_plots())
+    # widgets.append(
+    #     test_complex_line_plots(single_panel=True))
+    # widgets.append(
+    #     test_complex_line_plots(mag_and_phase_format=True))
+    # widgets.append(
+    #     test_complex_line_plots(single_panel=True, mag_and_phase_format=True))
+    # widgets.append(
+    #     test_complex_images())
+    # widgets.append(
+    #     test_complex_images(mag_and_phase_format=True))
 
     dgs = []
     for w in widgets:

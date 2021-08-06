@@ -1,4 +1,7 @@
-from typing import Any, Optional, List, Tuple
+"""Convenience tools for generating ``pyqtgraph`` plots that can
+be used in plottr's automatic plotting framework."""
+
+from typing import Optional, Tuple, NoReturn
 
 import numpy as np
 import pyqtgraph as pg
@@ -11,40 +14,69 @@ __all__ = ['PlotBase', 'Plot']
 
 
 class PlotBase(QtWidgets.QWidget):
+    """A simple convenience widget class as container for ``pyqtgraph`` plots.
 
-    def __init__(self, parent=None):
+    The widget contains a layout that contains a ``GraphicsLayoutWidget``.
+    This is handy because a plot may contain multiple elements (like an image
+    and a colorbar).
+
+    This base class should be inherited to use.
+    """
+
+    def __init__(self, parent: Optional[QtWidgets.QWidget] = None) -> None:
         super().__init__(parent)
+
+        #: central layout of the widget. only contains a graphics layout.
         self.layout = QtWidgets.QVBoxLayout(self)
+        #: ``pyqtgraph`` graphics layout
+        self.graphicsLayout = pg.GraphicsLayoutWidget(self)
+
         self.layout.setContentsMargins(0, 0, 0, 0)
         self.layout.setSpacing(0)
         self.setLayout(self.layout)
-
-        self.graphicsLayout = pg.GraphicsLayoutWidget(self)
         self.layout.addWidget(self.graphicsLayout)
 
-    def clearPlot(self):
-        return
+    def clearPlot(self) -> NoReturn:
+        """Clear all plot contents (but do not delete plot elements, like axis
+        spines, insets, etc).
+
+        To be implemented by inheriting classes."""
+        raise NotImplementedError
 
 
 class Plot(PlotBase):
+    """A simple plot with a single ``PlotItem``."""
 
+    #: ``pyqtgraph`` plot item
     plot: pg.PlotItem
 
-    def __init__(self, parent=None):
+    def __init__(self, parent: Optional[QtWidgets.QWidget] = None):
         super().__init__(parent)
         self.plot: pg.PlotItem = self.graphicsLayout.addPlot()
-        self.plot.addLegend(offset=(5, 5), pen='#999', brush=(255, 255, 255, 150))
+        legend = self.plot.addLegend(offset=(5, 5), pen='#999',
+                                     brush=(255, 255, 255, 150))
+        legend.layout.setContentsMargins(0, 0, 0, 0)
+        self.plot.showGrid(True, True)
 
-    def clearPlot(self):
+    def clearPlot(self) -> None:
+        """Clear the plot item."""
         self.plot.clear()
 
 
 class PlotWithColorbar(PlotBase):
+    """Plot containing a plot item and a colorbar item.
 
+    Plot is suited for either an image plot (:meth:`.setImage`) or a color
+    scatter plot (:meth:`.setScatter2D`).
+    The color scale is displayed in an interactive colorbar.
+    """
+
+    #: main plot item
     plot: pg.PlotItem
+    #: colorbar
     colorbar: pg.ColorBarItem
 
-    def __init__(self, parent=None):
+    def __init__(self, parent: Optional[QtWidgets.QWidget] = None) -> None:
         super().__init__(parent)
 
         self.plot: pg.PlotItem = self.graphicsLayout.addPlot()
@@ -58,7 +90,8 @@ class PlotWithColorbar(PlotBase):
         self.scatter: Optional[pg.ScatterPlotItem] = None
         self.scatterZVals: Optional[np.ndarray] = None
 
-    def clearPlot(self):
+    def clearPlot(self) -> None:
+        """Clear the content of the plot."""
         self.img = None
         self.scatter = None
         self.scatterZVals = None
@@ -68,7 +101,17 @@ class PlotWithColorbar(PlotBase):
         except TypeError:
             pass
 
-    def setImage(self, x: np.ndarray, y: np.ndarray, z: np.ndarray):
+    def setImage(self, x: np.ndarray, y: np.ndarray, z: np.ndarray) -> None:
+        """Set data to be plotted as image.
+
+        Clears the plot before creating a new image item that gets places in the
+        plot and linked to the colorscale.
+
+        :param x: x coordinates (as 2D meshgrid)
+        :param y: y coordinates (as 2D meshgrid)
+        :param z: data values (as 2D meshgrid)
+        :return: None
+        """
         self.clearPlot()
 
         self.img = pg.ImageItem()
@@ -80,13 +123,23 @@ class PlotWithColorbar(PlotBase):
         self.colorbar.rounding = (z.max()-z.min()) * 1e-2
         self.colorbar.setLevels((z.min(), z.max()))
 
-    def setScatter2d(self, x: np.ndarray, y: np.ndarray, z: np.ndarray):
+    def setScatter2d(self, x: np.ndarray, y: np.ndarray, z: np.ndarray) -> None:
+        """Set data to be plotted as image.
+
+        Clears the plot before creating a new scatter item (based on flattened
+        input data) that gets placed in the plot and linked to the colorscale.
+
+        :param x: x coordinates
+        :param y: y coordinates
+        :param z: data values
+        :return: None
+        """
         self.clearPlot()
 
         self.scatter = pg.ScatterPlotItem()
         self.scatter.setData(x=x.flatten(), y=y.flatten(), symbol='o', size=8)
         self.plot.addItem(self.scatter)
-        self.scatterZVals = z
+        self.scatterZVals = z.flatten()
 
         self.colorbar.setLevels((z.min(), z.max()))
         self.colorbar.rounding = (z.max() - z.min()) * 1e-2
@@ -94,6 +147,7 @@ class PlotWithColorbar(PlotBase):
 
         self.colorbar.sigLevelsChanged.connect(self._colorScatterPoints)
 
+    # TODO: this seems crazy slow.
     def _colorScatterPoints(self, cbar: pg.ColorBarItem):
         if self.scatter is not None and self.scatterZVals is not None:
             z_norm = self._normalizeColors(self.scatterZVals, cbar.levels())
