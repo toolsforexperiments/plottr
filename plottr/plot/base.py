@@ -7,15 +7,16 @@ from collections import OrderedDict
 from copy import deepcopy
 from dataclasses import dataclass
 from enum import Enum, unique, auto
+from types import TracebackType
 from typing import Dict, List, Type, Tuple, Optional, Any, \
     OrderedDict as OrderedDictType, Union
-from types import TracebackType
 
 import numpy as np
 
 from .. import Signal, Flowchart, QtWidgets
 from ..data.datadict import DataDictBase, DataDict, MeshgridDataDict
 from ..node import Node, linearFlowchart
+from ..utils import LabeledOptions
 
 __author__ = 'Wolfgang Pfaff'
 __license__ = 'MIT'
@@ -248,21 +249,20 @@ class PlotDataType(Enum):
     grid2d = auto()
 
 
-@unique
-class ComplexRepresentation(Enum):
+class ComplexRepresentation(LabeledOptions):
     """Options for plotting complex-valued data."""
 
     #: only real
-    real = auto()
+    real = "Real"
 
     #: real and imaginary
-    realAndImag = auto()
+    realAndImag = "Real/Imag"
 
     #: real and imaginary, separated
-    realAndImagSeparate = auto()
+    realAndImagSeparate = "Real/Imag (split)"
 
     #: magnitude and phase
-    magAndPhase = auto()
+    magAndPhase = "Mag/Phase"
 
 
 def determinePlotDataType(data: Optional[DataDictBase]) -> PlotDataType:
@@ -383,7 +383,10 @@ class AutoFigureMaker:
 
         #: how to represent complex data.
         #: must be set before adding data to the plot to have an effect.
-        self.complexRepresentation = ComplexRepresentation.realAndImag
+        self.complexRepresentation: ComplexRepresentation = ComplexRepresentation.realAndImag
+
+        #: whether to combine 1D traces into one plot
+        self.combineTraces: bool = False
 
     def __enter__(self) -> "AutoFigureMaker":
         return self
@@ -553,6 +556,9 @@ class AutoFigureMaker:
         :return: ID of the new plot item.
         """
 
+        if self.combineTraces and join is None:
+            join = self.previousPlotId()
+
         id = _generate_auto_dict_key(self.plotItems)
 
         # TODO: allow any negative number
@@ -569,7 +575,7 @@ class AutoFigureMaker:
         if labels is None:
             labels = [''] * len(data)
         elif len(labels) < len(data):
-            labels += [''] * (len(data)-len(labels))
+            labels += [''] * (len(data) - len(labels))
 
         plotItem = PlotItem(list(data), id, subPlotId,
                             plotDataType, labels, plotOptions)
