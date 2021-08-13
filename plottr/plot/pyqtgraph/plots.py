@@ -7,8 +7,6 @@ import numpy as np
 import pyqtgraph as pg
 
 from plottr import QtCore, QtWidgets
-from . import *
-
 
 __all__ = ['PlotBase', 'Plot']
 
@@ -23,11 +21,14 @@ class PlotBase(QtWidgets.QWidget):
     This base class should be inherited to use.
     """
 
+    #: ``pyqtgraph`` plot item
+    plot: pg.PlotItem
+
     def __init__(self, parent: Optional[QtWidgets.QWidget] = None) -> None:
         super().__init__(parent)
 
         #: central layout of the widget. only contains a graphics layout.
-        self.layout = QtWidgets.QVBoxLayout(self)
+        self.layout = QtWidgets.QHBoxLayout(self)
         #: ``pyqtgraph`` graphics layout
         self.graphicsLayout = pg.GraphicsLayoutWidget(self)
 
@@ -46,9 +47,6 @@ class PlotBase(QtWidgets.QWidget):
 
 class Plot(PlotBase):
     """A simple plot with a single ``PlotItem``."""
-
-    #: ``pyqtgraph`` plot item
-    plot: pg.PlotItem
 
     def __init__(self, parent: Optional[QtWidgets.QWidget] = None):
         super().__init__(parent)
@@ -70,9 +68,6 @@ class PlotWithColorbar(PlotBase):
     scatter plot (:meth:`.setScatter2D`).
     The color scale is displayed in an interactive colorbar.
     """
-
-    #: main plot item
-    plot: pg.PlotItem
     #: colorbar
     colorbar: pg.ColorBarItem
 
@@ -117,10 +112,10 @@ class PlotWithColorbar(PlotBase):
         self.img = pg.ImageItem()
         self.plot.addItem(self.img)
         self.img.setImage(z)
-        self.img.setRect(QtCore.QRectF(x.min(), y.min(), x.max()-x.min(), y.max()-y.min()))
+        self.img.setRect(QtCore.QRectF(x.min(), y.min(), x.max() - x.min(), y.max() - y.min()))
 
         self.colorbar.setImageItem(self.img)
-        self.colorbar.rounding = (z.max()-z.min()) * 1e-2
+        self.colorbar.rounding = (z.max() - z.min()) * 1e-2
         self.colorbar.setLevels((z.min(), z.max()))
 
     def setScatter2d(self, x: np.ndarray, y: np.ndarray, z: np.ndarray) -> None:
