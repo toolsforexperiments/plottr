@@ -1,8 +1,7 @@
 """Tools for automatic plotting with ``pyqtgraph``.
 
 Contains a ``pyqtgraph``-specific implementation of :class:`.plot.base.FigureMaker`
-(:class:`.FigureMaker`) and :class:`.plot.base.PlotWidget`
-(:class:`.AutoPlot`).
+(:class:`.FigureMaker`) and :class:`.plot.base.PlotWidget` (:class:`.AutoPlot`).
 ``FigureMaker`` can be used to quickly create a figure in a mostly automatic fashion
 from known data.
 For embedding in GUIs (such as plottr applications), ``AutoPlot`` is the main
@@ -10,18 +9,19 @@ object for plotting data automatically using ``pyqtgraph``.
 """
 
 import logging
-from typing import Dict, List, Tuple, Union, Optional, Any, Type
+from dataclasses import dataclass
+from typing import List, Optional
 
 import numpy as np
-
 from pyqtgraph import mkPen
 
-from plottr import QtWidgets, QtCore, QtGui, config_entry as getcfg
+from plottr import QtWidgets, QtCore, Signal, Slot, \
+    config_entry as getcfg
 from plottr.data.datadict import DataDictBase
+from .plots import Plot, PlotWithColorbar, PlotBase
 from ..base import AutoFigureMaker as BaseFM, PlotDataType, \
     PlotItem, ComplexRepresentation, determinePlotDataType, \
-    PlotWidgetContainer, PlotWidget, SubPlot
-from .plots import Plot, PlotWithColorbar, PlotBase
+    PlotWidgetContainer, PlotWidget
 
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
@@ -46,8 +46,6 @@ class _FigureMakerWidget(QtWidgets.QWidget):
         self.layout.setContentsMargins(0, 0, 0, 0)
         self.layout.setSpacing(0)
         self.setLayout(self.layout)
-        self.setMinimumSize(*getcfg('main', 'pyqtgraph', 'minimum_plot_size',
-                                    default=(400, 400)))
 
     def addPlot(self, plot: PlotBase) -> None:
         """Add a :class:`.PlotBase` widget.
@@ -107,7 +105,7 @@ class FigureMaker(BaseFM):
     def __enter__(self) -> "FigureMaker":
         return self
 
-    def subPlotFromId(self, subPlotId: int) -> SubPlot:
+    def subPlotFromId(self, subPlotId: int) -> PlotBase:
         """Get SubPlot from ID."""
         subPlots = self.subPlots[subPlotId].axes
         assert isinstance(subPlots, list) and len(subPlots) > 0 and \
@@ -191,12 +189,12 @@ class FigureMaker(BaseFM):
 
         if plotItem.plotDataType == PlotDataType.line1d:
             return subPlot.plot.plot(x.flatten(), y.flatten(), name=plotItem.labels[-1],
-                                    pen=mkPen(color, width=2),
-                                    symbol=symbol, symbolBrush=color, symbolPen=None, symbolSize=symbolSize)
+                                     pen=mkPen(color, width=2), symbol=symbol, symbolBrush=color,
+                                     symbolPen=None, symbolSize=symbolSize)
         else:
             return subPlot.plot.plot(x.flatten(), y.flatten(), name=plotItem.labels[-1],
-                                    pen=None,
-                                    symbol=symbol, symbolBrush=color, symbolPen=None, symbolSize=symbolSize)
+                                     pen=None, symbol=symbol, symbolBrush=color,
+                                     symbolPen=None, symbolSize=symbolSize)
 
     def _colorPlot(self, plotItem):
         subPlot = self.subPlotFromId(plotItem.subPlot)
@@ -223,12 +221,16 @@ class AutoPlot(PlotWidget):
         super().__init__(parent=parent)
 
         self.fmWidget: Optional[PlotWidget] = None
+        self.figConfig: Optional[FigureConfigToolBar] = None
+        self.figOptions: FigureOptions = FigureOptions()
+
         self.layout = QtWidgets.QVBoxLayout()
         self.layout.setContentsMargins(0, 0, 0, 0)
         self.layout.setSpacing(0)
 
         self.setLayout(self.layout)
-        self.setMinimumSize(*getcfg('main', 'pyqtgraph', 'minimum_plot_size', default=(400, 400)))
+        self.setMinimumSize(*getcfg('main', 'pyqtgraph', 'minimum_plot_size',
+                                    default=(400, 400)))
 
     def setData(self, data: Optional[DataDictBase]) -> None:
         """Uses :class:`.FigureMaker` to populate the plot(s).
@@ -245,14 +247,21 @@ class AutoPlot(PlotWidget):
         if self.data is None:
             return
 
-        fmKwargs = {'widget': self.fmWidget}
+        fmKwargs = {}  # {'widget': self.fmWidget}
         dc = self.dataChanges
         if not dc['dataTypeChanged'] and not dc['dataStructureChanged']:
             fmKwargs['clearWidget'] = False
         else:
             fmKwargs['clearWidget'] = True
+        self._plotData(**fmKwargs)
 
-        with FigureMaker(parentWidget=self, **fmKwargs) as fm:
+    def _plotData(self, **kwargs):
+        with FigureMaker(parentWidget=self, widget=self.fmWidget,
+                         **kwargs) as fm:
+
+            fm.complexRepresentation = self.figOptions.complexRepresentation
+            fm.combineTraces = self.figOptions.combineLinePlots
+
             for dep in self.data.dependents():
                 inds = self.data.axes(dep)
                 dvals = self.data.data_vals(dep)
@@ -266,3 +275,75 @@ class AutoPlot(PlotWidget):
         if self.fmWidget is None:
             self.fmWidget = fm.widget
             self.layout.addWidget(self.fmWidget)
+            self.figConfig = FigureConfigToolBar(self.figOptions,
+                                                 parent=self)
+            self.layout.addWidget(self.figConfig)
+            self.figConfig.optionsChanged.connect(self._refreshPlot)
+
+    @Slot()
+    def _refreshPlot(self):
+        self._plotData()
+
+
+@dataclass
+class FigureOptions:
+    """Dataclass that describes the configuration options for the figure."""
+
+    #: whether to plot all 1D traces into a single panel
+    combineLinePlots: bool = False
+
+    #: how to represent complex data
+    complexRepresentation: ComplexRepresentation = ComplexRepresentation.realAndImag
+
+
+class FigureConfigToolBar(QtWidgets.QToolBar):
+    """Simple toolbar to configure the figure."""
+
+    # TODO: find better config system that generates GUI automatically and
+    #   links updates easier.
+
+    #: Signal() -- emitted when options have been changed in the GUI.
+    optionsChanged = Signal()
+
+    def __init__(self, options: FigureOptions, parent: QtWidgets.QWidget = None) -> None:
+        """Constructor.
+
+        :param options: options object. GUI interaction will make changes
+            in-place to this object.
+        :param parent: parent Widget
+        """
+        super().__init__(parent)
+
+        self.options = options
+
+        combineLinePlots = self.addAction("Combine 1D")
+        combineLinePlots.setCheckable(True)
+        combineLinePlots.setChecked(self.options.combineLinePlots)
+        combineLinePlots.triggered.connect(
+            lambda: self._setOption('combineLinePlots',
+                                    combineLinePlots.isChecked())
+        )
+
+        complexOptions = QtWidgets.QMenu(parent=self)
+        complexGroup = QtWidgets.QActionGroup(complexOptions)
+        complexGroup.setExclusive(True)
+        for k in ComplexRepresentation:
+            a = QtWidgets.QAction(k.label, complexOptions)
+            a.setCheckable(True)
+            complexGroup.addAction(a)
+            complexOptions.addAction(a)
+            a.setChecked(k == self.options.complexRepresentation)
+        complexGroup.triggered.connect(
+            lambda _a: self._setOption('complexRepresentation',
+                                       ComplexRepresentation.fromLabel(_a.text()))
+        )
+        complexButton = QtWidgets.QToolButton()
+        complexButton.setToolButtonStyle(QtCore.Qt.ToolButtonTextOnly)
+        complexButton.setText('Complex')
+        complexButton.setPopupMode(QtWidgets.QToolButton.InstantPopup)
+        complexButton.setMenu(complexOptions)
+        self.addWidget(complexButton)
+
+    def _setOption(self, option, value):
+        setattr(self.options, option, value)
+        self.optionsChanged.emit()
