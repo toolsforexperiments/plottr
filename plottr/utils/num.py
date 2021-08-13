@@ -2,7 +2,7 @@
 
 Tools for numerical operations.
 """
-from typing import Sequence, Tuple, Union, List, Optional
+from typing import List, Optional, Sequence, Tuple, Union
 
 import numpy as np
 import pandas as pd
@@ -351,7 +351,10 @@ def joint_crop2d_rows_cols(*arr: np.ndarray) -> Tuple[np.ndarray, np.ndarray]:
         xs += _x.tolist()
         ys += _y.tolist()
 
-    return np.array(list(set(xs))), np.array(list(set(ys)))
+    return (
+        np.array(list(set(xs)), dtype=np.int64),
+        np.array(list(set(ys)), dtype=np.int64),
+    )
 
 
 def crop2d_from_xy(arr: np.ndarray, xs: np.ndarray,
