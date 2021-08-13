@@ -20,9 +20,8 @@ from plottr import QtCore, QtWidgets, Signal
 from plottr import log as plottrlog
 from plottr.apps.autoplot import autoplot
 from plottr.data.datadict import DataDictBase, DataDict
-from plottr.utils import testdata
-from plottr.plot.mpl.autoplot import AutoPlot as MPLAutoPlot
 from plottr.plot.pyqtgraph.autoplot import AutoPlot as PGAutoPlot
+from plottr.utils import testdata
 
 plottrlog.enableStreamHandler(True)
 logger = plottrlog.getLogger('plottr.test.autoplot_app')
@@ -156,11 +155,10 @@ def main(dataSrc):
 # plotWidgetClass = MPLAutoPlot
 plotWidgetClass = PGAutoPlot
 
-
 if __name__ == '__main__':
     # src = LineDataMovie(20, 3, 31)
-    # src = ImageDataMovie(10, 2, 101)
+    src = ImageDataMovie(10, 2, 101)
     # src = ImageDataLiveAcquisition(101, 101, 67)
-    src = ComplexImage(21, 21)
+    # src = ComplexImage(21, 21)
     src.delay = 0.1
     main(src)
