@@ -138,7 +138,7 @@ def config_entry(*path: str, default: Optional[Any] = None,
     :returns: desired value
     """
 
-    cfg = config(names)
+    cfg: Any = config(names)
     for k in path:
         if isinstance(cfg, dict) and k in cfg:
             cfg = cfg.get(k)
