@@ -28,14 +28,14 @@ class PlotBase(QtWidgets.QWidget):
         super().__init__(parent)
 
         #: central layout of the widget. only contains a graphics layout.
-        self.layout = QtWidgets.QHBoxLayout(self)
+        layout = QtWidgets.QHBoxLayout(self)
         #: ``pyqtgraph`` graphics layout
         self.graphicsLayout = pg.GraphicsLayoutWidget(self)
 
-        self.layout.setContentsMargins(0, 0, 0, 0)
-        self.layout.setSpacing(0)
-        self.setLayout(self.layout)
-        self.layout.addWidget(self.graphicsLayout)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(0)
+        self.setLayout(layout)
+        layout.addWidget(self.graphicsLayout)
 
     def clearPlot(self) -> None:
         """Clear all plot contents (but do not delete plot elements, like axis
