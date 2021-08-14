@@ -37,7 +37,7 @@ class PlotBase(QtWidgets.QWidget):
         self.setLayout(self.layout)
         self.layout.addWidget(self.graphicsLayout)
 
-    def clearPlot(self) -> NoReturn:
+    def clearPlot(self) -> None:
         """Clear all plot contents (but do not delete plot elements, like axis
         spines, insets, etc).
 
@@ -143,15 +143,15 @@ class PlotWithColorbar(PlotBase):
         self.colorbar.sigLevelsChanged.connect(self._colorScatterPoints)
 
     # TODO: this seems crazy slow.
-    def _colorScatterPoints(self, cbar: pg.ColorBarItem):
+    def _colorScatterPoints(self, cbar: pg.ColorBarItem) -> None:
         if self.scatter is not None and self.scatterZVals is not None:
             z_norm = self._normalizeColors(self.scatterZVals, cbar.levels())
             colors = self.colorbar.cmap.mapToQColor(z_norm)
             self.scatter.setBrush(colors)
 
-    def _normalizeColors(self, z: np.ndarray, levels: Tuple[float, float]):
+    def _normalizeColors(self, z: np.ndarray, levels: Tuple[float, float]) -> np.ndarray:
         scale = levels[1] - levels[0]
         if scale > 0:
             return (z - levels[0]) / scale
         else:
-            return np.ones(z.size()) * 0.5
+            return np.ones(z.size) * 0.5

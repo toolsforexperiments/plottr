@@ -10,7 +10,7 @@ object for plotting data automatically using ``pyqtgraph``.
 
 import logging
 from dataclasses import dataclass
-from typing import List, Optional
+from typing import List, Optional, Any
 
 import numpy as np
 from pyqtgraph import mkPen
@@ -60,7 +60,7 @@ class _FigureMakerWidget(QtWidgets.QWidget):
         for p in self.subPlots:
             p.clearPlot()
 
-    def deleteAllPlots(self):
+    def deleteAllPlots(self) -> None:
         """Delete all subplot widgets."""
         for p in self.subPlots:
             p.deleteLater()
@@ -112,7 +112,7 @@ class FigureMaker(BaseFM):
                isinstance(subPlots[0], PlotBase)
         return subPlots[0]
 
-    def makeSubPlots(self, nSubPlots: int) -> List[List[PlotBase]]:
+    def makeSubPlots(self, nSubPlots: int) -> List[PlotBase]:
         """Create empty subplots in the widgets.
 
         If ``clearWidget`` was not set to ``True`` in the constructor,
@@ -174,7 +174,7 @@ class FigureMaker(BaseFM):
         else:
             raise NotImplementedError('Cannot plot this data.')
 
-    def _1dPlot(self, plotItem):
+    def _1dPlot(self, plotItem: PlotItem) -> None:
         colors = getcfg('main', 'pyqtgraph', 'line_colors', default=['r', 'b', 'g'])
         symbols = getcfg('main', 'pyqtgraph', 'line_symbols', default=['o'])
         symbolSize = getcfg('main', 'pyqtgraph', 'line_symbol_size', default=5)
@@ -188,20 +188,22 @@ class FigureMaker(BaseFM):
         symbol = symbols[self.findPlotIndexInSubPlot(plotItem.id) % len(symbols)]
 
         if plotItem.plotDataType == PlotDataType.line1d:
-            return subPlot.plot.plot(x.flatten(), y.flatten(), name=plotItem.labels[-1],
+            name = plotItem.labels[-1] if isinstance(plotItem.labels, list) else ''
+            return subPlot.plot.plot(x.flatten(), y.flatten(), name=name,
                                      pen=mkPen(color, width=2), symbol=symbol, symbolBrush=color,
                                      symbolPen=None, symbolSize=symbolSize)
         else:
-            return subPlot.plot.plot(x.flatten(), y.flatten(), name=plotItem.labels[-1],
+            name = plotItem.labels[-1] if isinstance(plotItem.labels, list) else ''
+            return subPlot.plot.plot(x.flatten(), y.flatten(), name=name,
                                      pen=None, symbol=symbol, symbolBrush=color,
                                      symbolPen=None, symbolSize=symbolSize)
 
-    def _colorPlot(self, plotItem):
+    def _colorPlot(self, plotItem: PlotItem) -> None:
         subPlot = self.subPlotFromId(plotItem.subPlot)
         assert isinstance(subPlot, PlotWithColorbar) and len(plotItem.data) == 3
         subPlot.setImage(*plotItem.data)
 
-    def _scatterPlot2d(self, plotItem):
+    def _scatterPlot2d(self, plotItem: PlotItem) -> None:
         subPlot = self.subPlotFromId(plotItem.subPlot)
         assert isinstance(subPlot, PlotWithColorbar) and len(plotItem.data) == 3
         subPlot.setScatter2d(*plotItem.data)
@@ -255,7 +257,10 @@ class AutoPlot(PlotWidget):
             fmKwargs['clearWidget'] = True
         self._plotData(**fmKwargs)
 
-    def _plotData(self, **kwargs):
+    def _plotData(self, **kwargs: Any) -> None:
+        if self.data is None:
+            return
+
         with FigureMaker(parentWidget=self, widget=self.fmWidget,
                          **kwargs) as fm:
 
@@ -281,7 +286,7 @@ class AutoPlot(PlotWidget):
             self.figConfig.optionsChanged.connect(self._refreshPlot)
 
     @Slot()
-    def _refreshPlot(self):
+    def _refreshPlot(self) -> None:
         self._plotData()
 
 
@@ -344,6 +349,6 @@ class FigureConfigToolBar(QtWidgets.QToolBar):
         complexButton.setMenu(complexOptions)
         self.addWidget(complexButton)
 
-    def _setOption(self, option, value):
+    def _setOption(self, option: str, value: Any) -> None:
         setattr(self.options, option, value)
         self.optionsChanged.emit()

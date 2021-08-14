@@ -632,7 +632,7 @@ class AutoFigureMaker:
         return ret
 
     # Methods to be implemented by inheriting classes
-    def makeSubPlots(self, nSubPlots: int) -> Optional[List[Any]]:
+    def makeSubPlots(self, nSubPlots: int) -> List[Any]:
         """Generate the subplots. Called after all data has been added.
         Must be implemented by an inheriting class.
 

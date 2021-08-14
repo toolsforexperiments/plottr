@@ -4,7 +4,7 @@ Various utility functions.
 """
 
 from enum import Enum
-from typing import List, Tuple, TypeVar, Optional, Sequence
+from typing import List, Tuple, TypeVar, Optional, Sequence, Any
 
 
 def reorder_indices(lst: Sequence[str], target: Sequence[str]) -> Tuple[int, ...]:
@@ -77,7 +77,7 @@ class AutoEnum(Enum):
     See: https://stackoverflow.com/questions/19330460/how-do-i-put-docstrings-on-enums/19330461#19330461
     """
 
-    def __new__(cls, *args) -> "AutoEnum":
+    def __new__(cls, *args: Any) -> "AutoEnum":
         """creating a new instance.
 
         :param args: will be passed to __init__.

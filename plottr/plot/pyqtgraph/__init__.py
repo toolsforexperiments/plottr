@@ -1,9 +1,11 @@
+from typing import List
+
 import pyqtgraph as pg
 
 from plottr import config_entry as getcfg
 
 
-__all__ = []
+__all__: List[str] = []
 
 
 bg = getcfg('main', 'pyqtgraph', 'background', default='w')

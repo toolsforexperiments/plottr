@@ -61,6 +61,11 @@ class DataDictBase(dict):
 
     def __eq__(self, other: object) -> bool:
         """Check for content equality of two datadicts."""
+
+        # TODO: require a version that ignores metadata.
+        # FIXME: proper comparison of arrays for metadata.
+        # FIXME: arrays can be equal even if dtypes are not
+
         if not isinstance(other, DataDictBase):
             return NotImplemented
 
