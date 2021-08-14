@@ -42,17 +42,17 @@ class _FigureMakerWidget(QtWidgets.QWidget):
 
         self.subPlots: List[PlotBase] = []
 
-        self.layout = QtWidgets.QVBoxLayout()
-        self.layout.setContentsMargins(0, 0, 0, 0)
-        self.layout.setSpacing(0)
-        self.setLayout(self.layout)
+        layout = QtWidgets.QVBoxLayout()
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(0)
+        self.setLayout(layout)
 
     def addPlot(self, plot: PlotBase) -> None:
         """Add a :class:`.PlotBase` widget.
 
         :param plot: plot widget
         """
-        self.layout.addWidget(plot)
+        self.layout().addWidget(plot)
         self.subPlots.append(plot)
 
     def clearAllPlots(self) -> None:
@@ -76,8 +76,6 @@ class FigureMaker(BaseFM):
     # TODO: make scrollable when many figures (set min size)?
     # TODO: check for valid plot data
 
-    widget: _FigureMakerWidget
-
     def __init__(self, widget: Optional[_FigureMakerWidget] = None,
                  clearWidget: bool = True,
                  parentWidget: Optional[QtWidgets.QWidget] = None):
@@ -95,7 +93,9 @@ class FigureMaker(BaseFM):
         """
         super().__init__()
 
+        self.widget: _FigureMakerWidget
         self.clearWidget = clearWidget
+
         if widget is None:
             self.widget = _FigureMakerWidget(parent=parentWidget)
         else:
@@ -118,9 +118,9 @@ class FigureMaker(BaseFM):
         If ``clearWidget`` was not set to ``True`` in the constructor,
         existing sub plot widgets are cleared, but not deleted and re-created.
         """
+        plot: PlotBase
         if self.clearWidget:
             self.widget.deleteAllPlots()
-
             for i in range(nSubPlots):
                 if max(self.dataDimensionsInSubPlot(i).values()) == 1:
                     plot = Plot(self.widget)
@@ -222,15 +222,15 @@ class AutoPlot(PlotWidget):
         """
         super().__init__(parent=parent)
 
-        self.fmWidget: Optional[PlotWidget] = None
+        self.fmWidget: Optional[_FigureMakerWidget] = None
         self.figConfig: Optional[FigureConfigToolBar] = None
         self.figOptions: FigureOptions = FigureOptions()
 
-        self.layout = QtWidgets.QVBoxLayout()
-        self.layout.setContentsMargins(0, 0, 0, 0)
-        self.layout.setSpacing(0)
+        layout = QtWidgets.QVBoxLayout()
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(0)
 
-        self.setLayout(self.layout)
+        self.setLayout(layout)
         self.setMinimumSize(*getcfg('main', 'pyqtgraph', 'minimum_plot_size',
                                     default=(400, 400)))
 
@@ -279,10 +279,10 @@ class AutoPlot(PlotWidget):
 
         if self.fmWidget is None:
             self.fmWidget = fm.widget
-            self.layout.addWidget(self.fmWidget)
+            self.layout().addWidget(self.fmWidget)
             self.figConfig = FigureConfigToolBar(self.figOptions,
                                                  parent=self)
-            self.layout.addWidget(self.figConfig)
+            self.layout().addWidget(self.figConfig)
             self.figConfig.optionsChanged.connect(self._refreshPlot)
 
     @Slot()
@@ -310,7 +310,8 @@ class FigureConfigToolBar(QtWidgets.QToolBar):
     #: Signal() -- emitted when options have been changed in the GUI.
     optionsChanged = Signal()
 
-    def __init__(self, options: FigureOptions, parent: QtWidgets.QWidget = None) -> None:
+    def __init__(self, options: FigureOptions,
+                 parent: Optional[QtWidgets.QWidget] = None) -> None:
         """Constructor.
 
         :param options: options object. GUI interaction will make changes

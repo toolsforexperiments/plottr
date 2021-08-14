@@ -141,7 +141,7 @@ class PlotWidget(QtWidgets.QWidget):
             'dataLimitsChanged': False,
         }
 
-    def update(self) -> None:
+    def updatePlot(self) -> None:
         return None
 
     def setData(self, data: Optional[DataDictBase]) -> None:

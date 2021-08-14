@@ -373,7 +373,7 @@ class AutoPlot(MPLPlotWidget):
         self.plotOptionsToolBar.setIconSize(QtCore.QSize(iconSize, iconSize))
         self.setMinimumSize(int(640*scaling), int(480*scaling))
 
-    def update(self) -> None:
+    def updatePlot(self) -> None:
         self.plot.draw()
         QtCore.QCoreApplication.processEvents()
 
@@ -466,4 +466,4 @@ class AutoPlot(MPLPlotWidget):
                     **kw)
 
         self.setMeta(self.data)
-        self.update()
+        self.updatePlot()
