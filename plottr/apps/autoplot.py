@@ -24,6 +24,7 @@ from ..node.grid import DataGridder, GridOption
 from ..node.tools import linearFlowchart
 from ..node.node import Node
 from ..plot import PlotNode, makeFlowchartWithPlot, PlotWidget
+from ..plot.pyqtgraph.autoplot import AutoPlot as PGAutoPlot
 from ..utils.misc import unwrap_optional
 
 __author__ = 'Wolfgang Pfaff'
@@ -328,11 +329,19 @@ def autoplotDDH5(filepath: str = '', groupname: str = 'data') \
         ('Data selection', DataSelector),
         ('Grid', DataGridder),
         ('Dimension assignment', XYSelector),
-        # ('Subtract average', SubtractAverage),
         ('plot', PlotNode)
     )
 
-    win = AutoPlotMainWindow(fc, loaderName='Data loader', monitor=True,
+    widgetOptions = {
+        "Data selection": dict(visible=True,
+                               dockArea=QtCore.Qt.TopDockWidgetArea),
+        "Dimension assignment": dict(visible=True,
+                                     dockArea=QtCore.Qt.TopDockWidgetArea),
+    }
+
+    win = AutoPlotMainWindow(fc, loaderName='Data loader',
+                             widgetOptions=widgetOptions,
+                             monitor=True,
                              monitorInterval=2.0)
     win.show()
 
