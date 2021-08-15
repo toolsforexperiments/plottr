@@ -10,6 +10,7 @@ from .tools import dictToTreeWidgetItems, dpiScalingFactor
 from plottr import QtGui, QtCore, Flowchart, QtWidgets, Signal, Slot
 from plottr.node import Node, linearFlowchart
 from ..plot import PlotNode, PlotWidgetContainer, PlotWidget
+from .. import config_entry as getcfg
 
 __author__ = 'Wolfgang Pfaff'
 __license__ = 'MIT'
@@ -66,14 +67,11 @@ class MonitorIntervalInput(QtWidgets.QWidget):
         self.intervalChanged.emit(val)
 
 
-
 class PlotWindow(QtWidgets.QMainWindow):
     """
     Simple MainWindow class for embedding flowcharts and plots, based on
     ``QtWidgets.QMainWindow``.
     """
-
-    # FIXME: defaulting to MPL should probably be on a higher level.
 
     #: Signal() -- emitted when the window is closed
     windowClosed = Signal()
@@ -96,8 +94,10 @@ class PlotWindow(QtWidgets.QMainWindow):
         super().__init__(parent)
 
         if plotWidgetClass is None:
-            from ..plot.mpl import AutoPlot
-            plotWidgetClass = AutoPlot
+            plotWidgetClass = getcfg('main', 'default-plotwidget')
+
+        if plotWidgetClass is None:
+            raise RuntimeError("No PlotWidget has been specified.")
 
         self.plotWidgetClass = plotWidgetClass
         self.plot = PlotWidgetContainer(parent=self)
