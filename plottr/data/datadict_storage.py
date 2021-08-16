@@ -16,6 +16,8 @@ underscore pre- and suffix.
 """
 import os
 import time
+import datetime
+import uuid
 from enum import Enum
 from typing import Any, Union, Optional, Dict, Type, Collection
 from types import TracebackType
@@ -35,7 +37,7 @@ from .datadict import DataDict, is_meta_key, DataDictBase
 __author__ = 'Wolfgang Pfaff'
 __license__ = 'MIT'
 
-DATAFILEXT = '.ddh5'
+DATAFILEXT = 'ddh5'
 TIMESTRFORMAT = "%Y-%m-%d %H:%M:%S"
 
 
@@ -460,6 +462,9 @@ class DDH5Loader(Node):
     # Data processing #
 
     def process(self, dataIn: Optional[DataDictBase] = None) -> Optional[Dict[str, Any]]:
+        # TODO: maybe needs an optional way to read only new data from file?
+        # TODO: implement a threaded version.
+
         if self._filepath is None or self._groupname is None:
             return None
         if not os.path.exists(self._filepath):
@@ -498,20 +503,21 @@ class DDH5Writer(object):
         ... with DDH5Writer('./data/', data, name='Test') as writer:
         ...     for x in range(10):
         ...         writer.add_data(x=x, y=x**2)
-        Data location: ./data/2020-06-05/2020-06-05_0001_Example/2020-06-05_0001_Test.ddh5
+        Data location: ./data/2020-06-05/2020-06-05T102345_d11541ca-Test/data.ddh5
 
     :param basedir: The root directory in which data is stored.
         :meth:`.create_file_structure` is creating the structure inside this root and
         determines the file name of the data. The default structure implemented here is
-        ``<root>/YYYY-MM-DD/YYYY-MM-DD_<idx>_<name>/YYYY-MM-DD_<idx>_<name>.ddh5``,
-        where <idx> is the automatically increasing number of this dataset in the day
-        folder and <name> is the value of parameter `name`. To change this, re-implement
+        ``<root>/YYYY-MM-DD/YYYY-mm-dd_THHMMSS_<ID>-<name>/<filename>.ddh5``,
+        where <ID> is a short identifier string and <name> is the value of parameter `name`.
+        To change this, re-implement :meth:`.data_folder` and/or
         :meth:`.create_file_structure`.
     :param datadict: initial data object. Must contain at least the structure of the
         data to be able to use :meth:`add_data` to add data.
     :param groupname: name of the top-level group in the file container. An existing
         group of that name will be deleted.
     :param name: name of this dataset. Used in path/file creation and added as meta data.
+    :param filename: filename to use. defaults to 'data.ddh5'.
     """
 
     # TODO: need an operation mode for not keeping data in memory.
@@ -520,7 +526,9 @@ class DDH5Writer(object):
     def __init__(self, basedir: str,
                  datadict: DataDict,
                  groupname: str = 'data',
-                 name: Optional[str] = None):
+                 name: Optional[str] = None,
+                 filename: str = 'data',
+                 filepath: Optional[str] = None):
         """Constructor for :class:`.DDH5Writer`"""
 
         self.basedir = basedir
@@ -528,19 +536,20 @@ class DDH5Writer(object):
         self.inserted_rows = 0
         self.name = name
         self.groupname = groupname
+        self.filename = filename
+        if self.filename[-(len(DATAFILEXT)+1):] != f".{DATAFILEXT}":
+            self.filename += f".{DATAFILEXT}"
+        self.filepath = filepath
 
-        self.file_base: Optional[str] = None
-        self.file_path: Optional[str] = None
         self.file: Optional[h5py.File] = None
 
         self.datadict.add_meta('dataset.name', name)
 
     def __enter__(self) -> "DDH5Writer":
-        self.file_base = self.create_file_structure()
-        self.file_path = self.file_base + f"{DATAFILEXT}"
-        print('Data location: ', self.file_path)
+        self.filepath = self.create_file_structure()
+        print('Data location: ', self.filepath)
 
-        self.file = h5py.File(self.file_path, mode='a', libver='latest')
+        self.file = h5py.File(self.filepath, mode='a', libver='latest')
         init_file(self.file, self.groupname)
         add_cur_time_attr(self.file, name='last_change')
         add_cur_time_attr(self.file[self.groupname], name='last_change')
@@ -563,30 +572,44 @@ class DDH5Writer(object):
         add_cur_time_attr(self.file[self.groupname], name='close')
         self.file.close()
 
+    def data_folder(self) -> str:
+        """Return the folder, relative to the data root path, in which data will
+        be saved.
+
+        Default format:
+        ``<basedir>/YYYY-MM-DD/YYYY-mm-ddTHHMMSS_<ID>-<name>``.
+        In this implementation we use the first 8 characters of a UUID as ID.
+        """
+        ID = str(uuid.uuid1()).split('-')[0]
+        path = os.path.join(
+            time.strftime("%Y-%m-%d"),
+            f"{datetime.datetime.now().replace(microsecond=0).isoformat().replace(':', '')}_{ID}-{self.name}"
+        )
+        return path
+
     def create_file_structure(self) -> str:
         """Determine the filepath and create all subfolders.
 
-        :returns: the filepath (without extension) of the data file.
+        :returns: the filepath of the data file.
         """
-        day_folder_path = os.path.join(self.basedir, time.strftime("%Y-%m-%d"))
-        os.makedirs(day_folder_path, exist_ok=True)
 
-        filebase = time.strftime("%Y-%m-%d_")
-        existing_datafolders = [f for f in os.listdir(day_folder_path)
-                                if f[:len(filebase)] == filebase]
-        prev_idxs = [int(f[len(filebase):len(filebase)+4]) for f in existing_datafolders]
-        if len(prev_idxs) == 0:
-            new_idx = 1
+        if self.filepath is None:
+            data_folder_path = os.path.join(
+                self.basedir,
+                self.data_folder()
+            )
+            appendix = ''
+            idx = 2
+            while os.path.exists(data_folder_path+appendix):
+                appendix = f'-{idx}'
+                idx += 1
+            data_folder_path += appendix
+            self.filepath = os.path.join(data_folder_path, self.filename)
         else:
-            new_idx = max(prev_idxs) + 1
-        filebase += f"{new_idx:04}"
-        if self.name is not None:
-            filebase += f"_{self.name}"
+            data_folder_path, self.filename = os.path.split(self.filepath)
 
-        data_folder_path = os.path.join(day_folder_path, filebase)
         os.makedirs(data_folder_path, exist_ok=True)
-
-        return os.path.join(data_folder_path, filebase)
+        return self.filepath
 
     def add_data(self, **kwargs: Any) -> None:
         """Add data to the file (and the internal `DataDict`).
