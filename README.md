@@ -18,10 +18,18 @@ https://plottr.readthedocs.io (work in progress...)
 
 Plottr is installable from pypi with `pip install plottr`
 
-To install with either PyQt5 or Pyside2 backend you can do
-``pip install plottr[PyQt5]`` or ``pip install plottr[Pyside2]`` Note that if 
-you have installed ``pyqt`` from ``(Ana)Conda`` you should not use any of these
-targets but do ``pip install plottr`` 
+Plottr requires either the PyQt5 or Pyside2 gui framework.
+To install with PyQt5 or Pyside2 backend you can do
+``pip install plottr[PyQt5]`` or ``pip install plottr[Pyside2]`` 
+
+Note that if  you have installed ``pyqt`` from ``(Ana)Conda`` you should not use any of these
+targets but do ``pip install plottr`` or install Plottr from conda forge:
+
+```
+conda config --add channels conda-forge
+conda config --set channel_priority strict
+conda install plottr
+```
 
 To install from source: clone the repo, and install using `pip install -e .`
 
@@ -49,6 +57,25 @@ You might want to install freshly if you still use the old version.
 * pyqtgraph >= 0.10.0
 
 # Recent changes:
+
+## 2021-06-08
+
+### Added
+
+- refactoring the plotting system (#166)
+- Add version log message to main ``__init__`` (#175)
+
+### Fixed
+
+- Fix crop if less than one row is not nan (#198)
+- Fix rgba error (#199)
+- Allow empty dataset if datadict is none (#195)
+
+### Behind the scenes
+
+- Modernize setup files (#194)
+- packaging cleanups (#177)
+- upgrade versioneer to 0.19 (#176)
 
 ## 2021-02-16
 

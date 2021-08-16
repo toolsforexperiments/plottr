@@ -4,12 +4,13 @@ widgets.py
 Common GUI widgets that are re-used across plottr.
 """
 from numpy import rint
-from typing import Union, List, Tuple, Optional, Type, Sequence, Dict, Any
+from typing import Union, List, Tuple, Optional, Type, Sequence, Dict, Any, Type
 
 from .tools import dictToTreeWidgetItems, dpiScalingFactor
 from plottr import QtGui, QtCore, Flowchart, QtWidgets, Signal, Slot
 from plottr.node import Node, linearFlowchart
 from ..plot import PlotNode, PlotWidgetContainer, PlotWidget
+from .. import config_entry as getcfg
 
 __author__ = 'Wolfgang Pfaff'
 __license__ = 'MIT'
@@ -68,10 +69,8 @@ class MonitorIntervalInput(QtWidgets.QWidget):
 
 class PlotWindow(QtWidgets.QMainWindow):
     """
-    Simple MainWindow class for embedding flowcharts and plots.
-
-    All keyword arguments supplied will be propagated to
-    :meth:`addNodeWidgetFromFlowchart`.
+    Simple MainWindow class for embedding flowcharts and plots, based on
+    ``QtWidgets.QMainWindow``.
     """
 
     #: Signal() -- emitted when the window is closed
@@ -79,13 +78,26 @@ class PlotWindow(QtWidgets.QMainWindow):
 
     def __init__(self, parent: Optional[QtWidgets.QMainWindow] = None,
                  fc: Optional[Flowchart] = None,
-                 plotWidgetClass: Optional[Any] = None,
+                 plotWidgetClass: Optional[Type[PlotWidget]] = None,
                  **kw: Any):
+        """
+        Constructor for :class:`.PlotWindow`.
+
+        :param parent: parent widget
+        :param fc: flowchart with nodes. if given, we will generate node widgets
+            in this window.
+        :param plotWidgetClass: class of the plot widget to use.
+            defaults to :class:`plottr.plot.mpl.AutoPlot`.
+        :param kw: any keywords will be propagated to
+            :meth:`addNodeWidgetFromFlowchart`.
+        """
         super().__init__(parent)
 
         if plotWidgetClass is None:
-            from ..plot.mpl import AutoPlot
-            plotWidgetClass = AutoPlot
+            plotWidgetClass = getcfg('main', 'default-plotwidget')
+
+        if plotWidgetClass is None:
+            raise RuntimeError("No PlotWidget has been specified.")
 
         self.plotWidgetClass = plotWidgetClass
         self.plot = PlotWidgetContainer(parent=self)

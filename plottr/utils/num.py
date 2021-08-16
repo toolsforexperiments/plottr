@@ -2,7 +2,7 @@
 
 Tools for numerical operations.
 """
-from typing import Sequence, Tuple, Union, List, Optional
+from typing import List, Optional, Sequence, Tuple, Union
 
 import numpy as np
 import pandas as pd
@@ -148,7 +148,7 @@ def array1d_to_meshgrid(arr: Union[List, np.ndarray],
 def _find_switches(arr: np.ndarray,
                    rth: float = 25,
                    ztol: float = 1e-15) -> np.ndarray:
-    arr_ = np.ma.MaskedArray(arr, is_invalid(arr))
+    arr_: np.ma.MaskedArray = np.ma.MaskedArray(arr, is_invalid(arr))
     deltas = arr_[1:] - arr_[:-1]
     hi = np.percentile(arr[~is_invalid(arr)], 100.-rth)
     lo = np.percentile(arr[~is_invalid(arr)], rth)
@@ -351,7 +351,10 @@ def joint_crop2d_rows_cols(*arr: np.ndarray) -> Tuple[np.ndarray, np.ndarray]:
         xs += _x.tolist()
         ys += _y.tolist()
 
-    return np.array(list(set(xs))), np.array(list(set(ys)))
+    return (
+        np.array(list(set(xs)), dtype=np.int64),
+        np.array(list(set(ys)), dtype=np.int64),
+    )
 
 
 def crop2d_from_xy(arr: np.ndarray, xs: np.ndarray,

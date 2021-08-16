@@ -38,6 +38,8 @@ __license__ = 'MIT'
 DATAFILEXT = '.ddh5'
 TIMESTRFORMAT = "%Y-%m-%d %H:%M:%S"
 
+# FIXME: need correct handling of dtypes and list/array conversion
+
 
 class AppendMode(Enum):
     """How/Whether to append data to existing data."""
@@ -51,7 +53,7 @@ class AppendMode(Enum):
 
 def h5ify(obj: Any) -> Any:
     """
-    Convert an object into something that we can assing to an HDF5 attribute.
+    Convert an object into something that we can assign to an HDF5 attribute.
 
     Performs the following conversions:
     - list/array of strings -> numpy chararray of unicode type
@@ -69,7 +71,7 @@ def h5ify(obj: Any) -> Any:
             obj = np.array(obj)
 
     if type(obj) == np.ndarray and obj.dtype.kind == 'U':
-        return np.chararray.encode(obj, encoding='utf8')
+        return np.char.encode(obj, encoding='utf8')
 
     return obj
 
@@ -80,7 +82,7 @@ def deh5ify(obj: Any) -> Any:
         return obj.decode()
 
     if type(obj) == np.ndarray and obj.dtype.kind == 'S':
-        return np.chararray.decode(obj)
+        return np.char.decode(obj)
 
     return obj
 
@@ -97,6 +99,7 @@ def set_attr(h5obj: Any, name: str, val: Any) -> None:
     except TypeError:
         newval = str(val)
         h5obj.attrs[name] = h5ify(newval)
+        print(f"{name} set as string")
 
 
 def add_cur_time_attr(h5obj: Any, name: str = 'creation',

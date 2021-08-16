@@ -24,6 +24,8 @@ def widgetDialog(widget: QtWidgets.QWidget, title: str = '',
     win = QtWidgets.QDialog()
     win.setWindowTitle('plottr ' + title)
     layout = QtWidgets.QVBoxLayout()
+    layout.setContentsMargins(0, 0, 0, 0)
+    layout.setSpacing(0)
     layout.addWidget(widget)
     win.setLayout(layout)
     if show:

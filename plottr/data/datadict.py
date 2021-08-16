@@ -61,6 +61,11 @@ class DataDictBase(dict):
 
     def __eq__(self, other: object) -> bool:
         """Check for content equality of two datadicts."""
+
+        # TODO: require a version that ignores metadata.
+        # FIXME: proper comparison of arrays for metadata.
+        # FIXME: arrays can be equal even if dtypes are not
+
         if not isinstance(other, DataDictBase):
             return NotImplemented
 
@@ -1288,6 +1293,10 @@ def combine_datadicts(*dicts: DataDict) -> Union[DataDictBase, DataDict]:
                 dep_axes = [ax_map[ax] for ax in d[d_dep]['axes']]
                 ret[newdep] = d[d_dep]
                 ret[newdep]['axes'] = dep_axes
-    assert ret is not None
-    ret.validate()
+
+    if ret is None:
+        ret = DataDict()
+    else:
+        ret.validate()
+
     return ret
