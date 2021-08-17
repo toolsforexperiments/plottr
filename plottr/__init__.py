@@ -111,5 +111,37 @@ def config(names: Optional[List[str]] = None) -> \
     return config
 
 
+def config_entry(*path: str, default: Optional[Any] = None,
+                 names: Optional[List[str]] = None) -> Any:
+    """Get a specific config value.
 
+    ..Example: If the config is:: python
 
+        config = {
+            'foo' : {
+                'bar' : 'spam',
+            },
+        }
+
+    .. then we can get an entry like this:: python
+
+        >>> config_entry('foo', 'bar', default=None)
+        'spam'
+        >>> config_entry('foo', 'bacon')
+        None
+        >>> config_entry('foo', 'bar', 'bacon')
+        None
+
+    :param path: strings denoting the nested keys to the desired value
+    :param names: see :func:`.config`.
+    :param default: what to return when key isn't found in the config.
+    :returns: desired value
+    """
+
+    cfg: Any = config(names)
+    for k in path:
+        if isinstance(cfg, dict) and k in cfg:
+            cfg = cfg.get(k)
+        else:
+            return default
+    return cfg

@@ -20,6 +20,8 @@ from plottr import QtCore, QtWidgets, Signal
 from plottr import log as plottrlog
 from plottr.apps.autoplot import autoplot
 from plottr.data.datadict import DataDictBase, DataDict
+from plottr.plot.mpl.autoplot import AutoPlot as MPLAutoPlot
+from plottr.plot.pyqtgraph.autoplot import AutoPlot as PGAutoPlot
 from plottr.utils import testdata
 
 plottrlog.enableStreamHandler(True)
@@ -136,7 +138,7 @@ def main(dataSrc):
     plottrlog.LEVEL = logging.INFO
 
     app = QtWidgets.QApplication([])
-    fc, win = autoplot()
+    fc, win = autoplot(plotWidgetClass=plotWidgetClass)
 
     dataThread = QtCore.QThread()
     dataSrc.moveToThread(dataThread)
@@ -151,10 +153,14 @@ def main(dataSrc):
         QtWidgets.QApplication.instance().exec_()
 
 
+# plotWidgetClass = MPLAutoPlot
+plotWidgetClass = PGAutoPlot
+# plotWidgetClass = None
+
 if __name__ == '__main__':
-    # src = LineDataMovie(10, 3, 101)
-    # src = ImageDataMovie(50, 2, 501)
+    # src = LineDataMovie(20, 3, 31)
+    src = ImageDataMovie(10, 2, 101)
     # src = ImageDataLiveAcquisition(101, 101, 67)
-    src = ComplexImage(21, 21)
+    # src = ComplexImage(21, 21)
     src.delay = 0.1
     main(src)
