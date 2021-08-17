@@ -801,19 +801,13 @@ class DataDict(DataDictBase):
         :return: None
         """
         dd = misc.unwrap_optional(self.structure(same_type=True))
+        for name, _ in dd.data_items():
+            if name not in kw:
+                kw[name] = None
 
-        for k in dd.keys():
-            if k not in kw:
-                kw[k] = None
         records = self.to_records(**kw)
-        for k, v in records.items():
-            dd[k]['values'] = v
-            # if isinstance(v, list):
-            #     dd[k]['values'] = np.array(v)
-            # elif isinstance(v, np.ndarray):
-            #     dd[k]['values'] = v
-            # else:
-            #     dd[k]['values'] = np.array([v])
+        for name, datavals in records.items():  #
+            dd[name]['values'] = datavals
 
         if dd.validate():
             nrecords = self.nrecords()

@@ -101,7 +101,6 @@ def set_attr(h5obj: Any, name: str, val: Any) -> None:
     except TypeError:
         newval = str(val)
         h5obj.attrs[name] = h5ify(newval)
-        print(f"{name} set as string")
 
 
 def add_cur_time_attr(h5obj: Any, name: str = 'creation',
@@ -154,12 +153,12 @@ def datadict_to_hdf5(datadict: DataDict,
         - `AppendMode.all` : append all data in datadict to file data sets
     :param swmr_mode: use HDF5 SWMR mode on the file when appending.
     """
-
-    if len(basepath) > len(DATAFILEXT) and \
-            basepath[-len(DATAFILEXT):] == DATAFILEXT:
+    ext = f".{DATAFILEXT}"
+    if len(basepath) > len(ext) and \
+            basepath[-len(ext):] == ext:
         filepath = basepath
     else:
-        filepath = basepath + DATAFILEXT
+        filepath = basepath + ext
 
     if not os.path.exists(filepath):
         init_path(filepath)
@@ -297,12 +296,12 @@ def datadict_from_hdf5(basepath: str,
     :param swmr_mode: if `True`, open HDF5 file in SWMR mode.
     :return: validated DataDict.
     """
-
-    if len(basepath) > len(DATAFILEXT) and \
-            basepath[-len(DATAFILEXT):] == DATAFILEXT:
+    ext = f".{DATAFILEXT}"
+    if len(basepath) > len(ext) and \
+            basepath[-len(ext):] == ext:
         filepath = basepath
     else:
-        filepath = basepath + DATAFILEXT
+        filepath = basepath + ext
 
     if not os.path.exists(filepath):
         raise ValueError("Specified file does not exist.")
@@ -526,8 +525,9 @@ class DDH5Writer(object):
     # TODO: need an operation mode for not keeping data in memory.
     # TODO: a mode for working with pre-allocated data
 
-    def __init__(self, basedir: str,
+    def __init__(self,
                  datadict: DataDict,
+                 basedir: str = '.',
                  groupname: str = 'data',
                  name: Optional[str] = None,
                  filename: str = 'data',
