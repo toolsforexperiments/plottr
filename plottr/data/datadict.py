@@ -5,6 +5,7 @@ Data classes we use throughout the plottr package, and tools to work on them.
 """
 import warnings
 import copy as cp
+import re
 
 import numpy as np
 from functools import reduce
@@ -1295,3 +1296,123 @@ def combine_datadicts(*dicts: DataDict) -> Union[DataDictBase, DataDict]:
         ret.validate()
 
     return ret
+
+
+def datastructure_from_string(description: str) -> DataDict:
+    """Construct a DataDict from a string description.
+
+    Examples
+    --------
+    * ``"data[mV](x, y)"`` results in a datadict with one dependent ``data`` with unit ``mV`` and
+      two independents, ``x`` and ``y``, that do not have units.
+
+    * ``"data_1[mV](x, y); data_2[mA](x); x[mV]; y[nT]"`` results in two dependents,
+      one of them depening on ``x`` and ``y``, the other only on ``x``.
+      Note that ``x`` and ``y`` have units. We can (but do not have to) omit them when specifying
+      the dependencies.
+
+    * ``"data_1[mV](x[mV], y[nT]); data_2[mA](x[mV])"``. Same result as the previous example.
+
+    Rules
+    -----
+    We recognize descriptions of the form ``field1[unit1](ax1, ax2, ...); field1[unit2](...); ...``.
+
+    * field names (like ``field1`` and ``field2`` above) have to start with a letter, and may contain
+      word characters
+    * field descriptors consist of the name, optional unit (presence signified by square brackets),
+      and optional dependencies (presence signified by round brackets).
+    * dependencies (axes) are implicitly recognized as fields (and thus have the same naming restrictions as field
+      names)
+    * axes are separated by commas
+    * axes may have a unit when specified as dependency, but besides the name, square brackets, and commas no other
+      characters are recognized within the round brackets that specify the dependency
+    * in addition to being specified as dependency for a field, axes may be specified also as additional field without
+      dependency, for instance to specify the unit (may simplify the string). For example,
+      ``z1[x, y]; z2[x, y]; x[V]; y[V]``
+    * units may only consist of word characters
+    * use of unexpected characters will result in the ignoring the part that contains the symbol
+    * the regular expression used to find field descriptors is:
+      ``((?<=\A)|(?<=\;))[a-zA-Z]+\w*(\[\w*\])?(\(([a-zA-Z]+\w*(\[\w*\])?\,?)*\))?``
+    """
+
+    description = description.replace(" ", "")
+
+    data_name_pattern = r"[a-zA-Z]+\w*(\[\w*\])?"
+    pattern = r"((?<=\A)|(?<=\;))" + data_name_pattern + r"(\((" + data_name_pattern + r"\,?)*\))?"
+    r = re.compile(pattern)
+
+    data_fields = []
+    while (r.search(description)):
+        match = r.search(description)
+        if match is None: break
+        data_fields.append(description[slice(*match.span())])
+        description = description[match.span()[1]:]
+
+    dd = dict()
+
+    def analyze_field(df):
+        has_unit = True if '[' in df and ']' in df else False
+        has_dependencies = True if '(' in df and ')' in df else False
+
+        name: str = ""
+        unit: Optional[str] = None
+        axes: Optional[List[str]] = None
+
+        if has_unit:
+            name = df.split('[')[0]
+            unit = df.split('[')[1].split(']')[0]
+            if has_dependencies:
+                axes = df.split('(')[1].split(')')[0].split(',')
+        elif has_dependencies:
+            name = df.split('(')[0]
+            axes = df.split('(')[1].split(')')[0].split(',')
+        else:
+            name = df
+
+        if axes is not None and len(axes) == 0:
+            axes = None
+        return name, unit, axes
+
+    for df in data_fields:
+        name, unit, axes = analyze_field(df)
+
+        # double specifying is only allowed for independents.
+        # if an independent is specified multiple times, units must not collide
+        # (but units do not have to be specified more than once)
+        if name in dd:
+            if 'axes' in dd[name] or axes is not None:
+                raise ValueError(f'{name} is specified more than once.')
+            if 'unit' in dd[name] and unit is not None and dd[name]['unit'] != unit:
+                raise ValueError(f'conflicting units for {name}')
+
+        dd[name] = dict()
+        if unit is not None:
+            dd[name]['unit'] = unit
+
+        if axes is not None:
+            for ax in axes:
+                ax_name, ax_unit, ax_axes = analyze_field(ax)
+
+                # we do not allow nested dependencies.
+                if ax_axes is not None:
+                    raise ValueError(f'{ax_name} is independent, may not have dependencies')
+
+                # we can add fields implicitly from dependencies.
+                # independents may be given both implicitly and explicitly, but only
+                # when units don't collide.
+                if ax_name not in dd:
+                    dd[ax_name] = dict()
+                    if ax_unit is not None:
+                        dd[ax_name]['unit'] = ax_unit
+                else:
+                    if 'unit' in dd[ax_name] and ax_unit is not None and dd[ax_name]['unit'] != ax_unit:
+                        raise ValueError(f'conflicting units for {ax_name}')
+
+                if 'axes' not in dd[name]:
+                    dd[name]['axes'] = []
+                dd[name]['axes'].append(ax_name)
+
+    return DataDict(**dd)
+
+
+str2dd = datastructure_from_string

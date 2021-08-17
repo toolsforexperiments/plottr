@@ -1,7 +1,7 @@
 import pytest
 import numpy as np
 from plottr.utils.num import arrays_equal
-from plottr.data.datadict import DataDict, DataDictBase
+from plottr.data.datadict import DataDict, DataDictBase, str2dd
 from plottr.data.datadict import combine_datadicts
 
 
@@ -308,3 +308,38 @@ def test_combine_ddicts():
                            z=dict(values=z, axes=['x', 'y']),
                            z_0=dict(values=z[::-1], axes=['x', 'y']))
     assert combined_dd == expected_dd
+
+def test_creation_from_string():
+    """Test simplified datadict generation"""
+    str_ok_1 = "z(x,y)"
+    dd = str2dd(str_ok_1)
+    assert dd.validate()
+    assert set(list(dd.keys())) == {'x', 'y', 'z'}
+    assert dd.axes('z') == ['x', 'y']
+    assert dd.axes('x') == []
+
+    str_ok_2 = "z1[V](x, y); z2[A](y, x); x[mT]"
+    dd = str2dd(str_ok_2)
+    assert dd.validate()
+    assert set(dd.dependents()) == {'z1', 'z2'}
+    assert dd['z1']['unit'] == 'V'
+    assert dd['x']['unit'] == 'mT'
+
+    # conflicting units -- should raise ValueError
+    str_notok = "z[V](x[A], y[T]); x[mA]; y[T]"
+    with pytest.raises(ValueError):
+        dd = str2dd(str_notok)
+
+    # cascaded dependency -- should raise ValueError
+    str_notok = "z(x, y); x(y)"
+    with pytest.raises(ValueError):
+        dd = str2dd(str_notok)
+
+    # no error raised, but x(a) is not recognized as valid dependency
+    str_notok = "z(x(a))"
+    dd = str2dd(str_notok)
+    assert dd.validate()
+    assert dd.dependents() == []
+    assert dd.axes() == []
+    assert 'z' in dd
+
