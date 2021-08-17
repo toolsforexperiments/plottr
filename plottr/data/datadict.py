@@ -142,6 +142,53 @@ class DataDictBase(dict):
     def _meta_name_to_key(name: str) -> str:
         return meta_name_to_key(name)
 
+    @staticmethod
+    def to_records(**data: Any) -> Dict[str, np.ndarray]:
+        """Convert data to rows that can be added to the ``DataDict``.
+        All data is converted to np.array, and the first dimension of all resulting
+        arrays has the same length (chosen to be the smallest possible number
+        that does not alter any shapes beyond adding a length-1 dimension as
+        first dimesion, if necessary).
+
+        If a field is given as ``None``, it will be converted to ``numpy.array([numpy.nan])``.
+        """
+        records: Dict[str, np.ndarray] = {}
+
+        seqtypes = (np.ndarray, tuple, list)
+        nantypes = (type(None), )
+
+        for k, v in data.items():
+            if isinstance(v, seqtypes):
+                records[k] = np.array(v)
+            elif isinstance(v, nantypes):
+                records[k] = np.array([np.nan])
+            else:
+                records[k] = np.array([v])
+
+        possible_nrecords = {}
+        for k, v in records.items():
+            possible_nrecords[k] = [1, v.shape[0]]
+
+        commons = []
+        for k, v in possible_nrecords.items():
+            for n in v:
+                if n in commons:
+                    continue
+                is_common = True
+                for kk, vv in possible_nrecords.items():
+                    if n not in vv:
+                        is_common = False
+                if is_common:
+                    commons.append(n)
+        nrecs = min(commons)
+
+        for k, v in records.items():
+            shp = v.shape
+            if nrecs == 1 and shp[0] > 1:
+                newshp = tuple([1] + list(shp))
+                records[k] = v.reshape(newshp)
+        return records
+
     def data_items(self) -> Iterator[Tuple[str, Dict[str, Any]]]:
         """
         Generator for data field items.
@@ -749,13 +796,19 @@ class DataDict(DataDictBase):
         :return: None
         """
         dd = misc.unwrap_optional(self.structure(same_type=True))
-        for k, v in kw.items():
-            if isinstance(v, list):
-                dd[k]['values'] = np.array(v)
-            elif isinstance(v, np.ndarray):
-                dd[k]['values'] = v
-            else:
-                dd[k]['values'] = np.array([v])
+
+        for k in dd.keys():
+            if k not in kw:
+                kw[k] = None
+        records = self.to_records(**kw)
+        for k, v in records.items():
+            dd[k]['values'] = v
+            # if isinstance(v, list):
+            #     dd[k]['values'] = np.array(v)
+            # elif isinstance(v, np.ndarray):
+            #     dd[k]['values'] = v
+            # else:
+            #     dd[k]['values'] = np.array([v])
 
         if dd.validate():
             records = self.nrecords()
@@ -1348,9 +1401,9 @@ def datastructure_from_string(description: str) -> DataDict:
         data_fields.append(description[slice(*match.span())])
         description = description[match.span()[1]:]
 
-    dd = dict()
+    dd: Dict[str, Any] = dict()
 
-    def analyze_field(df):
+    def analyze_field(df: str) -> Tuple[str, Optional[str], Optional[List[str]]]:
         has_unit = True if '[' in df and ']' in df else False
         has_dependencies = True if '(' in df and ')' in df else False
 
