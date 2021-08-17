@@ -789,7 +789,7 @@ class DataDict(DataDictBase):
         for k, v in newvals.items():
             self[k]['values'] = v
 
-    def add_data(self, **kw: Sequence) -> None:
+    def add_data(self, **kw: Any) -> None:
         # TODO: fill non-given data with nan or none
         """
         Add data to all values. new data must be valid in itself.
@@ -816,8 +816,8 @@ class DataDict(DataDictBase):
             #     dd[k]['values'] = np.array([v])
 
         if dd.validate():
-            records = self.nrecords()
-            if records is not None and records > 0:
+            nrecords = self.nrecords()
+            if nrecords is not None and nrecords > 0:
                 self.append(dd)
             else:
                 for key, val in dd.data_items():
