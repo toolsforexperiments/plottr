@@ -241,3 +241,65 @@ class SnapshotWidget(QtWidgets.QTreeWidget):
         for i in range(2):
             self.resizeColumnToContents(i)
 
+
+def setHExpanding(w: QtWidgets.QWidget) -> None:
+    """Set the size policy of a widget such that is expands horizontally."""
+    p = w.sizePolicy()
+    p.setHorizontalPolicy(QtWidgets.QSizePolicy.MinimumExpanding)
+    p.setHorizontalStretch(1)
+    w.setSizePolicy(p)
+
+
+def setVExpanding(w: QtWidgets.QWidget) -> None:
+    """Set the size policy of a widget such that is expands vertically."""
+    p = w.sizePolicy()
+    p.setVerticalPolicy(QtWidgets.QSizePolicy.MinimumExpanding)
+    p.setVerticalStretch(1)
+    w.setSizePolicy(p)
+
+
+class Collapsible(QtWidgets.QWidget):
+    """A wrapper that allow collapsing a widget."""
+
+    def __init__(self, widget: QtWidgets.QWidget, title: str = '',
+                 parent: Optional[QtWidgets.QWidget] = None) -> None:
+        """Constructor.
+
+        :param widget: the widget we'd like to collapse.
+        :param title: title of the widget. will appear on the toolbutton that
+            we use to trigger collapse/expansion.
+        :param parent: parent widget.
+        """
+        super().__init__(parent=parent)
+
+        self.widget = widget
+        self.widget.setParent(self)
+        setVExpanding(self.widget)
+
+        self.expandedTitle = "[-] " + title
+        self.collapsedTitle = "[+] " + title
+
+        self.btn = QtWidgets.QPushButton(self.expandedTitle, parent=self)
+        self.btn.setStyleSheet("""background: white; 
+                                  color: black; 
+                                  border: 2px solid white;
+                                  text-align: left;""")
+        self.btn.setFlat(True)
+        self.btn.setCheckable(True)
+        self.btn.setChecked(True)
+        setHExpanding(self.btn)
+        self.btn.clicked.connect(self._onButton)
+
+        layout = QtWidgets.QVBoxLayout(self)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(2)
+        layout.addWidget(self.btn)
+        layout.addWidget(self.widget)
+
+    def _onButton(self) -> None:
+        if self.btn.isChecked():
+            self.widget.setVisible(True)
+            self.btn.setText(self.expandedTitle)
+        else:
+            self.widget.setVisible(False)
+            self.btn.setText(self.collapsedTitle)

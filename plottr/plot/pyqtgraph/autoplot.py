@@ -18,6 +18,7 @@ from pyqtgraph import mkPen
 from plottr import QtWidgets, QtCore, Signal, Slot, \
     config_entry as getcfg
 from plottr.data.datadict import DataDictBase
+from plottr.gui.widgets import Collapsible
 from .plots import Plot, PlotWithColorbar, PlotBase
 from ..base import AutoFigureMaker as BaseFM, PlotDataType, \
     PlotItem, ComplexRepresentation, determinePlotDataType, \
@@ -34,25 +35,29 @@ class FigureWidget(QtWidgets.QWidget):
     """
 
     def __init__(self, parent: Optional[QtWidgets.QWidget] = None):
-        """Constructor for :class:`._FigureMakerWidget`.
+        """Constructor for :class:`.FigureMakerWidget`.
 
         :param parent: parent widget.
         """
         super().__init__(parent=parent)
 
         self.subPlots: List[PlotBase] = []
+        self._widgets: List[QtWidgets.QWidget] = []
 
         layout = QtWidgets.QVBoxLayout()
         layout.setContentsMargins(0, 0, 0, 0)
         layout.setSpacing(0)
         self.setLayout(layout)
 
-    def addPlot(self, plot: PlotBase) -> None:
+    def addPlot(self, plot: PlotBase, title: str = '') -> None:
         """Add a :class:`.PlotBase` widget.
 
         :param plot: plot widget
+        :param title: title of the plot
         """
-        self.layout().addWidget(plot)
+        w = Collapsible(plot, title=title, parent=self)
+        self.layout().addWidget(w)
+        self._widgets.append(w)
         self.subPlots.append(plot)
 
     def clearAllPlots(self) -> None:
@@ -62,9 +67,11 @@ class FigureWidget(QtWidgets.QWidget):
 
     def deleteAllPlots(self) -> None:
         """Delete all subplot widgets."""
-        for p in self.subPlots:
-            p.deleteLater()
         self.subPlots = []
+        for w in self._widgets:
+            self.layout().removeWidget(w)
+            w.deleteLater()
+        self._widgets = []
 
 
 class FigureMaker(BaseFM):
@@ -122,12 +129,14 @@ class FigureMaker(BaseFM):
         if self.clearWidget:
             self.widget.deleteAllPlots()
             for i in range(nSubPlots):
+                labels = [v.labels[-1] for v in self.subPlotItems(i).values() if v.labels is not None]
+                plotTitle = ", ".join(labels)
                 if max(self.dataDimensionsInSubPlot(i).values()) == 1:
                     plot = Plot(self.widget)
-                    self.widget.addPlot(plot)
+                    self.widget.addPlot(plot, title=plotTitle)
                 elif max(self.dataDimensionsInSubPlot(i).values()) == 2:
                     plot = PlotWithColorbar(self.widget)
-                    self.widget.addPlot(plot)
+                    self.widget.addPlot(plot, title=plotTitle)
 
         else:
             self.widget.clearAllPlots()
