@@ -21,9 +21,6 @@ class PlotBase(QtWidgets.QWidget):
     This base class should be inherited to use.
     """
 
-    #: ``pyqtgraph`` plot item
-    plot: pg.PlotItem
-
     def __init__(self, parent: Optional[QtWidgets.QWidget] = None) -> None:
         super().__init__(parent)
 
@@ -36,6 +33,9 @@ class PlotBase(QtWidgets.QWidget):
         layout.setSpacing(0)
         self.setLayout(layout)
         layout.addWidget(self.graphicsLayout)
+
+        #: ``pyqtgraph`` plot item
+        self.plot: pg.PlotItem = self.graphicsLayout.addPlot()
 
     def clearPlot(self) -> None:
         """Clear all plot contents (but do not delete plot elements, like axis
@@ -50,7 +50,6 @@ class Plot(PlotBase):
 
     def __init__(self, parent: Optional[QtWidgets.QWidget] = None):
         super().__init__(parent)
-        self.plot: pg.PlotItem = self.graphicsLayout.addPlot()
         legend = self.plot.addLegend(offset=(5, 5), pen='#999',
                                      brush=(255, 255, 255, 150))
         legend.layout.setContentsMargins(0, 0, 0, 0)
@@ -73,8 +72,6 @@ class PlotWithColorbar(PlotBase):
 
     def __init__(self, parent: Optional[QtWidgets.QWidget] = None) -> None:
         super().__init__(parent)
-
-        self.plot: pg.PlotItem = self.graphicsLayout.addPlot()
 
         cmap = pg.colormap.get('viridis', source='matplotlib')
         self.colorbar: pg.ColorBarItem = pg.ColorBarItem(interactive=True, values=(0, 1),
