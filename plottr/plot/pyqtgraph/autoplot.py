@@ -15,10 +15,9 @@ from typing import List, Optional, Any
 import numpy as np
 from pyqtgraph import mkPen
 
-from plottr import QtWidgets, QtGui, QtCore, Signal, Slot, \
+from plottr import QtWidgets, QtCore, Signal, Slot, \
     config_entry as getcfg
 from plottr.data.datadict import DataDictBase
-from plottr.gui.widgets import Collapsible
 from .plots import Plot, PlotWithColorbar, PlotBase
 from ..base import AutoFigureMaker as BaseFM, PlotDataType, \
     PlotItem, ComplexRepresentation, determinePlotDataType, \
