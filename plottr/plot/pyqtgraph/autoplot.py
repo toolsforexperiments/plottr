@@ -15,7 +15,7 @@ from typing import List, Optional, Any
 import numpy as np
 from pyqtgraph import mkPen
 
-from plottr import QtWidgets, QtCore, Signal, Slot, \
+from plottr import QtWidgets, QtGui, QtCore, Signal, Slot, \
     config_entry as getcfg
 from plottr.data.datadict import DataDictBase
 from plottr.gui.widgets import Collapsible
@@ -42,22 +42,29 @@ class FigureWidget(QtWidgets.QWidget):
         super().__init__(parent=parent)
 
         self.subPlots: List[PlotBase] = []
-        self._widgets: List[QtWidgets.QWidget] = []
+
+        self.title = QtWidgets.QLabel(parent=self)
+        self.title.setAlignment(QtCore.Qt.AlignHCenter)
+
+        self.split = QtWidgets.QSplitter(parent=self)
+        self.split.setOrientation(QtCore.Qt.Vertical)
 
         layout = QtWidgets.QVBoxLayout()
         layout.setContentsMargins(0, 0, 0, 0)
-        layout.setSpacing(0)
+        layout.setSpacing(2)
+        layout.addWidget(self.title)
+        layout.addWidget(self.split)
         self.setLayout(layout)
 
-    def addPlot(self, plot: PlotBase, title: str = '') -> None:
+        self.setTitle('')
+
+    def addPlot(self, plot: PlotBase) -> None:
         """Add a :class:`.PlotBase` widget.
 
         :param plot: plot widget
         :param title: title of the plot
         """
-        w = Collapsible(plot, title=title, parent=self)
-        self.layout().addWidget(w)
-        self._widgets.append(w)
+        self.split.addWidget(plot)
         self.subPlots.append(plot)
 
     def clearAllPlots(self) -> None:
@@ -67,11 +74,16 @@ class FigureWidget(QtWidgets.QWidget):
 
     def deleteAllPlots(self) -> None:
         """Delete all subplot widgets."""
+        for p in self.subPlots:
+            p.deleteLater()
         self.subPlots = []
-        for w in self._widgets:
-            self.layout().removeWidget(w)
-            w.deleteLater()
-        self._widgets = []
+
+    def setTitle(self, title: str = '') -> None:
+        self.title.setText(title)
+        if len(title.strip()) == 0:
+            self.title.setVisible(False)
+        else:
+            self.title.setVisible(True)
 
 
 class FigureMaker(BaseFM):
@@ -129,15 +141,12 @@ class FigureMaker(BaseFM):
         if self.clearWidget:
             self.widget.deleteAllPlots()
             for i in range(nSubPlots):
-                labels = [v.labels[-1] for v in self.subPlotItems(i).values() if v.labels is not None]
-                plotTitle = ", ".join(labels)
                 if max(self.dataDimensionsInSubPlot(i).values()) == 1:
                     plot = Plot(self.widget)
-                    self.widget.addPlot(plot, title=plotTitle)
+                    self.widget.addPlot(plot)
                 elif max(self.dataDimensionsInSubPlot(i).values()) == 2:
                     plot = PlotWithColorbar(self.widget)
-                    self.widget.addPlot(plot, title=plotTitle)
-
+                    self.widget.addPlot(plot)
         else:
             self.widget.clearAllPlots()
 
@@ -293,6 +302,9 @@ class AutoPlot(PlotWidget):
                                                  parent=self)
             self.layout().addWidget(self.figConfig)
             self.figConfig.optionsChanged.connect(self._refreshPlot)
+
+        if self.data.has_meta('title'):
+            self.fmWidget.setTitle(self.data.meta_val('title'))
 
     @Slot()
     def _refreshPlot(self) -> None:

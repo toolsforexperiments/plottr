@@ -262,7 +262,8 @@ class Collapsible(QtWidgets.QWidget):
     """A wrapper that allow collapsing a widget."""
 
     def __init__(self, widget: QtWidgets.QWidget, title: str = '',
-                 parent: Optional[QtWidgets.QWidget] = None) -> None:
+                 parent: Optional[QtWidgets.QWidget] = None,
+                 expanding: bool = True) -> None:
         """Constructor.
 
         :param widget: the widget we'd like to collapse.
@@ -274,7 +275,8 @@ class Collapsible(QtWidgets.QWidget):
 
         self.widget = widget
         self.widget.setParent(self)
-        setVExpanding(self.widget)
+        if expanding:
+            setVExpanding(self.widget)
 
         self.expandedTitle = "[-] " + title
         self.collapsedTitle = "[+] " + title
