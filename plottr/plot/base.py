@@ -557,7 +557,10 @@ class AutoFigureMaker:
         """
 
         if self.combineTraces and join is None:
-            join = self.previousPlotId()
+            prev = self.previousPlotId()
+            if prev is not None:
+                if len(data) == 2 and len(self.plotItems[prev].data) == 2:
+                    join = prev
 
         id = _generate_auto_dict_key(self.plotItems)
 
