@@ -78,7 +78,9 @@ class ImageDataMovie(DataSource):
 
     def data(self) -> Iterable[DataDictBase]:
         for i in range(self.nreps):
-            yield testdata.get_2d_scalar_cos_data(self.nx, self.nx, self.nsets)
+            data = testdata.get_2d_scalar_cos_data(self.nx, self.nx, self.nsets)
+            # data.add_meta('title', "A changing image.")
+            yield data
 
 
 class ImageDataLiveAcquisition(DataSource):
@@ -159,8 +161,8 @@ plotWidgetClass = PGAutoPlot
 
 if __name__ == '__main__':
     # src = LineDataMovie(20, 3, 31)
-    src = ImageDataMovie(10, 2, 101)
+    # src = ImageDataMovie(10, 2, 101)
     # src = ImageDataLiveAcquisition(101, 101, 67)
-    # src = ComplexImage(21, 21)
+    src = ComplexImage(21, 21)
     src.delay = 0.1
     main(src)
