@@ -32,7 +32,7 @@ class Monitr(QtWidgets.QMainWindow):
         self.ui = Ui_MainWindow()
         self.ui.setupUi(self)
 
-        self.plotDialogs: Dict[float, dict] = {}
+        self.plotDialogs: Dict[int, dict] = {}
         self.selectedFile: Optional[str] = None
         self.newFiles: List[str] = []
 
@@ -89,17 +89,18 @@ class Monitr(QtWidgets.QMainWindow):
     def plot(self, filePath: str, group: str) -> None:
         plotApp = 'plottr.apps.autoplot.autoplotDDH5'
         process = launchApp(plotApp, filePath, group)
-        self.plotDialogs[process.pid] = dict(
-            process=process,
-            path=filePath,
-            group=group,
-        )
+        if process.pid is not None:
+            self.plotDialogs[process.pid] = dict(
+                process=process,
+                path=filePath,
+                group=group,
+            )
 
 
 def script() -> int:
     parser = argparse.ArgumentParser(description='Monitr main application')
     parser.add_argument("path", help="path to monitor for data", default=None)
-    parser.add_argument("-r", "--refresh_interval", default=2,
+    parser.add_argument("-r", "--refresh_interval", default=2, type=float,
                         help="interval at which to look for changes in the "
                              "monitored path (in seconds)")
     args = parser.parse_args()
@@ -124,7 +125,7 @@ def launchApp(appPath: str, filepath: str, group: str, **kwargs: Any) -> Process
     return p
 
 
-def _runAppStandalone(appPath, filepath, group, **kwargs):
+def _runAppStandalone(appPath: str, filepath: str, group: str, **kwargs: Any) -> Any:
     sep = appPath.split('.')
     modName = '.'.join(sep[:-1])
     funName = sep[-1]

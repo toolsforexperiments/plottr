@@ -140,10 +140,9 @@ class AutoPlotMainWindow(PlotWindow):
                          **kwargs)
 
         self.fc = fc
+        self.loaderNode: Optional[Node] = None
         if loaderName is not None:
             self.loaderNode = fc.nodes()[loaderName]
-        else:
-            self.loaderNode = None
 
         # a flag we use to set reasonable defaults when the first data
         # is processed
@@ -176,6 +175,10 @@ class AutoPlotMainWindow(PlotWindow):
         else:
             self.monitorToolBar = None
 
+        # set some sane defaults any time the data is significantly altered.
+        if self.loaderNode is not None:
+            self.loaderNode.dataStructureChanged.connect(self.onChangedLoaderData)
+
     def setMonitorInterval(self, val: float) -> None:
         if self.monitorToolBar is not None:
             self.monitorToolBar.setMonitorInterval(val)
@@ -197,6 +200,13 @@ class AutoPlotMainWindow(PlotWindow):
         self.status.showMessage(f"loaded: {tstamp}")
 
     @Slot()
+    def onChangedLoaderData(self) -> None:
+        assert self.loaderNode is not None
+        data = self.loaderNode.outputValues()['dataOut']
+        if data is not None:
+            self.setDefaults(self.loaderNode.outputValues()['dataOut'])
+
+    @Slot()
     def refreshData(self) -> None:
         """
         Refresh the dataset by calling `update' on the dataset loader node.
@@ -207,7 +217,7 @@ class AutoPlotMainWindow(PlotWindow):
             self.showTime()
 
             if not self._initialized and self.loaderNode.nLoadedRecords > 0:
-                self.setDefaults(self.loaderNode.outputValues()['dataOut'])
+                self.onChangedLoaderData()
                 self._initialized = True
 
     def setInput(self, data: DataDictBase, resetDefaults: bool = True) -> None:
@@ -266,10 +276,10 @@ class QCAutoPlotMainWindow(AutoPlotMainWindow):
             pathAndId = path, pathAndId[1]
         self.setWindowTitle(windowTitle)
 
-        if pathAndId is not None:
+        if pathAndId is not None and self.loaderNode is not None:
             self.loaderNode.pathAndId = pathAndId
 
-        if self.loaderNode.nLoadedRecords > 0:
+        if self.loaderNode is not None and self.loaderNode.nLoadedRecords > 0:
             self.setDefaults(self.loaderNode.outputValues()['dataOut'])
             self._initialized = True
 
@@ -342,13 +352,13 @@ def autoplotDDH5(filepath: str = '', groupname: str = 'data') \
     win = AutoPlotMainWindow(fc, loaderName='Data loader',
                              widgetOptions=widgetOptions,
                              monitor=True,
-                             monitorInterval=2.0)
+                             monitorInterval=5.0)
     win.show()
 
     fc.nodes()['Data loader'].filepath = filepath
     fc.nodes()['Data loader'].groupname = groupname
     win.refreshData()
-    win.setMonitorInterval(2.0)
+    win.setMonitorInterval(5.0)
 
     return fc, win
 
