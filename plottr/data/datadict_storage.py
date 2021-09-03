@@ -25,7 +25,7 @@ from types import TracebackType
 import numpy as np
 import h5py
 
-from plottr import QtGui, Signal, Slot, QtWidgets
+from plottr import QtGui, Signal, Slot, QtWidgets, QtCore
 
 from ..node import (
     Node, NodeWidget, updateOption, updateGuiFromNode,
@@ -432,8 +432,11 @@ class DDH5Loader(Node):
     nodeName = 'DDH5Loader'
     uiClass = DDH5LoaderWidget
     useUi = True
-    nRetries = 5
-    retryDelay = 0.01
+
+    # nRetries = 5
+    # retryDelay = 0.01
+
+    setProcessOptions = Signal(str, str)
 
     def __init__(self, name: str):
         self._filepath: Optional[str] = None
@@ -442,6 +445,14 @@ class DDH5Loader(Node):
 
         self.groupname = 'data'  # type: ignore[misc]
         self.nLoadedRecords = 0
+
+        self.loadingThread = QtCore.QThread()
+        self.loadingWorker = _Loader(self.filepath, self.groupname)
+        self.loadingWorker.moveToThread(self.loadingThread)
+        self.loadingThread.started.connect(self.loadingWorker.loadData)
+        self.loadingWorker.dataLoaded.connect(self.onThreadComplete)
+        self.loadingWorker.dataLoaded.connect(lambda x: self.loadingThread.quit())
+        self.setProcessOptions.connect(self.loadingWorker.setPathAndGroup)
 
     @property
     def filepath(self) -> Optional[str]:
@@ -464,21 +475,24 @@ class DDH5Loader(Node):
     # Data processing #
 
     def process(self, dataIn: Optional[DataDictBase] = None) -> Optional[Dict[str, Any]]:
-        # TODO: maybe needs an optional way to read only new data from file?
+
+        # TODO: maybe needs an optional way to read only new data from file? -- can make that an option
         # TODO: implement a threaded version.
 
+        # this is the flow when process is called due to some trigger
         if self._filepath is None or self._groupname is None:
             return None
         if not os.path.exists(self._filepath):
             return None
 
-        try:
-            data = datadict_from_hdf5(self._filepath,
-                                      groupname=self.groupname,
-                                      n_retries=self.nRetries,
-                                      retry_delay=self.retryDelay)
-        except OSError:
-            # TODO needs logging
+        if not self.loadingThread.isRunning():
+            self.loadingWorker.setPathAndGroup(self.filepath, self.groupname)
+            self.loadingThread.start()
+        return None
+
+    @Slot(object)
+    def onThreadComplete(self, data: Optional[DataDict]) -> None:
+        if data is None:
             return None
 
         title = f"{self.filepath}"
@@ -486,11 +500,42 @@ class DDH5Loader(Node):
         nrecords = data.nrecords()
         assert nrecords is not None
         self.nLoadedRecords = nrecords
+        self.setOutput(dataOut=data)
 
-        if super().process(dataIn=data) is None:
-            return None
+        # this makes sure that we analyze the data and emit signals for changes
+        super().process(dataIn=data)
 
-        return dict(dataOut=data)
+
+class _Loader(QtCore.QObject):
+
+    nRetries = 5
+    retryDelay = 0.01
+
+    dataLoaded = Signal(object)
+
+    def __init__(self, filepath: Optional[str], groupname: Optional[str]) -> None:
+        super().__init__()
+        self.filepath = filepath
+        self.groupname = groupname
+
+    def setPathAndGroup(self, filepath: Optional[str], groupname: Optional[str]) -> None:
+        self.filepath = filepath
+        self.groupname = groupname
+
+    def loadData(self) -> bool:
+        if self.filepath is None or self.groupname is None:
+            self.dataLoaded.emit(None)
+            return True
+
+        try:
+            data = datadict_from_hdf5(self.filepath,
+                                      groupname=self.groupname,
+                                      n_retries=self.nRetries,
+                                      retry_delay=self.retryDelay)
+            self.dataLoaded.emit(data)
+        except OSError:
+            self.dataLoaded.emit(None)
+        return True
 
 
 class DDH5Writer(object):
