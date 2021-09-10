@@ -207,7 +207,7 @@ class FigureMaker(BaseFM):
         if plotItem.plotDataType == PlotDataType.line1d:
             name = plotItem.labels[-1] if isinstance(plotItem.labels, list) else ''
             return subPlot.plot.plot(x.flatten(), y.flatten(), name=name,
-                                     pen=mkPen(color, width=2), symbol=symbol, symbolBrush=color,
+                                     pen=mkPen(color, width=1), symbol=symbol, symbolBrush=color,
                                      symbolPen=None, symbolSize=symbolSize)
         else:
             name = plotItem.labels[-1] if isinstance(plotItem.labels, list) else ''
