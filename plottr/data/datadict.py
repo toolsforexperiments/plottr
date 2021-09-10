@@ -185,7 +185,6 @@ class DataDictBase(dict):
                         is_common = False
                 if is_common:
                     commons.append(n)
-
         nrecs = max(commons)
 
         for k, v in records.items():
@@ -807,7 +806,7 @@ class DataDict(DataDictBase):
                 kw[name] = None
 
         records = self.to_records(**kw)
-        for name, datavals in records.items():
+        for name, datavals in records.items():  #
             dd[name]['values'] = datavals
 
         if dd.validate():
