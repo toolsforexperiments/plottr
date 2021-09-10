@@ -293,14 +293,14 @@ class QCodesDBInspector(QtWidgets.QMainWindow):
         self._plotWindows: Dict[int, WindowDict] = {}
 
         self.filepath = dbPath
-        self.dbdf = None
+        self.dbdf: Optional[pandas.DataFrame] = None
         self.monitor = QtCore.QTimer()
 
         # flag for determining what has been loaded so far.
         # * None: nothing opened yet.
         # * -1: empty DS open.
         # * any value > 0: run ID from the most recent loading.
-        self.latestRunId = None
+        self.latestRunId: Optional[int] = None
 
         self.setWindowTitle('Plottr | QCoDeS dataset inspectr')
 
