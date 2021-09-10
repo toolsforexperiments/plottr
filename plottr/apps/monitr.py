@@ -2,20 +2,22 @@
 """
 import sys
 import os
-import time
 import argparse
-from typing import List, Optional, Dict
+from typing import List, Optional, Dict, Any
 from functools import partial
+import importlib
+from multiprocessing import Process
 
 from .. import QtCore, QtWidgets, Signal, Slot
 from ..data.datadict_storage import all_datadicts_from_hdf5
-from ..apps.autoplot import autoplotDDH5
 from ..utils.misc import unwrap_optional
 
 from .ui.Monitr_UI import Ui_MainWindow
 
 
 class Monitr(QtWidgets.QMainWindow):
+
+    # TODO: keep a list of app processes and monitor them if alive.
 
     #: Signal(object) -- emitted when a valid data file is selected.
     #: Arguments:
@@ -30,7 +32,7 @@ class Monitr(QtWidgets.QMainWindow):
         self.ui = Ui_MainWindow()
         self.ui.setupUi(self)
 
-        self.plotDialogs: Dict[float, dict] = {}
+        self.plotDialogs: Dict[int, dict] = {}
         self.selectedFile: Optional[str] = None
         self.newFiles: List[str] = []
 
@@ -63,6 +65,8 @@ class Monitr(QtWidgets.QMainWindow):
         if not self.ui.autoPlotNewAction.isChecked():
             return
 
+        # FIXME: sometimes opening a file will never succeed.
+        #   we should make sure that we don't try reloading it over and over.
         removeFiles = []
         for f in self.newFiles:
             try:
@@ -83,29 +87,20 @@ class Monitr(QtWidgets.QMainWindow):
         self.plot(unwrap_optional(self.selectedFile), group)
 
     def plot(self, filePath: str, group: str) -> None:
-        fc, win = autoplotDDH5(filePath, group)
-        plotId = time.time()
-        while plotId in self.plotDialogs:
-            plotId += 1e-6
-        self.plotDialogs[plotId] = dict(
-            flowchart=fc,
-            window=win,
-            path=filePath,
-            group=group,
-        )
-        win.windowClosed.connect(lambda: self.onPlotClose(plotId))
-        win.show()
-
-    def onPlotClose(self, plotId: float) -> None:
-        self.plotDialogs[plotId]['flowchart'].deleteLater()
-        self.plotDialogs[plotId]['window'].deleteLater()
-        self.plotDialogs.pop(plotId, None)
+        plotApp = 'plottr.apps.autoplot.autoplotDDH5'
+        process = launchApp(plotApp, filePath, group)
+        if process.pid is not None:
+            self.plotDialogs[process.pid] = dict(
+                process=process,
+                path=filePath,
+                group=group,
+            )
 
 
 def script() -> int:
     parser = argparse.ArgumentParser(description='Monitr main application')
     parser.add_argument("path", help="path to monitor for data", default=None)
-    parser.add_argument("-r", "--refresh_interval", default=2,
+    parser.add_argument("-r", "--refresh_interval", default=2, type=float,
                         help="interval at which to look for changes in the "
                              "monitored path (in seconds)")
     args = parser.parse_args()
@@ -117,5 +112,27 @@ def script() -> int:
 
     app = QtWidgets.QApplication([])
     win = Monitr(path, args.refresh_interval)
+    win.show()
+    return app.exec_()
+
+
+def launchApp(appPath: str, filepath: str, group: str, **kwargs: Any) -> Process:
+    p = Process(target=_runAppStandalone,
+                args=(appPath, filepath, group),
+                kwargs=kwargs)
+    p.start()
+    p.join(timeout=0)
+    return p
+
+
+def _runAppStandalone(appPath: str, filepath: str, group: str, **kwargs: Any) -> Any:
+    sep = appPath.split('.')
+    modName = '.'.join(sep[:-1])
+    funName = sep[-1]
+    mod = importlib.import_module(modName)
+    fun = getattr(mod, funName)
+
+    app = QtWidgets.QApplication([])
+    fc, win = fun(filepath, group, **kwargs)
     win.show()
     return app.exec_()
