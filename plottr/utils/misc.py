@@ -109,6 +109,6 @@ class LabeledOptions(AutoEnum):
     def fromLabel(cls, label: str) -> Optional["LabeledOptions"]:
         """Find enum element from label."""
         for k in cls:
-            if k.label == label:
+            if k.label.lower() == label.lower():
                 return k
         return None
