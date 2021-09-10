@@ -99,7 +99,6 @@ def set_attr(h5obj: Any, name: str, val: Any) -> None:
     except TypeError:
         newval = str(val)
         h5obj.attrs[name] = h5ify(newval)
-        print(f"{name} set as string")
 
 
 def add_cur_time_attr(h5obj: Any, name: str = 'creation',
