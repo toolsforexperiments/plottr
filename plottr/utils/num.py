@@ -148,7 +148,7 @@ def array1d_to_meshgrid(arr: Union[List, np.ndarray],
 def _find_switches(arr: np.ndarray,
                    rth: float = 25,
                    ztol: float = 1e-15) -> np.ndarray:
-    arr_: np.ma.MaskedArray = np.ma.MaskedArray(arr, is_invalid(arr))
+    arr_: np.ndarray = np.ma.MaskedArray(arr, is_invalid(arr))
     deltas = arr_[1:] - arr_[:-1]
     hi = np.percentile(arr[~is_invalid(arr)], 100.-rth)
     lo = np.percentile(arr[~is_invalid(arr)], rth)
