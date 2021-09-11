@@ -177,7 +177,7 @@ class AutoPlotMainWindow(PlotWindow):
 
         # set some sane defaults any time the data is significantly altered.
         if self.loaderNode is not None:
-            self.loaderNode.dataStructureChanged.connect(self.onChangedLoaderData)
+            self.loaderNode.dataFieldsChanged.connect(self.onChangedLoaderData)
 
     def setMonitorInterval(self, val: float) -> None:
         if self.monitorToolBar is not None:

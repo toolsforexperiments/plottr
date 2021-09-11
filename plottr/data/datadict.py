@@ -185,7 +185,7 @@ class DataDictBase(dict):
                         is_common = False
                 if is_common:
                     commons.append(n)
-        nrecs = min(commons)
+        nrecs = max(commons)
 
         for k, v in records.items():
             shp = v.shape
