@@ -16,6 +16,8 @@ underscore pre- and suffix.
 """
 import os
 import time
+import datetime
+import uuid
 from enum import Enum
 from typing import Any, Union, Optional, Dict, Type, Collection
 from types import TracebackType
@@ -23,7 +25,7 @@ from types import TracebackType
 import numpy as np
 import h5py
 
-from plottr import QtGui, Signal, Slot, QtWidgets
+from plottr import QtGui, Signal, Slot, QtWidgets, QtCore
 
 from ..node import (
     Node, NodeWidget, updateOption, updateGuiFromNode,
@@ -35,8 +37,10 @@ from .datadict import DataDict, is_meta_key, DataDictBase
 __author__ = 'Wolfgang Pfaff'
 __license__ = 'MIT'
 
-DATAFILEXT = '.ddh5'
+DATAFILEXT = 'ddh5'
 TIMESTRFORMAT = "%Y-%m-%d %H:%M:%S"
+
+# FIXME: need correct handling of dtypes and list/array conversion
 
 
 class AppendMode(Enum):
@@ -51,7 +55,7 @@ class AppendMode(Enum):
 
 def h5ify(obj: Any) -> Any:
     """
-    Convert an object into something that we can assing to an HDF5 attribute.
+    Convert an object into something that we can assign to an HDF5 attribute.
 
     Performs the following conversions:
     - list/array of strings -> numpy chararray of unicode type
@@ -69,7 +73,7 @@ def h5ify(obj: Any) -> Any:
             obj = np.array(obj)
 
     if type(obj) == np.ndarray and obj.dtype.kind == 'U':
-        return np.chararray.encode(obj, encoding='utf8')
+        return np.char.encode(obj, encoding='utf8')
 
     return obj
 
@@ -80,7 +84,7 @@ def deh5ify(obj: Any) -> Any:
         return obj.decode()
 
     if type(obj) == np.ndarray and obj.dtype.kind == 'S':
-        return np.chararray.decode(obj)
+        return np.char.decode(obj)
 
     return obj
 
@@ -149,12 +153,12 @@ def datadict_to_hdf5(datadict: DataDict,
         - `AppendMode.all` : append all data in datadict to file data sets
     :param swmr_mode: use HDF5 SWMR mode on the file when appending.
     """
-
-    if len(basepath) > len(DATAFILEXT) and \
-            basepath[-len(DATAFILEXT):] == DATAFILEXT:
+    ext = f".{DATAFILEXT}"
+    if len(basepath) > len(ext) and \
+            basepath[-len(ext):] == ext:
         filepath = basepath
     else:
-        filepath = basepath + DATAFILEXT
+        filepath = basepath + ext
 
     if not os.path.exists(filepath):
         init_path(filepath)
@@ -292,12 +296,12 @@ def datadict_from_hdf5(basepath: str,
     :param swmr_mode: if `True`, open HDF5 file in SWMR mode.
     :return: validated DataDict.
     """
-
-    if len(basepath) > len(DATAFILEXT) and \
-            basepath[-len(DATAFILEXT):] == DATAFILEXT:
+    ext = f".{DATAFILEXT}"
+    if len(basepath) > len(ext) and \
+            basepath[-len(ext):] == ext:
         filepath = basepath
     else:
-        filepath = basepath + DATAFILEXT
+        filepath = basepath + ext
 
     if not os.path.exists(filepath):
         raise ValueError("Specified file does not exist.")
@@ -428,8 +432,11 @@ class DDH5Loader(Node):
     nodeName = 'DDH5Loader'
     uiClass = DDH5LoaderWidget
     useUi = True
-    nRetries = 5
-    retryDelay = 0.01
+
+    # nRetries = 5
+    # retryDelay = 0.01
+
+    setProcessOptions = Signal(str, str)
 
     def __init__(self, name: str):
         self._filepath: Optional[str] = None
@@ -438,6 +445,14 @@ class DDH5Loader(Node):
 
         self.groupname = 'data'  # type: ignore[misc]
         self.nLoadedRecords = 0
+
+        self.loadingThread = QtCore.QThread()
+        self.loadingWorker = _Loader(self.filepath, self.groupname)
+        self.loadingWorker.moveToThread(self.loadingThread)
+        self.loadingThread.started.connect(self.loadingWorker.loadData)
+        self.loadingWorker.dataLoaded.connect(self.onThreadComplete)
+        self.loadingWorker.dataLoaded.connect(lambda x: self.loadingThread.quit())
+        self.setProcessOptions.connect(self.loadingWorker.setPathAndGroup)
 
     @property
     def filepath(self) -> Optional[str]:
@@ -460,18 +475,24 @@ class DDH5Loader(Node):
     # Data processing #
 
     def process(self, dataIn: Optional[DataDictBase] = None) -> Optional[Dict[str, Any]]:
+
+        # TODO: maybe needs an optional way to read only new data from file? -- can make that an option
+        # TODO: implement a threaded version.
+
+        # this is the flow when process is called due to some trigger
         if self._filepath is None or self._groupname is None:
             return None
         if not os.path.exists(self._filepath):
             return None
 
-        try:
-            data = datadict_from_hdf5(self._filepath,
-                                      groupname=self.groupname,
-                                      n_retries=self.nRetries,
-                                      retry_delay=self.retryDelay)
-        except OSError:
-            # TODO needs logging
+        if not self.loadingThread.isRunning():
+            self.loadingWorker.setPathAndGroup(self.filepath, self.groupname)
+            self.loadingThread.start()
+        return None
+
+    @Slot(object)
+    def onThreadComplete(self, data: Optional[DataDict]) -> None:
+        if data is None:
             return None
 
         title = f"{self.filepath}"
@@ -479,11 +500,42 @@ class DDH5Loader(Node):
         nrecords = data.nrecords()
         assert nrecords is not None
         self.nLoadedRecords = nrecords
+        self.setOutput(dataOut=data)
 
-        if super().process(dataIn=data) is None:
-            return None
+        # this makes sure that we analyze the data and emit signals for changes
+        super().process(dataIn=data)
 
-        return dict(dataOut=data)
+
+class _Loader(QtCore.QObject):
+
+    nRetries = 5
+    retryDelay = 0.01
+
+    dataLoaded = Signal(object)
+
+    def __init__(self, filepath: Optional[str], groupname: Optional[str]) -> None:
+        super().__init__()
+        self.filepath = filepath
+        self.groupname = groupname
+
+    def setPathAndGroup(self, filepath: Optional[str], groupname: Optional[str]) -> None:
+        self.filepath = filepath
+        self.groupname = groupname
+
+    def loadData(self) -> bool:
+        if self.filepath is None or self.groupname is None:
+            self.dataLoaded.emit(None)
+            return True
+
+        try:
+            data = datadict_from_hdf5(self.filepath,
+                                      groupname=self.groupname,
+                                      n_retries=self.nRetries,
+                                      retry_delay=self.retryDelay)
+            self.dataLoaded.emit(data)
+        except OSError:
+            self.dataLoaded.emit(None)
+        return True
 
 
 class DDH5Writer(object):
@@ -498,29 +550,33 @@ class DDH5Writer(object):
         ... with DDH5Writer('./data/', data, name='Test') as writer:
         ...     for x in range(10):
         ...         writer.add_data(x=x, y=x**2)
-        Data location: ./data/2020-06-05/2020-06-05_0001_Example/2020-06-05_0001_Test.ddh5
+        Data location: ./data/2020-06-05/2020-06-05T102345_d11541ca-Test/data.ddh5
 
     :param basedir: The root directory in which data is stored.
         :meth:`.create_file_structure` is creating the structure inside this root and
         determines the file name of the data. The default structure implemented here is
-        ``<root>/YYYY-MM-DD/YYYY-MM-DD_<idx>_<name>/YYYY-MM-DD_<idx>_<name>.ddh5``,
-        where <idx> is the automatically increasing number of this dataset in the day
-        folder and <name> is the value of parameter `name`. To change this, re-implement
+        ``<root>/YYYY-MM-DD/YYYY-mm-dd_THHMMSS_<ID>-<name>/<filename>.ddh5``,
+        where <ID> is a short identifier string and <name> is the value of parameter `name`.
+        To change this, re-implement :meth:`.data_folder` and/or
         :meth:`.create_file_structure`.
     :param datadict: initial data object. Must contain at least the structure of the
         data to be able to use :meth:`add_data` to add data.
     :param groupname: name of the top-level group in the file container. An existing
         group of that name will be deleted.
     :param name: name of this dataset. Used in path/file creation and added as meta data.
+    :param filename: filename to use. defaults to 'data.ddh5'.
     """
 
     # TODO: need an operation mode for not keeping data in memory.
     # TODO: a mode for working with pre-allocated data
 
-    def __init__(self, basedir: str,
+    def __init__(self,
                  datadict: DataDict,
+                 basedir: str = '.',
                  groupname: str = 'data',
-                 name: Optional[str] = None):
+                 name: Optional[str] = None,
+                 filename: str = 'data',
+                 filepath: Optional[str] = None):
         """Constructor for :class:`.DDH5Writer`"""
 
         self.basedir = basedir
@@ -528,19 +584,20 @@ class DDH5Writer(object):
         self.inserted_rows = 0
         self.name = name
         self.groupname = groupname
+        self.filename = filename
+        if self.filename[-(len(DATAFILEXT)+1):] != f".{DATAFILEXT}":
+            self.filename += f".{DATAFILEXT}"
+        self.filepath = filepath
 
-        self.file_base: Optional[str] = None
-        self.file_path: Optional[str] = None
         self.file: Optional[h5py.File] = None
 
         self.datadict.add_meta('dataset.name', name)
 
     def __enter__(self) -> "DDH5Writer":
-        self.file_base = self.create_file_structure()
-        self.file_path = self.file_base + f"{DATAFILEXT}"
-        print('Data location: ', self.file_path)
+        self.filepath = self.create_file_structure()
+        print('Data location: ', self.filepath)
 
-        self.file = h5py.File(self.file_path, mode='a', libver='latest')
+        self.file = h5py.File(self.filepath, mode='a', libver='latest')
         init_file(self.file, self.groupname)
         add_cur_time_attr(self.file, name='last_change')
         add_cur_time_attr(self.file[self.groupname], name='last_change')
@@ -563,30 +620,44 @@ class DDH5Writer(object):
         add_cur_time_attr(self.file[self.groupname], name='close')
         self.file.close()
 
+    def data_folder(self) -> str:
+        """Return the folder, relative to the data root path, in which data will
+        be saved.
+
+        Default format:
+        ``<basedir>/YYYY-MM-DD/YYYY-mm-ddTHHMMSS_<ID>-<name>``.
+        In this implementation we use the first 8 characters of a UUID as ID.
+        """
+        ID = str(uuid.uuid1()).split('-')[0]
+        path = os.path.join(
+            time.strftime("%Y-%m-%d"),
+            f"{datetime.datetime.now().replace(microsecond=0).isoformat().replace(':', '')}_{ID}-{self.name}"
+        )
+        return path
+
     def create_file_structure(self) -> str:
         """Determine the filepath and create all subfolders.
 
-        :returns: the filepath (without extension) of the data file.
+        :returns: the filepath of the data file.
         """
-        day_folder_path = os.path.join(self.basedir, time.strftime("%Y-%m-%d"))
-        os.makedirs(day_folder_path, exist_ok=True)
 
-        filebase = time.strftime("%Y-%m-%d_")
-        existing_datafolders = [f for f in os.listdir(day_folder_path)
-                                if f[:len(filebase)] == filebase]
-        prev_idxs = [int(f[len(filebase):len(filebase)+4]) for f in existing_datafolders]
-        if len(prev_idxs) == 0:
-            new_idx = 1
+        if self.filepath is None:
+            data_folder_path = os.path.join(
+                self.basedir,
+                self.data_folder()
+            )
+            appendix = ''
+            idx = 2
+            while os.path.exists(data_folder_path+appendix):
+                appendix = f'-{idx}'
+                idx += 1
+            data_folder_path += appendix
+            self.filepath = os.path.join(data_folder_path, self.filename)
         else:
-            new_idx = max(prev_idxs) + 1
-        filebase += f"{new_idx:04}"
-        if self.name is not None:
-            filebase += f"_{self.name}"
+            data_folder_path, self.filename = os.path.split(self.filepath)
 
-        data_folder_path = os.path.join(day_folder_path, filebase)
         os.makedirs(data_folder_path, exist_ok=True)
-
-        return os.path.join(data_folder_path, filebase)
+        return self.filepath
 
     def add_data(self, **kwargs: Any) -> None:
         """Add data to the file (and the internal `DataDict`).

@@ -21,7 +21,7 @@ from plottr.gui.tools import dpiScalingFactor
 from .plotting import PlotType, colorplot2d
 from .widgets import MPLPlotWidget
 from ..base import AutoFigureMaker as BaseFM, PlotDataType, \
-    PlotItem, ComplexRepresentation, determinePlotDataType
+    PlotItem, ComplexRepresentation, determinePlotDataType, PlotWidgetContainer
 
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
@@ -364,7 +364,7 @@ class AutoPlot(MPLPlotWidget):
     presented through a toolbar.
     """
 
-    def __init__(self, parent: Optional[QtWidgets.QWidget] = None):
+    def __init__(self, parent: Optional[PlotWidgetContainer] = None):
         super().__init__(parent=parent)
 
         self.plotDataType = PlotDataType.unknown
@@ -388,6 +388,10 @@ class AutoPlot(MPLPlotWidget):
         iconSize = int(36 + 8*(scaling - 1))
         self.plotOptionsToolBar.setIconSize(QtCore.QSize(iconSize, iconSize))
         self.setMinimumSize(int(640*scaling), int(480*scaling))
+
+    def updatePlot(self) -> None:
+        self.plot.draw()
+        QtCore.QCoreApplication.processEvents()
 
     def setData(self, data: Optional[DataDictBase]) -> None:
         """Analyses data and determines whether/what to plot.
@@ -479,5 +483,4 @@ class AutoPlot(MPLPlotWidget):
                     **kw)
 
         self.setMeta(self.data)
-        self.plot.draw()
-        QtCore.QCoreApplication.processEvents()
+        self.updatePlot()
