@@ -18,7 +18,6 @@ __author__ = 'Wolfgang Pfaff'
 __license__ = 'MIT'
 
 
-# TODO: implement a threaded version of Node
 R = TypeVar('R', bound="Node")
 S = TypeVar('S')
 T = TypeVar('T')
@@ -136,6 +135,10 @@ class Node(NodeBase):
     #: emits a the list of names of new axes
     dataAxesChanged = Signal(list)
 
+    #: signal emitted when available dependents change
+    #: emits a the list of names of new dependents
+    dataDependentsChanged = Signal(list)
+
     #: signal emitted when any available data fields change (dep. and indep.)
     #: emits a the list of names of new axes
     dataFieldsChanged = Signal(list)
@@ -246,6 +249,7 @@ class Node(NodeBase):
         """
         return True
 
+    # TODO: should think about nodes with multiple inputs -- how would this look then?
     def process(self, dataIn: Optional[DataDictBase]=None) -> Optional[Dict[str, Optional[DataDictBase]]]:
         if dataIn is None:
             return None
@@ -261,6 +265,7 @@ class Node(NodeBase):
             _typeChanged = False
             _structChanged = False
             _shapesChanged = False
+            _depsChanged = False
 
             if self.dataAxes is None and daxes is not None:
                 _fieldsChanged = True
@@ -276,11 +281,13 @@ class Node(NodeBase):
             if self.dataDependents is None and ddeps is not None:
                 _fieldsChanged = True
                 _structChanged = True
+                _depsChanged = True
             else:
                 assert ddeps is not None and self.dataDependents is not None
                 if set(ddeps) != set(self.dataDependents):
                     _fieldsChanged = True
                     _structChanged = True
+                    _depsChanged = True
 
             if dtype != self.dataType:
                 _typeChanged = True
@@ -297,6 +304,9 @@ class Node(NodeBase):
 
             if _axesChanged:
                 self.dataAxesChanged.emit(daxes)
+
+            if _depsChanged:
+                self.dataDependentsChanged.emit(ddeps)
 
             if _fieldsChanged:
                 self.dataFieldsChanged.emit(daxes + ddeps)
