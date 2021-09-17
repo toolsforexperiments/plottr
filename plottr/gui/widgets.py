@@ -309,10 +309,28 @@ class Collapsible(QtWidgets.QWidget):
 
 
 class DimensionCombo(QtWidgets.QComboBox):
+    """A Combo Box that allows selection of a single data dimension.
+    This widget is designed to be used in a node widget.
+
+    Which type of dimensions are available for selection is set through the
+    ``dimensionType`` option when creating the instance.
+
+    The widget can be linked to a node using the :meth:`.connectNode` method.
+    After linking, the available options will be populated whenever the data in
+    the node changes.
+    """
+
+    #: Signal(str)
+    #: emitted when the user selects a dimension.
     dimensionSelected = Signal(str)
 
     def __init__(self, parent: Optional[QtWidgets.QWidget] = None,
-                 dimensionType: str = 'axes'):
+                 dimensionType: str = 'axes') -> None:
+        """Constructor.
+
+        :param parent: parent widget
+        :param dimensionType: one of `axes`, `dependents` or `all`.
+        """
         super().__init__(parent)
 
         self.node: Optional[Node] = None
@@ -326,16 +344,28 @@ class DimensionCombo(QtWidgets.QComboBox):
         self.currentTextChanged.connect(self.signalDimensionSelection)
 
     def connectNode(self, node: Optional[Node] = None) -> None:
+        """Connect a node. will result in populating the combo box options
+        based on dimensions available in the node data.
+
+        :param node: instance of :class:`.Node`
+        """
         if node is None:
             raise RuntimeError
         self.node = node
         if self.dimensionType == 'axes':
             self.node.dataAxesChanged.connect(self.setDimensions)
+        elif self.dimensionType == 'dependents':
+            self.node.dataDependentsChanged.connect(self.setDimensions)
         else:
-            raise NotImplementedError('Only Axes supported ATM.')
+            self.node.dataFieldsChanged.connect(self.setDimensions)
 
     @updateGuiQuietly
     def setDimensions(self, dims: Sequence[str]) -> None:
+        """Set the dimensions that are available for selection.
+
+        :param dims: list of dimensions, as strings.
+        :return: ``None``
+        """
         self.clear()
         allDims = self.entries + list(dims)
         for d in allDims:
@@ -347,10 +377,65 @@ class DimensionCombo(QtWidgets.QComboBox):
         return val
 
 
+class DimensionSelector(FormLayoutWrapper):
+    """A widget that allows the user to select a dimension from a dataset
+    via a combobox.
+
+    Contains a label and a :class:`.DimensionCombo`."""
+
+    def __init__(self, parent: Optional[QtWidgets.QWidget] = None):
+        super().__init__(
+            parent=parent,
+            elements=[('Dimension', DimensionCombo(dimensionType='all'))],
+        )
+        self.combo = self.elements['Dimension']
+
+
+class DependentSelector(FormLayoutWrapper):
+    """A widget that allows the user to select a dependent dimension from a dataset
+    via a combobox.
+
+    Contains a label and a :class:`.DimensionCombo`."""
+
+    def __init__(self, parent: Optional[QtWidgets.QWidget] = None):
+        super().__init__(
+            parent=parent,
+            elements=[('Dependent', DimensionCombo(dimensionType='dependents'))],
+        )
+        self.combo = self.elements['Dependent']
+
+
 class AxisSelector(FormLayoutWrapper):
+    """A widget that allows the user to select an axis dimension from a dataset
+    via a combobox.
+
+    Contains a label and a :class:`.DimensionCombo`."""
 
     def __init__(self, parent: Optional[QtWidgets.QWidget] = None):
         super().__init__(
             parent=parent,
             elements=[('Axis', DimensionCombo(dimensionType='axes'))],
         )
+        self.combo = self.elements['Axis']
+
+
+class MultiDimensionSelector(QtWidgets.QListWidget):
+    """A simple list widget that allows selection multiple data dimensions."""
+
+    #: signal (List[str]) that is emitted when the selection is modified.
+    dimensionSelectionMade = Signal(list)
+
+    def __init__(self, parent: Optional[QtWidgets.QWidget] = None):
+        super().__init__(parent)
+
+        self.setSelectionMode(self.MultiSelection)
+        self.itemSelectionChanged.connect(self.emitSelection)
+
+    def setDimensions(self, dimensions: List[str]):
+        self.clear()
+        self.addItems(dimensions)
+
+    def emitSelection(self):
+        selectedItems = self.selectedItems()
+        self.dimensionSelectionMade.emit([s.text() for s in selectedItems])
+
