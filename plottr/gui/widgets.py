@@ -420,22 +420,69 @@ class AxisSelector(FormLayoutWrapper):
 
 
 class MultiDimensionSelector(QtWidgets.QListWidget):
-    """A simple list widget that allows selection multiple data dimensions."""
+    """A simple list widget that allows selection of multiple data dimensions."""
 
     #: signal (List[str]) that is emitted when the selection is modified.
     dimensionSelectionMade = Signal(list)
 
-    def __init__(self, parent: Optional[QtWidgets.QWidget] = None):
+    def __init__(self, parent: Optional[QtWidgets.QWidget] = None,
+                 dimensionType: str = 'all') -> None:
+        """Constructor.
+
+        :param parent: parent widget.
+        :param dimensionType: one of ``all``, ``axes``, or ``dependents``.
+        """
         super().__init__(parent)
+
+        self.node: Optional[Node] = None
+        self.dimensionType = dimensionType
 
         self.setSelectionMode(self.MultiSelection)
         self.itemSelectionChanged.connect(self.emitSelection)
 
-    def setDimensions(self, dimensions: List[str]):
+    def setDimensions(self, dimensions: List[str]) -> None:
+        """set the available dimensions.
+
+        :param dimensions: list of dimension names.
+        """
         self.clear()
         self.addItems(dimensions)
 
-    def emitSelection(self):
-        selectedItems = self.selectedItems()
-        self.dimensionSelectionMade.emit([s.text() for s in selectedItems])
+    def getSelected(self) -> List[str]:
+        """Get selected dimensions.
 
+        :return: List of dimensions (as strings).
+        """
+        selectedItems = self.selectedItems()
+        return [s.text() for s in selectedItems]
+
+    def setSelected(self, selected: List[str]) -> None:
+        """Set dimension selection.
+
+        :param selected: List of dimensions to be selected.
+        """
+        for i in range(self.count()):
+            item = self.item(i)
+            if item.text() in selected:
+                item.setSelected(True)
+            else:
+                item.setSelected(False)
+
+    def emitSelection(self) -> None:
+        self.dimensionSelectionMade.emit(self.getSelected())
+
+    def connectNode(self, node: Optional[Node] = None) -> None:
+        """Connect a node. Will result in populating the available options
+        based on dimensions available in the node data.
+
+        :param node: instance of :class:`.Node`
+        """
+        if node is None:
+            raise RuntimeError
+        self.node = node
+        if self.dimensionType == 'axes':
+            self.node.dataAxesChanged.connect(self.setDimensions)
+        elif self.dimensionType == 'dependents':
+            self.node.dataDependentsChanged.connect(self.setDimensions)
+        else:
+            self.node.dataFieldsChanged.connect(self.setDimensions)
