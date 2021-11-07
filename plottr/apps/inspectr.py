@@ -129,7 +129,8 @@ class SortableTreeWidgetItem(QtWidgets.QTreeWidgetItem):
 class RunList(QtWidgets.QTreeWidget):
     """Shows the list of runs for a given date selection."""
 
-    cols = ['Run ID', 'Experiment', 'Sample', 'Name', 'Started', 'Completed', 'Records', 'GUID']
+    cols = ['Run ID', 'Tag', 'Experiment', 'Sample', 'Name', 'Started', 'Completed', 'Records', 'GUID']
+    tag_dict = {'': '', 'star': '⭐', 'trash': '🗑️'}
 
     runSelected = Signal(int)
     runActivated = Signal(int)
@@ -160,6 +161,7 @@ class RunList(QtWidgets.QTreeWidget):
 
     def addRun(self, runId: int, **vals: str) -> None:
         lst = [str(runId)]
+        lst.append(self.tag_dict[vals.get('tag', '')])
         lst.append(vals.get('experiment', ''))
         lst.append(vals.get('sample', ''))
         lst.append(vals.get('name', ''))

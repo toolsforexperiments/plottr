@@ -51,6 +51,7 @@ DataSetStructureDict = Dict[str, Union[IndependentParameterDict, DependentParame
 
 
 class DataSetInfoDict(TypedDict):
+    tag: str
     experiment: str
     sample: str
     name: str
@@ -140,6 +141,7 @@ def get_ds_info(ds: 'DataSet', get_structure: bool = True) -> DataSetInfoDict:
         structure = None
 
     data = DataSetInfoDict(
+        tag=ds.metadata.get('tag', ''),
         experiment=ds.exp_name,
         sample=ds.sample_name,
         name=ds.name,
