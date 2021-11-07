@@ -366,6 +366,18 @@ class QCodesDBInspector(QtWidgets.QMainWindow):
         refreshAction.triggered.connect(self.refreshDB)
         fileMenu.addAction(refreshAction)
 
+        # action: star/unstar the selected run
+        self.starAction = QtWidgets.QAction()
+        self.starAction.setShortcut('Ctrl+Alt+S')
+        self.starAction.triggered.connect(self.starSelectedRun)
+        self.addAction(self.starAction)
+
+        # action: trash/untrash the selected run
+        self.trashAction = QtWidgets.QAction()
+        self.trashAction.setShortcut('Ctrl+Alt+T')
+        self.trashAction.triggered.connect(self.trashSelectedRun)
+        self.addAction(self.trashAction)
+
         # sizing
         scaledSize = 640 * rint(self.logicalDpiX() / 96.0)
         self.resize(scaledSize, scaledSize)
@@ -544,6 +556,37 @@ class QCodesDBInspector(QtWidgets.QMainWindow):
             'window': win,
         }
         win.showTime()
+
+    def setTag(self, item: QtWidgets.QTreeWidgetItem, tag: str):
+        # set tag in the database
+        assert self.filepath is not None
+        runId = int(item.text(0))
+        ds = load_dataset_from(self.filepath, runId)
+        ds.add_metadata('tag', tag)
+
+        # set tag in the GUI
+        tag_char = self.runList.tag_dict[tag]
+        item.setText(1, tag_char)
+
+        # refresh the RunInfo widget
+        self.setRunSelection(runId)
+
+    def tagSelectedRun(self, tag: str):
+        for item in self.runList.selectedItems():
+            current_tag_char = item.text(1)
+            tag_char = self.runList.tag_dict[tag]
+            if current_tag_char == tag_char:  # if already tagged
+                self.setTag(item, '')  # clear tag
+            else:  # if not tagged
+                self.setTag(item, tag)  # set tag
+
+    @Slot()
+    def starSelectedRun(self):
+        self.tagSelectedRun('star')
+
+    @Slot()
+    def trashSelectedRun(self):
+        self.tagSelectedRun('trash')
 
 
 class WindowDict(TypedDict):
