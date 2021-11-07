@@ -145,17 +145,29 @@ class RunList(QtWidgets.QTreeWidget):
         self.itemActivated.connect(self.activateRun)
 
         self.setContextMenuPolicy(QtCore.Qt.CustomContextMenu)
-        self.customContextMenuRequested.connect(self.copy_to_clipboard)
+        self.customContextMenuRequested.connect(self.showContextMenu)
 
     @Slot(QtCore.QPoint)
-    def copy_to_clipboard(self, position: QtCore.QPoint) -> None:
+    def showContextMenu(self, position: QtCore.QPoint) -> None:
+        model_index = self.indexAt(position)
+        item = self.itemFromIndex(model_index)
+        current_tag_char = item.text(1)
+
         menu = QtWidgets.QMenu()
+
         copy_icon = self.style().standardIcon(QtWidgets.QStyle.SP_DialogSaveButton)
         copy_action = menu.addAction(copy_icon, "Copy")
+
+        star_action = self.window().starAction
+        star_action.setText('Star' if current_tag_char != self.tag_dict['star'] else 'Unstar')
+        menu.addAction(star_action)
+
+        trash_action = self.window().trashAction
+        trash_action.setText('Trash' if current_tag_char != self.tag_dict['trash'] else 'Untrash')
+        menu.addAction(trash_action)
+
         action = menu.exec_(self.mapToGlobal(position))
         if action == copy_action:
-            model_index = self.indexAt(position)
-            item = self.itemFromIndex(model_index)
             QtWidgets.QApplication.clipboard().setText(item.text(
                 model_index.column()))
 
