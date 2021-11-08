@@ -185,14 +185,18 @@ class RunList(QtWidgets.QTreeWidget):
         item = SortableTreeWidgetItem(lst)
         self.addTopLevelItem(item)
 
-    def setRuns(self, selection: Dict[int, Dict[str, str]]) -> None:
+    def setRuns(self, selection: Dict[int, Dict[str, str]], show_only_star: bool, show_also_trash: bool) -> None:
         self.clear()
 
         # disable sorting before inserting values to avoid performance hit
         self.setSortingEnabled(False)
 
         for runId, record in selection.items():
-            self.addRun(runId, **record)
+            tag = record.get('tag', '')
+            if show_only_star and tag != 'star':
+                continue
+            elif show_also_trash or tag != 'trash':
+                self.addRun(runId, **record)
 
         self.setSortingEnabled(True)
 
@@ -362,6 +366,15 @@ class QCodesDBInspector(QtWidgets.QMainWindow):
         self.autoLaunchPlots.setToolTip(tt)
         self.toolbar.addWidget(self.autoLaunchPlots)
 
+        self.showOnlyStarAction = self.toolbar.addAction('⭐')
+        self.showOnlyStarAction.setToolTip('Show only starred runs')
+        self.showOnlyStarAction.setCheckable(True)
+        self.showOnlyStarAction.triggered.connect(self.updateRunList)
+        self.showAlsoTrashAction = self.toolbar.addAction('🗑️')
+        self.showAlsoTrashAction.setToolTip('Show also trashed runs')
+        self.showAlsoTrashAction.setCheckable(True)
+        self.showAlsoTrashAction.triggered.connect(self.updateRunList)
+
         # menu bar
         menu = self.menuBar()
         fileMenu = menu.addMenu('&File')
@@ -526,6 +539,15 @@ class QCodesDBInspector(QtWidgets.QMainWindow):
         logger().debug('Refreshing DB')
         self.refreshDB()
 
+    @Slot()
+    def updateRunList(self) -> None:
+        if self.dbdf is None:
+            return
+        selection = self.dbdf.loc[self.dbdf['started_date'].isin(self._selected_dates)].sort_index(ascending=False)
+        show_only_star = self.showOnlyStarAction.isChecked()
+        show_also_trash = self.showAlsoTrashAction.isChecked()
+        self.runList.setRuns(selection.to_dict(orient='index'), show_only_star, show_also_trash)
+
     ### handling user selections
     @Slot(list)
     def setDateSelection(self, dates: Sequence[str]) -> None:
@@ -534,7 +556,9 @@ class QCodesDBInspector(QtWidgets.QMainWindow):
             selection = self.dbdf.loc[self.dbdf['started_date'].isin(dates)].sort_index(ascending=False)
             old_dates = self._selected_dates
             if not all(date in old_dates for date in dates):
-                self.runList.setRuns(selection.to_dict(orient='index'))
+                show_only_star = self.showOnlyStarAction.isChecked()
+                show_also_trash = self.showAlsoTrashAction.isChecked()
+                self.runList.setRuns(selection.to_dict(orient='index'), show_only_star, show_also_trash)
             else:
                 self.runList.updateRuns(selection.to_dict(orient='index'))
             self._selected_dates = tuple(dates)
