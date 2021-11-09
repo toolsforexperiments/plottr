@@ -579,8 +579,8 @@ class QCodesDBInspector(QtWidgets.QMainWindow):
         for k, v in structure.items():
             v.pop('values')
         contentInfo = {'Data structure': structure,
-                       'QCoDeS Snapshot': snap,
-                       'Metadata': ds.metadata}
+                       'Metadata': ds.metadata,
+                       'QCoDeS Snapshot': snap}
         self._sendInfo.emit(contentInfo)
 
     @Slot(int)
