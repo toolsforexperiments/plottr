@@ -173,7 +173,7 @@ class RunList(QtWidgets.QTreeWidget):
 
     def addRun(self, runId: int, **vals: str) -> None:
         lst = [str(runId)]
-        lst.append(self.tag_dict[vals.get('tag', '')])
+        lst.append(self.tag_dict[vals.get('inspectr_tag', '')])
         lst.append(vals.get('experiment', ''))
         lst.append(vals.get('sample', ''))
         lst.append(vals.get('name', ''))
@@ -192,7 +192,7 @@ class RunList(QtWidgets.QTreeWidget):
         self.setSortingEnabled(False)
 
         for runId, record in selection.items():
-            tag = record.get('tag', '')
+            tag = record.get('inspectr_tag', '')
             if show_only_star and tag != 'star':
                 continue
             elif show_also_trash or tag != 'trash':
@@ -598,10 +598,10 @@ class QCodesDBInspector(QtWidgets.QMainWindow):
         assert self.filepath is not None
         runId = int(item.text(0))
         ds = load_dataset_from(self.filepath, runId)
-        ds.add_metadata('tag', tag)
+        ds.add_metadata('inspectr_tag', tag)
 
         # set tag in self.dbdf
-        self.dbdf.at[runId, 'tag'] = tag
+        self.dbdf.at[runId, 'inspectr_tag'] = tag
 
         # set tag in the GUI
         tag_char = self.runList.tag_dict[tag]
