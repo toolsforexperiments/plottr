@@ -600,6 +600,9 @@ class QCodesDBInspector(QtWidgets.QMainWindow):
         ds = load_dataset_from(self.filepath, runId)
         ds.add_metadata('tag', tag)
 
+        # set tag in self.dbdf
+        self.dbdf.at[runId, 'tag'] = tag
+
         # set tag in the GUI
         tag_char = self.runList.tag_dict[tag]
         item.setText(1, tag_char)
