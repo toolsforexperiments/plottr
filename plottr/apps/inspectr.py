@@ -130,7 +130,7 @@ class RunList(QtWidgets.QTreeWidget):
     """Shows the list of runs for a given date selection."""
 
     cols = ['Run ID', 'Tag', 'Experiment', 'Sample', 'Name', 'Started', 'Completed', 'Records', 'GUID']
-    tag_dict = {'': '', 'star': '⭐', 'trash': '🗑️'}
+    tag_dict = {'': '', 'star': '⭐', 'cross': '❌'}
 
     runSelected = Signal(int)
     runActivated = Signal(int)
@@ -162,9 +162,9 @@ class RunList(QtWidgets.QTreeWidget):
         star_action.setText('Star' if current_tag_char != self.tag_dict['star'] else 'Unstar')
         menu.addAction(star_action)
 
-        trash_action = self.window().trashAction
-        trash_action.setText('Trash' if current_tag_char != self.tag_dict['trash'] else 'Untrash')
-        menu.addAction(trash_action)
+        cross_action = self.window().crossAction
+        cross_action.setText('Cross' if current_tag_char != self.tag_dict['cross'] else 'Uncross')
+        menu.addAction(cross_action)
 
         action = menu.exec_(self.mapToGlobal(position))
         if action == copy_action:
@@ -185,7 +185,7 @@ class RunList(QtWidgets.QTreeWidget):
         item = SortableTreeWidgetItem(lst)
         self.addTopLevelItem(item)
 
-    def setRuns(self, selection: Dict[int, Dict[str, str]], show_only_star: bool, show_also_trash: bool) -> None:
+    def setRuns(self, selection: Dict[int, Dict[str, str]], show_only_star: bool, show_also_cross: bool) -> None:
         self.clear()
 
         # disable sorting before inserting values to avoid performance hit
@@ -195,7 +195,7 @@ class RunList(QtWidgets.QTreeWidget):
             tag = record.get('inspectr_tag', '')
             if show_only_star and tag != 'star':
                 continue
-            elif show_also_trash or tag != 'trash':
+            elif show_also_cross or tag != 'cross':
                 self.addRun(runId, **record)
 
         self.setSortingEnabled(True)
@@ -366,14 +366,14 @@ class QCodesDBInspector(QtWidgets.QMainWindow):
         self.autoLaunchPlots.setToolTip(tt)
         self.toolbar.addWidget(self.autoLaunchPlots)
 
-        self.showOnlyStarAction = self.toolbar.addAction('⭐')
+        self.showOnlyStarAction = self.toolbar.addAction(RunList.tag_dict['star'])
         self.showOnlyStarAction.setToolTip('Show only starred runs')
         self.showOnlyStarAction.setCheckable(True)
         self.showOnlyStarAction.triggered.connect(self.updateRunList)
-        self.showAlsoTrashAction = self.toolbar.addAction('🗑️')
-        self.showAlsoTrashAction.setToolTip('Show also trashed runs')
-        self.showAlsoTrashAction.setCheckable(True)
-        self.showAlsoTrashAction.triggered.connect(self.updateRunList)
+        self.showAlsoCrossAction = self.toolbar.addAction(RunList.tag_dict['cross'])
+        self.showAlsoCrossAction.setToolTip('Show also crossed runs')
+        self.showAlsoCrossAction.setCheckable(True)
+        self.showAlsoCrossAction.triggered.connect(self.updateRunList)
 
         # menu bar
         menu = self.menuBar()
@@ -397,11 +397,11 @@ class QCodesDBInspector(QtWidgets.QMainWindow):
         self.starAction.triggered.connect(self.starSelectedRun)
         self.addAction(self.starAction)
 
-        # action: trash/untrash the selected run
-        self.trashAction = QtWidgets.QAction()
-        self.trashAction.setShortcut('Ctrl+Alt+T')
-        self.trashAction.triggered.connect(self.trashSelectedRun)
-        self.addAction(self.trashAction)
+        # action: cross/uncross the selected run
+        self.crossAction = QtWidgets.QAction()
+        self.crossAction.setShortcut('Ctrl+Alt+X')
+        self.crossAction.triggered.connect(self.crossSelectedRun)
+        self.addAction(self.crossAction)
 
         # sizing
         scaledSize = 640 * rint(self.logicalDpiX() / 96.0)
@@ -545,8 +545,8 @@ class QCodesDBInspector(QtWidgets.QMainWindow):
             return
         selection = self.dbdf.loc[self.dbdf['started_date'].isin(self._selected_dates)].sort_index(ascending=False)
         show_only_star = self.showOnlyStarAction.isChecked()
-        show_also_trash = self.showAlsoTrashAction.isChecked()
-        self.runList.setRuns(selection.to_dict(orient='index'), show_only_star, show_also_trash)
+        show_also_cross = self.showAlsoCrossAction.isChecked()
+        self.runList.setRuns(selection.to_dict(orient='index'), show_only_star, show_also_cross)
 
     ### handling user selections
     @Slot(list)
@@ -557,8 +557,8 @@ class QCodesDBInspector(QtWidgets.QMainWindow):
             old_dates = self._selected_dates
             if not all(date in old_dates for date in dates):
                 show_only_star = self.showOnlyStarAction.isChecked()
-                show_also_trash = self.showAlsoTrashAction.isChecked()
-                self.runList.setRuns(selection.to_dict(orient='index'), show_only_star, show_also_trash)
+                show_also_cross = self.showAlsoCrossAction.isChecked()
+                self.runList.setRuns(selection.to_dict(orient='index'), show_only_star, show_also_cross)
             else:
                 self.runList.updateRuns(selection.to_dict(orient='index'))
             self._selected_dates = tuple(dates)
@@ -624,8 +624,8 @@ class QCodesDBInspector(QtWidgets.QMainWindow):
         self.tagSelectedRun('star')
 
     @Slot()
-    def trashSelectedRun(self):
-        self.tagSelectedRun('trash')
+    def crossSelectedRun(self):
+        self.tagSelectedRun('cross')
 
 
 class WindowDict(TypedDict):
