@@ -194,7 +194,7 @@ class RunList(QtWidgets.QTreeWidget):
 
         for runId, record in selection.items():
             tag = record.get('inspectr_tag', '')
-            if show_only_star and tag != 'star':
+            if show_only_star and tag == '':
                 continue
             elif show_also_cross or tag != 'cross':
                 self.addRun(runId, **record)
