@@ -173,7 +173,8 @@ class RunList(QtWidgets.QTreeWidget):
 
     def addRun(self, runId: int, **vals: str) -> None:
         lst = [str(runId)]
-        lst.append(self.tag_dict[vals.get('inspectr_tag', '')])
+        tag = vals.get('inspectr_tag', '')
+        lst.append(self.tag_dict.get(tag, tag))  # if the tag is not in tag_dict, display in text
         lst.append(vals.get('experiment', ''))
         lst.append(vals.get('sample', ''))
         lst.append(vals.get('name', ''))
