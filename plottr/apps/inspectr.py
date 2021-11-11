@@ -594,7 +594,7 @@ class QCodesDBInspector(QtWidgets.QMainWindow):
         }
         win.showTime()
 
-    def setTag(self, item: QtWidgets.QTreeWidgetItem, tag: str):
+    def setTag(self, item: QtWidgets.QTreeWidgetItem, tag: str) -> None:
         # set tag in the database
         assert self.filepath is not None
         runId = int(item.text(0))
@@ -602,6 +602,7 @@ class QCodesDBInspector(QtWidgets.QMainWindow):
         ds.add_metadata('inspectr_tag', tag)
 
         # set tag in self.dbdf
+        assert self.dbdf is not None
         self.dbdf.at[runId, 'inspectr_tag'] = tag
 
         # set tag in the GUI
@@ -611,7 +612,7 @@ class QCodesDBInspector(QtWidgets.QMainWindow):
         # refresh the RunInfo widget
         self.setRunSelection(runId)
 
-    def tagSelectedRun(self, tag: str):
+    def tagSelectedRun(self, tag: str) -> None:
         for item in self.runList.selectedItems():
             current_tag_char = item.text(1)
             tag_char = self.runList.tag_dict[tag]
@@ -621,11 +622,11 @@ class QCodesDBInspector(QtWidgets.QMainWindow):
                 self.setTag(item, tag)  # set tag
 
     @Slot()
-    def starSelectedRun(self):
+    def starSelectedRun(self) -> None:
         self.tagSelectedRun('star')
 
     @Slot()
-    def crossSelectedRun(self):
+    def crossSelectedRun(self) -> None:
         self.tagSelectedRun('cross')
 
 
