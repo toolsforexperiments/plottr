@@ -18,10 +18,18 @@ https://plottr.readthedocs.io (work in progress...)
 
 Plottr is installable from pypi with `pip install plottr`
 
-To install with either PyQt5 or Pyside2 backend you can do
-``pip install plottr[PyQt5]`` or ``pip install plottr[Pyside2]`` Note that if 
-you have installed ``pyqt`` from ``(Ana)Conda`` you should not use any of these
-targets but do ``pip install plottr`` 
+Plottr requires either the PyQt5 or Pyside2 gui framework.
+To install with PyQt5 or Pyside2 backend you can do
+``pip install plottr[PyQt5]`` or ``pip install plottr[Pyside2]`` 
+
+Note that if  you have installed ``pyqt`` from ``(Ana)Conda`` you should not use any of these
+targets but do ``pip install plottr`` or install Plottr from conda forge:
+
+```
+conda config --add channels conda-forge
+conda config --set channel_priority strict
+conda install plottr
+```
 
 To install from source: clone the repo, and install using `pip install -e .`
 
@@ -49,6 +57,50 @@ You might want to install freshly if you still use the old version.
 * pyqtgraph >= 0.10.0
 
 # Recent changes:
+
+## 2021-11-11
+
+### Added
+
+- Inspectr: tag a run with a star (⭐) or cross (❌) icon, filter by those,
+  also show dataset metadata next to parameters and snapshot (#229)
+- Improvements to monitr: more stability in adding data to ddh5, better
+  performance by making data loading multithreaded and running reach plot
+  window in a separate process (#219)
+- Added pyqtgraph backend for plotting that can be used instead of matplotlib
+  (Example for how to select can be found in test/apps/autoplot_app.py) (#215, #218)
+
+### Fixed
+
+- Fix/invaliddata: small fixes when data contains a lot of invalid entries (#226)
+- Fix in shape recognition when adding data (#220)
+
+### Behind the scenes
+
+- Add minimal versions to dependencies (#201)
+- Make the .gitignore proper (#73)
+- add dependabot (#208)
+- Fix typechecking with mypy 0.9xx (#207)
+- clarify install instructions wrt qt and mention conda forge (#202)
+
+## 2021-06-08
+
+### Added
+
+- refactoring the plotting system (#166)
+- Add version log message to main ``__init__`` (#175)
+
+### Fixed
+
+- Fix crop if less than one row is not nan (#198)
+- Fix rgba error (#199)
+- Allow empty dataset if datadict is none (#195)
+
+### Behind the scenes
+
+- Modernize setup files (#194)
+- packaging cleanups (#177)
+- upgrade versioneer to 0.19 (#176)
 
 ## 2021-02-16
 

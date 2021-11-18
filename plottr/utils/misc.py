@@ -3,7 +3,8 @@
 Various utility functions.
 """
 
-from typing import List, Tuple, TypeVar, Optional, Sequence
+from enum import Enum
+from typing import List, Tuple, TypeVar, Optional, Sequence, Any
 
 
 def reorder_indices(lst: Sequence[str], target: Sequence[str]) -> Tuple[int, ...]:
@@ -66,3 +67,48 @@ def unwrap_optional(val: Optional[T]) -> T:
     if val is None:
         raise ValueError("Expected a not None value but got a None value.")
     return val
+
+
+class AutoEnum(Enum):
+    """Enum that with automatically incremented integer values.
+
+    Allows to pass additional arguments in the class variables to the __init__
+    method of the instances.
+    See: https://stackoverflow.com/questions/19330460/how-do-i-put-docstrings-on-enums/19330461#19330461
+    """
+
+    def __new__(cls, *args: Any) -> "AutoEnum":
+        """creating a new instance.
+
+        :param args: will be passed to __init__.
+        """
+        value = len(cls) + 1
+        obj = object.__new__(cls)
+        obj._value_ = value
+        return obj
+
+
+class LabeledOptions(AutoEnum):
+    """Enum with a label for each element. We can find the name from the label
+    using :meth:`.fromLabel`.
+
+    Example::
+
+            >>> class Color(LabeledOptions):
+            ...     red = 'Red'
+            ...     blue = 'Blue'
+
+    Here, ``Color.blue`` has value ``2`` and ``Color.fromLabel('Blue')`` returns
+    ``Color.blue``.
+    """
+
+    def __init__(self, label: str) -> None:
+        self.label = label
+
+    @classmethod
+    def fromLabel(cls, label: str) -> Optional["LabeledOptions"]:
+        """Find enum element from label."""
+        for k in cls:
+            if k.label.lower() == label.lower():
+                return k
+        return None

@@ -4,12 +4,13 @@ widgets.py
 Common GUI widgets that are re-used across plottr.
 """
 from numpy import rint
-from typing import Union, List, Tuple, Optional, Type, Sequence, Dict, Any
+from typing import Union, List, Tuple, Optional, Type, Sequence, Dict, Any, Type
 
 from .tools import dictToTreeWidgetItems, dpiScalingFactor
 from plottr import QtGui, QtCore, Flowchart, QtWidgets, Signal, Slot
 from plottr.node import Node, linearFlowchart
 from ..plot import PlotNode, PlotWidgetContainer, PlotWidget
+from .. import config_entry as getcfg
 
 __author__ = 'Wolfgang Pfaff'
 __license__ = 'MIT'
@@ -68,10 +69,8 @@ class MonitorIntervalInput(QtWidgets.QWidget):
 
 class PlotWindow(QtWidgets.QMainWindow):
     """
-    Simple MainWindow class for embedding flowcharts and plots.
-
-    All keyword arguments supplied will be propagated to
-    :meth:`addNodeWidgetFromFlowchart`.
+    Simple MainWindow class for embedding flowcharts and plots, based on
+    ``QtWidgets.QMainWindow``.
     """
 
     #: Signal() -- emitted when the window is closed
@@ -79,13 +78,26 @@ class PlotWindow(QtWidgets.QMainWindow):
 
     def __init__(self, parent: Optional[QtWidgets.QMainWindow] = None,
                  fc: Optional[Flowchart] = None,
-                 plotWidgetClass: Optional[Any] = None,
+                 plotWidgetClass: Optional[Type[PlotWidget]] = None,
                  **kw: Any):
+        """
+        Constructor for :class:`.PlotWindow`.
+
+        :param parent: parent widget
+        :param fc: flowchart with nodes. if given, we will generate node widgets
+            in this window.
+        :param plotWidgetClass: class of the plot widget to use.
+            defaults to :class:`plottr.plot.mpl.AutoPlot`.
+        :param kw: any keywords will be propagated to
+            :meth:`addNodeWidgetFromFlowchart`.
+        """
         super().__init__(parent)
 
         if plotWidgetClass is None:
-            from ..plot.mpl import AutoPlot
-            plotWidgetClass = AutoPlot
+            plotWidgetClass = getcfg('main', 'default-plotwidget')
+
+        if plotWidgetClass is None:
+            raise RuntimeError("No PlotWidget has been specified.")
 
         self.plotWidgetClass = plotWidgetClass
         self.plot = PlotWidgetContainer(parent=self)
@@ -229,3 +241,67 @@ class SnapshotWidget(QtWidgets.QTreeWidget):
         for i in range(2):
             self.resizeColumnToContents(i)
 
+
+def setHExpanding(w: QtWidgets.QWidget) -> None:
+    """Set the size policy of a widget such that is expands horizontally."""
+    p = w.sizePolicy()
+    p.setHorizontalPolicy(QtWidgets.QSizePolicy.MinimumExpanding)
+    p.setHorizontalStretch(1)
+    w.setSizePolicy(p)
+
+
+def setVExpanding(w: QtWidgets.QWidget) -> None:
+    """Set the size policy of a widget such that is expands vertically."""
+    p = w.sizePolicy()
+    p.setVerticalPolicy(QtWidgets.QSizePolicy.MinimumExpanding)
+    p.setVerticalStretch(1)
+    w.setSizePolicy(p)
+
+
+class Collapsible(QtWidgets.QWidget):
+    """A wrapper that allow collapsing a widget."""
+
+    def __init__(self, widget: QtWidgets.QWidget, title: str = '',
+                 parent: Optional[QtWidgets.QWidget] = None,
+                 expanding: bool = True) -> None:
+        """Constructor.
+
+        :param widget: the widget we'd like to collapse.
+        :param title: title of the widget. will appear on the toolbutton that
+            we use to trigger collapse/expansion.
+        :param parent: parent widget.
+        """
+        super().__init__(parent=parent)
+
+        self.widget = widget
+        self.widget.setParent(self)
+        if expanding:
+            setVExpanding(self.widget)
+
+        self.expandedTitle = "[-] " + title
+        self.collapsedTitle = "[+] " + title
+
+        self.btn = QtWidgets.QPushButton(self.expandedTitle, parent=self)
+        self.btn.setStyleSheet("""background: white; 
+                                  color: black; 
+                                  border: 2px solid white;
+                                  text-align: left;""")
+        self.btn.setFlat(True)
+        self.btn.setCheckable(True)
+        self.btn.setChecked(True)
+        setHExpanding(self.btn)
+        self.btn.clicked.connect(self._onButton)
+
+        layout = QtWidgets.QVBoxLayout(self)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(2)
+        layout.addWidget(self.btn)
+        layout.addWidget(self.widget)
+
+    def _onButton(self) -> None:
+        if self.btn.isChecked():
+            self.widget.setVisible(True)
+            self.btn.setText(self.expandedTitle)
+        else:
+            self.widget.setVisible(False)
+            self.btn.setText(self.collapsedTitle)
