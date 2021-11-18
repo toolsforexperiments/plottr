@@ -17,7 +17,7 @@ from matplotlib.backends.backend_qt5agg import (
 from plottr import QtWidgets, QtGui, QtCore, config as plottrconfig
 from plottr.data.datadict import DataDictBase
 from plottr.gui.tools import widgetDialog, dpiScalingFactor
-from ..base import PlotWidget
+from ..base import PlotWidget, PlotWidgetContainer
 
 
 class MPLPlot(FCanvas):
@@ -146,7 +146,7 @@ class MPLPlotWidget(PlotWidget):
     Per default, add a canvas and the matplotlib NavBar.
     """
 
-    def __init__(self, parent: Optional[QtWidgets.QWidget] = None):
+    def __init__(self, parent: Optional[PlotWidgetContainer] = None):
         super().__init__(parent=parent)
 
         #: the plot widget
@@ -156,8 +156,7 @@ class MPLPlotWidget(PlotWidget):
         self.mplBar = NavBar(self.plot, self)
 
         self.addMplBarOptions()
-        scaling = rint(self.logicalDpiX() / 96.0)
-        defaultIconSize = 16 * scaling
+        defaultIconSize = int(16 * dpiScalingFactor(self))
         self.mplBar.setIconSize(QtCore.QSize(defaultIconSize, defaultIconSize))
         layout = QtWidgets.QVBoxLayout(self)
         layout.addWidget(self.plot)
@@ -205,5 +204,4 @@ def figureDialog() -> Tuple[Figure, QtWidgets.QDialog]:
     """
     widget = MPLPlotWidget()
     return widget.plot.fig, widgetDialog(widget)
-
 

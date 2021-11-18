@@ -1,6 +1,7 @@
 from collections import OrderedDict
 
 import numpy as np
+from numpy.testing import assert_array_equal
 
 from plottr.utils import num
 
@@ -150,3 +151,61 @@ def test_cropping2d():
     assert num.arrays_equal(x, arr[:2, :2])
     assert num.arrays_equal(y, arr.T[:2, :2])
     assert num.arrays_equal(z, data[:2, :2])
+
+
+def test_crop2d_noop():
+    x = np.arange(1, 10)
+    y = np.arange(20, 26)
+
+    xx, yy = np.meshgrid(x, y)
+
+    zz = np.random.rand(*xx.shape)
+
+    xxx, yyy, zzz = num.crop2d(xx, yy, zz)
+
+    assert_array_equal(xx, xxx)
+    assert_array_equal(yy, yyy)
+    assert_array_equal(zz, zzz)
+
+
+def test_crop_all_nan():
+    x = np.arange(1., 10.)
+    y = np.arange(20., 26.)
+
+    xx, yy = np.meshgrid(x, y)
+
+    xx[:] = np.nan
+    yy[:] = np.nan
+
+    zz = np.random.rand(*xx.shape)
+
+    xxx, yyy, zzz = num.crop2d(xx, yy, zz)
+
+    assert xxx.shape == (0, 0)
+    assert yyy.shape == (0, 0)
+    assert zzz.shape == (0, 0)
+
+
+def test_crop_less_than_one_row():
+    x = np.arange(1., 10.)
+    y = np.arange(20., 26.)
+
+    xx, yy = np.meshgrid(x, y)
+
+    xx[1:, :] = np.nan
+    xx[0, 5:] = np.nan
+    yy[1:, :] = np.nan
+    yy[0:, 5:] = np.nan
+
+    zz = np.random.rand(*xx.shape)
+
+    xxx, yyy, zzz = num.crop2d(xx, yy, zz)
+
+    assert xxx.shape == (1, 5)
+    assert_array_equal(xxx, xx[0:1, 0:5])
+
+    assert zzz.shape == (1, 5)
+    assert_array_equal(yyy, yy[0:1, 0:5])
+
+    assert zzz.shape == (1, 5)
+    assert_array_equal(zzz, zz[0:1, 0:5])

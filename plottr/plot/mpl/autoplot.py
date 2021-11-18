@@ -21,7 +21,7 @@ from plottr.gui.tools import dpiScalingFactor
 from .plotting import PlotType, colorplot2d
 from .widgets import MPLPlotWidget
 from ..base import AutoFigureMaker as BaseFM, PlotDataType, \
-    PlotItem, ComplexRepresentation, determinePlotDataType
+    PlotItem, ComplexRepresentation, determinePlotDataType, PlotWidgetContainer
 
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
@@ -125,14 +125,14 @@ class FigureMaker(BaseFM):
         assert len(plotItem.data) == 2
         lbl = plotItem.labels[-1] if isinstance(plotItem.labels, list) and len(plotItem.labels) > 0 else ''
         x, y = plotItem.data
-        return axes[0].plot(x, y.real, label=lbl, **plotItem.plotOptions)
+        return axes[0].plot(x, y, label=lbl, **plotItem.plotOptions)
 
     def plotImage(self, plotItem: PlotItem) -> Optional[Artist]:
         assert len(plotItem.data) == 3
         x, y, z = plotItem.data
         axes = self.subPlots[plotItem.subPlot].axes
         assert isinstance(axes, list) and len(axes) > 0
-        im = colorplot2d(axes[0], x, y, z.real, plotType=self.plotType)
+        im = colorplot2d(axes[0], x, y, z, plotType=self.plotType)
         cb = self.fig.colorbar(im, ax=axes[0], shrink=0.75, pad=0.02)
         lbl = plotItem.labels[-1] if isinstance(plotItem.labels, list) and len(plotItem.labels) > 0 else ''
         cb.set_label(lbl)
@@ -348,7 +348,7 @@ class AutoPlot(MPLPlotWidget):
     presented through a toolbar.
     """
 
-    def __init__(self, parent: Optional[QtWidgets.QWidget] = None):
+    def __init__(self, parent: Optional[PlotWidgetContainer] = None):
         super().__init__(parent=parent)
 
         self.plotDataType = PlotDataType.unknown
@@ -372,6 +372,10 @@ class AutoPlot(MPLPlotWidget):
         iconSize = int(36 + 8*(scaling - 1))
         self.plotOptionsToolBar.setIconSize(QtCore.QSize(iconSize, iconSize))
         self.setMinimumSize(int(640*scaling), int(480*scaling))
+
+    def updatePlot(self) -> None:
+        self.plot.draw()
+        QtCore.QCoreApplication.processEvents()
 
     def setData(self, data: Optional[DataDictBase]) -> None:
         """Analyses data and determines whether/what to plot.
@@ -462,5 +466,4 @@ class AutoPlot(MPLPlotWidget):
                     **kw)
 
         self.setMeta(self.data)
-        self.plot.draw()
-        QtCore.QCoreApplication.processEvents()
+        self.updatePlot()

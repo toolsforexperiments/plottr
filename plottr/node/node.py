@@ -262,17 +262,28 @@ class Node(NodeBase):
             _structChanged = False
             _shapesChanged = False
 
-            if daxes != self.dataAxes:
-                _axesChanged = True
-
-            if daxes != self.dataAxes or ddeps != self.dataDependents:
+            if self.dataAxes is None and daxes is not None:
                 _fieldsChanged = True
+                _structChanged = True
+                _axesChanged = True
+            elif self.dataAxes is not None and daxes is None:
+                assert daxes is not None and self.dataAxes is not None
+                if set(daxes) != set(self.dataAxes):
+                    _axesChanged = True
+                    _fieldsChanged = True
+                    _structChanged = True
+
+            if self.dataDependents is None and ddeps is not None:
+                _fieldsChanged = True
+                _structChanged = True
+            else:
+                assert ddeps is not None and self.dataDependents is not None
+                if set(ddeps) != set(self.dataDependents):
+                    _fieldsChanged = True
+                    _structChanged = True
 
             if dtype != self.dataType:
                 _typeChanged = True
-
-            if dtype != self.dataType or daxes != self.dataAxes \
-                    or ddeps != self.dataDependents:
                 _structChanged = True
 
             if dshapes != self.dataShapes:
