@@ -19,15 +19,16 @@ class Fit(Analysis):
         for pn, pv in self.guess(coordinates, data).items():
             _params.add(pn, value=pv)
         for pn, pv in params.items():
-            _params[pn] = pv
+            if isinstance(pv, lmfit.Parameter):
+                _params[pn] = pv
+            else:
+                _params[pn].set(value=pv)
 
         if dry:
-            lmfit_result = lmfit.model.ModelResult(model, params=_params,
-                                                   data=data,
-                                                   coordinates=coordinates)
-        else:
-            lmfit_result = model.fit(data, params=_params,
-                                     coordinates=coordinates, **fit_kwargs)
+            for pn, pv in _params.items():
+                pv.set(vary=False)
+        lmfit_result = model.fit(data, params=_params,
+                                 coordinates=coordinates, **fit_kwargs)
 
         return FitResult(lmfit_result)
 
