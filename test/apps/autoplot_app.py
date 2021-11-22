@@ -79,7 +79,6 @@ class ImageDataMovie(DataSource):
     def data(self) -> Iterable[DataDictBase]:
         for i in range(self.nreps):
             data = testdata.get_2d_scalar_cos_data(self.nx, self.nx, self.nsets)
-            # data.add_meta('title', "A changing image.")
             yield data
 
 

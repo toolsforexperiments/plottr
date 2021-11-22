@@ -61,6 +61,7 @@ class DataSetInfoDict(TypedDict):
     structure: Optional[DataSetStructureDict]
     records: int
     guid: str
+    inspectr_tag: str
 
 
 # Tools for extracting information on runs in a database
@@ -149,7 +150,8 @@ def get_ds_info(ds: 'DataSet', get_structure: bool = True) -> DataSetInfoDict:
         started_time=started_time,
         structure=structure,
         records=ds.number_of_results,
-        guid=ds.guid
+        guid=ds.guid,
+        inspectr_tag=ds.metadata.get('inspectr_tag', ''),
     )
 
     return data

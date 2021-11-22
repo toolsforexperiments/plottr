@@ -177,7 +177,7 @@ class AutoPlotMainWindow(PlotWindow):
 
         # set some sane defaults any time the data is significantly altered.
         if self.loaderNode is not None:
-            self.loaderNode.dataStructureChanged.connect(self.onChangedLoaderData)
+            self.loaderNode.dataFieldsChanged.connect(self.onChangedLoaderData)
 
     def setMonitorInterval(self, val: float) -> None:
         if self.monitorToolBar is not None:
@@ -248,9 +248,16 @@ class AutoPlotMainWindow(PlotWindow):
         if len(axes) == 1:
             drs = {axes[0]: 'x-axis'}
 
-        self.fc.nodes()['Data selection'].selectedData = selected
-        self.fc.nodes()['Grid'].grid = GridOption.guessShape, {}
-        self.fc.nodes()['Dimension assignment'].dimensionRoles = drs
+        try:
+            self.fc.nodes()['Data selection'].selectedData = selected
+            self.fc.nodes()['Grid'].grid = GridOption.guessShape, {}
+            self.fc.nodes()['Dimension assignment'].dimensionRoles = drs
+        # FIXME: this is maybe a bit excessive, but trying to set all the defaults
+        #   like this can result in many types of errors.
+        #   a better approach would be to inspect the data better and make sure
+        #   we can set defaults reliably.
+        except:
+            pass
         unwrap_optional(self.plotWidget).update()
 
 
