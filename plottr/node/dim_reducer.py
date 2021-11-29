@@ -556,9 +556,12 @@ class DimensionReducer(Node):
           the second element is taken as the arg-list.
           The function can be of type :class:`.ReductionMethod`.
         """
-
         delete = []
         for ax, reduction in self._reductions.items():
+
+            if ax not in data.axes():
+                self.logger().warning(f"{ax} is not a know dimension. Removing.")
+                delete.append(ax)
 
             if reduction is None:
                 if isinstance(data, MeshgridDataDict):
@@ -817,7 +820,6 @@ class XYSelector(DimensionReducer):
             self.optionChangeNotification.emit(
                 {'dimensionRoles': self.dimensionRoles}
             )
-
         return True
 
     def process(
