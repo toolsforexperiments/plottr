@@ -560,8 +560,9 @@ class DimensionReducer(Node):
         for ax, reduction in self._reductions.items():
 
             if ax not in data.axes():
-                self.logger().warning(f"{ax} is not a know dimension. Removing.")
+                self.logger().warning(f"{ax} is not a known dimension. Removing.")
                 delete.append(ax)
+                continue
 
             if reduction is None:
                 if isinstance(data, MeshgridDataDict):
@@ -602,6 +603,7 @@ class DimensionReducer(Node):
                 self.logger().info(f'Reduction set for axis {ax} is only suited for '
                                    f'grid data. Removing.')
                 delete.append(ax)
+                continue
 
             # set the reduction in the correct format.
             self._reductions[ax] = (fun, arg, kw)
