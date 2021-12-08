@@ -37,7 +37,7 @@ class _HistogramOptionsWidget(FormLayoutWrapper):
 class HistogrammerWidget(NodeWidget):
     """Node widget for the :class:`.Histogrammer` node."""
 
-    def __init__(self, node: Optional[Node] = None):
+    def __init__(self, node: "Histogrammer"):
         super().__init__(embedWidgetClass=_HistogramOptionsWidget, node=node)
 
         self.widget: _HistogramOptionsWidget
