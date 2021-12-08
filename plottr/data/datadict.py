@@ -988,11 +988,10 @@ class DataDict(DataDictBase):
             except TypeError:
                 pass
 
-            idxs.append(_idxs)
+            idxs.append(_idxs.astype(int))
 
         if len(idxs) > 0:
-            remove_idxs = reduce(np.intersect1d,
-                                 tuple(np.array(idxs).astype(int)))
+            remove_idxs = reduce(np.intersect1d, tuple(idxs))
             for k, v in ret.data_items():
                 v['values'] = np.delete(v['values'], remove_idxs, axis=0)
 

@@ -58,6 +58,42 @@ You might want to install freshly if you still use the old version.
 
 # Recent changes:
 
+## v0.8.1 2021-11-30
+
+### Added
+
+- Test with python 3.10 and mark as supported (#238)
+
+### Fixed
+
+- add missing init file to config dir (#236)
+- Use a regular install in tests (#237)
+
+## v0.8.0 2021-11-11
+
+### Added
+
+- Inspectr: tag a run with a star (⭐) or cross (❌) icon, filter by those,
+  also show dataset metadata next to parameters and snapshot (#229)
+- Improvements to monitr: more stability in adding data to ddh5, better
+  performance by making data loading multithreaded and running reach plot
+  window in a separate process (#219)
+- Added pyqtgraph backend for plotting that can be used instead of matplotlib
+  (Example for how to select can be found in test/apps/autoplot_app.py) (#215, #218)
+
+### Fixed
+
+- Fix/invaliddata: small fixes when data contains a lot of invalid entries (#226)
+- Fix in shape recognition when adding data (#220)
+
+### Behind the scenes
+
+- Add minimal versions to dependencies (#201)
+- Make the .gitignore proper (#73)
+- add dependabot (#208)
+- Fix typechecking with mypy 0.9xx (#207)
+- clarify install instructions wrt qt and mention conda forge (#202)
+
 ## 2021-06-08
 
 ### Added

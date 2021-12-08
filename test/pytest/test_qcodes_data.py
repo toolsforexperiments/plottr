@@ -215,7 +215,8 @@ def test_get_ds_info(experiment):
         'name': 'results',
         'structure': None,
         'records': 0,
-        'guid': dataset.guid
+        'guid': dataset.guid,
+        'inspectr_tag': ''
     }
 
     ds_info = get_ds_info(dataset, get_structure=False)

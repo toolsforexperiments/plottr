@@ -129,7 +129,8 @@ class SortableTreeWidgetItem(QtWidgets.QTreeWidgetItem):
 class RunList(QtWidgets.QTreeWidget):
     """Shows the list of runs for a given date selection."""
 
-    cols = ['Run ID', 'Experiment', 'Sample', 'Name', 'Started', 'Completed', 'Records', 'GUID']
+    cols = ['Run ID', 'Tag', 'Experiment', 'Sample', 'Name', 'Started', 'Completed', 'Records', 'GUID']
+    tag_dict = {'': '', 'star': '⭐', 'cross': '❌'}
 
     runSelected = Signal(int)
     runActivated = Signal(int)
@@ -144,22 +145,36 @@ class RunList(QtWidgets.QTreeWidget):
         self.itemActivated.connect(self.activateRun)
 
         self.setContextMenuPolicy(QtCore.Qt.CustomContextMenu)
-        self.customContextMenuRequested.connect(self.copy_to_clipboard)
+        self.customContextMenuRequested.connect(self.showContextMenu)
 
     @Slot(QtCore.QPoint)
-    def copy_to_clipboard(self, position: QtCore.QPoint) -> None:
+    def showContextMenu(self, position: QtCore.QPoint) -> None:
+        model_index = self.indexAt(position)
+        item = self.itemFromIndex(model_index)
+        current_tag_char = item.text(1)
+
         menu = QtWidgets.QMenu()
+
         copy_icon = self.style().standardIcon(QtWidgets.QStyle.SP_DialogSaveButton)
         copy_action = menu.addAction(copy_icon, "Copy")
+
+        star_action = self.window().starAction
+        star_action.setText('Star' if current_tag_char != self.tag_dict['star'] else 'Unstar')
+        menu.addAction(star_action)
+
+        cross_action = self.window().crossAction
+        cross_action.setText('Cross' if current_tag_char != self.tag_dict['cross'] else 'Uncross')
+        menu.addAction(cross_action)
+
         action = menu.exec_(self.mapToGlobal(position))
         if action == copy_action:
-            model_index = self.indexAt(position)
-            item = self.itemFromIndex(model_index)
             QtWidgets.QApplication.clipboard().setText(item.text(
                 model_index.column()))
 
     def addRun(self, runId: int, **vals: str) -> None:
         lst = [str(runId)]
+        tag = vals.get('inspectr_tag', '')
+        lst.append(self.tag_dict.get(tag, tag))  # if the tag is not in tag_dict, display in text
         lst.append(vals.get('experiment', ''))
         lst.append(vals.get('sample', ''))
         lst.append(vals.get('name', ''))
@@ -171,14 +186,18 @@ class RunList(QtWidgets.QTreeWidget):
         item = SortableTreeWidgetItem(lst)
         self.addTopLevelItem(item)
 
-    def setRuns(self, selection: Dict[int, Dict[str, str]]) -> None:
+    def setRuns(self, selection: Dict[int, Dict[str, str]], show_only_star: bool, show_also_cross: bool) -> None:
         self.clear()
 
         # disable sorting before inserting values to avoid performance hit
         self.setSortingEnabled(False)
 
         for runId, record in selection.items():
-            self.addRun(runId, **record)
+            tag = record.get('inspectr_tag', '')
+            if show_only_star and tag == '':
+                continue
+            elif show_also_cross or tag != 'cross':
+                self.addRun(runId, **record)
 
         self.setSortingEnabled(True)
 
@@ -348,6 +367,15 @@ class QCodesDBInspector(QtWidgets.QMainWindow):
         self.autoLaunchPlots.setToolTip(tt)
         self.toolbar.addWidget(self.autoLaunchPlots)
 
+        self.showOnlyStarAction = self.toolbar.addAction(RunList.tag_dict['star'])
+        self.showOnlyStarAction.setToolTip('Show only starred runs')
+        self.showOnlyStarAction.setCheckable(True)
+        self.showOnlyStarAction.triggered.connect(self.updateRunList)
+        self.showAlsoCrossAction = self.toolbar.addAction(RunList.tag_dict['cross'])
+        self.showAlsoCrossAction.setToolTip('Show also crossed runs')
+        self.showAlsoCrossAction.setCheckable(True)
+        self.showAlsoCrossAction.triggered.connect(self.updateRunList)
+
         # menu bar
         menu = self.menuBar()
         fileMenu = menu.addMenu('&File')
@@ -363,6 +391,18 @@ class QCodesDBInspector(QtWidgets.QMainWindow):
         refreshAction.setShortcut('R')
         refreshAction.triggered.connect(self.refreshDB)
         fileMenu.addAction(refreshAction)
+
+        # action: star/unstar the selected run
+        self.starAction = QtWidgets.QAction()
+        self.starAction.setShortcut('Ctrl+Alt+S')
+        self.starAction.triggered.connect(self.starSelectedRun)
+        self.addAction(self.starAction)
+
+        # action: cross/uncross the selected run
+        self.crossAction = QtWidgets.QAction()
+        self.crossAction.setShortcut('Ctrl+Alt+X')
+        self.crossAction.triggered.connect(self.crossSelectedRun)
+        self.addAction(self.crossAction)
 
         # sizing
         scaledSize = 640 * rint(self.logicalDpiX() / 96.0)
@@ -500,6 +540,15 @@ class QCodesDBInspector(QtWidgets.QMainWindow):
         logger().debug('Refreshing DB')
         self.refreshDB()
 
+    @Slot()
+    def updateRunList(self) -> None:
+        if self.dbdf is None:
+            return
+        selection = self.dbdf.loc[self.dbdf['started_date'].isin(self._selected_dates)].sort_index(ascending=False)
+        show_only_star = self.showOnlyStarAction.isChecked()
+        show_also_cross = self.showAlsoCrossAction.isChecked()
+        self.runList.setRuns(selection.to_dict(orient='index'), show_only_star, show_also_cross)
+
     ### handling user selections
     @Slot(list)
     def setDateSelection(self, dates: Sequence[str]) -> None:
@@ -508,7 +557,9 @@ class QCodesDBInspector(QtWidgets.QMainWindow):
             selection = self.dbdf.loc[self.dbdf['started_date'].isin(dates)].sort_index(ascending=False)
             old_dates = self._selected_dates
             if not all(date in old_dates for date in dates):
-                self.runList.setRuns(selection.to_dict(orient='index'))
+                show_only_star = self.showOnlyStarAction.isChecked()
+                show_also_cross = self.showAlsoCrossAction.isChecked()
+                self.runList.setRuns(selection.to_dict(orient='index'), show_only_star, show_also_cross)
             else:
                 self.runList.updateRuns(selection.to_dict(orient='index'))
             self._selected_dates = tuple(dates)
@@ -529,6 +580,7 @@ class QCodesDBInspector(QtWidgets.QMainWindow):
         for k, v in structure.items():
             v.pop('values')
         contentInfo = {'Data structure': structure,
+                       'Metadata': ds.metadata,
                        'QCoDeS Snapshot': snap}
         self._sendInfo.emit(contentInfo)
 
@@ -541,6 +593,41 @@ class QCodesDBInspector(QtWidgets.QMainWindow):
             'window': win,
         }
         win.showTime()
+
+    def setTag(self, item: QtWidgets.QTreeWidgetItem, tag: str) -> None:
+        # set tag in the database
+        assert self.filepath is not None
+        runId = int(item.text(0))
+        ds = load_dataset_from(self.filepath, runId)
+        ds.add_metadata('inspectr_tag', tag)
+
+        # set tag in self.dbdf
+        assert self.dbdf is not None
+        self.dbdf.at[runId, 'inspectr_tag'] = tag
+
+        # set tag in the GUI
+        tag_char = self.runList.tag_dict[tag]
+        item.setText(1, tag_char)
+
+        # refresh the RunInfo widget
+        self.setRunSelection(runId)
+
+    def tagSelectedRun(self, tag: str) -> None:
+        for item in self.runList.selectedItems():
+            current_tag_char = item.text(1)
+            tag_char = self.runList.tag_dict[tag]
+            if current_tag_char == tag_char:  # if already tagged
+                self.setTag(item, '')  # clear tag
+            else:  # if not tagged
+                self.setTag(item, tag)  # set tag
+
+    @Slot()
+    def starSelectedRun(self) -> None:
+        self.tagSelectedRun('star')
+
+    @Slot()
+    def crossSelectedRun(self) -> None:
+        self.tagSelectedRun('cross')
 
 
 class WindowDict(TypedDict):
