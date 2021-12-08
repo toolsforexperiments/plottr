@@ -58,7 +58,18 @@ You might want to install freshly if you still use the old version.
 
 # Recent changes:
 
-## 2021-11-11
+## v0.8.1 2021-11-30
+
+### Added
+
+- Test with python 3.10 and mark as supported (#238)
+
+### Fixed
+
+- add missing init file to config dir (#236)
+- Use a regular install in tests (#237)
+
+## v0.8.0 2021-11-11
 
 ### Added
 
