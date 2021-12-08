@@ -23,6 +23,7 @@ from ..node.scaleunits import ScaleUnits
 from ..node.grid import DataGridder, GridOption
 from ..node.tools import linearFlowchart
 from ..node.node import Node
+from ..node.histogram import Histogrammer
 from ..plot import PlotNode, makeFlowchartWithPlot, PlotWidget
 from ..plot.pyqtgraph.autoplot import AutoPlot as PGAutoPlot
 from ..utils.misc import unwrap_optional
@@ -345,6 +346,7 @@ def autoplotDDH5(filepath: str = '', groupname: str = 'data') \
         ('Data loader', DDH5Loader),
         ('Data selection', DataSelector),
         ('Grid', DataGridder),
+        ('Histogram', Histogrammer),
         ('Dimension assignment', XYSelector),
         ('plot', PlotNode)
     )
@@ -352,6 +354,8 @@ def autoplotDDH5(filepath: str = '', groupname: str = 'data') \
     widgetOptions = {
         "Data selection": dict(visible=True,
                                dockArea=QtCore.Qt.TopDockWidgetArea),
+        "Histogram": dict(visible=False,
+                          dockArea=QtCore.Qt.TopDockWidgetArea),
         "Dimension assignment": dict(visible=True,
                                      dockArea=QtCore.Qt.TopDockWidgetArea),
     }
