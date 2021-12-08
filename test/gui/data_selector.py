@@ -1,4 +1,4 @@
-from plottr import QtGui
+from plottr import QtGui, QtWidgets
 from plottr.gui.tools import widgetDialog
 from plottr.node.data_selector import DataSelector
 from plottr.node.tools import linearFlowchart
@@ -8,7 +8,7 @@ from plottr.utils import testdata
 def test_data_selector():
     fc = linearFlowchart(('selector', DataSelector))
     selector = fc.nodes()['selector']
-    dialog = widgetDialog(selector.ui, 'selector')
+    dialog = widgetDialog(selector.ui, title='selector')
 
     data = testdata.three_incompatible_3d_sets(2, 2, 2)
     fc.setInput(dataIn=data)
@@ -26,4 +26,7 @@ def test_data_selector():
 
 
 if __name__ == '__main__':
-    test_data_selector()
+    app = QtWidgets.QApplication([])
+    dialog, fc = test_data_selector()
+    dialog.show()
+    app.exec_()
