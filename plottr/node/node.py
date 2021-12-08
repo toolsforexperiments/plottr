@@ -101,6 +101,8 @@ def emitGuiUpdate(signalName: str) -> Callable[[Callable[..., Any]], Callable[..
     return decorator
 
 
+# TODO: should we add a list of options to the class?
+#   that would allow programmatic syncing from node to widget, for instance.
 class Node(NodeBase):
     """Base class of the Node we use for plotter.
 
@@ -250,6 +252,7 @@ class Node(NodeBase):
         return True
 
     # TODO: should think about nodes with multiple inputs -- how would this look then?
+    # FIXME: return should only be Optional[Dict[str, DataDictBase]]
     def process(self, dataIn: Optional[DataDictBase]=None) -> Optional[Dict[str, Optional[DataDictBase]]]:
         if dataIn is None:
             return None
@@ -305,7 +308,7 @@ class Node(NodeBase):
             if dtype != self.dataType:
                 _typeChanged = True
 
-            if set(self.dataAxes, self.dataDependents, self.dataShapes, self.dataStructure) is not {None}:
+            if {self.dataAxes, self.dataDependents, self.dataShapes, self.dataStructure} is not {None}:
                 _axesChanged = True
                 _fieldsChanged = True
                 _typeChanged = True
