@@ -181,9 +181,15 @@ class Histogrammer(Node):
             if dataIsComplex:
                 newAxNames = [f'Im[{depName}]', f'Re[{depName}]']
                 newAxUnits = 2*[data[depName]['unit']]
+                realAxVals = np.outer(np.ones_like(edges[0][:-1]),
+                                      edges[1][:-1] + (edges[1][1:] - edges[1][:-1])).flatten()
+                imagAxVals = np.outer(edges[0][:-1] + (edges[0][1:] - edges[0][:-1]),
+                                      np.ones_like(edges[1][:-1])).flatten()
+                axVals = [imagAxVals, realAxVals]
             else:
                 newAxNames = [depName]
                 newAxUnits = [data[depName]['unit']]
+                axVals = [edges[0][:-1] + (edges[0][1:] - edges[0][:-1])]
 
             newData[newDepName] = dict(
                 values=hist,
@@ -191,16 +197,11 @@ class Histogrammer(Node):
             )
 
             # expand onto grid and add to dataset
-            for an, au, av in zip(newAxNames, newAxUnits, edges):
-                # compute the centers of the bins
-                xe = edges[0]
-                dx = xe[1:] - xe[:-1]
-                xs = xe[:-1] + dx
-
+            for an, au, av in zip(newAxNames, newAxUnits, axVals):
                 newData[an] = dict(
                     values=np.outer(
-                        np.ones(int(hist.size//xs.size)),
-                        xs
+                        np.ones(int(hist.size//av.size)),
+                        av
                     ).reshape(*hist.shape),
                     unit=au,
                 )

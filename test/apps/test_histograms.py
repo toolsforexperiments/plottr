@@ -55,7 +55,7 @@ def complex_testdata(n_samples=100, n_amps=21):
     samples = np.arange(n_samples)
     amps = np.arange(n_amps)
     ss, aa = np.meshgrid(samples, amps, indexing='ij')
-    locs = aa * np.exp(-1j * 0.5 * np.pi)
+    locs = aa * np.exp(-1j * 0.1 * np.pi)
     values_real = np.random.normal(loc=locs.real, scale=0.5, size=ss.shape)
     values_imag = np.random.normal(loc=locs.imag, scale=0.5, size=ss.shape)
     vv = values_real + 1j*values_imag
