@@ -51,7 +51,27 @@ def testdata(n_reps=100, n_extra_axes=1):
     return dataset
 
 
-def complex_testdata(n_samples=100, n_amps=4, n_phases=8, n_widths=3):
+def complex_testdata(n_samples=100, n_amps=21):
+    samples = np.arange(n_samples)
+    amps = np.arange(n_amps)
+    ss, aa = np.meshgrid(samples, amps, indexing='ij')
+    locs = aa * np.exp(-1j * 0.5 * np.pi)
+    values_real = np.random.normal(loc=locs.real, scale=0.5, size=ss.shape)
+    values_imag = np.random.normal(loc=locs.imag, scale=0.5, size=ss.shape)
+    vv = values_real + 1j*values_imag
+
+    dataset = DataDict(
+        sample=dict(values=ss.flatten()),
+        amp=dict(values=aa.flatten()),
+        result=dict(values=vv.flatten(),
+                    axes=['sample', 'amp'])
+    )
+
+    if dataset.validate():
+        return dataset
+
+
+def complex_testdata_many_independents(n_samples=100, n_amps=4, n_phases=8, n_widths=3):
     samples = np.arange(n_samples)
     amps = np.arange(n_amps)+1.
     phases = np.linspace(0, 2*np.pi*(1.-1./n_phases), n_phases)
@@ -143,7 +163,7 @@ dselnode: DataSelector = fc.nodes()['Data selection']
 dimnode: XYSelector = fc.nodes()['Dimension assignment']
 
 # dataset = testdata(n_extra_axes=2)
-dataset = complex_testdata(n_samples=1000, n_amps=3, n_phases=4)
+dataset = complex_testdata(n_samples=100, n_amps=21)
 
 fc.setInput(dataIn=dataset)
 dselnode.selectedData = ['result']
