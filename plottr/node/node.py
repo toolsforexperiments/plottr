@@ -257,6 +257,9 @@ class Node(NodeBase):
         if dataIn is None:
             return None
 
+        if not isinstance(dataIn, DataDictBase):
+            raise ValueError('Unsupported data format provided.')
+
         _axesChanged = False
         _fieldsChanged = False
         _typeChanged = False
@@ -264,57 +267,37 @@ class Node(NodeBase):
         _shapesChanged = False
         _depsChanged = False
 
-        if isinstance(dataIn, DataDictBase):
+        dtype = type(dataIn)
+        daxes = dataIn.axes()
+        ddeps = dataIn.dependents()
+        dshapes = dataIn.shapes()
+        dstruct = dataIn.structure(add_shape=False)
 
-            dtype = type(dataIn)
-            daxes = dataIn.axes()
-            ddeps = dataIn.dependents()
-            dshapes = dataIn.shapes()
-            dstruct = dataIn.structure(add_shape=False)
-
-            if None in [self.dataAxes, self.dataDependents, self.dataType, self.dataShapes]:
-                _axesChanged = True
-                _fieldsChanged = True
-                _typeChanged = True
-                _structChanged = True
-                _shapesChanged = True
-                _depsChanged = True
-
-            else:
-                if daxes != self.dataAxes:
-                    _fieldsChanged = True
-                    _structChanged = True
-                    _axesChanged = True
-
-                if ddeps != self.dataDependents:
-                    _fieldsChanged = True
-                    _structChanged = True
-                    _depsChanged = True
-
-                if dtype != self.dataType:
-                    _typeChanged = True
-                    _structChanged = True
-
-                if dshapes != self.dataShapes:
-                    _shapesChanged = True
+        if None in [self.dataAxes, self.dataDependents, self.dataType, self.dataShapes]:
+            _axesChanged = True
+            _fieldsChanged = True
+            _typeChanged = True
+            _structChanged = True
+            _shapesChanged = True
+            _depsChanged = True
 
         else:
-            dtype = type(dataIn)
-            daxes = None
-            ddeps = None
-            dshapes = None
-            dstruct = None
+            if daxes != self.dataAxes:
+                _fieldsChanged = True
+                _structChanged = True
+                _axesChanged = True
+
+            if ddeps != self.dataDependents:
+                _fieldsChanged = True
+                _structChanged = True
+                _depsChanged = True
 
             if dtype != self.dataType:
                 _typeChanged = True
-
-            if {self.dataAxes, self.dataDependents, self.dataShapes, self.dataStructure} is not {None}:
-                _axesChanged = True
-                _fieldsChanged = True
-                _typeChanged = True
                 _structChanged = True
+
+            if dshapes != self.dataShapes:
                 _shapesChanged = True
-                _depsChanged = True
 
         self.dataAxes = daxes
         self.dataDependents = ddeps
