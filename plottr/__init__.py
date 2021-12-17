@@ -96,7 +96,7 @@ def config(names: Optional[List[str]] = None) -> \
     for name in names:
         modn = f"plottrcfg_{name}"
         filen = f"{modn}.py"
-        this_cfg = {}
+        this_cfg: Dict[str, Any] = {}
         for filep in configFiles(filen)[::-1]:
             spec = spec_from_file_location(modn, filep)
             if spec is None:
