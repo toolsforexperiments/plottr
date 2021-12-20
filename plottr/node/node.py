@@ -18,7 +18,6 @@ __author__ = 'Wolfgang Pfaff'
 __license__ = 'MIT'
 
 
-# TODO: implement a threaded version of Node
 R = TypeVar('R', bound="Node")
 S = TypeVar('S')
 T = TypeVar('T')
@@ -102,6 +101,8 @@ def emitGuiUpdate(signalName: str) -> Callable[[Callable[..., Any]], Callable[..
     return decorator
 
 
+# TODO: should we add a list of options to the class?
+#   that would allow programmatic syncing from node to widget, for instance.
 class Node(NodeBase):
     """Base class of the Node we use for plotter.
 
@@ -135,6 +136,10 @@ class Node(NodeBase):
     #: signal emitted when available data axes change
     #: emits a the list of names of new axes
     dataAxesChanged = Signal(list)
+
+    #: signal emitted when available dependents change
+    #: emits a the list of names of new dependents
+    dataDependentsChanged = Signal(list)
 
     #: signal emitted when any available data fields change (dep. and indep.)
     #: emits a the list of names of new axes
@@ -246,41 +251,46 @@ class Node(NodeBase):
         """
         return True
 
+    # TODO: should think about nodes with multiple inputs -- how would this look then?
+    # FIXME: return should only be Optional[Dict[str, DataDictBase]]
     def process(self, dataIn: Optional[DataDictBase]=None) -> Optional[Dict[str, Optional[DataDictBase]]]:
         if dataIn is None:
             return None
 
-        if isinstance(dataIn, DataDictBase):
-            dtype = type(dataIn)
-            daxes = dataIn.axes()
-            ddeps = dataIn.dependents()
-            dshapes = dataIn.shapes()
+        if not isinstance(dataIn, DataDictBase):
+            raise ValueError('Unsupported data format provided.')
 
-            _axesChanged = False
-            _fieldsChanged = False
-            _typeChanged = False
-            _structChanged = False
-            _shapesChanged = False
+        _axesChanged = False
+        _fieldsChanged = False
+        _typeChanged = False
+        _structChanged = False
+        _shapesChanged = False
+        _depsChanged = False
 
-            if self.dataAxes is None and daxes is not None:
+        dtype = type(dataIn)
+        daxes = dataIn.axes()
+        ddeps = dataIn.dependents()
+        dshapes = dataIn.shapes()
+        dstruct = dataIn.structure(add_shape=False)
+
+        if None in [self.dataAxes, self.dataDependents, self.dataType, self.dataShapes]:
+            _axesChanged = True
+            _fieldsChanged = True
+            _typeChanged = True
+            _structChanged = True
+            _shapesChanged = True
+            _depsChanged = True
+
+        else:
+            if daxes != self.dataAxes:
                 _fieldsChanged = True
                 _structChanged = True
                 _axesChanged = True
-            elif self.dataAxes is not None and daxes is None:
-                assert daxes is not None and self.dataAxes is not None
-                if set(daxes) != set(self.dataAxes):
-                    _axesChanged = True
-                    _fieldsChanged = True
-                    _structChanged = True
 
-            if self.dataDependents is None and ddeps is not None:
+            if ddeps != self.dataDependents:
                 _fieldsChanged = True
                 _structChanged = True
-            else:
-                assert ddeps is not None and self.dataDependents is not None
-                if set(ddeps) != set(self.dataDependents):
-                    _fieldsChanged = True
-                    _structChanged = True
+                _depsChanged = True
 
             if dtype != self.dataType:
                 _typeChanged = True
@@ -289,39 +299,31 @@ class Node(NodeBase):
             if dshapes != self.dataShapes:
                 _shapesChanged = True
 
-            self.dataAxes = daxes
-            self.dataDependents = ddeps
-            self.dataType = dtype
-            self.dataShapes = dshapes
-            self.dataStructure = dataIn.structure(add_shape=False)
+        self.dataAxes = daxes
+        self.dataDependents = ddeps
+        self.dataType = dtype
+        self.dataShapes = dshapes
+        self.dataStructure = dstruct
 
-            if _axesChanged:
-                self.dataAxesChanged.emit(daxes)
+        if _axesChanged:
+            self.dataAxesChanged.emit(daxes)
 
-            if _fieldsChanged:
-                self.dataFieldsChanged.emit(daxes + ddeps)
+        if _depsChanged:
+            self.dataDependentsChanged.emit(ddeps)
 
-            if _typeChanged:
-                self.dataTypeChanged.emit(dtype)
+        if _fieldsChanged:
+            self.dataFieldsChanged.emit(daxes + ddeps)
 
-            if _structChanged:
-                self.dataStructureChanged.emit(self.dataStructure)
-                self.newDataStructure.emit(
-                    self.dataStructure, self.dataShapes, self.dataType)
+        if _typeChanged:
+            self.dataTypeChanged.emit(dtype)
 
-            if _shapesChanged and not _structChanged:
-                self.dataShapesChanged.emit(dshapes)
+        if _structChanged:
+            self.dataStructureChanged.emit(self.dataStructure)
+            self.newDataStructure.emit(
+                self.dataStructure, self.dataShapes, self.dataType)
 
-        else:
-            dtype = type(dataIn)
-            daxes = None
-            ddeps = None
-            dshapes = None
-
-            if dtype != self.dataType:
-                _typeChanged = True
-            if _typeChanged:
-                self.dataTypeChanged.emit(dtype)
+        if _shapesChanged and not _structChanged:
+            self.dataShapesChanged.emit(dshapes)
 
         if not self.validateOptions(dataIn):
             self.logger().debug("Option validation not passed")
