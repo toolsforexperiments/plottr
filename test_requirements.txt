@@ -1,5 +1,5 @@
 qcodes
 pytest
 pytest-qt
-mypy
+mypy==0.910
 PyQt5-stubs
