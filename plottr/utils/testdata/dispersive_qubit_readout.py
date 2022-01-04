@@ -66,7 +66,7 @@ if __name__ == '__main__':
     data = angle_data(np.pi/2., n=1000)
     extent = np.abs(data).max()
     hist, xe, ye = np.histogram2d(data.real, data.imag,
-                                  bins=np.linspace(-extent, extent, 51))
+                                  bins=list(np.linspace(-extent, extent, 51)))
     fig, ax = plt.subplots(1, 1)
     im = ax.pcolormesh(xe, ye, hist.T)
     cb = fig.colorbar(im)
