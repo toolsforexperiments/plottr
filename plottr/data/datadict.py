@@ -968,7 +968,7 @@ class DataDict(DataDictBase):
                 datavals = self.data_vals(d)
                 rows = datavals.reshape(-1, int(np.prod(ishp[d])))
 
-            _idxs = np.array([])
+            _idxs: np.ndarray = np.array([])
 
             # get indices of all rows that are fully None
             if len(ishp[d]) == 0:
