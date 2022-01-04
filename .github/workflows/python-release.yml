@@ -17,9 +17,11 @@ jobs:
       with:
         python-version: '3.7'
     - uses: ./.github/actions/install-dependencies-and-plottr
+    - name: Install build deps
+      run: pip install --upgrade build
     - name: Build
       run: |
-        python setup.py sdist bdist_wheel
+        python -m build
     - name: Install Twine
       run: pip install twine
     - name: Publish
