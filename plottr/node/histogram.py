@@ -88,14 +88,8 @@ class Histogrammer(Node):
 
     :nbins: ``int``
         number of bins.
-    :reductions: ``Dict[str, (callable, *args, **kwargs)]``
-        reduction functions. Keys are the axis names the reductions are applied
-        to; values are tuples of the reduction function, and optional
-        arguments and kw-arguments.
-        The function can also be via :class:`ReductionMethod`.
-        The function must accept an ``axis = <int>`` keyword, and must return
-        an array of dimensionality that is reduced by one compared to its
-        input.
+    :histogramAxis: ``str``
+        name of the axis over which to perform the histogramming.
     """
 
     useUi = True
