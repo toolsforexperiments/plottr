@@ -58,7 +58,30 @@ You might want to install freshly if you still use the old version.
 
 # Recent changes:
 
-## 2021-11-11
+## v0.9.0 2021-12-20
+
+### Added
+
+* Add new analysis node for creating histogram of data by @wpfff in https://github.com/toolsforexperiments/plottr/pull/241
+
+### Fixed
+
+* bugfix: prevent flushing when we are updating data. by @wpfff in https://github.com/toolsforexperiments/plottr/pull/243
+* fix type checking with mypy 920 by @jenshnielsen in https://github.com/toolsforexperiments/plottr/pull/248
+* Bump minimum version of pyqtgraph by @jenshnielsen in https://github.com/toolsforexperiments/plottr/pull/247
+
+## v0.8.1 2021-11-30
+
+### Added
+
+- Test with python 3.10 and mark as supported (#238)
+
+### Fixed
+
+- add missing init file to config dir (#236)
+- Use a regular install in tests (#237)
+
+## v0.8.0 2021-11-11
 
 ### Added
 

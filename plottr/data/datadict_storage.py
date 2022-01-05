@@ -197,6 +197,10 @@ def write_data_to_file(datadict: DataDict,
         raise RuntimeError('Group does not exist, initialize file first.')
     grp = f[groupname]
 
+    # TODO: this should become a more robust solution.
+    #   should prevent writing anything in non-swmr mode when there's danger
+    #   that another process is reading.
+    #   also should detect if we can currently write anything.
     # if we want to use swmr, we need to make sure that we're not
     # creating any more objects (see hdf5 docs).
     allexist = True
@@ -208,7 +212,6 @@ def write_data_to_file(datadict: DataDict,
     for k, v in datadict.meta_items(clean_keys=False):
         set_attr(grp, k, v)
 
-    f.flush()
     if allexist and swmr_mode and not f.swmr_mode:
         f.swmr_mode = True
 

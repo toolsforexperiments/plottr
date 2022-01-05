@@ -23,7 +23,10 @@ __author__ = 'Wolfgang Pfaff'
 __license__ = 'MIT'
 
 if TYPE_CHECKING:
-    from qcodes.dataset.data_set import DataSet
+    try:
+        from qcodes.dataset import DataSetProtocol
+    except ImportError:
+        from qcodes.dataset.data_set import DataSet as DataSetProtocol
     from qcodes import ParamSpec
 
 
@@ -68,7 +71,7 @@ class DataSetInfoDict(TypedDict):
 
 
 def get_ds_structure(
-        ds: 'DataSet'
+        ds: 'DataSetProtocol'
 ) -> DataSetStructureDict:
     """
     Return the structure of the dataset, i.e., a dictionary in the form
@@ -112,7 +115,7 @@ def get_ds_structure(
     return structure
 
 
-def get_ds_info(ds: 'DataSet', get_structure: bool = True) -> DataSetInfoDict:
+def get_ds_info(ds: 'DataSetProtocol', get_structure: bool = True) -> DataSetInfoDict:
     """
     Get some info on a DataSet in dict.
 
@@ -157,7 +160,7 @@ def get_ds_info(ds: 'DataSet', get_structure: bool = True) -> DataSetInfoDict:
     return data
 
 
-def load_dataset_from(path: str, run_id: int) -> 'DataSet':
+def load_dataset_from(path: str, run_id: int) -> 'DataSetProtocol':
     """
     Loads ``DataSet`` with the given ``run_id`` from a database file that
     is located in in the given ``path``.
@@ -211,7 +214,7 @@ def get_runs_from_db_as_dataframe(path: str) -> pd.DataFrame:
 
 # Extracting data
 
-def ds_to_datadicts(ds: 'DataSet') -> Dict[str, DataDict]:
+def ds_to_datadicts(ds: 'DataSetProtocol') -> Dict[str, DataDict]:
     """
     Make DataDicts from a qcodes DataSet.
 
@@ -242,7 +245,7 @@ def ds_to_datadicts(ds: 'DataSet') -> Dict[str, DataDict]:
     return ret
 
 
-def ds_to_datadict(ds: 'DataSet') -> DataDictBase:
+def ds_to_datadict(ds: 'DataSetProtocol') -> DataDictBase:
     ddicts = ds_to_datadicts(ds)
     ddict = combine_datadicts(*[v for k, v in ddicts.items()])
     return ddict
@@ -258,7 +261,7 @@ class QCodesDSLoader(Node):
     def __init__(self, *arg: Any, **kw: Any):
         self._pathAndId: Tuple[Optional[str], Optional[int]] = (None, None)
         self.nLoadedRecords = 0
-        self._dataset: Optional[DataSet] = None
+        self._dataset: Optional[DataSetProtocol] = None
 
         super().__init__(*arg, **kw)
 

@@ -19,14 +19,15 @@ def dpiScalingFactor(widget: QtWidgets.QWidget) -> float:
     return scaling
 
 
-def widgetDialog(widget: QtWidgets.QWidget, title: str = '',
+def widgetDialog(*widget: QtWidgets.QWidget, title: str = '',
                  show: bool = True) -> QtWidgets.QDialog:
     win = QtWidgets.QDialog()
     win.setWindowTitle('plottr ' + title)
     layout = QtWidgets.QVBoxLayout()
     layout.setContentsMargins(0, 0, 0, 0)
     layout.setSpacing(0)
-    layout.addWidget(widget)
+    for w in widget:
+        layout.addWidget(w)
     win.setLayout(layout)
     if show:
         win.show()

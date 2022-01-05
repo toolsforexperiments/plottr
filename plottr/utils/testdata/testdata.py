@@ -12,7 +12,7 @@ import numpy as np
 from plottr.data.datadict import DataDict
 
 
-def generate_2d_scalar_simple(nx: int, ny: int, ndeps: int = 1) -> Iterable[Dict[str, int]]:
+def generate_2d_scalar_simple(nx: int, ny: int, ndeps: int = 1) -> Iterable[Dict[str, float]]:
     """
     Generate 2d example data, with axes x, y.
 
@@ -34,9 +34,9 @@ def generate_2d_scalar_simple(nx: int, ny: int, ndeps: int = 1) -> Iterable[Dict
     xx, yy = np.meshgrid(x, y, indexing='ij')
 
     for x, y in zip(xx.reshape(-1), yy.reshape(-1)):
-        ret = dict(x=x, y=y)
+        ret = dict(x=float(x), y=float(y))
         for n in range(ndeps):
-            ret[f'z_{n}'] = x * y * n
+            ret[f'z_{n}'] = float(x * y * n)
         yield ret
 
 
