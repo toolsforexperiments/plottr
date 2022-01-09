@@ -1284,7 +1284,7 @@ def combine_datadicts(*dicts: DataDict) -> Union[DataDictBase, DataDict]:
 
 
 def datastructure_from_string(description: str) -> DataDict:
-    """Construct a DataDict from a string description.
+    r"""Construct a DataDict from a string description.
 
     Examples
     --------
