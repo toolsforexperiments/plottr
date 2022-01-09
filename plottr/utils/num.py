@@ -70,8 +70,7 @@ def _are_invalid(a: np.ndarray, b: np.ndarray) -> np.ndarray:
 
 
 def arrays_equal(a: np.ndarray, b: np.ndarray,
-                 rtol: float = 1e-8, raise_shape_mismatch: bool = False) \
-        -> bool:
+                 rtol: Optional[float] = None) -> bool:
     """Check if two numpy arrays are equal, content-wise.
 
     Perform the following checks:
@@ -85,26 +84,18 @@ def arrays_equal(a: np.ndarray, b: np.ndarray,
     :param a: 1st numpy array
     :param b: 2nd numpy array
     :param rtol: relative uncertainty tolerance. see `numpy.isclose`.
-    :param raise_shape_mismatch: if True, raise `ValueError` when shapes
-                                 are unequal. If `False`, return `False` in that
-                                 case.
     :return: `True`, if all element-wise checks are `True`. `False`
              otherwise.
     :raises: `ValueError` if shapes of `a` and `b` don't match
     """
     if a.shape != b.shape:
-        if raise_shape_mismatch:
-            raise ValueError('Shapes are not equal.')
-        else:
-            return False
+        return False
 
-    close: Union[np.ndarray, np.bool_] = np.zeros(a.shape, dtype=bool)
-    if a.dtype in FLOATTYPES and b.dtype in FLOATTYPES:
+    close: Union[np.ndarray, np.bool_] = np.zeros_like(a, dtype=bool)
+    if rtol is not None and a.dtype in FLOATTYPES and b.dtype in FLOATTYPES:
         close = _are_close(a, b, rtol=rtol)
-
     equal = _are_equal(a, b)
     invalid = _are_invalid(a, b)
-
     return bool(np.all(equal | close | invalid))
 
 
