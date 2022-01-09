@@ -62,76 +62,10 @@ class DataDictBase(dict):
 
     def __eq__(self, other: object) -> bool:
         """Check for content equality of two datadicts."""
-
-        # TODO: require a version that ignores metadata.
-        # FIXME: proper comparison of arrays for metadata.
-        # FIXME: arrays can be equal even if dtypes are not
-
         if not isinstance(other, DataDictBase):
-            return NotImplemented
-
-        if not self.same_structure(self, other):
-            # print('structure')
             return False
-
-        for k, v in self.meta_items():
-            if k not in [kk for kk, vv in other.meta_items()]:
-                # print(f'{k} not in {other}')
-                return False
-            elif other.meta_val(k) != v:
-                # print(f'{other.meta_val(k)} != {v}')
-                return False
-
-        for k, v in other.meta_items():
-            if k not in [kk for kk, vv in self.meta_items()]:
-                # print(f'{k} not in {self}')
-                return False
-
-        for dn, dv in self.data_items():
-            # print(dn)
-            if dn not in [dnn for dnn, dvv in other.data_items()]:
-                # print(f"{dn} not in {other}")
-                return False
-
-            if self[dn].get('unit', '') != other[dn].get('unit', ''):
-                # print(f"different units for {dn}")
-                return False
-
-            if self[dn].get('label', '') != other[dn].get('label', ''):
-                # print(f"different labels for {dn}")
-                return False
-
-            if self[dn].get('axes', []) != other[dn].get('axes', []):
-                # print(f"different axes for {dn}")
-                return False
-
-            if not num.arrays_equal(
-                np.array(self.data_vals(dn)),
-                np.array(other.data_vals(dn)),
-            ):
-                # print(f"different data for {dn}")
-                return False
-
-            for k, v in self.meta_items(dn):
-                if k not in [kk for kk, vv in other.meta_items(dn)]:
-                    # print(f"{dn}: {k} not in {other}")
-                    return False
-                elif v != other.meta_val(k, dn):
-                    # print(f"{v} != {other.meta_val(k, dn)}")
-                    return False
-
-        for dn, dv in other.data_items():
-            # print(dn)
-            if dn not in [dnn for dnn, dvv in self.data_items()]:
-                # print(f"{dn} not in {other}")
-                return False
-
-            for k, v in other.meta_items(dn):
-                if k not in [kk for kk, vv in self.meta_items(dn)]:
-                    # print(f"{dn}: {k} not in {other}")
-                    return False
-
-        return True
+        else:
+            return datasets_are_equal(self, other)
 
     # Assignment and retrieval of data and meta data
 
@@ -1350,7 +1284,7 @@ def combine_datadicts(*dicts: DataDict) -> Union[DataDictBase, DataDict]:
 
 
 def datastructure_from_string(description: str) -> DataDict:
-    """Construct a DataDict from a string description.
+    r"""Construct a DataDict from a string description.
 
     Examples
     --------
@@ -1465,5 +1399,71 @@ def datastructure_from_string(description: str) -> DataDict:
 
     return DataDict(**dd)
 
-
+#: shortcut to :func:`.datastructure_from_string`.
 str2dd = datastructure_from_string
+
+
+def datasets_are_equal(a: DataDictBase, b: DataDictBase,
+                       ignore_meta: bool = False) -> bool:
+    """Check whether two datasets are equal.
+
+    Compares type, structure, and content of all fields.
+
+    :param a: first dataset
+    :param b: second dataset
+    :param ignore_meta: if ``True``, do not verify if metadata matches.
+    :returns: ``True`` or ``False``
+    """
+
+    if not type(a) == type(b):
+        return False
+
+    if not a.same_structure(a, b):
+        return False
+
+    if not ignore_meta:
+        # are all meta data of a also in b, and are they the same value?
+        for k, v in a.meta_items():
+            if k not in [kk for kk, vv in b.meta_items()]:
+                return False
+            elif b.meta_val(k) != v:
+                return False
+
+        # are all meta data of b also in a?
+        for k, v in b.meta_items():
+            if k not in [kk for kk, vv in a.meta_items()]:
+                return False
+
+    # check all data fields in a
+    for dn, dv in a.data_items():
+
+        # are all fields also present in b?
+        if dn not in [dnn for dnn, dvv in b.data_items()]:
+            return False
+
+        # check if data is equal
+        if not num.arrays_equal(
+                np.array(a.data_vals(dn)),
+                np.array(b.data_vals(dn)),
+        ):
+            return False
+
+        if not ignore_meta:
+            # check meta data
+            for k, v in a.meta_items(dn):
+                if k not in [kk for kk, vv in b.meta_items(dn)]:
+                    return False
+                elif v != b.meta_val(k, dn):
+                    return False
+
+    # only thing left to check is whether there are items in b but not a
+    for dn, dv in b.data_items():
+        if dn not in [dnn for dnn, dvv in a.data_items()]:
+            return False
+
+        if not ignore_meta:
+            for k, v in b.meta_items(dn):
+                if k not in [kk for kk, vv in a.meta_items(dn)]:
+                    return False
+
+    return True
