@@ -19,7 +19,7 @@ import time
 import datetime
 import uuid
 from enum import Enum
-from typing import Any, Union, Optional, Dict, Type, Collection, Literal
+from typing import Any, Union, Optional, Dict, Type, Collection
 from types import TracebackType
 from pathlib import Path
 
@@ -321,10 +321,13 @@ class FileOpener:
     """Class for opening files while respecting file system locks."""
 
     def __init__(self, path: Path,
-                 mode: Literal['r', 'w', 'w-', 'a'] = 'r',
+                 mode: str = 'r',
                  timeout: float = 10.,
                  test_delay: float = 0.1):
         self.path = path
+
+        if mode not in ['r', 'w', 'w-', 'a']:
+            raise ValueError("Only 'r', 'w', 'w-', 'a' modes are supported.")
         self.mode = mode
         self.timeout = timeout
         self.test_delay = test_delay
