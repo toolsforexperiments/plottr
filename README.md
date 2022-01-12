@@ -54,9 +54,15 @@ You might want to install freshly if you still use the old version.
 * the usual: numpy, mpl, ...
 * pandas >= 0.22
 * xarray
-* pyqtgraph >= 0.10.0
+* pyqtgraph >= 0.12.1
 
 # Recent changes:
+
+## v0.9.1 2022-01-12
+
+### Added
+
+- Fixed a crash bug with python 3.10 (#257)
 
 ## v0.9.0 2021-12-20
 
