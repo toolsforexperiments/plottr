@@ -12,6 +12,7 @@ import logging
 from enum import Enum, auto
 from pathlib import Path
 import re
+import pprint
 
 from watchdog.events import FileSystemEvent
 
@@ -188,6 +189,16 @@ class FileTree(QtWidgets.QTreeWidget):
         self.setHeaderLabel('Files')
         self.refresh_tree(dic)
 
+        # Popup menu.
+        self.delete_popup_action = QtWidgets.QAction('Delete')
+
+        self.popup_menu = QtWidgets.QMenu(self)
+        self.popup_menu.addAction(self.delete_popup_action)
+
+        self.delete_popup_action.triggered.connect(self.delete_selected_item_from_directory)
+        self.itemChanged.connect(self.renaming_item)
+
+
     def clear(self):
         """
         Clears the tree, including the main_items_dictionary.
@@ -313,12 +324,14 @@ class FileTree(QtWidgets.QTreeWidget):
 
         # Create the new TreeWidgetItem.
         tree_widget_item = TreeWidgetItem(file_or_folder_path, [str(file_or_folder_path.name)])
+        tree_widget_item.setFlags(tree_widget_item.flags() | QtCore.Qt.ItemIsEditable)
 
         # Create and add child items if necessary.
         if files_dict is not None:
             for file_key, file_type in files_dict.items():
                 child = TreeWidgetItem(file_key, [str(file_key.name)])
                 child.setForeground(0, ContentType.sort_color(file_type))
+                child.setFlags(child.flags() | QtCore.Qt.ItemIsEditable)
                 self.main_items_dictionary[file_key] = child
                 tree_widget_item.addChild(child)
         if parent_path is None:
@@ -365,13 +378,85 @@ class FileTree(QtWidgets.QTreeWidget):
         """
         if old_path in self.main_items_dictionary:
             self.main_items_dictionary[new_path] = self.main_items_dictionary.pop(old_path)
+            self.main_items_dictionary[new_path].path = new_path
             self.main_items_dictionary[new_path].setText(0, str(new_path.name))
             if new_color is not None:
                 self.main_items_dictionary[new_path].setForeground(0, ContentType.sort_color(new_color))
 
+    @Slot(QtCore.QPoint)
+    def on_context_menu_requested(self, pos: QtCore.QPoint):
+        """Shows the context menu when a right click happens"""
+        item = self.itemAt(pos)
+        if item is not None:
+            self.popup_menu.exec_(self.mapToGlobal(pos))
+
+    def delete_selected_item_from_directory(self):
+        """Gets triggered when the user clicks on the delete option of the popup menu.
+
+        Creates a warning before deleting the file or folder. If a folder is being deleted creates a second warning.
+        """
+
+        item = self.currentItem()
+        warning_msg = QtWidgets.QMessageBox()
+        ret = warning_msg.question(self, 'WARNING', f'Are you sure you want to delete: {item.path} \n '
+                                                    f'This process is COMPLETELY IRREVERSIBLE. '
+                                                    f'The file will NOT be possible to recover '
+                                                    f'at ALL after deletion.',
+                                   warning_msg.No | warning_msg.Yes)
+        if ret == warning_msg.Yes:
+            if item.path.is_file():
+                item.path.unlink()
+            if item.path.is_dir():
+                second_warning = QtWidgets.QMessageBox()
+                second_ret = second_warning.question(self, 'WARNING', f'{item.path} is about to be deleted with'
+                                                                      f' anything inside of it. Please confirm again'
+                                                                      f' you want to delete this entire directory'
+                                                                      f' with all of its containing subdirectories',
+                                                     second_warning.No | second_warning.Yes)
+                if second_ret == second_warning.Yes:
+                    self._delete_entire_folder(item.path)
+                else:
+                    second_warning.information(self, 'WARNING', f'folder will not be deleted.')
+        else:
+            warning_msg.information(self, 'WARNING', 'file will not be deleted.')
+
+    def _delete_entire_folder(self, folder_path: Path):
+        """
+        Deletes every itme inside the folder_path, including any subdirectories.
+
+        :param folder_path: The folder that is going to be deleted.
+        """
+        for item in folder_path.iterdir():
+            if item.is_file():
+                item.unlink()
+            elif item.is_dir():
+                self._delete_entire_folder(item)
+        folder_path.rmdir()
+
+    @Slot(QtWidgets.QTreeWidgetItem, int)
+    def renaming_item(self, item, column):
+        """
+        Triggered every time an item changes text. If the text of the item changed because the file changed name,
+        the file gets the name changed again for the same name so nothing happens. If the user changes the name in the
+        GUI, the file or folder gets the name changed and that triggers the watchdog event that updates the rest of the
+        program. If an error while changing the name happens, the text is not changed and a message pops with the error.
+        """
+        new_text = item.text(column)
+        path = item.path
+        try:
+            new_path = path.rename(path.parent.joinpath(new_text))
+        except Exception as e:
+            # Reset the text of the item
+            self.main_items_dictionary[path].setText(0, str(path.name))
+            # Show the error message
+            error_msg = QtWidgets.QMessageBox()
+            error_msg.setText(f"{e}")
+            error_msg.setWindowTitle(f'Could not rename directory.')
+            error_msg.exec_()
+
 
 # TODO: look over logger and start utilizing in a similar way like instrument server is being used right now.
-# TODO: Test deletion of nested folder situations for large da+-ta files to see if this is fast enough.
+# TODO: Test deletion of nested folder situations for large data files to see if this is fast enough.
 class Monitr(QtWidgets.QMainWindow):
 
     def __init__(self, monitorPath: str = '.',
@@ -391,8 +476,11 @@ class Monitr(QtWidgets.QMainWindow):
         self.dummy_widget = QtWidgets.QWidget()
 
         # Buttons
-        self.expand_all_button = QtWidgets.QPushButton('Expand all.')
+        self.expand_all_button = QtWidgets.QPushButton('Expand all')
         self.collapse_all_button = QtWidgets.QPushButton('Collapse all')
+        self.refresh_button = QtWidgets.QPushButton('Refresh')
+
+        self.horizontal_layout.addWidget(self.refresh_button)
         self.horizontal_layout.addWidget(self.expand_all_button)
         self.horizontal_layout.addWidget(self.collapse_all_button)
 
@@ -407,7 +495,20 @@ class Monitr(QtWidgets.QMainWindow):
         self.dummy_widget.setLayout(self.vertical_layout)
         self.setCentralWidget(self.dummy_widget)
 
+        # debug items
+        self.debug_layout = QtWidgets.QHBoxLayout()
+        self.main_dict_button = QtWidgets.QPushButton(f'Print main dictionary')
+        self.tree_main_dict_button = QtWidgets.QPushButton(f'print tree dict')
+        self.debug_layout.addWidget(self.main_dict_button)
+        self.debug_layout.addWidget(self.tree_main_dict_button)
+        self.main_dict_button.clicked.connect(self.print_main_dictionary)
+        self.tree_main_dict_button.clicked.connect(self.print_tree_main_dictionary)
+        self.vertical_layout.addLayout(self.debug_layout)
+
         # Create the first tree.
+        self.tree.setContextMenuPolicy(QtCore.Qt.CustomContextMenu)
+        self.tree.customContextMenuRequested.connect(self.tree.on_context_menu_requested)
+
         self.refresh_files()
 
         # Set the watcher.
@@ -425,6 +526,7 @@ class Monitr(QtWidgets.QMainWindow):
 
         self.expand_all_button.clicked.connect(self.tree.expandAll)
         self.collapse_all_button.clicked.connect(self.tree.collapseAll)
+        self.refresh_button.clicked.connect(self.refresh_files)
         self.filter_line_edit.textEdited.connect(self.tree.filter_items)
 
         self.watcher_thread.start()
@@ -632,6 +734,18 @@ class Monitr(QtWidgets.QMainWindow):
         Gets called every time a file is closed
         """
         pass
+
+    # Debug function
+    @Slot()
+    def print_main_dictionary(self):
+        """Debug function. Prints main dictionary"""
+        pprint.pprint(self.main_dictionary)
+
+    # Debug function
+    @Slot()
+    def print_tree_main_dictionary(self):
+        """Debug function. Prints the tree main dictionary"""
+        pprint.pprint(self.tree.main_items_dictionary)
 
 
 def script() -> int:
