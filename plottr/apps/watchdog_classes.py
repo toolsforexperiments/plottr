@@ -56,18 +56,28 @@ class WatcherClient(QtCore.QObject):
     QtHandler.
     """
     # Signal(FileSystemEvent) -- Emitted when a file is closed.
+    #: Arguments:
+    #:   - The FileSystemEvent with the information for the closed directory event.
     closed = Signal(FileSystemEvent)
 
     # Signal(FileSystemEvent) -- Emitted when a file is deleted.
+    #: Arguments:
+    #:   - The FileSystemEvent with the information for the deleted directory event.
     deleted = Signal(FileSystemEvent)
 
     # Signal(FileSystemEvent) -- Emitted when a file is moved.
+    #: Arguments:
+    #:   - The FileSystemEvent with the information for the moved directory event.
     moved = Signal(FileSystemEvent)
 
     # Signal(FileSystemEvent) -- Emitted when a file is created.
+    #: Arguments:
+    #:   - The FileSystemEvent with the information for the created directory event.
     created = Signal(FileSystemEvent)
 
     # Signal(FileSystemEvent) -- Emitted when a file is modified.
+    #: Arguments:
+    #:   - The FileSystemEvent with the information for the modified directory event.
     modified = Signal(FileSystemEvent)
 
     def __init__(self, directory):

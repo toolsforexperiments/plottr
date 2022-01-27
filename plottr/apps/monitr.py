@@ -95,6 +95,8 @@ class Monitr_depreceated(QtWidgets.QMainWindow):
     @Slot(str)
     def plotSelected(self, group: str) -> None:
         self.plot(unwrap_optional(self.selectedFile), group)
+        print(f'what are you selectedFile: {self.selectedFile}')
+        print(f'what are you group: {group}')
 
     def plot(self, filePath: str, group: str) -> None:
         plotApp = 'plottr.apps.autoplot.autoplotDDH5'
@@ -181,6 +183,10 @@ class FileTree(QtWidgets.QTreeWidget):
     All QTreeWidgetItems are stored in self.main_items_dictionary where the key is the path they represent,
     and the value is the actual TreeWidgetItem.
     """
+    # Signal(Path) -- Emitted when the user selects the plot option in the popup menu.
+    #: Arguments:
+    #:   - The path of the ddh5 with the data for the requested plot.
+    plot_requested = Signal(Path)
 
     def __init__(self, dic, monitor_path, parent=None):
         super().__init__(parent=parent)
@@ -191,10 +197,11 @@ class FileTree(QtWidgets.QTreeWidget):
 
         # Popup menu.
         self.delete_popup_action = QtWidgets.QAction('Delete')
+        self.plot_popup_action = QtWidgets.QAction('Plot')
 
         self.popup_menu = QtWidgets.QMenu(self)
-        self.popup_menu.addAction(self.delete_popup_action)
 
+        self.plot_popup_action.triggered.connect(self.emit_plot_requested_signal)
         self.delete_popup_action.triggered.connect(self.delete_selected_item_from_directory)
         self.itemChanged.connect(self.renaming_item)
 
@@ -220,7 +227,7 @@ class FileTree(QtWidgets.QTreeWidget):
                 item.setHidden(False)
         else:
             try:
-                filter_pattern = re.compile(filter_str)
+                filter_pattern = re.compile(filter_str, flags=re.IGNORECASE)
                 # Hide all items.
                 for item in self.main_items_dictionary.values():
                     item.setHidden(True)
@@ -312,7 +319,7 @@ class FileTree(QtWidgets.QTreeWidget):
 
         # Check if the new item should have a parent item. If the new item should have a parent, but this does
         # not yet exist, create it.
-        if file_or_folder_path == self.monitor_path:
+        if file_or_folder_path.parent == self.monitor_path:
             parent_item, parent_path = None, None
         elif file_or_folder_path.parent in self.main_items_dictionary:
             parent_item, parent_path = \
@@ -388,14 +395,26 @@ class FileTree(QtWidgets.QTreeWidget):
         """Shows the context menu when a right click happens"""
         item = self.itemAt(pos)
         if item is not None:
-            self.popup_menu.exec_(self.mapToGlobal(pos))
+            # If the item clicked is ddh5, also show the plot option.
+            if ContentType.sort(item.path) == ContentType.data:
+                self.popup_menu.addAction(self.plot_popup_action)
+                self.popup_menu.addSeparator()
+                self.popup_menu.addAction(self.delete_popup_action)
+                self.popup_menu.exec_(self.mapToGlobal(pos))
+                self.popup_menu.removeAction(self.plot_popup_action)
+                self.popup_menu.removeAction(self.delete_popup_action)
+            else:
+                # Only show the delete option.
+                self.popup_menu.addAction(self.delete_popup_action)
+                self.popup_menu.exec_(self.mapToGlobal(pos))
+                self.popup_menu.removeAction(self.delete_popup_action)
+
 
     def delete_selected_item_from_directory(self):
         """Gets triggered when the user clicks on the delete option of the popup menu.
 
         Creates a warning before deleting the file or folder. If a folder is being deleted creates a second warning.
         """
-
         item = self.currentItem()
         warning_msg = QtWidgets.QMessageBox()
         ret = warning_msg.question(self, 'WARNING', f'Are you sure you want to delete: {item.path} \n '
@@ -453,6 +472,14 @@ class FileTree(QtWidgets.QTreeWidget):
             error_msg.setText(f"{e}")
             error_msg.setWindowTitle(f'Could not rename directory.')
             error_msg.exec_()
+
+    @Slot()
+    def emit_plot_requested_signal(self):
+        """
+        Emits the signal when the user selects the plot option in the popup menu. The signal is emitted with the Path of
+        the current selected item as an argument.
+        """
+        self.plot_requested.emit(self.currentItem().path)
 
 
 # TODO: look over logger and start utilizing in a similar way like instrument server is being used right now.
@@ -512,7 +539,7 @@ class Monitr(QtWidgets.QMainWindow):
         self.refresh_files()
 
         # Set the watcher.
-        self.watcher_thread = QtCore.QThread()
+        self.watcher_thread = QtCore.QThread(parent=self)
         self.watcher = WatcherClient(self.monitor_path)
         self.watcher.moveToThread(self.watcher_thread)
         self.watcher_thread.started.connect(self.watcher.run)
@@ -528,6 +555,8 @@ class Monitr(QtWidgets.QMainWindow):
         self.collapse_all_button.clicked.connect(self.tree.collapseAll)
         self.refresh_button.clicked.connect(self.refresh_files)
         self.filter_line_edit.textEdited.connect(self.tree.filter_items)
+
+        self.tree.plot_requested.connect(self.plot_data)
 
         self.watcher_thread.start()
 
@@ -624,44 +653,72 @@ class Monitr(QtWidgets.QMainWindow):
         Updates both the `main_dictionary` and the file tree.
         """
         logger().info(f'moved: {event}')
-        src_path = Path(event.src_path)
-        dest_path = Path(event.dest_path)
-        if event.is_directory:
-            if src_path in self.main_dictionary:
-                self.main_dictionary[dest_path] = self.main_dictionary.pop(src_path)
+        if event.src_path is not None and event.dest_path is not None:
+            src_path = Path(event.src_path)
+            dest_path = Path(event.dest_path)
+            if event.is_directory:
+                if src_path in self.main_dictionary:
+                    self.main_dictionary[dest_path] = self.main_dictionary.pop(src_path)
+
+                # The change might be to a parent folder which is not being kept track of in the main_dictionary,
+                # but still needs updating in the GUI.
                 self.tree.update_item(src_path, dest_path)
 
-        elif src_path.suffix != dest_path.suffix:
-            # If a file becomes a ddh5, create a new ddh5 and delete the old entry.
-            if src_path.suffix != '.ddh5' and dest_path.suffix == '.ddh5':
-                # Checks if the new ddh5 is in an already kept track folder. If so delete the out of data info.
-                if src_path.parent in self.main_dictionary:
-                    del self.main_dictionary[src_path.parent][src_path]
-                    self.tree.delete_item(src_path)
-
-                self._add_new_ddh5_file(dest_path)
-            # If a file stops being a ddh5.
-            elif src_path.suffix == '.ddh5' and dest_path.suffix != '.ddh5':
-                # Check how many ddh5 files in the parent folder.
-                ddh5_files = [file for file in self.main_dictionary[src_path.parent].keys() if file.suffix == '.ddh5']
-                # If just 1 or less, delete the entire folder.
-                if len(ddh5_files) <= 1:
-                    self._delete_parent_folder(src_path)
+            elif src_path.suffix != dest_path.suffix:
+                # If a file becomes a ddh5, create a new ddh5 and delete the old entry.
+                if src_path.suffix != '.ddh5' and dest_path.suffix == '.ddh5':
+                    # Checks if the new ddh5 is in an already kept track folder. If so delete the out of data info.
+                    if src_path.parent in self.main_dictionary:
+                        del self.main_dictionary[src_path.parent][src_path]
+                        self.tree.delete_item(src_path)
+                    elif dest_path.parent in self.main_dictionary:
+                        del self.main_dictionary[dest_path.parent][src_path]
+                        self.tree.delete_item(src_path)
+                    self._add_new_ddh5_file(dest_path)
+                # If a file stops being a ddh5.
+                elif src_path.suffix == '.ddh5' and dest_path.suffix != '.ddh5':
+                    # Check how many ddh5 files in the parent folder.
+                    ddh5_files = [file for file in self.main_dictionary[src_path.parent].keys() if file.suffix == '.ddh5']
+                    # If just 1 or less, delete the entire folder.
+                    if len(ddh5_files) <= 1:
+                        self._delete_parent_folder(src_path)
+                    else:
+                        # TODO: get here and particularly test this case.
+                        self._update_change_of_file_type(src_path, dest_path)
                 else:
-                    del self.main_dictionary[src_path.parent][src_path]
-                    self.main_dictionary[src_path.parent][dest_path] = ContentType.sort(dest_path)
-                    self.tree.update_item(src_path, dest_path, self.main_dictionary[src_path.parent][dest_path])
-            else:
-                # A different non-ddh5 has changed type.
+                    # A different non-ddh5 has changed type.
+                    self._update_change_of_file_type(src_path, dest_path)
+
+            # Checks if a file changed names but not the type of file.
+            elif src_path.parent in self.main_dictionary:
                 del self.main_dictionary[src_path.parent][src_path]
                 self.main_dictionary[src_path.parent][dest_path] = ContentType.sort(dest_path)
-                self.tree.update_item(src_path, dest_path, self.main_dictionary[src_path.parent][dest_path])
+                self.tree.update_item(src_path, dest_path)
+            elif dest_path.parent in self.main_dictionary:
+                del self.main_dictionary[dest_path.parent][src_path]
+                self.main_dictionary[dest_path.parent][dest_path] = ContentType.sort(dest_path)
+                self.tree.update_item(src_path, dest_path)
 
-        # Checks if a file changed names but not the type of file.
-        elif src_path.parent in self.main_dictionary:
+            # The change might be to a parent folder which is not being kept track of in the main_dictionary, but still
+            # needs updating in the GUI.
+            else:
+                self.tree.update_item(src_path, dest_path)
+
+    def _update_change_of_file_type(self, src_path: Path, dest_path: Path):
+        """
+        Helper function that updates a file that has changed its file type.
+
+        :param src_path: The path of the file before the modification.
+        :param dest_path: The path of the file after the modification.
+        """
+        if src_path.parent in self.main_dictionary:
             del self.main_dictionary[src_path.parent][src_path]
             self.main_dictionary[src_path.parent][dest_path] = ContentType.sort(dest_path)
-            self.tree.update_item(src_path, dest_path)
+            self.tree.update_item(src_path, dest_path, self.main_dictionary[src_path.parent][dest_path])
+        elif dest_path.parent in self.main_dictionary:
+            del self.main_dictionary[dest_path.parent][src_path]
+            self.main_dictionary[dest_path.parent][dest_path] = ContentType.sort(dest_path)
+            self.tree.update_item(src_path, dest_path, self.main_dictionary[dest_path.parent][dest_path])
 
     def _add_new_ddh5_file(self, path: Path):
         """
@@ -734,6 +791,16 @@ class Monitr(QtWidgets.QMainWindow):
         Gets called every time a file is closed
         """
         pass
+
+    @Slot(Path)
+    def plot_data(self, path):
+        """
+        Starts an autoplot window in a different process for the ddh5 in the path
+
+        :param path: The Path item directing to the ddh5 file that should be plotted.
+         """
+        plot_app = 'plottr.apps.autoplot.autoplotDDH5'
+        process = launchApp(plot_app, str(path), 'data')
 
     # Debug function
     @Slot()
