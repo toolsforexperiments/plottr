@@ -97,8 +97,6 @@ class Monitr_depreceated(QtWidgets.QMainWindow):
     @Slot(str)
     def plotSelected(self, group: str) -> None:
         self.plot(unwrap_optional(self.selectedFile), group)
-        print(f'what are you selectedFile: {self.selectedFile}')
-        print(f'what are you group: {group}')
 
     def plot(self, filePath: str, group: str) -> None:
         plotApp = 'plottr.apps.autoplot.autoplotDDH5'
@@ -1218,7 +1216,6 @@ class Monitr(QtWidgets.QMainWindow):
                  file_type == ContentType.image]
         files = sorted(files, key=lambda x: os.path.getmtime(x[0]))
         files.reverse()
-        pprint.pprint(files)
         for file, file_type in files:
             if file_type == ContentType.json:
                 json_view = Collapsible(widget=QtWidgets.QTreeView(), title=file.name, expanding=False)
