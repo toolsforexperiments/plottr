@@ -13,17 +13,19 @@ from enum import Enum, auto
 from pathlib import Path
 import re
 import pprint
+import json
 
 from watchdog.events import FileSystemEvent
 
 from .. import log as plottrlog
 from .. import QtCore, QtWidgets, Signal, Slot, QtGui
-from ..data.datadict_storage import all_datadicts_from_hdf5
+from ..data.datadict_storage import all_datadicts_from_hdf5, datadict_from_hdf5
 from ..utils.misc import unwrap_optional
+from ..apps.watchdog_classes import WatcherClient
+from ..gui.widgets import Collapsible
+from .json_veiwer import JsonModel
 
 from .ui.Monitr_UI import Ui_MainWindow
-
-from plottr.apps.watchdog_classes import WatcherClient
 
 
 class Monitr_depreceated(QtWidgets.QMainWindow):
@@ -124,6 +126,8 @@ class ContentType(Enum):
     data = auto()
     tag = auto()
     json = auto()
+    md = auto()
+    image = auto()
     unknown = auto()
 
     @classmethod
@@ -136,13 +140,17 @@ class ContentType(Enum):
         """
         if not isinstance(file, str):
             file = str(file)
-        extension = file.split(".")[-1]
+        extension = file.split(".")[-1].lower()
         if extension == 'ddh5':
             return ContentType.data
         elif extension == 'tag':
             return ContentType.tag
         elif extension == 'json':
             return ContentType.json
+        elif extension == 'md':
+            return ContentType.md
+        elif extension == 'jpg' or extension == 'jpeg' or extension == 'png':
+            return ContentType.image
         else:
             return ContentType.unknown
 
@@ -188,6 +196,11 @@ class FileTree(QtWidgets.QTreeWidget):
     #:   - The path of the ddh5 with the data for the requested plot.
     plot_requested = Signal(Path)
 
+    # Signal(Path) -- Emitted when the user clicks on an item.
+    #: Arguments:
+    #:   - The path that the item represents.
+    item_selected = Signal(Path)
+
     def __init__(self, dic, monitor_path, parent=None):
         super().__init__(parent=parent)
         self.main_items_dictionary = {}
@@ -204,7 +217,7 @@ class FileTree(QtWidgets.QTreeWidget):
         self.plot_popup_action.triggered.connect(self.emit_plot_requested_signal)
         self.delete_popup_action.triggered.connect(self.delete_selected_item_from_directory)
         self.itemChanged.connect(self.renaming_item)
-
+        self.itemClicked.connect(self.item_clicked)
 
     def clear(self):
         """
@@ -409,7 +422,6 @@ class FileTree(QtWidgets.QTreeWidget):
                 self.popup_menu.exec_(self.mapToGlobal(pos))
                 self.popup_menu.removeAction(self.delete_popup_action)
 
-
     def delete_selected_item_from_directory(self):
         """Gets triggered when the user clicks on the delete option of the popup menu.
 
@@ -481,6 +493,301 @@ class FileTree(QtWidgets.QTreeWidget):
         """
         self.plot_requested.emit(self.currentItem().path)
 
+    @Slot(QtWidgets.QTreeWidgetItem, int)
+    def item_clicked(self, item, column):
+        """
+        Gets called every time the user clicks on an item. Emits item_selected signal.
+        """
+        self.item_selected.emit(item.path)
+
+
+# TODO: Right now the data display only updates when you click on the parent folder. What happens if data is created
+#   while the folder display is open. It should absolutely update.
+class DataTreeWidget(QtWidgets.QTreeWidget):
+    """
+    Widget that displays the data of all ddh5 files inside a folder.
+
+    Displays all basic metadata of each ddh5 file. Also opens a popup menu in the ddh5 parent item to plot it.
+    """
+
+    # Signal(Path) -- Emitted when the user selects the plot option in the popup menu.
+    #: Arguments:
+    #:   - The path of the ddh5 with the data for the requested plot.
+    plot_requested = Signal(Path)
+
+    def __init__(self, data_paths, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+
+        self.headerItem().setText(0, "Object")
+        self.headerItem().setText(1, "Content")
+        self.headerItem().setText(2, "Type")
+        self.paths = data_paths
+        self.data = [datadict_from_hdf5(str(data_file)) for data_file in self.paths]
+
+        # Popup menu.
+        self.plot_popup_action = QtWidgets.QAction('Plot')
+        self.popup_menu = QtWidgets.QMenu(self)
+
+        self.plot_popup_action.triggered.connect(self.emit_plot_requested_signal)
+
+        self.setContextMenuPolicy(QtCore.Qt.CustomContextMenu)
+        self.customContextMenuRequested.connect(self.on_context_menu_requested)
+
+        self.set_data()
+
+        # TODO: Test if the try-except statement here is truly necessary.
+        # try:
+        #     self.data = [datadict_from_hdf5(str(data_file)) for data_file in self.paths]
+        #     self.set_data()
+        # except Exception as e:
+        #     error_msg = QtWidgets.QMessageBox()
+        #     error_msg.setText(f'Could not load data: \n {e}')
+        #     error_msg.setWindowTitle(f'Data File Invalid.')
+        #     error_msg.exec_()
+
+    def set_data(self):
+        """
+        Fills the QTreeWidget with the data loaded in the self.data variable.
+        """
+
+        for index, data in enumerate(self.data):
+            parent_tree_widget = TreeWidgetItem(self.paths[index], self, [str(self.paths[index].name)])
+
+            data_parent = TreeWidgetItem(None, parent_tree_widget, ['Data'])
+            meta_parent = TreeWidgetItem(None, parent_tree_widget, ['Meta'])
+
+            for name, value in data.data_items():
+                column_content = [name, str(data.meta_val('shape', name))]
+                if name in data.dependents():
+                    column_content.append(f'Depends on {str(tuple(data.axes(name)))}')
+                else:
+                    column_content.append(f'Independent')
+
+                parameter_item = TreeWidgetItem(None, data_parent, column_content)
+
+                for meta_name, meta_value in data.meta_items(name):
+                    parameter_meta_item = TreeWidgetItem(None, parameter_item, [meta_name, str(meta_value)])
+
+            for name, value in data.meta_items():
+                parameter_meta_item = TreeWidgetItem(None, meta_parent, [name, str(value)])
+
+            parent_tree_widget.setExpanded(True)
+            data_parent.setExpanded(True)
+
+            for i in range(self.columnCount() - 1):
+                self.resizeColumnToContents(i)
+
+    @Slot(QtCore.QPoint)
+    def on_context_menu_requested(self, pos: QtCore.QPoint):
+        """
+        Gets called when the user right-clicks on an item.
+        """
+        item = self.itemAt(pos)
+        parent_item = item.parent()
+        # Check that the item is in fact a top level item and open the popup menu
+        if item is not None and parent_item is None:
+            self.popup_menu.addAction(self.plot_popup_action)
+            self.popup_menu.exec_(self.mapToGlobal(pos))
+            self.popup_menu.removeAction(self.plot_popup_action)
+
+    @Slot()
+    def emit_plot_requested_signal(self):
+        """
+        Emits the signal when the user selects the plot option in the popup menu. The signal is emitted with the Path of
+        the current selected item as an argument.
+        """
+        self.plot_requested.emit(self.currentItem().path)
+
+
+class FloatingButtonWidget(QtWidgets.QPushButton):
+    """
+    Floating button inside the textbox showing any md file. Allows to edit or save the file.
+
+    Class taken from: https://www.deskriders.dev/posts/007-pyqt5-overlay-button-widget/
+    """
+
+    # Signal() -- Emitted when the user activates save mode.
+    save_activated = Signal()
+
+    # Signal() -- Emitted when the user activates edit mode.
+    edit_activated = Signal()
+
+    def __init__(self, parent):
+        super().__init__(parent)
+        self.paddingLeft = 5
+        self.paddingTop = 5
+        self.edit_text = 'Edit'
+        self.save_text = 'Save'
+
+        # Start in save mode (True), since you cannot edit the text. Clicks the edit button to switch to edit mode and
+        # vice versa.
+        self.state = True
+        self.setText(self.edit_text)
+
+    def update_position(self):
+        """
+        Updates the position of the button if the textbox moves or changes shape.
+        """
+
+        if hasattr(self.parent(), 'viewport'):
+            parent_rect = self.parent().viewport().rect()
+        else:
+            parent_rect = self.parent().rect()
+
+        if not parent_rect:
+            return
+
+        x = parent_rect.width() - self.width() - self.paddingLeft
+        y = parent_rect.height() - self.height() - self.paddingTop
+        self.setGeometry(x, y, self.width(), self.height())
+
+    def resizeEvent(self, event):
+        """
+        Gets called every time the resizeEvents gets triggered.
+        """
+        super().resizeEvent(event)
+        self.update_position()
+
+    def mousePressEvent(self, event):
+        """
+        Gets called when the user clicks the button. Decides in which state the button is and what signal to emit.
+        Changes the state of the button afterwards.
+        """
+        if self.state:
+            self.edit_activated.emit()
+            self.state = False
+            self.setText(self.save_text)
+        else:
+            self.save_activated.emit()
+            self.state = True
+            self.setText(self.edit_text)
+
+
+class TextEditWidget(QtWidgets.QTextEdit):
+    """
+    Widget that displays md files that are in the same folder as a ddh5 file.
+
+    It contains a floating button that allows for editing and saving changes done in the editing phase. Text is not
+    editable before clicking the button.
+    """
+
+    def __init__(self, path: Path, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.path = path
+
+        self.floating_button = FloatingButtonWidget(parent=self)
+
+        with open(path) as file:
+            self.file_text = file.read()
+        self.setReadOnly(True)
+        self.setText(self.file_text)
+        self.text_before_edit = self.toPlainText()
+        self.floating_button.save_activated.connect(self.save_activated)
+        self.floating_button.edit_activated.connect(self.edit_activated)
+
+    def resizeEvent(self, event):
+        """
+        Called every time the size of the widget changes. Triggers the change in position of the floating button.
+        """
+        super().resizeEvent(event)
+        self.floating_button.update_position()
+
+    # TODO: Add a shortcut to finish editing both here and in the future the add comment line too with the same command.
+    # TODO: When the saving fails, it completely deletes the old data that's in the markdown. Develop a system where you
+    #   try creating a new file, only once you have the new file replace the old one. To test this you need to pass the
+    #   wrong type of object to the file.write line and it will fail.
+    @Slot()
+    def save_activated(self):
+        """
+        Saves the file with the current status of the text. Disables the ability to edit the text.
+        """
+        self.setReadOnly(True)
+        try:
+            with open(self.path, 'w') as file:
+                file.write(self.toPlainText())
+        except Exception as e:
+            # Set text how it was before
+            self.setText(self.text_before_edit)
+            # Show the error message
+            error_msg = QtWidgets.QMessageBox()
+            error_msg.setText(f"{e}")
+            error_msg.setWindowTitle(f'Error trying to save markdown edit.')
+            error_msg.exec_()
+
+    @Slot()
+    def edit_activated(self):
+        """
+        Gets called when the user clicks the edit floating button. Allows the user to edit the textbox.
+        """
+        self.setReadOnly(False)
+        self.text_before_edit = self.toPlainText()
+
+
+# TODO: Make sure that I always have the up to date folder dictionary for the automatic comment name function
+class TextInput(QtWidgets.QWidget):
+    """
+    Widget that allows to add new comment in the form of md files to the currently selected folder.
+
+    Contains a button for saving and a text edit to write the comment.
+
+    :param path: The Path of the folder where the file should be saved.
+    :param folder_dictionary: The dictionary of the path from the main_dictionary variable of the main window. It is
+        used to see how many md files exists in the folder for the automatic name suggestion.
+    """
+    def __init__(self, path, folder_dictionary, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.path = path
+
+        # Get how many md files there are in the folder for the automatic naming functionality.
+        md_files = [file for file, file_type in folder_dictionary.items() if file_type == ContentType.md]
+        self.n_md_files = len(md_files) + 1
+
+        self.layout = QtWidgets.QHBoxLayout(self)
+        self.setLayout(self.layout)
+
+        self.text_edit = QtWidgets.QTextEdit()
+        self.save_button = QtWidgets.QPushButton("Save")
+
+        self.layout.addWidget(self.text_edit)
+        self.layout.addWidget(self.save_button)
+
+        self.save_button.clicked.connect(self.create_md_file)
+
+    def create_md_file(self):
+        """
+        Saves the new comment in a new md file.
+
+        When the user clicks the save button a dialog appears to input name. A default name is selected based on the
+        number of md files that already exists in that folder.
+        """
+        current_text = self.text_edit.toPlainText()
+        default_file_name = f'comment#{self.n_md_files}'
+        dialog_text, response = QtWidgets.QInputDialog.getText(self,
+                                                               "Input comment name",
+                                                               "Name:", text=str(default_file_name))
+
+        if response:
+            if dialog_text[-3:] != '.md':
+                dialog_text = dialog_text + '.md'
+            try:
+                comment_path = self.path.joinpath(dialog_text)
+                if not comment_path.is_file():
+                    with open(comment_path, 'w') as file:
+                        file.write(current_text)
+                    self.text_edit.setText('')
+                else:
+                    error_msg = QtWidgets.QMessageBox()
+                    error_msg.setText(f"File: {comment_path} already exists, please select a different file name.")
+                    error_msg.setWindowTitle(f'Error trying to save comment.')
+                    error_msg.exec_()
+
+            except Exception as e:
+                # Show the error message
+                error_msg = QtWidgets.QMessageBox()
+                error_msg.setText(f"{e}")
+                error_msg.setWindowTitle(f'Error trying to save comment.')
+                error_msg.exec_()
+
 
 # TODO: look over logger and start utilizing in a similar way like instrument server is being used right now.
 # TODO: Test deletion of nested folder situations for large data files to see if this is fast enough.
@@ -498,28 +805,46 @@ class Monitr(QtWidgets.QMainWindow):
         # Create GUI elements.
 
         # layout
-        self.vertical_layout = QtWidgets.QVBoxLayout()
-        self.horizontal_layout = QtWidgets.QHBoxLayout()
+        self.main_partition_layout = QtWidgets.QHBoxLayout()
+        self.file_tree_layout = QtWidgets.QVBoxLayout()
+        self.expand_collapse_refresh_layout = QtWidgets.QHBoxLayout()
         self.dummy_widget = QtWidgets.QWidget()
+
+        # Left side of the main window
 
         # Buttons
         self.expand_all_button = QtWidgets.QPushButton('Expand all')
         self.collapse_all_button = QtWidgets.QPushButton('Collapse all')
         self.refresh_button = QtWidgets.QPushButton('Refresh')
 
-        self.horizontal_layout.addWidget(self.refresh_button)
-        self.horizontal_layout.addWidget(self.expand_all_button)
-        self.horizontal_layout.addWidget(self.collapse_all_button)
+        # Adding buttons to layout
+        self.expand_collapse_refresh_layout.addWidget(self.refresh_button)
+        self.expand_collapse_refresh_layout.addWidget(self.expand_all_button)
+        self.expand_collapse_refresh_layout.addWidget(self.collapse_all_button)
 
         self.filter_line_edit = QtWidgets.QLineEdit()
         self.filter_line_edit.setPlaceholderText('filter items')
         self.tree = FileTree(self.main_dictionary, self.monitor_path)
-        self.vertical_layout.addWidget(self.filter_line_edit)
-        self.vertical_layout.addWidget(self.tree)
+        self.file_tree_layout.addWidget(self.filter_line_edit)
+        self.file_tree_layout.addWidget(self.tree)
 
-        self.vertical_layout.addLayout(self.horizontal_layout)
+        self.file_tree_layout.addLayout(self.expand_collapse_refresh_layout)
 
-        self.dummy_widget.setLayout(self.vertical_layout)
+        self.main_partition_layout.addLayout(self.file_tree_layout)
+
+        # Setting up the right part of the window.
+
+        # Setting internal variables for right side layout.
+        self.data_window = None
+        self.text_input = None
+        self.file_windows = []
+        self.tag_label = QtWidgets.QLabel()
+
+        self.right_side_layout = QtWidgets.QVBoxLayout()
+
+        self.main_partition_layout.addLayout(self.right_side_layout)
+
+        self.dummy_widget.setLayout(self.main_partition_layout)
         self.setCentralWidget(self.dummy_widget)
 
         # debug items
@@ -530,8 +855,9 @@ class Monitr(QtWidgets.QMainWindow):
         self.debug_layout.addWidget(self.tree_main_dict_button)
         self.main_dict_button.clicked.connect(self.print_main_dictionary)
         self.tree_main_dict_button.clicked.connect(self.print_tree_main_dictionary)
-        self.vertical_layout.addLayout(self.debug_layout)
+        self.file_tree_layout.addLayout(self.debug_layout)
 
+        # TODO: Move this into the tree itself. There is no reason for this to be here.
         # Create the first tree.
         self.tree.setContextMenuPolicy(QtCore.Qt.CustomContextMenu)
         self.tree.customContextMenuRequested.connect(self.tree.on_context_menu_requested)
@@ -557,6 +883,7 @@ class Monitr(QtWidgets.QMainWindow):
         self.filter_line_edit.textEdited.connect(self.tree.filter_items)
 
         self.tree.plot_requested.connect(self.plot_data)
+        self.tree.item_selected.connect(self.new_folder_selected)
 
         self.watcher_thread.start()
 
@@ -580,7 +907,9 @@ class Monitr(QtWidgets.QMainWindow):
                                 if 'data.ddh5' in walk_entry[2]}
         final_timer = time.time_ns() - start_timer
         logger().info(f'refreshing files took: {final_timer * 10 ** -9}s')
-        self.tree.refresh_tree(self.main_dictionary)
+
+        # Changed to not send any children
+        self.tree.refresh_tree({key: None for key in self.main_dictionary.keys()})
 
     @QtCore.Slot(FileSystemEvent)
     def file_created(self, event: FileSystemEvent):
@@ -600,7 +929,9 @@ class Monitr(QtWidgets.QMainWindow):
                 if path.parent in self.main_dictionary:
                     if path not in self.main_dictionary[path.parent]:
                         self.main_dictionary[path.parent].update({path: ContentType.sort(path.name)})
-                        self.tree.sort_and_add_tree_widget_item(path)
+
+                        # Changed to not add children to the tree
+                        # self.tree.sort_and_add_tree_widget_item(path)
 
     @QtCore.Slot(FileSystemEvent)
     def file_deleted(self, event: FileSystemEvent):
@@ -741,8 +1072,11 @@ class Monitr(QtWidgets.QMainWindow):
             new_entry = {
                 path.parent: {file: ContentType.sort(file) for file in path.parent.iterdir() if str(file.suffix) != ''}}
             self.main_dictionary.update(new_entry)
-            for file_path in new_entry[path.parent].keys():
-                self.tree.sort_and_add_tree_widget_item(file_path)
+            self.tree.sort_and_add_tree_widget_item(path.parent)
+
+            # Commented out to not show children
+            # for file_path in new_entry[path.parent].keys():
+            #     self.tree.sort_and_add_tree_widget_item(file_path)
 
     def _delete_parent_folder(self, path: Path):
         """
@@ -813,6 +1147,144 @@ class Monitr(QtWidgets.QMainWindow):
     def print_tree_main_dictionary(self):
         """Debug function. Prints the tree main dictionary"""
         pprint.pprint(self.tree.main_items_dictionary)
+
+
+    @Slot(Path)
+    def new_folder_selected(self, path):
+        """
+        Gets called when the user selects a folder in the main file tree. If the path is a folder containing a ddh5 file
+        it generates the right side of the screen.
+
+        :param path: The path of the folder being selected
+        """
+
+        if path in self.main_dictionary:
+            self.clear_right_layout()
+            self.add_data_window(path)
+            self.add_tag_label(path)
+            self.add_text_input(path)
+            self.add_all_files(path)
+
+    def add_data_window(self, path):
+        """
+        Create the widget to display the data.
+
+        :param path: The path of the folder being selected
+        """
+        data_files = [file for file, file_type in self.main_dictionary[path].items()
+                      if file_type == ContentType.data]
+
+        self.data_window = Collapsible(DataTreeWidget(data_files), 'Data Display')
+        self.data_window.widget.plot_requested.connect(self.plot_data)
+        self.right_side_layout.addWidget(self.data_window)
+
+    def add_tag_label(self, path):
+        """
+        Add the tags present in the folder selected.
+
+        :param path: The path of the folder being selected
+        """
+        labels = [str(label.name) for label, file_type in self.main_dictionary[path].items() if
+                  file_type == ContentType.tag]
+        if not labels:
+            labels = 'No labels present.'
+        else:
+            labels = ', '.join(labels)
+
+        self.tag_label = QtWidgets.QLabel()
+        self.tag_label.setText(labels)
+        self.right_side_layout.addWidget(self.tag_label)
+
+    def add_text_input(self, path):
+        """
+        Adds the widget to add a comment in the selected folder.
+
+        :param path: The path of the folder being selected
+        """
+        self.text_input = TextInput(path, self.main_dictionary[path])
+        self.right_side_layout.addWidget(self.text_input)
+
+    # TODO: Modify the complex number showing, so it shows real units instead of 0s and 1s.
+    def add_all_files(self, path):
+        """
+        Adds all other md, json or images files on the right side of the screen.
+
+        :param path: The path of the folder being selected.
+        """
+        # Generate a sorted list of the files I need to display a window
+        files = [(file, file_type) for file, file_type in self.main_dictionary[path].items()
+                 if file_type == ContentType.json or
+                 file_type == ContentType.md or
+                 file_type == ContentType.image]
+        files = sorted(files, key=lambda x: os.path.getmtime(x[0]))
+        files.reverse()
+        pprint.pprint(files)
+        for file, file_type in files:
+            if file_type == ContentType.json:
+                json_view = Collapsible(widget=QtWidgets.QTreeView(), title=file.name, expanding=False)
+
+                # Manually set the Collapsible to start collapsed.
+                json_view.widget.setVisible(False)
+                json_view.btn.setText(json_view.collapsedTitle)
+                json_view.btn.setChecked(False)
+
+                json_model = JsonModel(json_view)
+
+                json_view.widget.setModel(json_model)
+
+                with open(file) as json_file:
+                    json_model.load(json.load(json_file))
+
+                for i in range(len(json_model._headers)):
+                    json_view.widget.resizeColumnToContents(i)
+
+                self.file_windows.append(json_view)
+                self.right_side_layout.addWidget(json_view)
+
+            elif file_type == ContentType.md:
+                plain_text_edit = Collapsible(TextEditWidget(file), title=file.name)
+                self.file_windows.append(plain_text_edit)
+                self.right_side_layout.addWidget(plain_text_edit)
+
+            elif file_type == ContentType.image:
+                label = Collapsible(QtWidgets.QLabel(), title=file.name)
+
+                # Manually set the Collapsible to start collapsed.
+                label.widget.setVisible(False)
+                label.btn.setText(label.collapsedTitle)
+                label.btn.setChecked(False)
+
+                pixmap = QtGui.QPixmap(str(file))
+                label.widget.setPixmap(pixmap)
+
+                self.file_windows.append(label)
+                self.right_side_layout.addWidget(label)
+
+    def clear_right_layout(self):
+        """
+        Clears every item on the right side of the screen.
+        """
+
+        if self.data_window is not None:
+            self.right_side_layout.removeWidget(self.data_window)
+            self.data_window.deleteLater()
+            self.data_window = None
+
+        if self.tag_label is not None:
+            self.right_side_layout.removeWidget(self.tag_label)
+            self.tag_label.deleteLater()
+            self.tag_label = None
+
+        if self.text_input is not None:
+            self.right_side_layout.removeWidget(self.text_input)
+            self.text_input.deleteLater()
+            self.text_input = None
+
+        if len(self.file_windows) >= 1:
+            for window in self.file_windows:
+                self.right_side_layout.removeWidget(window)
+                window.deleteLater()
+            self.file_windows = []
 
 
 def script() -> int:
