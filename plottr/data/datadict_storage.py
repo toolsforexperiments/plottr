@@ -129,7 +129,7 @@ def _data_file_path(file: Union[str, Path], init_directory: bool = False) -> Pat
         path = Path(file)
     else:
         path = file
-    path = path.resolve()
+
     if path.suffix != f'.{DATAFILEXT}':
         path = Path(path.parent, path.stem + f'.{DATAFILEXT}')
     if init_directory:
