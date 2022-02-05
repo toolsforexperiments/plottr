@@ -405,7 +405,7 @@ class QCodesDBInspector(QtWidgets.QMainWindow):
         self.addAction(self.crossAction)
 
         # sizing
-        scaledSize = 640 * rint(self.logicalDpiX() / 96.0)
+        scaledSize = int(640 * rint(self.logicalDpiX() / 96.0))
         self.resize(scaledSize, scaledSize)
 
         ### Thread workers
