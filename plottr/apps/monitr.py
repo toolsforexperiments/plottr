@@ -24,6 +24,7 @@ from ..utils.misc import unwrap_optional
 from ..apps.watchdog_classes import WatcherClient
 from ..gui.widgets import Collapsible
 from .json_veiwer import JsonModel
+from ..icons import get_colormeshPlotIcon as get_star_icon, get_gridIcon as get_trash_icon
 
 from .ui.Monitr_UI import Ui_MainWindow
 
@@ -172,11 +173,15 @@ class TreeWidgetItem(QtWidgets.QTreeWidgetItem):
     Modified class of QtWidgets.QTreeWidgetItem where the only modification is the addition of the path parameter.
 
     :param path: The path this QTreeWidgetItem represents.
+    :param star: Indicates if this item is star.
+    :param trash: Indicates if this item is trash.
     """
 
-    def __init__(self, path: Path, *args, **kwargs):
+    def __init__(self, path: Path, star: bool = False, trash: bool = False, *args, **kwargs):
         super(TreeWidgetItem, self).__init__(*args, **kwargs)
         self.path = path
+        self.star = star
+        self.trash = trash
 
 
 # TODO: Check consistency in the type of argument required for the add, delete, modified methods (if they should accept
@@ -199,21 +204,48 @@ class FileTree(QtWidgets.QTreeWidget):
     #:   - The path that the item represents.
     item_selected = Signal(Path)
 
+    # Signal(Path) -- Emitted when the clicks on star_popup_action.
+    #: Arguments:
+    #:   - The path that the item represents.
+    item_starred = Signal(Path)
+
+    # Signal(Path) -- Emitted when the clicks on trash_popup_action.
+    #: Arguments:
+    #:   - The path that the item represents.
+    item_trashed = Signal(Path)
+
     def __init__(self, dic, monitor_path, parent=None):
         super().__init__(parent=parent)
         self.main_items_dictionary = {}
         self.monitor_path = monitor_path
+
+        # Holds the current filtering settings.
+        self.current_filter_matches = None
+        self.star_filter_status = False
+        self.hide_trash_status = False
+
+        self.star_text = 'Star'
+        self.un_star_text = 'Un-star'
+        self.trash_text = 'Trash'
+        self.un_trash_text = 'Un-trash'
+
         self.setHeaderLabel('Files')
         self.refresh_tree(dic)
 
         # Popup menu.
         self.delete_popup_action = QtWidgets.QAction('Delete')
         self.plot_popup_action = QtWidgets.QAction('Plot')
+        self.star_popup_action = QtWidgets.QAction('Star')
+        self.trash_popup_action = QtWidgets.QAction('Trash')
 
         self.popup_menu = QtWidgets.QMenu(self)
 
+        # Connect different signals
         self.plot_popup_action.triggered.connect(self.emit_plot_requested_signal)
         self.delete_popup_action.triggered.connect(self.delete_selected_item_from_directory)
+        self.star_popup_action.triggered.connect(self.emit_item_starred)
+        self.trash_popup_action.triggered.connect(self.emit_item_trashed)
+
         self.itemChanged.connect(self.renaming_item)
         self.itemClicked.connect(self.item_clicked)
 
@@ -225,60 +257,27 @@ class FileTree(QtWidgets.QTreeWidget):
         self.main_items_dictionary = {}
 
     @QtCore.Slot(str)
-    def filter_items(self, filter_str):
+    def change_filter_text_item(self, filter_str: str):
         """
-        Filters away any item in the tree that does not match with filter_str. If an item is matched, all parents and
-        children of the item are shown.
+        Matches the current text with filter_str and triggers an update of filter_items.
 
         :param filter_str: The string to filter the tree.
         """
         # If the string is empty show all items in the tree.
         if filter_str == '':
-            for item in self.main_items_dictionary.values():
-                item.setHidden(False)
+            self.current_filter_matches = None
+            self.filter_items()
         else:
             try:
                 filter_pattern = re.compile(filter_str, flags=re.IGNORECASE)
-                # Hide all items.
-                for item in self.main_items_dictionary.values():
-                    item.setHidden(True)
                 # list of the items with matching paths.
                 matches = [value for key, value in self.main_items_dictionary.items() if
                            filter_pattern.search(str(key.name))]
+                self.current_filter_matches = matches
+                self.filter_items()
 
-                # Show all the matches and their parents and children.
-                for match in matches:
-                    self._show_parent_item(match)
-                    children = [match.child(i) for i in range(match.childCount())]
-                    for child in children:
-                        self._show_child_item(child)
             except re.error as e:
                 logger().error(f'Regex matching failed: {e}')
-
-    def _show_child_item(self, item: TreeWidgetItem):
-        """
-        Recursive function to the item passed and all of its children.
-
-        :param item: The item that we want to show.
-        """
-        if item.childCount() == 0:
-            item.setHidden(False)
-        else:
-            item.setHidden(False)
-            for i in range(item.childCount()):
-                self._show_child_item(item.child(i))
-
-    def _show_parent_item(self, item: TreeWidgetItem):
-        """
-        Recursive function to the item passed and all of its parents.
-
-        :param item: The item that we want to show.
-        """
-        if item.parent() is None:
-            item.setHidden(False)
-        else:
-            item.setHidden(False)
-            self._show_parent_item(item.parent())
 
     def refresh_tree(self, update: Dict):
         """
@@ -341,13 +340,13 @@ class FileTree(QtWidgets.QTreeWidget):
                 self.main_items_dictionary[file_or_folder_path.parent], file_or_folder_path.parent
 
         # Create the new TreeWidgetItem.
-        tree_widget_item = TreeWidgetItem(file_or_folder_path, [str(file_or_folder_path.name)])
+        tree_widget_item = TreeWidgetItem(file_or_folder_path, False, False, [str(file_or_folder_path.name)])
         tree_widget_item.setFlags(tree_widget_item.flags() | QtCore.Qt.ItemIsEditable)
 
         # Create and add child items if necessary.
         if files_dict is not None:
             for file_key, file_type in files_dict.items():
-                child = TreeWidgetItem(file_key, [str(file_key.name)])
+                child = TreeWidgetItem(file_key, False, False, [str(file_key.name)])
                 child.setForeground(0, ContentType.sort_color(file_type))
                 child.setFlags(child.flags() | QtCore.Qt.ItemIsEditable)
                 self.main_items_dictionary[file_key] = child
@@ -415,7 +414,20 @@ class FileTree(QtWidgets.QTreeWidget):
                 self.popup_menu.removeAction(self.plot_popup_action)
                 self.popup_menu.removeAction(self.delete_popup_action)
             else:
-                # Only show the delete option.
+                # Sets the text of the star and trash actions according to the state of the item clicked.
+                if item.star:
+                    self.star_popup_action.setText(self.un_star_text)
+                else:
+                    self.star_popup_action.setText(self.star_text)
+
+                if item.trash:
+                    self.trash_popup_action.setText(self.un_trash_text)
+                else:
+                    self.trash_popup_action.setText(self.trash_text)
+
+                self.popup_menu.addAction(self.star_popup_action)
+                self.popup_menu.addAction(self.trash_popup_action)
+                self.popup_menu.addSeparator()
                 self.popup_menu.addAction(self.delete_popup_action)
                 self.popup_menu.exec_(self.mapToGlobal(pos))
                 self.popup_menu.removeAction(self.delete_popup_action)
@@ -465,23 +477,29 @@ class FileTree(QtWidgets.QTreeWidget):
     @Slot(QtWidgets.QTreeWidgetItem, int)
     def renaming_item(self, item, column):
         """
-        Triggered every time an item changes text. If the text of the item changed because the file changed name,
-        the file gets the name changed again for the same name so nothing happens. If the user changes the name in the
-        GUI, the file or folder gets the name changed and that triggers the watchdog event that updates the rest of the
-        program. If an error while changing the name happens, the text is not changed and a message pops with the error.
+        Triggered every time an item changes this includes the icon of the item changing.
+
+        If the text of the item changed because the file changed name, the file gets the name changed again for the
+        same name so nothing happens. If the user changes the name in the GUI, the file or folder gets the name changed
+        and that triggers the watchdog event that updates the rest of the program. If an error while changing the name
+        happens, the text is not changed and a message pops with the error. If the icon of the item changes, nothing
+        happens
         """
         new_text = item.text(column)
         path = item.path
-        try:
-            new_path = path.rename(path.parent.joinpath(new_text))
-        except Exception as e:
-            # Reset the text of the item
-            self.main_items_dictionary[path].setText(0, str(path.name))
-            # Show the error message
-            error_msg = QtWidgets.QMessageBox()
-            error_msg.setText(f"{e}")
-            error_msg.setWindowTitle(f'Could not rename directory.')
-            error_msg.exec_()
+        # Checking if either a file or folder exists for the path. If it does it mean that the change was the icon and
+        # nothing happens.
+        if not path.is_file() and not path.is_dir():
+            try:
+                new_path = path.rename(path.parent.joinpath(new_text))
+            except Exception as e:
+                # Reset the text of the item
+                self.main_items_dictionary[path].setText(0, str(path.name))
+                # Show the error message
+                error_msg = QtWidgets.QMessageBox()
+                error_msg.setText(f"{e}")
+                error_msg.setWindowTitle(f'Could not rename directory.')
+                error_msg.exec_()
 
     @Slot()
     def emit_plot_requested_signal(self):
@@ -497,6 +515,277 @@ class FileTree(QtWidgets.QTreeWidget):
         Gets called every time the user clicks on an item. Emits item_selected signal.
         """
         self.item_selected.emit(item.path)
+
+    @Slot()
+    def emit_item_starred(self):
+        """
+        Emits item_starred Signal.
+        """
+        self.item_starred.emit(self.currentItem().path)
+
+    @Slot()
+    def emit_item_trashed(self):
+        """
+        Emits item_trashed Signal.
+        """
+        self.item_trashed.emit(self.currentItem().path)
+
+    def star_item(self, path: Path):
+        """
+        Changes the star status of the item in path.
+
+        If the item is un-starred, stars the item if the item is not already trash and changes its icon. If the item
+        is starred, un-stars the item and changes the icon if the item is not already trash. Triggers a check for its
+        parent item and a filter_items.
+
+        :param path: The path of the item whose star status should change
+        """
+        if path in self.main_items_dictionary:
+            item = self.main_items_dictionary[path]
+            if item.star:
+                item.star = False
+                if not item.trash:
+                    item.setIcon(0, QtGui.QIcon())
+
+            else:
+                if not item.trash:
+                    item.star = True
+                    item.setIcon(0, get_star_icon())
+
+            self.star_parent_item(path)
+            self.filter_items()
+
+    def star_parent_item(self, path: Path):
+        """
+        Checks if the parent of the path should be starred.
+
+        The parent of the path should only be starred if all of its children are starred too. If they are, star the path
+        parent and change its icon. If they are not, un-star the item and change its icon if it's not already trash.
+
+        :param path: The path of the child of the item we should check. It checks the parent of the path, not the
+            path itself.
+        """
+        item = self.main_items_dictionary[path.parent]
+        children_star = [item.child(i).star for i in range(item.childCount())]
+        if all(children_star):
+            item.star = True
+            item.setIcon(0, get_star_icon())
+        else:
+            item.star = False
+            if not item.trash:
+                item.setIcon(0, QtGui.QIcon())
+
+        parent_item = item.parent()
+        if parent_item is not None:
+            self.star_parent_item(path.parent)
+
+    def trash_item(self, path: Path):
+        """
+        Changes the trash status of the item in path.
+
+        If the item is un-trashed, trashes the item if the item is not already starred and changes its icon. If the item
+        is trash, un-trash the item and changes the icon if the item is not already starred. Triggers a check for its
+        parent item and a filter_items.
+
+        :param path: The path of the item whose star status should change
+        """
+        if path in self.main_items_dictionary:
+            item = self.main_items_dictionary[path]
+            if item.trash:
+                item.trash = False
+                if not item.star:
+                    item.setIcon(0, QtGui.QIcon())
+            else:
+                if not item.star:
+                    item.trash = True
+                    item.setIcon(0, get_trash_icon())
+
+            self.trash_parent_item(path)
+            self.filter_items()
+
+    def trash_parent_item(self, path: Path):
+        """
+        Checks if the parent of the path should be trashed.
+
+        The parent of the path should only be trashed if all of its children are trashed too. If they are,
+        trash the path parent and change its icon. If they are not, un-trash the item and change its icon if it's not
+        already star.
+
+        :param path: The path of the child of the item we should check. It checks the parent of the path, not the
+            path itself.
+        """
+        item = self.main_items_dictionary[path.parent]
+        children_trash = [item.child(i).trash for i in range(item.childCount())]
+        if all(children_trash):
+            item.trash = True
+            item.setIcon(0, get_trash_icon())
+        else:
+            item.trash = False
+            if not item.star:
+                item.setIcon(0, QtGui.QIcon())
+
+        parent_item = item.parent()
+        if parent_item is not None:
+            self.trash_parent_item(path.parent)
+
+    def update_filter_status(self, star_status: bool = False, trash_status: bool = False):
+        """
+        Update the filter status variables and triggers a filtering of items.
+
+        :param star_status: The status of the star button.
+        :param trash_status: The status of the trash button.
+        """
+        self.star_filter_status = star_status
+        self.hide_trash_status = trash_status
+
+        self.filter_items()
+
+    def filter_items(self):
+        """
+        Filters the items according to the status of the star and trash buttons and the filter line edit.
+
+        Checks each possible case and filters appropriately. For text matches, shows all children and parents of the
+        match.
+        """
+        if not self.star_filter_status and not self.hide_trash_status:
+            if self.current_filter_matches is None:
+                for item in self.main_items_dictionary.values():
+                    item.setHidden(False)
+            else:
+                for item in self.main_items_dictionary.values():
+                    if item in self.current_filter_matches:
+                        self._show_parent_item(item)
+                        children = [item.child(i) for i in range(item.childCount())]
+                        for child in children:
+                            self._show_child_item(child)
+                    else:
+                        item.setHidden(True)
+
+        elif self.star_filter_status and not self.hide_trash_status:
+            if self.current_filter_matches is None:
+                for item in self.main_items_dictionary.values():
+                    if item.star:
+                        self._show_parent_item(item)
+                    else:
+                        item.setHidden(True)
+            else:
+                for item in self.main_items_dictionary.values():
+                    if item in self.current_filter_matches and item.star:
+                        self._show_parent_item(item)
+                        children = [item.child(i) for i in range(item.childCount())]
+                        for child in children:
+                            self._show_child_item(child)
+                    else:
+                        item.setHidden(True)
+
+        elif not self.star_filter_status and self.hide_trash_status:
+            if self.current_filter_matches is None:
+                for item in self.main_items_dictionary.values():
+                    if item.trash:
+                        item.setHidden(True)
+                    else:
+                        item.setHidden(False)
+            else:
+                for item in self.main_items_dictionary.values():
+                    if item in self.current_filter_matches and not item.trash:
+                        self._show_parent_item(item)
+                        children = [item.child(i) for i in range(item.childCount())]
+                        for child in children:
+                            self._show_child_item(child)
+                    else:
+                        item.setHidden(True)
+
+        elif self.star_filter_status and self.hide_trash_status:
+            if self.current_filter_matches is None:
+                for item in self.main_items_dictionary.values():
+                    if item.star:
+                        self._show_parent_item(item)
+                    else:
+                        item.setHidden(True)
+            else:
+                for item in self.main_items_dictionary.values():
+                    if item in self.current_filter_matches and item.star and not item.trash:
+                        self._show_parent_item(item)
+                        children = [item.child(i) for i in range(item.childCount())]
+                        for child in children:
+                            self._show_child_item(child)
+                    else:
+                        item.setHidden(True)
+
+    def _show_child_item(self, item: TreeWidgetItem):
+        """
+        Helper recursive function to the item passed and all of its children.
+
+        :param item: The item that we want to show.
+        """
+        if item.childCount() == 0:
+            item.setHidden(False)
+        else:
+            item.setHidden(False)
+            for i in range(item.childCount()):
+                self._show_child_item(item.child(i))
+
+    def _show_parent_item(self, item: TreeWidgetItem):
+        """
+        Helper recursive function to the item passed and all of its parents.
+
+        :param item: The item that we want to show.
+        """
+        if item.parent() is None:
+            item.setHidden(False)
+        else:
+            item.setHidden(False)
+            self._show_parent_item(item.parent())
+
+
+class FileExplorer(QtWidgets.QWidget):
+    """
+    Helper widget to unify the FileTree with the line edit and status buttons.
+    """
+
+    def __init__(self, dic, monitor_path, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+
+        self.file_tree = FileTree(dic, monitor_path, parent=self)
+        self.monitor_path = monitor_path
+
+        self.main_layout = QtWidgets.QVBoxLayout(self)
+        self.filter_and_buttons_layout = QtWidgets.QHBoxLayout()
+
+        self.filter_line_edit = QtWidgets.QLineEdit()
+        self.filter_line_edit.setPlaceholderText('Filter Items')
+
+        self.star_button = QtWidgets.QPushButton('Star')
+        self.trash_button = QtWidgets.QPushButton('Hide Trash')
+
+        self.star_button.setCheckable(True)
+        self.trash_button.setCheckable(True)
+
+        self.filter_and_buttons_layout.addWidget(self.filter_line_edit)
+        self.filter_and_buttons_layout.addWidget(self.star_button)
+        self.filter_and_buttons_layout.addWidget(self.trash_button)
+        self.main_layout.addLayout(self.filter_and_buttons_layout)
+        self.main_layout.addWidget(self.file_tree)
+
+        self.filter_line_edit.textEdited.connect(self.file_tree.change_filter_text_item)
+        self.file_tree.setContextMenuPolicy(QtCore.Qt.CustomContextMenu)
+        self.file_tree.customContextMenuRequested.connect(self.file_tree.on_context_menu_requested)
+        self.star_button.clicked.connect(self.star_button_clicked)
+        self.trash_button.clicked.connect(self.trash_button_clicked)
+
+    @Slot()
+    def star_button_clicked(self):
+        """
+        Updates the status of the buttons to the FileTree.
+        """
+        self.file_tree.update_filter_status(self.star_button.isChecked(), self.trash_button.isChecked())
+
+    @Slot()
+    def trash_button_clicked(self):
+        """
+        Updates the status of the buttons to the FileTree.
+        """
+        self.file_tree.update_filter_status(self.star_button.isChecked(), self.trash_button.isChecked())
 
 
 # TODO: Right now the data display only updates when you click on the parent folder. What happens if data is created
@@ -549,10 +838,10 @@ class DataTreeWidget(QtWidgets.QTreeWidget):
         """
 
         for index, data in enumerate(self.data):
-            parent_tree_widget = TreeWidgetItem(self.paths[index], self, [str(self.paths[index].name)])
+            parent_tree_widget = TreeWidgetItem(self.paths[index], False, False, self, [str(self.paths[index].name)])
 
-            data_parent = TreeWidgetItem(None, parent_tree_widget, ['Data'])
-            meta_parent = TreeWidgetItem(None, parent_tree_widget, ['Meta'])
+            data_parent = QtWidgets.QTreeWidgetItem(parent_tree_widget, ['Data'])
+            meta_parent = QtWidgets.QTreeWidgetItem(parent_tree_widget, ['Meta'])
 
             for name, value in data.data_items():
                 column_content = [name, str(data.meta_val('shape', name))]
@@ -561,13 +850,13 @@ class DataTreeWidget(QtWidgets.QTreeWidget):
                 else:
                     column_content.append(f'Independent')
 
-                parameter_item = TreeWidgetItem(None, data_parent, column_content)
+                parameter_item = QtWidgets.QTreeWidgetItem(data_parent, column_content)
 
                 for meta_name, meta_value in data.meta_items(name):
-                    parameter_meta_item = TreeWidgetItem(None, parameter_item, [meta_name, str(meta_value)])
+                    parameter_meta_item = QtWidgets.QTreeWidgetItem(parameter_item, [meta_name, str(meta_value)])
 
             for name, value in data.meta_items():
-                parameter_meta_item = TreeWidgetItem(None, meta_parent, [name, str(value)])
+                parameter_meta_item = QtWidgets.QTreeWidgetItem(meta_parent, [name, str(value)])
 
             parent_tree_widget.setExpanded(True)
             data_parent.setExpanded(True)
@@ -820,11 +1109,9 @@ class Monitr(QtWidgets.QMainWindow):
         self.expand_collapse_refresh_layout.addWidget(self.expand_all_button)
         self.expand_collapse_refresh_layout.addWidget(self.collapse_all_button)
 
-        self.filter_line_edit = QtWidgets.QLineEdit()
-        self.filter_line_edit.setPlaceholderText('filter items')
-        self.tree = FileTree(self.main_dictionary, self.monitor_path)
-        self.file_tree_layout.addWidget(self.filter_line_edit)
-        self.file_tree_layout.addWidget(self.tree)
+        self.file_explorer = FileExplorer(self.main_dictionary, self.monitor_path, parent=self.dummy_widget)
+        self.tree = self.file_explorer.file_tree
+        self.file_tree_layout.addWidget(self.file_explorer)
 
         self.file_tree_layout.addLayout(self.expand_collapse_refresh_layout)
 
@@ -855,11 +1142,6 @@ class Monitr(QtWidgets.QMainWindow):
         self.tree_main_dict_button.clicked.connect(self.print_tree_main_dictionary)
         self.file_tree_layout.addLayout(self.debug_layout)
 
-        # TODO: Move this into the tree itself. There is no reason for this to be here.
-        # Create the first tree.
-        self.tree.setContextMenuPolicy(QtCore.Qt.CustomContextMenu)
-        self.tree.customContextMenuRequested.connect(self.tree.on_context_menu_requested)
-
         self.refresh_files()
 
         # Set the watcher.
@@ -878,14 +1160,13 @@ class Monitr(QtWidgets.QMainWindow):
         self.expand_all_button.clicked.connect(self.tree.expandAll)
         self.collapse_all_button.clicked.connect(self.tree.collapseAll)
         self.refresh_button.clicked.connect(self.refresh_files)
-        self.filter_line_edit.textEdited.connect(self.tree.filter_items)
 
         self.tree.plot_requested.connect(self.plot_data)
         self.tree.item_selected.connect(self.new_folder_selected)
+        self.tree.item_starred.connect(self.new_item_starred)
+        self.tree.item_trashed.connect(self.new_item_trashed)
 
         self.watcher_thread.start()
-
-        self.tree.show()
 
     def refresh_files(self):
         """
@@ -903,11 +1184,42 @@ class Monitr(QtWidgets.QMainWindow):
         self.main_dictionary = {Path(walk_entry[0]): {Path(walk_entry[0]).joinpath(file): ContentType.sort(file)
                                                       for file in walk_entry[2]} for walk_entry in walk_results
                                 if 'data.ddh5' in walk_entry[2]}
-        final_timer = time.time_ns() - start_timer
-        logger().info(f'refreshing files took: {final_timer * 10 ** -9}s')
-
         # Changed to not send any children
         self.tree.refresh_tree({key: None for key in self.main_dictionary.keys()})
+
+        # Filters what folders should be starred.
+        starred_folders = [Path(walk_entry[0]) for walk_entry in walk_results if '__star__.tag' in walk_entry[2] and
+                           Path(walk_entry[0]) in self.main_dictionary]
+
+        # Filters what folders should be trashed.
+        trash_folders = [Path(walk_entry[0]) for walk_entry in walk_results if '__trash__.tag' in walk_entry[2] and
+                         Path(walk_entry[0]) in self.main_dictionary]
+
+        # Check that there aren't any folder with both tags in it
+        matching_items = set(starred_folders) & set(trash_folders)
+
+        # Delete every double tag from the lists and actual files.
+        for match in matching_items:
+            starred_folders.remove(match)
+            trash_folders.remove(match)
+
+            star_path = match.joinpath('__star__.tag')
+            trash_path = match.joinpath('__trash__.tag')
+            star_path.unlink()
+            trash_path.unlink()
+
+        # Warn the user that repeated tags have been found and deleted.
+        if len(matching_items) > 0:
+            logger().error(f'Both star and trash tag have been found and deleted from the following folders:'
+                           f' {matching_items} ')
+
+        for folder in starred_folders:
+            self.tree.star_item(folder)
+        for folder in trash_folders:
+            self.tree.trash_item(folder)
+
+        final_timer = time.time_ns() - start_timer
+        logger().info(f'refreshing files took: {final_timer * 10 ** -9}s')
 
     @QtCore.Slot(FileSystemEvent)
     def file_created(self, event: FileSystemEvent):
@@ -927,6 +1239,7 @@ class Monitr(QtWidgets.QMainWindow):
                 if path.parent in self.main_dictionary:
                     if path not in self.main_dictionary[path.parent]:
                         self.main_dictionary[path.parent].update({path: ContentType.sort(path.name)})
+                        self._check_special_tag_creation(path)
 
                         # Changed to not add children to the tree
                         # self.tree.sort_and_add_tree_widget_item(path)
@@ -972,6 +1285,11 @@ class Monitr(QtWidgets.QMainWindow):
                         else:
                             self._delete_parent_folder(path)
                     else:
+                        if path.name == '__star__.tag':
+                            self.tree.star_item(path.parent)
+                        elif path.name == '__trash__.tag':
+                            self.tree.trash_item(path.parent)
+
                         del self.main_dictionary[path.parent][path]
                         self.tree.delete_item(path)
 
@@ -982,7 +1300,10 @@ class Monitr(QtWidgets.QMainWindow):
         Updates both the `main_dictionary` and the file tree.
         """
         logger().info(f'moved: {event}')
-        if event.src_path is not None and event.dest_path is not None:
+        # File moved gets triggered with None and '', for the event paths. From what I can tell, they are not useful,
+        # so we ignore them.
+        if event.src_path is not None and event.src_path != ''\
+                and event.dest_path is not None and event.dest_path != '':
             src_path = Path(event.src_path)
             dest_path = Path(event.dest_path)
             if event.is_directory:
@@ -993,61 +1314,90 @@ class Monitr(QtWidgets.QMainWindow):
                 # but still needs updating in the GUI.
                 self.tree.update_item(src_path, dest_path)
 
-            elif src_path.suffix != dest_path.suffix:
-                # If a file becomes a ddh5, create a new ddh5 and delete the old entry.
-                if src_path.suffix != '.ddh5' and dest_path.suffix == '.ddh5':
-                    # Checks if the new ddh5 is in an already kept track folder. If so delete the out of data info.
-                    if src_path.parent in self.main_dictionary:
-                        del self.main_dictionary[src_path.parent][src_path]
-                        self.tree.delete_item(src_path)
-                    elif dest_path.parent in self.main_dictionary:
-                        del self.main_dictionary[dest_path.parent][src_path]
-                        self.tree.delete_item(src_path)
-                    self._add_new_ddh5_file(dest_path)
-                # If a file stops being a ddh5.
-                elif src_path.suffix == '.ddh5' and dest_path.suffix != '.ddh5':
-                    # Check how many ddh5 files in the parent folder.
-                    ddh5_files = [file for file in self.main_dictionary[src_path.parent].keys() if file.suffix == '.ddh5']
-                    # If just 1 or less, delete the entire folder.
-                    if len(ddh5_files) <= 1:
-                        self._delete_parent_folder(src_path)
-                    else:
-                        # TODO: get here and particularly test this case.
-                        self._update_change_of_file_type(src_path, dest_path)
+            # If a file becomes a ddh5, create a new ddh5 and delete the old entry.
+            elif src_path.suffix != '.ddh5' and dest_path.suffix == '.ddh5':
+                # Checks if the new ddh5 is in an already kept track folder. If so delete the out of data info.
+                if src_path.parent in self.main_dictionary:
+                    del self.main_dictionary[src_path.parent][src_path]
+                    self.tree.delete_item(src_path)
+                elif dest_path.parent in self.main_dictionary:
+                    del self.main_dictionary[dest_path.parent][src_path]
+                    self.tree.delete_item(src_path)
+                self._add_new_ddh5_file(dest_path)
+            # If a file stops being a ddh5.
+            elif src_path.suffix == '.ddh5' and dest_path.suffix != '.ddh5':
+                # Check how many ddh5 files in the parent folder.
+                ddh5_files = [file for file in self.main_dictionary[src_path.parent].keys() if file.suffix == '.ddh5']
+                # If just 1 or less, delete the entire folder.
+                if len(ddh5_files) <= 1:
+                    self._delete_parent_folder(src_path)
                 else:
-                    # A different non-ddh5 has changed type.
-                    self._update_change_of_file_type(src_path, dest_path)
-
-            # Checks if a file changed names but not the type of file.
-            elif src_path.parent in self.main_dictionary:
-                del self.main_dictionary[src_path.parent][src_path]
-                self.main_dictionary[src_path.parent][dest_path] = ContentType.sort(dest_path)
-                self.tree.update_item(src_path, dest_path)
-            elif dest_path.parent in self.main_dictionary:
-                del self.main_dictionary[dest_path.parent][src_path]
-                self.main_dictionary[dest_path.parent][dest_path] = ContentType.sort(dest_path)
-                self.tree.update_item(src_path, dest_path)
+                    # TODO: get here and particularly test this case.
+                    self._update_change_of_file(src_path, dest_path)
 
             # The change might be to a parent folder which is not being kept track of in the main_dictionary, but still
             # needs updating in the GUI.
             else:
+                self._update_change_of_file(src_path, dest_path)
                 self.tree.update_item(src_path, dest_path)
 
-    def _update_change_of_file_type(self, src_path: Path, dest_path: Path):
+    def _update_change_of_file(self, src_path: Path, dest_path: Path):
         """
         Helper function that updates a file that has changed its file type.
 
         :param src_path: The path of the file before the modification.
         :param dest_path: The path of the file after the modification.
         """
+        # Checks that the difference is not a star or trash tag.
+        if src_path.name == '__star__.tag' and dest_path.name != '__star__.tag':
+            self.tree.star_item(src_path.parent)
+        elif src_path.name == '__trash__.tag' and dest_path.name != '__trash__.tag':
+            self.tree.trash_item(src_path.parent)
+
+        self._check_special_tag_creation(dest_path)
+
         if src_path.parent in self.main_dictionary:
             del self.main_dictionary[src_path.parent][src_path]
             self.main_dictionary[src_path.parent][dest_path] = ContentType.sort(dest_path)
-            self.tree.update_item(src_path, dest_path, self.main_dictionary[src_path.parent][dest_path])
+            self.tree.update_item(src_path, dest_path)
         elif dest_path.parent in self.main_dictionary:
             del self.main_dictionary[dest_path.parent][src_path]
             self.main_dictionary[dest_path.parent][dest_path] = ContentType.sort(dest_path)
-            self.tree.update_item(src_path, dest_path, self.main_dictionary[dest_path.parent][dest_path])
+            self.tree.update_item(src_path, dest_path)
+
+    def _check_special_tag_creation(self, path):
+        """
+        Checks that there is only 1 special tag file in the folder. Creates a message if it already finds a special tag
+        file and deletes it.
+
+        :param path: The path of the new file.
+        """
+        if path.name == '__star__.tag':
+            trash_file = path.parent.joinpath('__trash__.tag')
+            # If there is a trash file in a folder that is being starred delete the star file and raise
+            # a warning.
+            if trash_file.is_file():
+                path.unlink()
+                error_msg = QtWidgets.QMessageBox()
+                error_msg.setText(f'Folder is already star. Please do not star a trash folder '
+                                  f' \n {path} was deleted ')
+                error_msg.setWindowTitle(f'Deleting __star__.tag')
+                error_msg.exec_()
+            else:
+                self.tree.star_item(path.parent)
+        elif path.name == '__trash__.tag':
+            star_path = path.parent.joinpath('__star__.tag')
+            # If there is a star file in a folder that is being trash delete the star file and raise
+            # a warning.
+            if star_path.is_file():
+                path.unlink()
+                error_msg = QtWidgets.QMessageBox()
+                error_msg.setText(f'Folder is already trash. Please do not trash a star folder '
+                                  f' \n {path} was deleted ')
+                error_msg.setWindowTitle(f'Deleting __star__.tag')
+                error_msg.exec_()
+            else:
+                self.tree.trash_item(path.parent)
 
     def _add_new_ddh5_file(self, path: Path):
         """
@@ -1144,8 +1494,10 @@ class Monitr(QtWidgets.QMainWindow):
     @Slot()
     def print_tree_main_dictionary(self):
         """Debug function. Prints the tree main dictionary"""
-        pprint.pprint(self.tree.main_items_dictionary)
-
+        temp_dict = {}
+        for key, value in self.tree.main_items_dictionary.items():
+            temp_dict[key] = dict(item=value, star=value.star, trash=value.trash)
+        pprint.pprint(temp_dict)
 
     @Slot(Path)
     def new_folder_selected(self, path):
@@ -1203,6 +1555,7 @@ class Monitr(QtWidgets.QMainWindow):
         self.right_side_layout.addWidget(self.text_input)
 
     # TODO: Modify the complex number showing, so it shows real units instead of 0s and 1s.
+    # TODO: add expand all to the json viewer.
     def add_all_files(self, path):
         """
         Adds all other md, json or images files on the right side of the screen.
@@ -1282,6 +1635,100 @@ class Monitr(QtWidgets.QMainWindow):
                 self.right_side_layout.removeWidget(window)
                 window.deleteLater()
             self.file_windows = []
+
+    @Slot(Path)
+    def new_item_starred(self, path: Path):
+        """
+        Gets called every time the user decides to star an item. Checks whether the item is a folder of interest or a
+        parent of one and stars or un-stars depending on whether a star tag already exists.
+
+        :param path: The path of the folder being starred.
+        """
+        if path in self.main_dictionary:
+            star_path = path.joinpath('__star__.tag')
+            trash_path = path.joinpath('__trash__.tag')
+            # If a trash file in the star folder exists, delete it.
+            if trash_path.is_file():
+                trash_path.unlink()
+
+            # If the folder is already a starred folder, un-star it.
+            if star_path.is_file():
+                star_path.unlink()
+            else:
+                with open(star_path, 'w') as file:
+                    file.write('')
+        else:
+            children_folders = [folder for folder in self.main_dictionary.keys() if folder.is_relative_to(path)]
+            n_star_tags = 0
+            for child in children_folders:
+                star_path = child.joinpath('__star__.tag')
+                if star_path.is_file():
+                    n_star_tags += 1
+
+            # If there are more children folders than star tags, we are starring the parent folder.
+            if len(children_folders) > n_star_tags:
+                # Same process as individually staring a folder, but for every child folder.
+                for child in children_folders:
+                    star_path = child.joinpath('__star__.tag')
+                    trash_path = child.joinpath('__trash__.tag')
+                    if trash_path.is_file():
+                        trash_path.unlink()
+                    if not star_path.is_file():
+                        with open(star_path, 'w') as file:
+                            file.write('')
+            else:
+                # All the child folders are starred, we need to un-star every child.
+                for child in children_folders:
+                    star_path = child.joinpath('__star__.tag')
+                    if star_path.is_file():
+                        star_path.unlink()
+
+    @Slot(Path)
+    def new_item_trashed(self, path):
+        """
+        Gets called every time the user decides to trash an item. Checks whether the item is a folder of interest or a
+        parent of one and trashes or un-trashes depending on whether a trash tag already exists.
+
+        :param path: The path of the folder being starred.
+        """
+        if path in self.main_dictionary:
+            star_path = path.joinpath('__star__.tag')
+            trash_path = path.joinpath('__trash__.tag')
+            # If a star file in the star folder exists, delete it.
+            if star_path.is_file():
+                star_path.unlink()
+
+            # If the folder is already a trashed folder, un-trash it.
+            if trash_path.is_file():
+                trash_path.unlink()
+            else:
+                with open(trash_path, 'w') as file:
+                    file.write('')
+        else:
+            children_folders = [folder for folder in self.main_dictionary.keys() if folder.is_relative_to(path)]
+            n_trash_tags = 0
+            for child in children_folders:
+                trash_path = child.joinpath('__trash__.tag')
+                if trash_path.is_file():
+                    n_trash_tags += 1
+
+            # If there are more children folders than trash tags, we are trashing the parent folder.
+            if len(children_folders) > n_trash_tags:
+                # Same process as individually trashing a folder, but for every child folder.
+                for child in children_folders:
+                    star_path = child.joinpath('__star__.tag')
+                    trash_path = child.joinpath('__trash__.tag')
+                    if star_path.is_file():
+                        star_path.unlink()
+                    if not trash_path.is_file():
+                        with open(trash_path, 'w') as file:
+                            file.write('')
+            else:
+                # All the child folders are trashed, we need to un-trash every child.
+                for child in children_folders:
+                    trash_path = child.joinpath('__trash__.tag')
+                    if trash_path.is_file():
+                        trash_path.unlink()
 
 
 def script() -> int:
