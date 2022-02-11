@@ -1087,7 +1087,9 @@ class Monitr(QtWidgets.QMainWindow):
 
         # Instantiate variables.
         self.main_dictionary = {}
+        self.collapsed_state_dictionary = {}
         self.monitor_path = Path(monitorPath)
+        self.currently_selected_folder = None
 
         # Create GUI elements.
 
@@ -1244,6 +1246,10 @@ class Monitr(QtWidgets.QMainWindow):
                         # Changed to not add children to the tree
                         # self.tree.sort_and_add_tree_widget_item(path)
 
+            # If a file is created in the currently displaying folder update the right side.
+            if path.parent == self.currently_selected_folder:
+                self.new_folder_selected(self.currently_selected_folder)
+
     @QtCore.Slot(FileSystemEvent)
     def file_deleted(self, event: FileSystemEvent):
         """
@@ -1293,13 +1299,17 @@ class Monitr(QtWidgets.QMainWindow):
                         del self.main_dictionary[path.parent][path]
                         self.tree.delete_item(path)
 
+            # If a file gets deleted from the currently selected folder, update the right side.
+            if path.parent == self.currently_selected_folder:
+                self.new_folder_selected(self.currently_selected_folder)
+
     @QtCore.Slot(FileSystemEvent)
     def file_moved(self, event: FileSystemEvent):
         """
         Triggered every time a file or folder is moved, this includes a file or folder changing names.
         Updates both the `main_dictionary` and the file tree.
         """
-        logger().info(f'moved: {event}')
+        logger().info(f'File moved: {event}')
         # File moved gets triggered with None and '', for the event paths. From what I can tell, they are not useful,
         # so we ignore them.
         if event.src_path is not None and event.src_path != ''\
@@ -1340,6 +1350,26 @@ class Monitr(QtWidgets.QMainWindow):
             else:
                 self._update_change_of_file(src_path, dest_path)
                 self.tree.update_item(src_path, dest_path)
+
+    @QtCore.Slot(FileSystemEvent)
+    def file_modified(self, event):
+        """
+        Gets called every time a file or folder gets modified.
+        If the file gets modified in the currently selected folder updates the right side of the screen.
+        """
+        logger().info(f'file modified: {event}')
+        path = Path(event.src_path)
+        if path.parent == self.currently_selected_folder:
+            self.new_folder_selected(path.parent)
+        pass
+
+    @QtCore.Slot(FileSystemEvent)
+    def file_closed(self, event):
+        """
+        Gets called every time a file is closed
+        """
+        logger().info(f'file closed: {event}')
+        pass
 
     def _update_change_of_file(self, src_path: Path, dest_path: Path):
         """
@@ -1460,20 +1490,6 @@ class Monitr(QtWidgets.QMainWindow):
         else:
             self.tree.delete_item(path.parents[index_of_deletion])
 
-    @QtCore.Slot(FileSystemEvent)
-    def file_modified(self, event):
-        """
-        Gets called every time a file or folder gets modified.
-        """
-        pass
-
-    @QtCore.Slot(FileSystemEvent)
-    def file_closed(self, event):
-        """
-        Gets called every time a file is closed
-        """
-        pass
-
     @Slot(Path)
     def plot_data(self, path):
         """
@@ -1503,19 +1519,27 @@ class Monitr(QtWidgets.QMainWindow):
     def new_folder_selected(self, path):
         """
         Gets called when the user selects a folder in the main file tree. If the path is a folder containing a ddh5 file
-        it generates the right side of the screen.
+        it generates the right side of the screen and updates the currently selected_folder.
 
         :param path: The path of the folder being selected
         """
 
         if path in self.main_dictionary:
+            if self.currently_selected_folder is not None:
+                self.collapsed_state_dictionary[self.currently_selected_folder] = \
+                    {window.plainTitle: window.btn.isChecked() for window in self.file_windows}
+            collapsed_settings = {}
+            if path in self.collapsed_state_dictionary:
+                collapsed_settings = self.collapsed_state_dictionary[path]
+
+            self.currently_selected_folder = path
             self.clear_right_layout()
             self.add_data_window(path)
             self.add_tag_label(path)
             self.add_text_input(path)
-            self.add_all_files(path)
+            self.add_all_files(path, collapsed_settings)
 
-    def add_data_window(self, path):
+    def add_data_window(self, path: Path):
         """
         Create the widget to display the data.
 
@@ -1528,13 +1552,13 @@ class Monitr(QtWidgets.QMainWindow):
         self.data_window.widget.plot_requested.connect(self.plot_data)
         self.right_side_layout.addWidget(self.data_window)
 
-    def add_tag_label(self, path):
+    def add_tag_label(self, path: Path):
         """
         Add the tags present in the folder selected.
 
         :param path: The path of the folder being selected
         """
-        labels = [str(label.name) for label, file_type in self.main_dictionary[path].items() if
+        labels = [str(label.stem) for label, file_type in self.main_dictionary[path].items() if
                   file_type == ContentType.tag]
         if not labels:
             labels = 'No labels present.'
@@ -1556,11 +1580,14 @@ class Monitr(QtWidgets.QMainWindow):
 
     # TODO: Modify the complex number showing, so it shows real units instead of 0s and 1s.
     # TODO: add expand all to the json viewer.
-    def add_all_files(self, path):
+    # TODO: make the json viewer editable.
+    def add_all_files(self, path: Path, collapsed_settings: Dict[str, bool] = {}):
         """
         Adds all other md, json or images files on the right side of the screen.
 
         :param path: The path of the folder being selected.
+        :param collapsed_settings: Contains previous state (if exists) of each widget so that the function can generate
+            them expanded or collapsed appropriately.
         """
         # Generate a sorted list of the files I need to display a window
         files = [(file, file_type) for file, file_type in self.main_dictionary[path].items()
@@ -1571,12 +1598,18 @@ class Monitr(QtWidgets.QMainWindow):
         files.reverse()
         for file, file_type in files:
             if file_type == ContentType.json:
-                json_view = Collapsible(widget=QtWidgets.QTreeView(), title=file.name, expanding=False)
 
-                # Manually set the Collapsible to start collapsed.
-                json_view.widget.setVisible(False)
-                json_view.btn.setText(json_view.collapsedTitle)
-                json_view.btn.setChecked(False)
+                collapsed_option = False
+                # Check if there are collapsed settings for this file and apply them.
+                if file.name in collapsed_settings:
+                    collapsed_option = collapsed_settings[file.name]
+                json_view = Collapsible(widget=QtWidgets.QTreeView(), title=file.name, expanding=collapsed_option)
+                json_view.widget.setVisible(collapsed_option)
+                json_view.btn.setChecked(collapsed_option)
+                if collapsed_option:
+                    json_view.btn.setText(json_view.expandedTitle)
+                else:
+                    json_view.btn.setText(json_view.collapsedTitle)
 
                 json_model = JsonModel(json_view)
 
@@ -1592,17 +1625,37 @@ class Monitr(QtWidgets.QMainWindow):
                 self.right_side_layout.addWidget(json_view)
 
             elif file_type == ContentType.md:
-                plain_text_edit = Collapsible(TextEditWidget(file), title=file.name)
+
+                collapsed_option = True
+                # Check if there are collapsed settings for this file and apply them.
+                if file.name in collapsed_settings:
+                    collapsed_option = collapsed_settings[file.name]
+                plain_text_edit = Collapsible(widget=TextEditWidget(path=file), title=file.name, expanding=collapsed_option)
+                plain_text_edit.widget.setVisible(collapsed_option)
+                plain_text_edit.btn.setChecked(collapsed_option)
+                if collapsed_option:
+                    plain_text_edit.btn.setText(plain_text_edit.expandedTitle)
+                else:
+                    plain_text_edit.btn.setText(plain_text_edit.collapsedTitle)
+
                 self.file_windows.append(plain_text_edit)
                 self.right_side_layout.addWidget(plain_text_edit)
 
             elif file_type == ContentType.image:
-                label = Collapsible(QtWidgets.QLabel(), title=file.name)
 
-                # Manually set the Collapsible to start collapsed.
-                label.widget.setVisible(False)
-                label.btn.setText(label.collapsedTitle)
-                label.btn.setChecked(False)
+                collapsed_option = False
+                # Check if there are collapsed settings for this file and apply them.
+                if file.name in collapsed_settings:
+                    collapsed_option = collapsed_settings[file.name]
+
+                label = Collapsible(QtWidgets.QLabel(), title=file.name, expanding=collapsed_option)
+
+                label.widget.setVisible(collapsed_option)
+                label.btn.setChecked(collapsed_option)
+                if collapsed_option:
+                    label.btn.setText(label.expandedTitle)
+                else:
+                    label.btn.setText(label.collapsedTitle)
 
                 pixmap = QtGui.QPixmap(str(file))
                 label.widget.setPixmap(pixmap)
