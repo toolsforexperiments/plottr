@@ -4,16 +4,18 @@ import sys
 import os
 import argparse
 import time
-from typing import List, Optional, Dict, Any, Union
-from functools import partial
 import importlib
-from multiprocessing import Process
+
 import logging
-from enum import Enum, auto
-from pathlib import Path
 import re
 import pprint
 import json
+from enum import Enum, auto
+from pathlib import Path
+from multiprocessing import Process
+from typing import List, Optional, Dict, Any, Union
+from functools import partial
+from itertools import cycle
 
 from watchdog.events import FileSystemEvent
 
@@ -28,6 +30,7 @@ from ..icons import get_colormeshPlotIcon as get_star_icon, get_gridIcon as get_
 
 from .ui.Monitr_UI import Ui_MainWindow
 
+TIMESTRFORMAT = "%Y-%m-%dT%H%M%S"
 
 class Monitr_depreceated(QtWidgets.QMainWindow):
     # TODO: keep a list of app processes and monitor them if alive.
@@ -117,6 +120,15 @@ def logger() -> logging.Logger:
     return logger
 
 
+def html_color_generator():
+    """
+    Generator that cycles through string colors for use in html code.
+    """
+    colors = ['red', 'blue', 'green', 'purple', 'orange', 'brown', 'magenta']
+    for color in cycle(colors):
+        yield color
+
+
 class ContentType(Enum):
     """
     Enum class for the types of files that are of interest in the monitored subdirectories. Contains helper methods to
@@ -154,7 +166,7 @@ class ContentType(Enum):
             return ContentType.unknown
 
     @classmethod
-    def sort_color(cls, item=None):
+    def sort_Qcolor(cls, item=None):
         """
         Returns the Qt color for the specified ContentType
         """
@@ -347,7 +359,7 @@ class FileTree(QtWidgets.QTreeWidget):
         if files_dict is not None:
             for file_key, file_type in files_dict.items():
                 child = TreeWidgetItem(file_key, False, False, [str(file_key.name)])
-                child.setForeground(0, ContentType.sort_color(file_type))
+                child.setForeground(0, ContentType.sort_Qcolor(file_type))
                 child.setFlags(child.flags() | QtCore.Qt.ItemIsEditable)
                 self.main_items_dictionary[file_key] = child
                 tree_widget_item.addChild(child)
@@ -356,7 +368,7 @@ class FileTree(QtWidgets.QTreeWidget):
             self.insertTopLevelItem(0, tree_widget_item)
         else:
             self.main_items_dictionary[file_or_folder_path] = tree_widget_item
-            tree_widget_item.setForeground(0, ContentType.sort_color(ContentType.sort(file_or_folder_path)))
+            tree_widget_item.setForeground(0, ContentType.sort_Qcolor(ContentType.sort(file_or_folder_path)))
             parent_item.addChild(tree_widget_item)
 
     def delete_item(self, path: Path):
@@ -398,7 +410,7 @@ class FileTree(QtWidgets.QTreeWidget):
             self.main_items_dictionary[new_path].path = new_path
             self.main_items_dictionary[new_path].setText(0, str(new_path.name))
             if new_color is not None:
-                self.main_items_dictionary[new_path].setForeground(0, ContentType.sort_color(new_color))
+                self.main_items_dictionary[new_path].setForeground(0, ContentType.sort_Qcolor(new_color))
 
     @Slot(QtCore.QPoint)
     def on_context_menu_requested(self, pos: QtCore.QPoint):
@@ -885,10 +897,33 @@ class DataTreeWidget(QtWidgets.QTreeWidget):
         """
         self.plot_requested.emit(self.currentItem().path)
 
+    def sizeHint(self):
+        height = 2 * self.frameWidth()  # border around tree
+        header_width = 0
+        if not self.isHeaderHidden():
+            header = self.header()
+            headerSizeHint = header.sizeHint()
+            height += headerSizeHint.height()
+            header_width += headerSizeHint.width()
+        rows = 0
+        it = QtWidgets.QTreeWidgetItemIterator(self)
+        while it.value() is not None:
+            rows += 1
+            index = self.indexFromItem(it.value())
+            height += self.rowHeight(index)
+            it += 1
+
+        # calculating width:
+        width = 2 * self.frameWidth()
+        for i in range(self.columnCount()):
+            width += self.sizeHintForColumn(i)
+
+        return QtCore.QSize(width, height)
+
 
 class FloatingButtonWidget(QtWidgets.QPushButton):
     """
-    Floating button inside the textbox showing any md file. Allows to edit or save the file.
+    Floating button inside the textbox showing any md file. Allows editing or saving the file.
 
     Class taken from: https://www.deskriders.dev/posts/007-pyqt5-overlay-button-widget/
     """
@@ -901,8 +936,7 @@ class FloatingButtonWidget(QtWidgets.QPushButton):
 
     def __init__(self, parent):
         super().__init__(parent)
-        self.paddingLeft = 5
-        self.paddingTop = 5
+        self.padding_right = 5
         self.edit_text = 'Edit'
         self.save_text = 'Save'
 
@@ -915,7 +949,6 @@ class FloatingButtonWidget(QtWidgets.QPushButton):
         """
         Updates the position of the button if the textbox moves or changes shape.
         """
-
         if hasattr(self.parent(), 'viewport'):
             parent_rect = self.parent().viewport().rect()
         else:
@@ -924,8 +957,8 @@ class FloatingButtonWidget(QtWidgets.QPushButton):
         if not parent_rect:
             return
 
-        x = parent_rect.width() - self.width() - self.paddingLeft
-        y = parent_rect.height() - self.height() - self.paddingTop
+        x = parent_rect.width() - self.width() - self.padding_right
+        y = parent_rect.height() - self.height()
         self.setGeometry(x, y, self.width(), self.height())
 
     def resizeEvent(self, event):
@@ -963,14 +996,26 @@ class TextEditWidget(QtWidgets.QTextEdit):
         self.path = path
 
         self.floating_button = FloatingButtonWidget(parent=self)
+        self.floating_button.hide()
+
+        size_policy = QtWidgets.QSizePolicy(QtWidgets.QSizePolicy.Minimum, QtWidgets.QSizePolicy.Minimum)
+        self.setSizePolicy(size_policy)
 
         with open(path) as file:
             self.file_text = file.read()
         self.setReadOnly(True)
-        self.setText(self.file_text)
+        self.setPlainText(self.file_text)
+        document = QtGui.QTextDocument(self.file_text, parent=self)
+        self.setDocument(document)
         self.text_before_edit = self.toPlainText()
         self.floating_button.save_activated.connect(self.save_activated)
         self.floating_button.edit_activated.connect(self.edit_activated)
+        self.document().contentsChanged.connect(self.size_change)
+
+        # Arbitrary threshold height.
+        self.max_threshold_height = 211
+        self.min_threshold_height = 2
+        self.size_change()
 
     def resizeEvent(self, event):
         """
@@ -978,6 +1023,35 @@ class TextEditWidget(QtWidgets.QTextEdit):
         """
         super().resizeEvent(event)
         self.floating_button.update_position()
+
+    def size_change(self):
+        """
+        Changes the minimum height of the widget. Gets called every time the document changes.
+        """
+        doc_height = self.document().size().height()
+        if doc_height <= self.min_threshold_height:
+            self.setMinimumHeight(self.min_threshold_height)
+        if doc_height <= self.max_threshold_height:
+            self.setMinimumHeight(doc_height)
+        elif doc_height > self.max_threshold_height:
+            self.setMinimumHeight(self.max_threshold_height)
+
+    def sizeHint(self):
+        super_hint = super().sizeHint()
+        height = super_hint.height()
+        width = super_hint.width()
+        if height >= self.document().size().height():
+            height = self.document().size().height()
+
+        return QtCore.QSize(width, height)
+
+    def enterEvent(self, *args, **kwargs):
+        super().enterEvent(*args, **kwargs)
+        self.floating_button.show()
+
+    def leaveEvent(self, *args, **kwargs):
+        super().enterEvent(*args, **kwargs)
+        self.floating_button.hide()
 
     # TODO: Add a shortcut to finish editing both here and in the future the add comment line too with the same command.
     # TODO: When the saving fails, it completely deletes the old data that's in the markdown. Develop a system where you
@@ -1010,35 +1084,68 @@ class TextEditWidget(QtWidgets.QTextEdit):
         self.text_before_edit = self.toPlainText()
 
 
+class TextInputFloatingButton(QtWidgets.QPushButton):
+    """
+    Floating button for the text input
+
+    Class taken from: https://www.deskriders.dev/posts/007-pyqt5-overlay-button-widget/
+    """
+
+    def __init__(self, parent):
+        super().__init__(parent)
+        self.paddingLeft = 5
+        self.paddingTop = 5
+        self.save_text = 'Save'
+
+        self.setText(self.save_text)
+
+    def update_position(self):
+        """
+        Updates the position of the button if the textbox moves or changes shape.
+        """
+        if hasattr(self.parent(), 'viewport'):
+            parent_rect = self.parent().viewport().rect()
+        else:
+            parent_rect = self.parent().rect()
+
+        if not parent_rect:
+            return
+
+        x = parent_rect.width() - self.width() - self.paddingLeft
+        y = parent_rect.height() - self.height() - self.paddingTop
+        self.setGeometry(x, y, self.width(), self.height())
+
+    def resizeEvent(self, event):
+        """
+        Gets called every time the resizeEvents gets triggered.
+        """
+        super().resizeEvent(event)
+        self.update_position()
+
+
 # TODO: Make sure that I always have the up to date folder dictionary for the automatic comment name function
-class TextInput(QtWidgets.QWidget):
+class TextInput(QtWidgets.QTextEdit):
     """
     Widget that allows to add new comment in the form of md files to the currently selected folder.
 
     Contains a button for saving and a text edit to write the comment.
 
     :param path: The Path of the folder where the file should be saved.
-    :param folder_dictionary: The dictionary of the path from the main_dictionary variable of the main window. It is
-        used to see how many md files exists in the folder for the automatic name suggestion.
     """
-    def __init__(self, path, folder_dictionary, *args, **kwargs):
+    def __init__(self, path: Path, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.path = path
 
-        # Get how many md files there are in the folder for the automatic naming functionality.
-        md_files = [file for file, file_type in folder_dictionary.items() if file_type == ContentType.md]
-        self.n_md_files = len(md_files) + 1
-
-        self.layout = QtWidgets.QHBoxLayout(self)
-        self.setLayout(self.layout)
-
-        self.text_edit = QtWidgets.QTextEdit()
-        self.save_button = QtWidgets.QPushButton("Save")
-
-        self.layout.addWidget(self.text_edit)
-        self.layout.addWidget(self.save_button)
+        self.save_button = TextInputFloatingButton(parent=self)
+        self.save_button.hide()
 
         self.save_button.clicked.connect(self.create_md_file)
+        self.document().contentsChanged.connect(self.size_change)
+
+        # Arbitrary threshold height.
+        self.max_threshold_height = 211
+        self.min_threshold_height = 45
+        self.size_change()
 
     def create_md_file(self):
         """
@@ -1047,21 +1154,24 @@ class TextInput(QtWidgets.QWidget):
         When the user clicks the save button a dialog appears to input name. A default name is selected based on the
         number of md files that already exists in that folder.
         """
-        current_text = self.text_edit.toPlainText()
-        default_file_name = f'comment#{self.n_md_files}'
-        dialog_text, response = QtWidgets.QInputDialog.getText(self,
-                                                               "Input comment name",
-                                                               "Name:", text=str(default_file_name))
+        current_text = self.toPlainText()
+        t = time.localtime()
+
+        time_str = time.strftime(TIMESTRFORMAT, t)
+        dialog_text, response = QtWidgets.QInputDialog.getText(self, "Input comment name", "Name:",)
 
         if response:
             if dialog_text[-3:] != '.md':
-                dialog_text = dialog_text + '.md'
+                if dialog_text == '':
+                    dialog_text = time_str + '.md'
+                else:
+                    dialog_text = time_str + '_' + dialog_text + '.md'
             try:
                 comment_path = self.path.joinpath(dialog_text)
                 if not comment_path.is_file():
                     with open(comment_path, 'w') as file:
                         file.write(current_text)
-                    self.text_edit.setText('')
+                    self.setText('')
                 else:
                     error_msg = QtWidgets.QMessageBox()
                     error_msg.setText(f"File: {comment_path} already exists, please select a different file name.")
@@ -1075,11 +1185,133 @@ class TextInput(QtWidgets.QWidget):
                 error_msg.setWindowTitle(f'Error trying to save comment.')
                 error_msg.exec_()
 
+    def resizeEvent(self, event):
+        """
+        Called every time the size of the widget changes. Triggers the change in position of the floating button.
+        """
+        super().resizeEvent(event)
+        self.save_button.update_position()
+
+    def enterEvent(self, *args, **kwargs):
+        super().enterEvent(*args, **kwargs)
+        self.save_button.show()
+
+    def leaveEvent(self, *args, **kwargs):
+        super().enterEvent(*args, **kwargs)
+        self.save_button.hide()
+
+    def size_change(self):
+        """
+        Changes the minimum height of the widget. Gets called every time the document changes.
+        """
+        doc_height = self.document().size().height()
+        if doc_height <= self.min_threshold_height:
+            self.setMinimumHeight(self.min_threshold_height)
+        elif doc_height <= self.max_threshold_height:
+            self.setMinimumHeight(doc_height)
+        elif doc_height > self.max_threshold_height:
+            self.setMinimumHeight(self.max_threshold_height)
+
+    def sizeHint(self):
+        super_hint = super().sizeHint()
+        height = super_hint.height()
+        width = super_hint.width()
+        if height >= self.document().size().height():
+            height = self.document().size().height()
+        return QtCore.QSize(width, height)
+
+
+class ImageViewer(QtWidgets.QLabel):
+    """
+    Widget to display images that scale for the space given.
+
+    :param path_file: The path of the image.
+    """
+    def __init__(self, path_file: Path, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.setScaledContents(True)
+        self.pixmap = QtGui.QPixmap(str(path_file))
+        self.original_height = self.pixmap.height()
+        self.original_width = self.pixmap.width()
+        self.setPixmap(self.pixmap)
+
+        self.setMinimumWidth(1)
+
+    def resizeEvent(self, event: QtGui.QResizeEvent) -> None:
+        super().resizeEvent(event)
+        self.scale_image()
+
+    def scale_image(self):
+        """
+        Scales the image, gets called every time the widget changes size.
+        """
+        parent_width = self.parent().width()
+        self.pixmap.scaled(parent_width, parent_width, QtCore.Qt.KeepAspectRatio)
+
+
+class VerticalScrollArea(QtWidgets.QScrollArea):
+    """
+    Custom QScrollArea. Allows for only vertical scroll instead of vertical and horizontal.
+    """
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+
+        self.setVerticalScrollBarPolicy(QtCore.Qt.ScrollBarAsNeeded)
+        self.setHorizontalScrollBarPolicy(QtCore.Qt.ScrollBarAlwaysOff)
+        self.setWidgetResizable(True)
+
+    def eventFilter(self, a0: QtCore.QObject, a1: QtCore.QEvent) -> bool:
+        self.setMinimumWidth(self.widget().minimumSizeHint().width())
+        return super().eventFilter(a0, a1)
+
+
+class TagLabel(QtWidgets.QWidget):
+    """
+    Widget that displays the tags passed in the argument. The tags will each be displayed in a different color.
+
+    :param tags: List of each tag that should be displayed.
+    """
+
+    def __init__(self, tags: List[str], *args, **kwargs):
+        super().__init__(*args, **kwargs)
+
+        self.tags = tags
+        self.html_tags = []
+
+        if not tags:
+            self.tags_str = 'No labels present.'
+        else:
+            color_generator = html_color_generator()
+
+            # Add every tag followed by a come, except the last item.
+            for i in range(len(self.tags) - 1):
+                html_str = f'<font color={next(color_generator)}>{self.tags[i]}, </font>'
+                self.html_tags.append(html_str)
+
+            # Last item is followed by a dot instead of a coma.
+            html_str = f'<font color={next(color_generator)}>{self.tags[-1]}.</font>'
+            self.html_tags.append(html_str)
+
+            self.tags_str = ''.join(self.html_tags)
+
+        self.header_label = QtWidgets.QLabel('This is tagged by:', parent=self)
+        self.tags_label = QtWidgets.QLabel(self.tags_str, parent=self)
+        self.tags_label.setWordWrap(True)
+        self.tags_label.setIndent(30)
+
+        self.layout = QtWidgets.QVBoxLayout()
+        self.layout.addWidget(self.header_label)
+        self.layout.addWidget(self.tags_label)
+
+        self.setLayout(self.layout)
+
+        size_policy = QtWidgets.QSizePolicy(QtWidgets.QSizePolicy.Minimum, QtWidgets.QSizePolicy.Fixed)
+        self.setSizePolicy(size_policy)
+
 
 # TODO: look over logger and start utilizing in a similar way like instrument server is being used right now.
 # TODO: Test deletion of nested folder situations for large data files to see if this is fast enough.
 class Monitr(QtWidgets.QMainWindow):
-
     def __init__(self, monitorPath: str = '.',
                  parent: Optional[QtWidgets.QMainWindow] = None):
 
@@ -1095,7 +1327,9 @@ class Monitr(QtWidgets.QMainWindow):
 
         # layout
         self.main_partition_layout = QtWidgets.QHBoxLayout()
+        self.main_partition_splitter = QtWidgets.QSplitter()
         self.file_tree_layout = QtWidgets.QVBoxLayout()
+        self.file_tree_dummy_widget_holder = QtWidgets.QWidget()
         self.expand_collapse_refresh_layout = QtWidgets.QHBoxLayout()
         self.dummy_widget = QtWidgets.QWidget()
 
@@ -1117,7 +1351,16 @@ class Monitr(QtWidgets.QMainWindow):
 
         self.file_tree_layout.addLayout(self.expand_collapse_refresh_layout)
 
-        self.main_partition_layout.addLayout(self.file_tree_layout)
+        self.file_tree_dummy_widget_holder.setLayout(self.file_tree_layout)
+
+        # Setting a stretch policy so the extra space goes to the right side of the screen and not the file explorer.
+        file_tree_dummy_widget_holder_size_policy = QtWidgets.QSizePolicy(QtWidgets.QSizePolicy.Preferred,
+                                                                          QtWidgets.QSizePolicy.Preferred)
+        file_tree_dummy_widget_holder_size_policy.setHorizontalStretch(1)
+        file_tree_dummy_widget_holder_size_policy.setVerticalStretch(0)
+        self.file_tree_dummy_widget_holder.setSizePolicy(file_tree_dummy_widget_holder_size_policy)
+
+        self.main_partition_splitter.addWidget(self.file_tree_dummy_widget_holder)
 
         # Setting up the right part of the window.
 
@@ -1125,24 +1368,25 @@ class Monitr(QtWidgets.QMainWindow):
         self.data_window = None
         self.text_input = None
         self.file_windows = []
-        self.tag_label = QtWidgets.QLabel()
+        self.scroll_area = None
+        self.file_windows_splitter = None
+        self.tag_label = None
+        self.right_side_layout_dummy_holder = QtWidgets.QWidget()
 
         self.right_side_layout = QtWidgets.QVBoxLayout()
-
-        self.main_partition_layout.addLayout(self.right_side_layout)
-
-        self.dummy_widget.setLayout(self.main_partition_layout)
-        self.setCentralWidget(self.dummy_widget)
+        self.right_side_layout_dummy_holder.setLayout(self.right_side_layout)
+        self.setCentralWidget(self.main_partition_splitter)
 
         # debug items
-        self.debug_layout = QtWidgets.QHBoxLayout()
-        self.main_dict_button = QtWidgets.QPushButton(f'Print main dictionary')
-        self.tree_main_dict_button = QtWidgets.QPushButton(f'print tree dict')
-        self.debug_layout.addWidget(self.main_dict_button)
-        self.debug_layout.addWidget(self.tree_main_dict_button)
-        self.main_dict_button.clicked.connect(self.print_main_dictionary)
-        self.tree_main_dict_button.clicked.connect(self.print_tree_main_dictionary)
-        self.file_tree_layout.addLayout(self.debug_layout)
+        # self.debug_layout = QtWidgets.QHBoxLayout()
+        # self.main_dict_button = QtWidgets.QPushButton(f'Print main dictionary')
+        # self.tree_main_dict_button = QtWidgets.QPushButton(f'print tree dict')
+        # self.debug_layout.addWidget(self.main_dict_button)
+        # self.debug_layout.addWidget(self.tree_main_dict_button)
+        # self.main_dict_button.clicked.connect(self.print_main_dictionary)
+        # self.tree_main_dict_button.clicked.connect(self.print_tree_main_dictionary)
+        # self.file_tree_layout.addLayout(self.debug_layout)
+        # self.text_edit_item = None
 
         self.refresh_files()
 
@@ -1152,21 +1396,21 @@ class Monitr(QtWidgets.QMainWindow):
         self.watcher.moveToThread(self.watcher_thread)
         self.watcher_thread.started.connect(self.watcher.run)
 
-        # Connect the Signals.
-        self.watcher.moved.connect(self.file_moved)
-        self.watcher.created.connect(self.file_created)
-        self.watcher.deleted.connect(self.file_deleted)
-        self.watcher.modified.connect(self.file_modified)
-        self.watcher.closed.connect(self.file_closed)
-
         self.expand_all_button.clicked.connect(self.tree.expandAll)
         self.collapse_all_button.clicked.connect(self.tree.collapseAll)
         self.refresh_button.clicked.connect(self.refresh_files)
 
-        self.tree.plot_requested.connect(self.plot_data)
-        self.tree.item_selected.connect(self.new_folder_selected)
-        self.tree.item_starred.connect(self.new_item_starred)
-        self.tree.item_trashed.connect(self.new_item_trashed)
+        self.tree.plot_requested.connect(self.on_plot_data)
+        self.tree.item_selected.connect(self.on_new_folder_selected)
+        self.tree.item_starred.connect(self.on_new_item_starred)
+        self.tree.item_trashed.connect(self.on_new_item_trashed)
+
+        # Connect the Signals.
+        self.watcher.moved.connect(self.on_file_moved)
+        self.watcher.created.connect(self.on_file_created)
+        self.watcher.deleted.connect(self.on_file_deleted)
+        self.watcher.modified.connect(self.on_file_modified)
+        self.watcher.closed.connect(self.on_file_closed)
 
         self.watcher_thread.start()
 
@@ -1224,7 +1468,7 @@ class Monitr(QtWidgets.QMainWindow):
         logger().info(f'refreshing files took: {final_timer * 10 ** -9}s')
 
     @QtCore.Slot(FileSystemEvent)
-    def file_created(self, event: FileSystemEvent):
+    def on_file_created(self, event: FileSystemEvent):
         """
         Triggered every time a file or directory is created. Identifies if the new created file is relevant and adds it
         to the main dictionary.
@@ -1248,10 +1492,10 @@ class Monitr(QtWidgets.QMainWindow):
 
             # If a file is created in the currently displaying folder update the right side.
             if path.parent == self.currently_selected_folder:
-                self.new_folder_selected(self.currently_selected_folder)
+                self.generate_right_side_window(self.currently_selected_folder)
 
     @QtCore.Slot(FileSystemEvent)
-    def file_deleted(self, event: FileSystemEvent):
+    def on_file_deleted(self, event: FileSystemEvent):
         """
         Triggered every time a file or directory is deleted. Identifies if the deleted file is relevant and deletes it
         and any other non-relevant files.
@@ -1301,10 +1545,10 @@ class Monitr(QtWidgets.QMainWindow):
 
             # If a file gets deleted from the currently selected folder, update the right side.
             if path.parent == self.currently_selected_folder:
-                self.new_folder_selected(self.currently_selected_folder)
+                self.generate_right_side_window(self.currently_selected_folder)
 
     @QtCore.Slot(FileSystemEvent)
-    def file_moved(self, event: FileSystemEvent):
+    def on_file_moved(self, event: FileSystemEvent):
         """
         Triggered every time a file or folder is moved, this includes a file or folder changing names.
         Updates both the `main_dictionary` and the file tree.
@@ -1352,24 +1596,24 @@ class Monitr(QtWidgets.QMainWindow):
                 self.tree.update_item(src_path, dest_path)
 
     @QtCore.Slot(FileSystemEvent)
-    def file_modified(self, event):
+    def on_file_modified(self, event):
         """
         Gets called every time a file or folder gets modified.
         If the file gets modified in the currently selected folder updates the right side of the screen.
         """
-        logger().info(f'file modified: {event}')
-        path = Path(event.src_path)
-        if path.parent == self.currently_selected_folder:
-            self.new_folder_selected(path.parent)
         pass
+        # logger().info(f'file modified: {event}')
+        # path = Path(event.src_path)
+        # print(f'after the logging of modified.')
+        # if path.parent == self.currently_selected_folder:
+        #     self.new_folder_selected(path.parent)
 
     @QtCore.Slot(FileSystemEvent)
-    def file_closed(self, event):
+    def on_file_closed(self, event):
         """
         Gets called every time a file is closed
         """
         logger().info(f'file closed: {event}')
-        pass
 
     def _update_change_of_file(self, src_path: Path, dest_path: Path):
         """
@@ -1491,7 +1735,7 @@ class Monitr(QtWidgets.QMainWindow):
             self.tree.delete_item(path.parents[index_of_deletion])
 
     @Slot(Path)
-    def plot_data(self, path):
+    def on_plot_data(self, path):
         """
         Starts an autoplot window in a different process for the ddh5 in the path
 
@@ -1510,21 +1754,49 @@ class Monitr(QtWidgets.QMainWindow):
     @Slot()
     def print_tree_main_dictionary(self):
         """Debug function. Prints the tree main dictionary"""
-        temp_dict = {}
-        for key, value in self.tree.main_items_dictionary.items():
-            temp_dict[key] = dict(item=value, star=value.star, trash=value.trash)
-        pprint.pprint(temp_dict)
+        size_dict = {}
+        for item in self.file_windows:
+            if isinstance(item.widget, ImageViewer):
+                print(f'I found an ImageViewer with title: {item.plainTitle}')
+                width = item.widget.frameGeometry().width()
+                height = item.widget.frameGeometry().height()
+                size_dict[item.plainTitle] = {'actual size': (width, height),
+                                              'item_sizeHint': item.sizeHint(),
+                                              'widget_sizeHint': item.widget.sizeHint(),
+                                              'pixmap_size:': item.widget.pixmap.size(),
+                                              'minimum_height': item.widget.minimumHeight(),
+                                              'minimum_width': item.widget.minimumWidth()}
+
+        print(f'here comes the dictionary. remember: WIDTH, HEIGHT')
+        pprint.pprint(size_dict)
 
     @Slot(Path)
-    def new_folder_selected(self, path):
+    def on_new_folder_selected(self, path):
         """
-        Gets called when the user selects a folder in the main file tree. If the path is a folder containing a ddh5 file
-        it generates the right side of the screen and updates the currently selected_folder.
+        Gets called when the user selects a folder in the main file tree. Calls the function that generates the right
+        side of the screen.
 
         :param path: The path of the folder being selected
         """
+        self.generate_right_side_window(path)
 
+    def generate_right_side_window(self, path):
+        """
+        Generates the right side of the screen.
+
+        :param path: The path of the folder where the files to create the right side are being created/
+        """
+        # Check that it is a folder that has a ddh5 inside
         if path in self.main_dictionary:
+
+            # If it's the first time, create the right side scroll area and add it to the splitter.
+            if self.scroll_area is None:
+                self.scroll_area = VerticalScrollArea()
+                self.scroll_area.setWidget(self.right_side_layout_dummy_holder)
+                self.main_partition_splitter.addWidget(self.scroll_area)
+
+            # Check if this is the first time we are selecting a folder.
+            # If it isn't update the collapsed state dictionary
             if self.currently_selected_folder is not None:
                 self.collapsed_state_dictionary[self.currently_selected_folder] = \
                     {window.plainTitle: window.btn.isChecked() for window in self.file_windows}
@@ -1534,10 +1806,13 @@ class Monitr(QtWidgets.QMainWindow):
 
             self.currently_selected_folder = path
             self.clear_right_layout()
-            self.add_data_window(path)
             self.add_tag_label(path)
+            self.add_data_window(path)
             self.add_text_input(path)
             self.add_all_files(path, collapsed_settings)
+
+        self.main_partition_splitter.setStretchFactor(0, 0)
+        self.main_partition_splitter.setStretchFactor(1, 255)
 
     def add_data_window(self, path: Path):
         """
@@ -1549,7 +1824,11 @@ class Monitr(QtWidgets.QMainWindow):
                       if file_type == ContentType.data]
 
         self.data_window = Collapsible(DataTreeWidget(data_files), 'Data Display')
-        self.data_window.widget.plot_requested.connect(self.plot_data)
+        self.data_window.widget.plot_requested.connect(self.on_plot_data)
+
+        size_policy = QtWidgets.QSizePolicy(QtWidgets.QSizePolicy.Minimum, QtWidgets.QSizePolicy.Expanding)
+        self.data_window.setSizePolicy(size_policy)
+
         self.right_side_layout.addWidget(self.data_window)
 
     def add_tag_label(self, path: Path):
@@ -1558,15 +1837,10 @@ class Monitr(QtWidgets.QMainWindow):
 
         :param path: The path of the folder being selected
         """
-        labels = [str(label.stem) for label, file_type in self.main_dictionary[path].items() if
-                  file_type == ContentType.tag]
-        if not labels:
-            labels = 'No labels present.'
-        else:
-            labels = ', '.join(labels)
+        tags = [str(label.stem) for label, file_type in self.main_dictionary[path].items()
+                if file_type == ContentType.tag]
 
-        self.tag_label = QtWidgets.QLabel()
-        self.tag_label.setText(labels)
+        self.tag_label = TagLabel(tags)
         self.right_side_layout.addWidget(self.tag_label)
 
     def add_text_input(self, path):
@@ -1575,7 +1849,7 @@ class Monitr(QtWidgets.QMainWindow):
 
         :param path: The path of the folder being selected
         """
-        self.text_input = TextInput(path, self.main_dictionary[path])
+        self.text_input = Collapsible(TextInput(path), title='Add Comment:')
         self.right_side_layout.addWidget(self.text_input)
 
     # TODO: Modify the complex number showing, so it shows real units instead of 0s and 1s.
@@ -1594,8 +1868,11 @@ class Monitr(QtWidgets.QMainWindow):
                  if file_type == ContentType.json or
                  file_type == ContentType.md or
                  file_type == ContentType.image]
-        files = sorted(files, key=lambda x: os.path.getmtime(x[0]))
-        files.reverse()
+
+        # Adding extra check if multiple files get deleted at once to update with files that do exists
+        files = [file for file in files if file[0].is_file()]
+
+        files = sorted(files, key=lambda x: str.lower(x[0].name), reverse=True)
         for file, file_type in files:
             if file_type == ContentType.json:
 
@@ -1648,17 +1925,14 @@ class Monitr(QtWidgets.QMainWindow):
                 if file.name in collapsed_settings:
                     collapsed_option = collapsed_settings[file.name]
 
-                label = Collapsible(QtWidgets.QLabel(), title=file.name, expanding=collapsed_option)
-
+                label = Collapsible(ImageViewer(file, parent=self.right_side_layout_dummy_holder),
+                                    title=file.name, expanding=collapsed_option)
                 label.widget.setVisible(collapsed_option)
                 label.btn.setChecked(collapsed_option)
                 if collapsed_option:
                     label.btn.setText(label.expandedTitle)
                 else:
                     label.btn.setText(label.collapsedTitle)
-
-                pixmap = QtGui.QPixmap(str(file))
-                label.widget.setPixmap(pixmap)
 
                 self.file_windows.append(label)
                 self.right_side_layout.addWidget(label)
@@ -1690,7 +1964,7 @@ class Monitr(QtWidgets.QMainWindow):
             self.file_windows = []
 
     @Slot(Path)
-    def new_item_starred(self, path: Path):
+    def on_new_item_starred(self, path: Path):
         """
         Gets called every time the user decides to star an item. Checks whether the item is a folder of interest or a
         parent of one and stars or un-stars depending on whether a star tag already exists.
@@ -1737,7 +2011,7 @@ class Monitr(QtWidgets.QMainWindow):
                         star_path.unlink()
 
     @Slot(Path)
-    def new_item_trashed(self, path):
+    def on_new_item_trashed(self, path):
         """
         Gets called every time the user decides to trash an item. Checks whether the item is a folder of interest or a
         parent of one and trashes or un-trashes depending on whether a trash tag already exists.
