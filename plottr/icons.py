@@ -73,13 +73,21 @@ def get_xySelectIcon() -> QtGui.QIcon:
     )
     return xySelectIcon
 
+
 def get_trashIcon() -> QtGui.QIcon:
+    """
+    Icon taken from: https://glyphs.fyi/
+    """
     trashIcon = QtGui.QIcon(
         os.path.join(gfxPath, "trash.svg")
     )
     return trashIcon
 
+
 def get_starIcon() -> QtGui.QIcon:
+    """
+    Icon taken from: https://glyphs.fyi/
+    """
     starIcon = QtGui.QIcon(
         os.path.join(gfxPath, "star.svg")
     )
