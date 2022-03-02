@@ -520,6 +520,8 @@ class QCodesDBInspector(QtWidgets.QMainWindow):
     @Slot()
     def refreshDB(self) -> None:
         if self.filepath is not None:
+            if self.loadDBThread.isRunning():
+                return
             if self.dbdf is not None and self.dbdf.size > 0:
                 self.latestRunId = self.dbdf.index.values.max()
             else:
