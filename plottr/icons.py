@@ -72,3 +72,16 @@ def get_xySelectIcon() -> QtGui.QIcon:
         os.path.join(gfxPath, "xy_select.svg")
     )
     return xySelectIcon
+
+def get_trashIcon() -> QtGui.QIcon:
+    trashIcon = QtGui.QIcon(
+        os.path.join(gfxPath, "trash.svg")
+    )
+    return trashIcon
+
+def get_starIcon() -> QtGui.QIcon:
+    starIcon = QtGui.QIcon(
+        os.path.join(gfxPath, "star.svg")
+    )
+    return starIcon
+

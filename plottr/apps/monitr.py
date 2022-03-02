@@ -26,7 +26,7 @@ from ..utils.misc import unwrap_optional
 from ..apps.watchdog_classes import WatcherClient
 from ..gui.widgets import Collapsible
 from .json_veiwer import JsonModel
-from ..icons import get_colormeshPlotIcon as get_star_icon, get_gridIcon as get_trash_icon
+from ..icons import get_starIcon as get_star_icon, get_trashIcon as get_trash_icon
 
 from .ui.Monitr_UI import Ui_MainWindow
 
