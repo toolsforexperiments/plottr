@@ -564,7 +564,8 @@ class FileTree(QtWidgets.QTreeWidget):
                     item.star = True
                     item.setIcon(0, get_star_icon())
 
-            self.star_parent_item(path)
+            if path.parent in self.main_items_dictionary:
+                self.star_parent_item(path)
             self.filter_items()
 
     def star_parent_item(self, path: Path):
@@ -1601,12 +1602,12 @@ class Monitr(QtWidgets.QMainWindow):
         Gets called every time a file or folder gets modified.
         If the file gets modified in the currently selected folder updates the right side of the screen.
         """
-        pass
         # logger().info(f'file modified: {event}')
         # path = Path(event.src_path)
         # print(f'after the logging of modified.')
         # if path.parent == self.currently_selected_folder:
         #     self.new_folder_selected(path.parent)
+        pass
 
     @QtCore.Slot(FileSystemEvent)
     def on_file_closed(self, event):
@@ -1614,6 +1615,7 @@ class Monitr(QtWidgets.QMainWindow):
         Gets called every time a file is closed
         """
         # logger().info(f'file closed: {event}')
+        pass
 
     def _update_change_of_file(self, src_path: Path, dest_path: Path):
         """
@@ -1628,7 +1630,8 @@ class Monitr(QtWidgets.QMainWindow):
         elif src_path.name == '__trash__.tag' and dest_path.name != '__trash__.tag':
             self.tree.trash_item(src_path.parent)
 
-        self._check_special_tag_creation(dest_path)
+        if src_path.name != dest_path.name:
+            self._check_special_tag_creation(dest_path)
 
         if src_path.parent in self.main_dictionary:
             del self.main_dictionary[src_path.parent][src_path]
@@ -1754,21 +1757,24 @@ class Monitr(QtWidgets.QMainWindow):
     @Slot()
     def print_tree_main_dictionary(self):
         """Debug function. Prints the tree main dictionary"""
-        size_dict = {}
-        for item in self.file_windows:
-            if isinstance(item.widget, ImageViewer):
-                print(f'I found an ImageViewer with title: {item.plainTitle}')
-                width = item.widget.frameGeometry().width()
-                height = item.widget.frameGeometry().height()
-                size_dict[item.plainTitle] = {'actual size': (width, height),
-                                              'item_sizeHint': item.sizeHint(),
-                                              'widget_sizeHint': item.widget.sizeHint(),
-                                              'pixmap_size:': item.widget.pixmap.size(),
-                                              'minimum_height': item.widget.minimumHeight(),
-                                              'minimum_width': item.widget.minimumWidth()}
+        # size_dict = {}
+        # for item in self.file_windows:
+        #     if isinstance(item.widget, ImageViewer):
+        #         print(f'I found an ImageViewer with title: {item.plainTitle}')
+        #         width = item.widget.frameGeometry().width()
+        #         height = item.widget.frameGeometry().height()
+        #         size_dict[item.plainTitle] = {'actual size': (width, height),
+        #                                       'item_sizeHint': item.sizeHint(),
+        #                                       'widget_sizeHint': item.widget.sizeHint(),
+        #                                       'pixmap_size:': item.widget.pixmap.size(),
+        #                                       'minimum_height': item.widget.minimumHeight(),
+        #                                       'minimum_width': item.widget.minimumWidth()}
+        #
+        # print(f'here comes the dictionary. remember: WIDTH, HEIGHT')
 
-        print(f'here comes the dictionary. remember: WIDTH, HEIGHT')
-        pprint.pprint(size_dict)
+        file_tree = self.file_explorer.file_tree.main_items_dictionary
+        print_dict = {file_name: dict(star=file.star, trash=file.trash) for file_name, file in file_tree.items()}
+        pprint.pprint(print_dict)
 
     @Slot(Path)
     def on_new_folder_selected(self, path):
