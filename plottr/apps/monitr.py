@@ -501,7 +501,7 @@ class FileTree(QtWidgets.QTreeWidget):
         path = item.path
         # Checking if either a file or folder exists for the path. If it does it mean that the change was the icon and
         # nothing happens.
-        if not path.is_file() and not path.is_dir():
+        if new_text != path.name:
             try:
                 new_path = path.rename(path.parent.joinpath(new_text))
             except Exception as e:
@@ -1473,7 +1473,7 @@ class Monitr(QtWidgets.QMainWindow):
         Triggered every time a file or directory is created. Identifies if the new created file is relevant and adds it
         to the main dictionary.
         """
-        logger().info(f'file created: {event}')
+        # logger().info(f'file created: {event}')
         path = Path(event.src_path)
         # I am never interested in adding a folder into the tree. only interested in folders if a dataset is in them.
         if path.suffix != '':
@@ -1500,7 +1500,7 @@ class Monitr(QtWidgets.QMainWindow):
         Triggered every time a file or directory is deleted. Identifies if the deleted file is relevant and deletes it
         and any other non-relevant files.
         """
-        logger().info(f'file deleted: {event}')
+        # logger().info(f'file deleted: {event}')
         path = Path(event.src_path)
 
         # Check if a folder has been deleted.
@@ -1553,7 +1553,7 @@ class Monitr(QtWidgets.QMainWindow):
         Triggered every time a file or folder is moved, this includes a file or folder changing names.
         Updates both the `main_dictionary` and the file tree.
         """
-        logger().info(f'File moved: {event}')
+        # logger().info(f'File moved: {event}')
         # File moved gets triggered with None and '', for the event paths. From what I can tell, they are not useful,
         # so we ignore them.
         if event.src_path is not None and event.src_path != ''\
@@ -1613,7 +1613,7 @@ class Monitr(QtWidgets.QMainWindow):
         """
         Gets called every time a file is closed
         """
-        logger().info(f'file closed: {event}')
+        # logger().info(f'file closed: {event}')
 
     def _update_change_of_file(self, src_path: Path, dest_path: Path):
         """
