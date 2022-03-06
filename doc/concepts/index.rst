@@ -1,9 +1,9 @@
-Elementary concepts
-===================
+Working principles of plottr
+============================
 
 .. toctree::
     :maxdepth: 2
     :caption: Contents:
 
-    data
     nodes
+    data
