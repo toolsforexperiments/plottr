@@ -6,12 +6,16 @@
 Welcome to plottr's documentation!
 ==================================
 
+Todo: a quick description of what you can do with plottr, and a screenshot, or better a gif,
+showing it in action.
+
 .. toctree::
    :maxdepth: 2
    :caption: Contents:
 
    intro
    concepts/index
+   examples
 
 ..    nodes/index
 ..   plotnode
