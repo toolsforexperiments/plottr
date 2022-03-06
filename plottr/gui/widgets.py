@@ -3,7 +3,6 @@ widgets.py
 
 Common GUI widgets that are re-used across plottr.
 """
-from numpy import rint
 from typing import Union, List, Tuple, Optional, Type, Sequence, Dict, Any, Type
 
 from .tools import dictToTreeWidgetItems, dpiScalingFactor
