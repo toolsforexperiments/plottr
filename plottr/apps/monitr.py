@@ -363,6 +363,10 @@ class FileTree(QtWidgets.QTreeWidget):
                 child.setFlags(child.flags() | QtCore.Qt.ItemIsEditable)
                 self.main_items_dictionary[file_key] = child
                 tree_widget_item.addChild(child)
+
+                # Sort the children.
+                tree_widget_item.sortChildren(0, QtCore.Qt.DescendingOrder)
+
         if parent_path is None:
             self.main_items_dictionary[file_or_folder_path] = tree_widget_item
             self.insertTopLevelItem(0, tree_widget_item)
@@ -370,6 +374,9 @@ class FileTree(QtWidgets.QTreeWidget):
             self.main_items_dictionary[file_or_folder_path] = tree_widget_item
             tree_widget_item.setForeground(0, ContentType.sort_Qcolor(ContentType.sort(file_or_folder_path)))
             parent_item.addChild(tree_widget_item)
+
+            # Sort the children after you add a new one.
+            parent_item.sortChildren(0, QtCore.Qt.DescendingOrder)
 
     def delete_item(self, path: Path):
         """
