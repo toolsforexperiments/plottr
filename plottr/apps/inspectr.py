@@ -216,12 +216,12 @@ class RunList(QtWidgets.QTreeWidget):
             elif len(item) == 1:
                 completed = record.get('completed_date', '') + ' ' + record.get(
                     'completed_time', '')
-                if completed != item[0].text(5):
-                    item[0].setText(5, completed)
+                if completed != item[0].text(6):
+                    item[0].setText(6, completed)
 
                 num_records = str(record.get('records', ''))
-                if num_records != item[0].text(6):
-                    item[0].setText(6, num_records)
+                if num_records != item[0].text(7):
+                    item[0].setText(7, num_records)
             else:
                 raise RuntimeError(f"More than one runs found with runId: "
                                    f"{runId}")
