@@ -55,12 +55,26 @@ def test_meta():
     assert dd.meta_val('info')(1) == 0
     assert dd.meta_val('@^&', 'x') == 0
 
+    assert dd.has_meta('meta1')
+    assert dd.has_meta('meta3')
+
     for k in ['meta1', 'meta2', '@^&']:
         assert dd.meta_val(k, data='x') == dd['x'][f'__{k}__']
         assert f'__{k}__' in dd['x']
         assert k in [n for n, _ in dd.meta_items('x')]
 
     # test stripping of meta information
+
+    # test stripping specific data field
+
+    dd.clear_meta('x')
+    assert dd.validate()
+    x_nmeta = 0
+    for k, _ in dd['x'].items():
+        if k[:2] == '__' and k[-2:] == '__':
+            x_nmeta += 1
+    assert x_nmeta == 0
+
     dd.clear_meta()
     assert dd.validate()
 
