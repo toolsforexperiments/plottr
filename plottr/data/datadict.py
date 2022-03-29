@@ -214,7 +214,7 @@ class DataDictBase(dict):
 
         If the key already exists, meta info will be overwritten.
 
-        :param key: Name of the meta field (without underscores)
+        :param key: Name of the meta field (without underscores).
         :param value: Value of the meta information
         :param data: if ``None``, meta will be global; otherwise assigned to
                      data field ``data``.
