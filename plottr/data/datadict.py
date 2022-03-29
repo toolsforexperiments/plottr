@@ -189,6 +189,9 @@ class DataDictBase(dict):
         if k in self:
             return True
         else:
+            for key, field_dict in self.data_items():
+                if k in field_dict:
+                    return True
             return False
 
     def meta_val(self, key: str, data: Union[str, None] = None) -> Any:
@@ -244,7 +247,7 @@ class DataDictBase(dict):
         """
         Delete meta information.
 
-        :param data: if this is not None, delete onlymeta information from data
+        :param data: if this is not None, delete only meta information from data
                      field `data`. Else, delete all top-level meta, as well as
                      meta for all data fields.
 
@@ -260,7 +263,8 @@ class DataDictBase(dict):
                     self.delete_meta(m, d)
 
         else:
-            for m, _ in self.meta_items(data):
+            data_meta_list = [m for m, _ in self.meta_items(data)]
+            for m in data_meta_list:
                 self.delete_meta(m, data)
 
     def extract(self: T, data: List[str], include_meta: bool = True,
