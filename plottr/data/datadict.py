@@ -83,13 +83,16 @@ class DataDictBase(dict):
 
     @staticmethod
     def to_records(**data: Any) -> Dict[str, np.ndarray]:
-        """Convert data to rows that can be added to the ``DataDict``.
-        All data is converted to np.array, and the first dimension of all resulting
-        arrays has the same length (chosen to be the smallest possible number
+        """Convert data to records that can be added to the ``DataDict``.
+        All data is converted to np.array, and reshaped such that the first dimension of all resulting
+        arrays have the same length (chosen to be the smallest possible number
         that does not alter any shapes beyond adding a length-1 dimension as
-        first dimesion, if necessary).
+        first dimension, if necessary).
 
-        If a field is given as ``None``, it will be converted to ``numpy.array([numpy.nan])``.
+        If a data field is given as ``None``, it will be converted to ``numpy.array([numpy.nan])``.
+
+        :param data: keyword arguments for each data field followed by data.
+        :returns: Dictionary with properly shaped data.
         """
         records: Dict[str, np.ndarray] = {}
 
@@ -133,6 +136,8 @@ class DataDictBase(dict):
         Generator for data field items.
 
         Like dict.items(), but ignores meta data.
+
+        :return: Generator yielding first the key of the data field and second its value.
         """
         for k, v in self.items():
             if not self._is_meta_key(k):
@@ -146,10 +151,11 @@ class DataDictBase(dict):
         Like dict.items(), but yields `only` meta entries.
         The keys returned do not contain the underscores used internally.
 
-        :param data: if ``None`` iterate over global meta data.
-                     if it's the name of a data field, iterate over the meta
+        :param data: If ``None`` iterate over global meta data.
+                     If it's the name of a data field, iterate over the meta
                      information of that field.
-        :param clean_keys: if `True`, remove the underscore pre/suffix
+        :param clean_keys: If `True`, remove the underscore pre/suffix.
+        :return: Generator yielding first the key of the data field and second its value.
 
         """
         if data is None:
@@ -176,15 +182,18 @@ class DataDictBase(dict):
 
         Equivalent to ``DataDict['key'].values``.
 
-        :param key: name of the data field
-        :return: values of the data field
+        :param key: Name of the data field.
+        :return: Values of the data field.
         """
         if self._is_meta_key(key):
             raise ValueError(f"{key} is a meta key.")
         return self[key].get('values', np.array([]))
 
     def has_meta(self, key: str) -> bool:
-        """Check whether meta field exists in the dataset."""
+        """Check whether meta field exists in the dataset.
+
+        :return: ``True`` if it exists, ``False`` if it doesn't.
+        """
         k = self._meta_name_to_key(key)
         if k in self:
             return True
@@ -198,9 +207,9 @@ class DataDictBase(dict):
         """
         Return the value of meta field ``key`` (given without underscore).
 
-        :param key: name of the meta field
+        :param key: Name of the meta field.
         :param data: ``None`` for global meta; name of data field for data meta.
-        :return: the value of the meta information.
+        :return: The value of the meta information.
         """
         k = self._meta_name_to_key(key)
         if data is None:
@@ -215,8 +224,8 @@ class DataDictBase(dict):
         If the key already exists, meta info will be overwritten.
 
         :param key: Name of the meta field (without underscores).
-        :param value: Value of the meta information
-        :param data: if ``None``, meta will be global; otherwise assigned to
+        :param value: Value of the meta information.
+        :param data: If ``None``, meta will be global; otherwise assigned to
                      data field ``data``.
 
         """
@@ -230,10 +239,10 @@ class DataDictBase(dict):
 
     def delete_meta(self, key: str, data: Union[str, None] = None) -> None:
         """
-        Remove meta data.
+        Deletes specific meta data.
 
-        :param key: name of the meta field to remove.
-        :param data: if ``None``, this affects global meta; otherwise remove
+        :param key: Name of the meta field to remove.
+        :param data: If ``None``, this affects global meta; otherwise remove
                      from data field ``data``.
 
         """
@@ -245,11 +254,10 @@ class DataDictBase(dict):
 
     def clear_meta(self, data: Union[str, None] = None) -> None:
         """
-        Delete meta information.
+        Deletes all meta data.
 
-        :param data: if this is not None, delete only meta information from data
-                     field `data`. Else, delete all top-level meta, as well as
-                     meta for all data fields.
+        :param data: If not ``None``, delete all meta only from specified data field ``data``.
+                     Else, deletes all top-level meta, as well as meta for all data fields.
 
         """
         if data is None:
@@ -274,16 +282,16 @@ class DataDictBase(dict):
 
         Return a new datadict with all fields specified in ``data`` included.
         Will also take any axes fields along that have not been explicitly
-        specified.
+        specified. Will return empty if ``data`` consists of only axes fields.
 
-        :param data: data field or list of data fields to be extracted
-        :param include_meta: if ``True``, include the global meta data.
+        :param data: Data field or list of data fields to be extracted.
+        :param include_meta: If ``True``, include the global meta data.
                              data meta will always be included.
-        :param copy: if ``True``, data fields will be deep copies of the
-                     original.
-        :param sanitize: if ``True``, will run DataDictBase.sanitize before
+        :param copy: If ``True``, data fields will be `deep copies <https://docs.python.org/3/library/copy.html>`__
+                     of the original.
+        :param sanitize: If ``True``, will run DataDictBase.sanitize before
                          returning.
-        :return: new DataDictBase containing only requested fields.
+        :return: New DataDictBase containing only requested fields.
         """
         if isinstance(data, str):
             data = [data]
@@ -324,11 +332,11 @@ class DataDictBase(dict):
         Check if all supplied DataDicts share the same data structure
         (i.e., dependents and axes).
 
-        Ignores meta info and values. Checks also for matching shapes if
+        Ignores meta data and values. Checks also for matching shapes if
         `check_shape` is `True`.
 
-        :param data: the data sets to compare
-        :param check_shape: whether to include a shape check in the comparison
+        :param data: The data sets to compare.
+        :param check_shape: Whether to include shape check in the comparison.
         :return: ``True`` if the structure matches for all, else ``False``.
         """
         if len(data) < 2:
@@ -359,13 +367,13 @@ class DataDictBase(dict):
         Return the datadict without values (`value` omitted in the dict).
 
         :param add_shape: Deprecated -- ignored.
-        :param include_meta: if `True`, include the meta information in
-                             the returned dict, else clear it.
-        :param same_type: if `True`, return type will be the one of the
+        :param include_meta: If `True`, include the meta information in
+                             the returned dict.
+        :param same_type: If `True`, return type will be the one of the
                           object this is called on. Else, DataDictBase.
 
         :return: The DataDict containing the structure only. The exact type
-                     is the same as the type of ``self``
+                     is the same as the type of ``self``.
 
         """
         if add_shape:
@@ -394,15 +402,12 @@ class DataDictBase(dict):
 
     def label(self, name: str) -> Optional[str]:
         """
-        Get a label for a data field.
+        Get the label for a data field. If no label is present returns the
+        name of the data field as the label. If a unit is present, it will
+        be appended at the end in brackets: "label (unit)".
 
-        If label is present, use the label for the data; otherwise 
-        fallback to use data name as the label.
-        If a unit is present, this is the name with the unit appended in
-        brackets: ``name (unit)``; if no unit is present, just the name.
-
-        :param name: name of the data field
-        :return: labelled name
+        :param name: Name of the data field.
+        :return: Labelled name.
         """
         if self.validate():
             if name not in self:
@@ -425,7 +430,7 @@ class DataDictBase(dict):
 
         This includes axes order.
 
-        :return: ``True`` or ``False``
+        :return: ``True`` or ``False``.
         """
         axes = []
         for i, d in enumerate(self.dependents()):
@@ -442,7 +447,7 @@ class DataDictBase(dict):
 
         :param data: if ``None``, return all axes present in the dataset,
                      otherwise only the axes of the dependent ``data``.
-        :return: the list of axes
+        :return: The list of axes.
         """
         lst = []
         if data is None:
@@ -469,7 +474,7 @@ class DataDictBase(dict):
         """
         Get all dependents in the dataset.
 
-        :return: a list of the names of dependents (data fields that have axes)
+        :return: A list of the names of dependents.
         """
         ret = []
         for n, v in self.data_items():
@@ -481,7 +486,7 @@ class DataDictBase(dict):
         """
         Get the shapes of all data fields.
 
-        :return: a dictionary of the form ``{key : shape}``, where shape is the
+        :return: A dictionary of the form ``{key : shape}``, where shape is the
                  np.shape-tuple of the data with name ``key``.
 
         """
@@ -498,15 +503,15 @@ class DataDictBase(dict):
         Check the validity of the dataset.
 
         Checks performed:
-            * all axes specified with dependents must exist as data fields.
+            * All axes specified with dependents must exist as data fields.
 
         Other tasks performed:
-            * ``unit`` keys are created if omitted
-            * ``label`` keys are created if omitted
+            * ``unit`` keys are created if omitted.
+            * ``label`` keys are created if omitted.
             * ``shape`` meta information is updated with the correct values
               (only if present already).
 
-        :return: ``True`` if valid.
+        :return: ``True`` if valid, ``False`` if invalid.
         :raises: ``ValueError`` if invalid.
         """
         msg = '\n'
@@ -545,7 +550,7 @@ class DataDictBase(dict):
         """
         Removes axes not associated with dependents.
 
-        :return: cleaned dataset.
+        :return: Cleaned dataset.
         """
         dependents = self.dependents()
         unused = []
@@ -570,9 +575,9 @@ class DataDictBase(dict):
     def sanitize(self: T) -> T:
         """
         Clean-up tasks:
-        * removes unused axes.
+            * Removes unused axes.
 
-        :return: sanitized dataset.
+        :return: Sanitized dataset.
         """
         return self.remove_unused_axes()
 
@@ -583,10 +588,10 @@ class DataDictBase(dict):
         """
         Get the indices that can reorder axes in a given way.
 
-        :param name: name of the data field of which we want to reorder axes
-        :param pos: new axes position in the form ``axis_name = new_position``.
-                    non-specified axes positions are adjusted automatically.
-        :return: the tuple of new indices, and the list of axes names in the
+        :param name: Name of the data field of which we want to reorder axes.
+        :param pos: New axes position in the form ``axis_name = new_position``.
+                    Non-specified axes positions are adjusted automatically.
+        :return: The tuple of new indices, and the list of axes names in the
                  new order.
 
         """
@@ -599,12 +604,12 @@ class DataDictBase(dict):
         """
         Reorder data axes.
 
-        :param data_names: data name(s) for which to reorder the axes
-                           if None, apply to all dependents.
-        :param pos: new axes position in the form ``axis_name = new_position``.
-                    non-specified axes positions are adjusted automatically.
+        :param data_names: Data name(s) for which to reorder the axes.
+                           If None, apply to all dependents.
+        :param pos: New axes position in the form ``axis_name = new_position``.
+                    Non-specified axes positions are adjusted automatically.
 
-        :return: dataset with re-ordered axes.
+        :return: Dataset with re-ordered axes.
         """
         if data_names is None:
             data_names = self.dependents()
@@ -632,7 +637,7 @@ class DataDictBase(dict):
         Convert all data values to given dtype.
 
         :param dtype: np dtype.
-        :return: copy of the dataset, with values as given type.
+        :return: Copy of the dataset, with values as given type.
         """
         ret = self.copy()
         for k, v in ret.data_items():
@@ -646,7 +651,7 @@ class DataDictBase(dict):
     def mask_invalid(self: T) -> T:
         """
         Mask all invalid data in all values.
-        :return: copy of the dataset with invalid entries (nan/None) masked.
+        :return: Copy of the dataset with invalid entries (nan/None) masked.
         """
         ret = self.copy()
         for d, _ in self.data_items():
