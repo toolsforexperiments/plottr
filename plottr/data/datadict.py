@@ -741,7 +741,6 @@ class DataDict(DataDictBase):
         meta data or dependencies, etc.
 
         :param kw: one array per data field (none can be omitted).
-        :return: None
         """
         dd = misc.unwrap_optional(self.structure(same_type=True))
         for name, _ in dd.data_items():
@@ -765,6 +764,8 @@ class DataDict(DataDictBase):
 
     def nrecords(self) -> Optional[int]:
         """
+        Gets the number of records in the dataset.
+
         :return: The number of records in the dataset.
         """
         self.validate()
@@ -883,9 +884,9 @@ class DataDict(DataDictBase):
         Clean-up.
 
         Beyond the tasks of the base class ``DataDictBase``:
-        * remove invalid entries as far as reasonable.
+            * remove invalid entries as far as reasonable.
 
-        :return: sanitized DataDict
+        :return: sanitized DataDict.
         """
         ret = super().sanitize()
         return ret.remove_invalid_entries()
@@ -894,7 +895,7 @@ class DataDict(DataDictBase):
         """
         Remove all rows that are ``None`` or ``np.nan`` in *all* dependents.
 
-        :return: the cleaned DataDict.
+        :return: The cleaned DataDict.
         """
         ishp = self._inner_shapes()
         idxs = []
