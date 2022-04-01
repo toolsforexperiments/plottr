@@ -25,6 +25,11 @@ __license__ = 'MIT'
 
 
 def is_meta_key(key: str) -> bool:
+    """Checks if ``key`` is meta information.
+
+    :param key: The ``key`` we are checking.
+    :return: ``True`` if it is, ``False`` if it isn't.
+    """
     if key[:2] == '__' and key[-2:] == '__':
         return True
     else:
@@ -32,6 +37,17 @@ def is_meta_key(key: str) -> bool:
 
 
 def meta_key_to_name(key: str) -> str:
+    """
+    Converts a meta data key to just the name.
+    E.g: for ``key``: "__meta__" returns "meta"
+
+    :param key: The key that is being converted
+    :return: The name of the key.
+    :raises: ``ValueError`` if the ``key`` is not a meta key.
+
+
+    """
+
     if is_meta_key(key):
         return key[2:-2]
     else:
@@ -39,6 +55,12 @@ def meta_key_to_name(key: str) -> str:
 
 
 def meta_name_to_key(name: str) -> str:
+    """
+    Converts ``name`` into a meta data key. E.g: "meta" gets converted to "__meta__"
+
+    :param name: The name that is being converted.
+    :return: The meta data key based on ``name``.
+    """
     return '__' + name + '__'
 
 
@@ -944,57 +966,17 @@ class DataDict(DataDictBase):
 
 class MeshgridDataDict(DataDictBase):
     """
-    A dataset where the axes form a grid on which the dependent values reside.
+    Implementation of DataDictBase meant to be used for when the axes form
+    a grid on which the dependent values reside.
 
-    This is a more special case than ``DataDict``, but a very common scenario.
-    To support flexible grids, this class requires that all axes specify values
-    for each datapoint, rather than a single row/column/dimension.
-
-    For example, if we want to specify a 3-dimensional grid with axes x, y, z,
-    the values of x, y, z all need to be 3-dimensional arrays; the same goes
-    for all dependents that live on that grid.
-    Then, say, x[i,j,k] is the x-coordinate of point i,j,k of the grid.
-
-    This implies that a ``MeshgridDataDict`` can only have a single shape,
-    i.e., all data values share the exact same nesting structure.
-
-    For grids where the axes do not depend on each other, the correct values for
-    the axes can be obtained from np.meshgrid (hence the name of the class).
-
-    Example: a simple uniform 3x2 grid might look like this; x and y are the
-    coordinates of the grid, and z is a function of the two::
-
-        x = [[0, 0],
-             [1, 1],
-             [2, 2]]
-
-        y = [[0, 1],
-             [0, 1],
-             [0, 1]]
-
-        z = x * y =
-            [[0, 0],
-             [0, 1],
-             [0, 2]]
-
-    Note: Internally we will typically assume that the nested axes are
-    ordered from slow to fast, i.e., dimension 1 is the most outer axis, and
-    dimension N of an N-dimensional array the most inner (i.e., the fastest
-    changing one). This guarantees, for example, that the default implementation
-    of np.reshape has the expected outcome. If, for some reason, the specified
-    axes are not in that order (e.g., we might have ``z`` with
-    ``axes = ['x', 'y']``, but ``x`` is the fast axis in the data).
-    In such a case, the guideline is that at creation of the meshgrid, the data
-    should be transposed such that it conforms correctly to the order as given
-    in the ``axis = [...]`` specification of the data.
-    The function ``datadict_to_meshgrid`` provides options for that.
+    It enforces that all dependents have the same axes and all shapes need to be identical.
     """
 
     def shape(self) -> Union[None, Tuple[int, ...]]:
         """
         Return the shape of the meshgrid.
 
-        :returns: the shape as tuple. None if no data in the set.
+        :returns: The shape as tuple. ``None`` if no data in the set.
         """
         for d, _ in self.data_items():
             return np.array(self.data_vals(d)).shape
@@ -1005,8 +987,8 @@ class MeshgridDataDict(DataDictBase):
         Validation of the dataset.
 
         Performs the following checks:
-        * all dependents must have the same axes
-        * all shapes need to be identical
+        * All dependents must have the same axes.
+        * All shapes need to be identical.
 
         :return: ``True`` if valid.
         :raises: ``ValueError`` if invalid.
@@ -1053,7 +1035,7 @@ class MeshgridDataDict(DataDictBase):
 
         This includes transposing the data, since we're on a grid.
 
-        :param pos: new axes position in the form ``axis_name = new_position``.
+        :param pos: New axes position in the form ``axis_name = new_position``.
                     non-specified axes positions are adjusted automatically.
 
         :return: Dataset with re-ordered axes.
@@ -1086,9 +1068,9 @@ def guess_shape_from_datadict(data: DataDict) -> \
     """
     Try to guess the shape of the datadict dependents from the axes values.
 
-    :param data: dataset to examine.
-    :return: a dictionary with the dependents as keys, and inferred shapes as
-             values. value is None, if the shape could not be inferred.
+    :param data: Dataset to examine.
+    :return: A dictionary with the dependents as keys, and inferred shapes as
+             values. Value is ``None``, if the shape could not be inferred.
     """
 
     shapes = {}
@@ -1111,22 +1093,25 @@ def datadict_to_meshgrid(data: DataDict,
     """
     Try to make a meshgrid from a dataset.
 
-    :param data: input DataDict.
-    :param target_shape: target shape. if ``None`` we use
+    :param data: Input DataDict.
+    :param target_shape: Target shape. If ``None`` we use
         ``guess_shape_from_datadict`` to infer.
-    :param inner_axis_order: if axes of the datadict are not specified in the
+    :param inner_axis_order: If axes of the datadict are not specified in the
         'C' order (1st the slowest, last the fastest axis) then the
         'true' inner order can be specified as a list of axes names, which has
         to match the specified axes in all but order. The data is then
         transposed to conform to the specified order.
-        **Note**: if this is given, then `target_shape` needs to be given in
-        in the order of this inner_axis_order. The output data will keep the
-        axis ordering specified in the `axes` property.
+
+        .. note::
+            If this is given, then ``target_shape`` needs to be given in
+            in the order of this inner_axis_order. The output data will keep the
+            axis ordering specified in the `axes` property.
+
     :param use_existing_shape: if ``True``, simply use the shape that the data
         already has. For numpy-array data, this might already be present.
-        if ``False``, flatten and reshape.
+        If ``False``, flatten and reshape.
     :raises: GriddingError (subclass of ValueError) if the data cannot be gridded.
-    :returns: the generated ``MeshgridDataDict``.
+    :returns: The generated ``MeshgridDataDict``.
     """
 
     # if the data is empty, return empty MeshgridData
@@ -1179,8 +1164,8 @@ def meshgrid_to_datadict(data: MeshgridDataDict) -> DataDict:
     """
     Make a DataDict from a MeshgridDataDict by reshaping the data.
 
-    :param data: input ``MeshgridDataDict``
-    :return: flattened ``DataDict``
+    :param data: Input ``MeshgridDataDict``.
+    :return: Flattened ``DataDict``.
     """
     newdata = DataDict(**misc.unwrap_optional(data.structure(add_shape=False)))
     for k, v in data.data_items():
@@ -1201,9 +1186,9 @@ def _find_replacement_name(ddict: DataDictBase, name: str) -> str:
 
     Appends '-<index>' to the name.
 
-    :param ddict: datadict that contains the already existing field
-    :param name: the name that needs to be replaced
-    :return: a suitable replacement
+    :param ddict: Datadict that contains the already existing field.
+    :param name: The name that needs to be replaced.
+    :return: A suitable replacement.
     """
     if name not in ddict:
         return name
@@ -1222,11 +1207,11 @@ def combine_datadicts(*dicts: DataDict) -> Union[DataDictBase, DataDict]:
 
     Basic rules:
 
-    - we try to maintain the input type
-    - return type is 'downgraded' to DataDictBase if the contents are not
-      compatible (i.e., different numbers of records in the inputs)
+    - We try to maintain the input type.
+    - Return type is 'downgraded' to DataDictBase if the contents are not
+      compatible (i.e., different numbers of records in the inputs).
 
-    :returns: combined data
+    :returns: Combined data.
     """
 
     # TODO: deal correctly with MeshGridData when combined with other types
@@ -1296,38 +1281,37 @@ def combine_datadicts(*dicts: DataDict) -> Union[DataDictBase, DataDict]:
 def datastructure_from_string(description: str) -> DataDict:
     r"""Construct a DataDict from a string description.
 
-    Examples
-    --------
-    * ``"data[mV](x, y)"`` results in a datadict with one dependent ``data`` with unit ``mV`` and
-      two independents, ``x`` and ``y``, that do not have units.
+    Examples:
+        * ``"data[mV](x, y)"`` results in a datadict with one dependent ``data`` with unit ``mV`` and
+          two independents, ``x`` and ``y``, that do not have units.
 
-    * ``"data_1[mV](x, y); data_2[mA](x); x[mV]; y[nT]"`` results in two dependents,
-      one of them depening on ``x`` and ``y``, the other only on ``x``.
-      Note that ``x`` and ``y`` have units. We can (but do not have to) omit them when specifying
-      the dependencies.
+        * ``"data_1[mV](x, y); data_2[mA](x); x[mV]; y[nT]"`` results in two dependents,
+          one of them depening on ``x`` and ``y``, the other only on ``x``.
+          Note that ``x`` and ``y`` have units. We can (but do not have to) omit them when specifying
+          the dependencies.
 
-    * ``"data_1[mV](x[mV], y[nT]); data_2[mA](x[mV])"``. Same result as the previous example.
+        * ``"data_1[mV](x[mV], y[nT]); data_2[mA](x[mV])"``. Same result as the previous example.
 
-    Rules
-    -----
-    We recognize descriptions of the form ``field1[unit1](ax1, ax2, ...); field1[unit2](...); ...``.
+    Rules:
+        We recognize descriptions of the form ``field1[unit1](ax1, ax2, ...); field1[unit2](...); ...``.
 
-    * field names (like ``field1`` and ``field2`` above) have to start with a letter, and may contain
-      word characters
-    * field descriptors consist of the name, optional unit (presence signified by square brackets),
-      and optional dependencies (presence signified by round brackets).
-    * dependencies (axes) are implicitly recognized as fields (and thus have the same naming restrictions as field
-      names)
-    * axes are separated by commas
-    * axes may have a unit when specified as dependency, but besides the name, square brackets, and commas no other
-      characters are recognized within the round brackets that specify the dependency
-    * in addition to being specified as dependency for a field, axes may be specified also as additional field without
-      dependency, for instance to specify the unit (may simplify the string). For example,
-      ``z1[x, y]; z2[x, y]; x[V]; y[V]``
-    * units may only consist of word characters
-    * use of unexpected characters will result in the ignoring the part that contains the symbol
-    * the regular expression used to find field descriptors is:
-      ``((?<=\A)|(?<=\;))[a-zA-Z]+\w*(\[\w*\])?(\(([a-zA-Z]+\w*(\[\w*\])?\,?)*\))?``
+        * Field names (like ``field1`` and ``field2`` above) have to start with a letter, and may contain
+          word characters.
+        * Field descriptors consist of the name, optional unit (presence signified by square brackets),
+          and optional dependencies (presence signified by round brackets).
+        * Dependencies (axes) are implicitly recognized as fields (and thus have the same naming restrictions as field
+          names).
+        * Axes are separated by commas.
+        * Axes may have a unit when specified as dependency, but besides the name, square brackets, and commas no other
+          characters are recognized within the round brackets that specify the dependency.
+        * In addition to being specified as dependency for a field,
+          axes may be specified also as additional field without dependency,
+          for instance to specify the unit (may simplify the string). For example,
+          ``z1[x, y]; z2[x, y]; x[V]; y[V]``.
+        * Units may only consist of word characters.
+        * Use of unexpected characters will result in the ignoring the part that contains the symbol.
+        * The regular expression used to find field descriptors is:
+          ``((?<=\A)|(?<=\;))[a-zA-Z]+\w*(\[\w*\])?(\(([a-zA-Z]+\w*(\[\w*\])?\,?)*\))?``
     """
 
     description = description.replace(" ", "")
@@ -1419,10 +1403,10 @@ def datasets_are_equal(a: DataDictBase, b: DataDictBase,
 
     Compares type, structure, and content of all fields.
 
-    :param a: first dataset
-    :param b: second dataset
-    :param ignore_meta: if ``True``, do not verify if metadata matches.
-    :returns: ``True`` or ``False``
+    :param a: First dataset.
+    :param b: Second dataset.
+    :param ignore_meta: If ``True``, do not verify if metadata matches.
+    :returns: ``True`` or ``False``.
     """
 
     if not type(a) == type(b):
