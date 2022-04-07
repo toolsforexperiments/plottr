@@ -18,9 +18,7 @@ from pyqtgraph.flowchart import Flowchart as pgFlowchart, Node as pgNode
 Flowchart = pgFlowchart
 NodeBase = pgNode
 
-from ._version import get_versions
-__version__ = get_versions()['version']
-del get_versions
+from ._version import __version__
 
 logger = logging.getLogger(__name__)
 logger.info(f"Imported plottr version: {__version__}")
