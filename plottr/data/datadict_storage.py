@@ -304,6 +304,13 @@ def datadict_from_hdf5(path: str,
 
 
 def all_datadicts_from_hdf5(path: str, **kwargs: Any) -> Dict[str, Any]:
+    """
+    Loads all the DataDicts contained on a single HDF5 file. Returns a dictionary with the group names as keys and
+    the DataDicts as the values of that key.
+
+    :param path: The path of the HDF5 file.
+    :return: Dictionary with group names as key, and the DataDicts inside them as values.
+    """
     filepath = _data_file_path(path)
     if not os.path.exists(filepath):
         raise ValueError("Specified file does not exist.")
