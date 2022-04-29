@@ -116,7 +116,7 @@ class SortableTreeWidgetItem(QtWidgets.QTreeWidgetItem):
     def __init__(self, strings: Iterable[str]):
         super().__init__(strings)
 
-    def __lt__(self, other: "SortableTreeWidgetItem") -> bool:
+    def __lt__(self, other: QtWidgets.QTreeWidgetItem) -> bool:
         col = self.treeWidget().sortColumn()
         text1 = self.text(col)
         text2 = other.text(col)
