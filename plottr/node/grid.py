@@ -43,8 +43,6 @@ class SpecShapeType(TypedDict):
     order: Tuple[str, ...]
     shape: Tuple[int, ...]
 
-_SpecShapeTypeOrEmptyDict = Union[SpecShapeType, Dict[str,Any]]
-
 class ShapeSpecificationWidget(QtWidgets.QWidget):
     """A widget that allows the user to specify a grid shape.
 
@@ -226,7 +224,7 @@ class GridOptionWidget(QtWidgets.QWidget):
         self.buttons[GridOption.noGrid].setChecked(True)
         self.enableShapeEdit(False)
 
-    def getGrid(self) -> Tuple[GridOption, _SpecShapeTypeOrEmptyDict]:
+    def getGrid(self) -> Tuple[GridOption, Optional[SpecShapeType]]:
         """Get grid option from the current widget selections
 
         :returns: the grid specification, and the options that go with it.
@@ -236,7 +234,7 @@ class GridOptionWidget(QtWidgets.QWidget):
         """
         activeBtn = self.btnGroup.checkedButton()
         activeId = self.btnGroup.id(activeBtn)
-        opts: _SpecShapeTypeOrEmptyDict = {}
+        opts: Optional[SpecShapeType] = None
 
         if GridOption(activeId) == GridOption.specifyShape:
             opts = self.shapeSpec.getShape()
@@ -287,7 +285,7 @@ class GridOptionWidget(QtWidgets.QWidget):
     def shapeSpecified(self) -> None:
         self.signalGridOption(self.getGrid())
 
-    def signalGridOption(self, grid: Tuple[GridOption, _SpecShapeTypeOrEmptyDict]) -> None:
+    def signalGridOption(self, grid: Tuple[GridOption, Optional[SpecShapeType]]) -> None:
         self.optionSelected.emit(grid)
 
     def setAxes(self, axes: List[str]) -> None:
