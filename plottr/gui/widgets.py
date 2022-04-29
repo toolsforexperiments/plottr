@@ -462,10 +462,11 @@ class MultiDimensionSelector(QtWidgets.QListWidget):
         """
         for i in range(self.count()):
             item = self.item(i)
-            if item.text() in selected:
-                item.setSelected(True)
-            else:
-                item.setSelected(False)
+            if item is not None:
+                if item.text() in selected:
+                    item.setSelected(True)
+                else:
+                    item.setSelected(False)
 
     def emitSelection(self) -> None:
         self.dimensionSelectionMade.emit(self.getSelected())

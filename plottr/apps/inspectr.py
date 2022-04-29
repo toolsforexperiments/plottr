@@ -68,7 +68,8 @@ class DateList(QtWidgets.QListWidget):
 
         i = 0
         while i < self.count():
-            if self.item(i).text() not in dates:
+            elem = self.item(i)
+            if elem is not None and elem.text() not in dates:
                 item = self.takeItem(i)
                 del item
             else:
@@ -151,6 +152,7 @@ class RunList(QtWidgets.QTreeWidget):
     def showContextMenu(self, position: QtCore.QPoint) -> None:
         model_index = self.indexAt(position)
         item = self.itemFromIndex(model_index)
+        assert item is not None
         current_tag_char = item.text(1)
 
         menu = QtWidgets.QMenu()
