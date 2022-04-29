@@ -371,7 +371,7 @@ class DimensionReducerNodeWidget(NodeWidget):
 
     def __init__(self, node: Optional[Node] = None):
         super().__init__(embedWidgetClass=DimensionReductionAssignmentWidget)
-        assert self.widget is not None
+        assert isinstance(self.widget, DimensionReductionAssignmentWidget)
         self.optSetters = {
             'reductions': self.setReductions,
         }
@@ -383,7 +383,7 @@ class DimensionReducerNodeWidget(NodeWidget):
             lambda x: self.signalOption('reductions'))
 
     def getReductions(self) -> Dict[str, Optional[ReductionType]]:
-        assert self.widget is not None
+        assert isinstance(self.widget, DimensionReductionAssignmentWidget)
         roles = self.widget.getRoles()
         reductions: Dict[str, Optional[ReductionType]] = {}
         for dimName, rolesOptions in roles.items():
@@ -396,7 +396,7 @@ class DimensionReducerNodeWidget(NodeWidget):
         return reductions
 
     def setReductions(self, reductions: Dict[str, Optional[ReductionType]]) -> None:
-        assert self.widget is not None
+        assert isinstance(self.widget, DimensionReductionAssignmentWidget)
         for dimName, reduction in reductions.items():
             assert reduction is not None
             (method, arg, kw) = reduction
@@ -411,7 +411,7 @@ class DimensionReducerNodeWidget(NodeWidget):
                 structure: DataDictBase,
                 shapes: Dict[str, Dict[int, int]],
                 dtype: Type[DataDictBase]) -> None:
-        assert self.widget is not None
+        assert isinstance(self.widget, DimensionReductionAssignmentWidget)
         self.widget.setData(structure, shapes, dtype)
 
 
@@ -645,7 +645,7 @@ class XYSelectorNodeWidget(NodeWidget):
     def __init__(self, node: Optional[Node] = None):
         self.icon = get_xySelectIcon()
         super().__init__(embedWidgetClass=XYSelectionWidget)
-        assert self.widget is not None
+        assert isinstance(self.widget, XYSelectionWidget)
 
         self.optSetters = {
             'dimensionRoles': self.setRoles,
@@ -659,7 +659,7 @@ class XYSelectorNodeWidget(NodeWidget):
         )
 
     def getRoles(self) -> Dict[str, str]:
-        assert self.widget is not None
+        assert isinstance(self.widget, XYSelectionWidget)
         widgetRoles = self.widget.getRoles()
         roles = {}
         for dimName, rolesOptions in widgetRoles.items():
@@ -701,7 +701,7 @@ class XYSelectorNodeWidget(NodeWidget):
                 structure: DataDictBase,
                 shapes: Dict[str, Dict[int, int]],
                 dtype: Type[DataDictBase]) -> None:
-        assert self.widget is not None
+        assert isinstance(self.widget, XYSelectionWidget)
         self.widget.setData(structure, shapes, dtype)
 
 
