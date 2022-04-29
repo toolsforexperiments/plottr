@@ -3,7 +3,7 @@
 import sys
 import os
 import argparse
-from typing import List, Optional, Dict, Any
+from typing import List, Optional, Dict, Any, TYPE_CHECKING
 from functools import partial
 import importlib
 from multiprocessing import Process

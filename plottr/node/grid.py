@@ -6,7 +6,7 @@ A node and widget for placing data onto a grid (or not).
 
 from enum import Enum, unique
 
-from typing import Tuple, Dict, Any, List, Union, Optional, Sequence
+from typing import Tuple, Dict, Any, List, Union, Optional, Sequence, TypedDict
 
 from plottr import QtGui, Signal, Slot, QtWidgets
 from .node import Node, NodeWidget, updateOption, updateGuiFromNode
@@ -16,10 +16,6 @@ from plottr.icons import get_gridIcon
 
 __author__ = 'Wolfgang Pfaff'
 __license__ = 'MIT'
-
-
-#: Type for additional options when specifying the shape
-SpecShapeType = Dict[str, Tuple[Union[str, int], ...]]
 
 
 @unique
@@ -38,6 +34,16 @@ class GridOption(Enum):
     #: read the shape from DataSet Metadata (if available)
     metadataShape = 3
 
+class _WidgetDict(TypedDict):
+    name: QtWidgets.QComboBox
+    shape: QtWidgets.QSpinBox
+
+#: Type for additional options when specifying the shape
+class SpecShapeType(TypedDict):
+    order: Tuple[str, ...]
+    shape: Tuple[int, ...]
+
+_SpecShapeTypeOrEmptyDict = Union[SpecShapeType, Dict[str,Any]]
 
 class ShapeSpecificationWidget(QtWidgets.QWidget):
     """A widget that allows the user to specify a grid shape.
@@ -55,7 +61,7 @@ class ShapeSpecificationWidget(QtWidgets.QWidget):
         super().__init__(parent)
 
         self._axes: List[str] = []
-        self._widgets: Dict[int, Dict[str, QtWidgets.QWidget]] = {}
+        self._widgets: Dict[int, _WidgetDict] = {}
         self._processChanges = True
 
         layout = QtWidgets.QFormLayout()
@@ -133,7 +139,7 @@ class ShapeSpecificationWidget(QtWidgets.QWidget):
             self._widgets[prevIdx]['name'].setCurrentText(unused[0])
             self._processChanges = True
 
-    def setShape(self, shape: Dict[str, Tuple[Union[str, int], ...]]) -> None:
+    def setShape(self, shape: SpecShapeType) -> None:
         """ Set the shape, will be reflected in the values set in the widgets.
 
         :param shape: A dictionary with keys `order` and `shape`. The value
@@ -148,7 +154,7 @@ class ShapeSpecificationWidget(QtWidgets.QWidget):
                 self._widgets[i]['shape'].setValue(s)
             self._processChanges = True
 
-    def getShape(self) -> Dict[str, Tuple[Union[str, int], ...]]:
+    def getShape(self) -> SpecShapeType:
         """get the currently specified shape.
 
         :returns: a dictionary with keys `order` and `shape`.
@@ -220,7 +226,7 @@ class GridOptionWidget(QtWidgets.QWidget):
         self.buttons[GridOption.noGrid].setChecked(True)
         self.enableShapeEdit(False)
 
-    def getGrid(self) -> Tuple[GridOption, Dict[str, Any]]:
+    def getGrid(self) -> Tuple[GridOption, _SpecShapeTypeOrEmptyDict]:
         """Get grid option from the current widget selections
 
         :returns: the grid specification, and the options that go with it.
@@ -230,7 +236,7 @@ class GridOptionWidget(QtWidgets.QWidget):
         """
         activeBtn = self.btnGroup.checkedButton()
         activeId = self.btnGroup.id(activeBtn)
-        opts = {}
+        opts: _SpecShapeTypeOrEmptyDict = {}
 
         if GridOption(activeId) == GridOption.specifyShape:
             opts = self.shapeSpec.getShape()
@@ -281,7 +287,7 @@ class GridOptionWidget(QtWidgets.QWidget):
     def shapeSpecified(self) -> None:
         self.signalGridOption(self.getGrid())
 
-    def signalGridOption(self, grid: Tuple[GridOption, Dict[str, Any]]) -> None:
+    def signalGridOption(self, grid: Tuple[GridOption, _SpecShapeTypeOrEmptyDict]) -> None:
         self.optionSelected.emit(grid)
 
     def setAxes(self, axes: List[str]) -> None:
