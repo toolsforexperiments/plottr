@@ -265,7 +265,7 @@ class DimensionAssignmentWidget(QtWidgets.QTreeWidget):
     @Slot(dict)
     def setDimInfos(self, infos: Dict[str, str]) -> None:
         for ax, info in infos.items():
-            self.setInfo(ax, info)
+            self.setDimInfo(ax, info)
 
 
 class DimensionReductionAssignmentWidget(DimensionAssignmentWidget):
