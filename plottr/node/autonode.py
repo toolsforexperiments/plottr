@@ -103,6 +103,10 @@ def autonode(nodeName: str, confirm: bool = True, **options: Any) -> Callable:
                     self.addConfirm()
 
         class AutoNode_(AutoNode):
+
+            _uiClass = AutoNodeGui_
+            useUi = True
+
             def __init__(self, name: str):
                 super().__init__(name)
                 for optName, optSpecs in options.items():
@@ -112,8 +116,6 @@ def autonode(nodeName: str, confirm: bool = True, **options: Any) -> Callable:
         AutoNode_.nodeName = nodeName
         AutoNode_.nodeOptions = options
         AutoNode_.process = func  # type: ignore[assignment]
-        AutoNode_.useUi = True
-        AutoNode_.uiClass = AutoNodeGui_
 
         return AutoNode_
 

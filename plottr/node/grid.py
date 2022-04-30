@@ -342,7 +342,7 @@ class DataGridderNodeWidget(NodeWidget):
         self.widget.setShape(shape)
 
 
-class DataGridder(Node):
+class DataGridder(Node[DataGridderNodeWidget]):
     """
     A node that can put data onto or off a grid.
     Has one property: :attr:`grid`. Its possible values are governed by a main option,

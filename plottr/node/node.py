@@ -100,10 +100,11 @@ def emitGuiUpdate(signalName: str) -> Callable[[Callable[..., Any]], Callable[..
 
     return decorator
 
+NodeWidgetType = TypeVar("NodeWidgetType", bound="NodeWidget")
 
 # TODO: should we add a list of options to the class?
 #   that would allow programmatic syncing from node to widget, for instance.
-class Node(NodeBase):
+class Node(NodeBase, Generic[NodeWidgetType]):
     """Base class of the Node we use for plotter.
 
     This class inherits from ``pyqtgraph``'s Node, and adds a few additional
@@ -121,7 +122,7 @@ class Node(NodeBase):
 
     #: UI node widget class. If not None, and ``useUi`` is ``True``, an
     #: instance of the widget is created, and signal/slots are connected.
-    uiClass: Optional[Type["NodeWidget"]] = None
+    uiClass: Optional[Type[NodeWidgetType]] = None
 
     #: Whether or not to automatically set up a UI widget.
     useUi = True
@@ -176,7 +177,7 @@ class Node(NodeBase):
         self.dataStructure: Optional[DataDictBase] = None
 
         if self.useUi and self.__class__.uiClass is not None:
-            self.ui: Optional["NodeWidget"] = self.__class__.uiClass(node=self)
+            self.ui: Optional["NodeWidgetType"] = self.__class__.uiClass(node=self)
             self.setupUi()
         else:
             self.ui = None
