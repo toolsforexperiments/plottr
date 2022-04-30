@@ -331,7 +331,7 @@ class Node(NodeBase):
 
         return dict(dataOut=dataIn)
 
-EmbedWidgetType = TypeVar("EmbedWidgetType", bound=Type[QtWidgets.QWidget])
+EmbedWidgetType = TypeVar("EmbedWidgetType", bound=QtWidgets.QWidget)
 
 class NodeWidget(QtWidgets.QWidget, Generic[EmbedWidgetType]):
     """
@@ -356,7 +356,7 @@ class NodeWidget(QtWidgets.QWidget, Generic[EmbedWidgetType]):
     allOptionsToNode = Signal(object)
 
     def __init__(self, parent: Optional[QtWidgets.QWidget] = None,
-                 embedWidgetClass: Optional[EmbedWidgetType] = None,
+                 embedWidgetClass: Optional[Type[EmbedWidgetType]] = None,
                  node: Optional[Node] = None):
         super().__init__(parent)
 
