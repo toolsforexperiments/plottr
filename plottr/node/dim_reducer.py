@@ -659,10 +659,10 @@ class XYSelectorNodeWidget(NodeWidget[XYSelectionWidget]):
             lambda x: self.signalOption('dimensionRoles')
         )
 
-    def getRoles(self) -> Dict[str, str]:
+    def getRoles(self) -> Dict[str, Union[str, Tuple[ReductionMethod, List[Any], Dict[str, Any]]]]:
         assert self.widget is not None
         widgetRoles = self.widget.getRoles()
-        roles = {}
+        roles: Dict[str, Union[str, Tuple[ReductionMethod, List[Any], Dict[str, Any]]]] = {}
         for dimName, rolesOptions in widgetRoles.items():
             role = rolesOptions['role']
             opts = rolesOptions['options']
