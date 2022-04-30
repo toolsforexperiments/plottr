@@ -641,12 +641,12 @@ class DimensionReducer(Node):
         self.newDataStructure.connect(self.ui.setData)
 
 
-class XYSelectorNodeWidget(NodeWidget):
+class XYSelectorNodeWidget(NodeWidget[XYSelectionWidget]):
 
     def __init__(self, node: Optional[Node] = None):
         self.icon = get_xySelectIcon()
         super().__init__(embedWidgetClass=XYSelectionWidget)
-        assert isinstance(self.widget, XYSelectionWidget)
+        assert self.widget is not None
 
         self.optSetters = {
             'dimensionRoles': self.setRoles,
@@ -660,7 +660,7 @@ class XYSelectorNodeWidget(NodeWidget):
         )
 
     def getRoles(self) -> Dict[str, str]:
-        assert isinstance(self.widget, XYSelectionWidget)
+        assert self.widget is not None
         widgetRoles = self.widget.getRoles()
         roles = {}
         for dimName, rolesOptions in widgetRoles.items():
@@ -678,7 +678,7 @@ class XYSelectorNodeWidget(NodeWidget):
         return roles
 
     def setRoles(self, roles: Dict[str, str]) -> None:
-        assert isinstance(self.widget, XYSelectionWidget)
+        assert self.widget is not None
         # when this is called, we do not want the UI to signal changes.
         self.widget.emitRoleChangeSignal = False
 
@@ -702,7 +702,7 @@ class XYSelectorNodeWidget(NodeWidget):
                 structure: DataDictBase,
                 shapes: Dict[str, Dict[int, int]],
                 dtype: Type[DataDictBase]) -> None:
-        assert isinstance(self.widget, XYSelectionWidget)
+        assert self.widget is not None
         self.widget.setData(structure, shapes, dtype)
 
 
