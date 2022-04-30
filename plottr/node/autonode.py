@@ -1,4 +1,4 @@
-from typing import Dict, Any, Callable, Optional, Type
+from typing import Dict, Any, Callable, Optional, Type, cast
 
 from .. import QtGui, QtWidgets
 from .node import Node, NodeWidget, updateOption
@@ -62,13 +62,15 @@ class AutoNodeGui(AutoNodeGuiTemplate):
         func = self.widgetConnection.get(optionType, None)
         if func is not None:
             widget = func(self, name, specs, confirm)
-
-        self.layout().addRow(name, widget)
+        layout = cast(QtWidgets.QFormLayout, self.layout())
+        if widget is not None:
+            layout.addRow(name, widget)
 
     def addConfirm(self) -> None:
         widget = QtWidgets.QPushButton('Confirm')
         widget.pressed.connect(self.signalAllOptions)
-        self.layout().addRow('', widget)
+        layout = cast(QtWidgets.QFormLayout, self.layout())
+        layout.addRow('', widget)
 
 
 class AutoNode(Node):
