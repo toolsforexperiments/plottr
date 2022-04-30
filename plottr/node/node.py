@@ -7,7 +7,7 @@ import traceback
 from logging import Logger
 
 from functools import wraps
-from typing import Any, Union, Tuple, Dict, Optional, Type, List, Callable, TypeVar
+from typing import Any, Union, Tuple, Dict, Optional, Type, List, Callable, TypeVar, Generic
 
 from .. import NodeBase
 from .. import QtGui, QtCore, Signal, Slot, QtWidgets
@@ -331,8 +331,9 @@ class Node(NodeBase):
 
         return dict(dataOut=dataIn)
 
+EmbedWidgetType = TypeVar("EmbedWidgetType", bound=Type[QtWidgets.QWidget])
 
-class NodeWidget(QtWidgets.QWidget):
+class NodeWidget(QtWidgets.QWidget, Generic[EmbedWidgetType]):
     """
     Base class for Node control widgets.
 
@@ -355,7 +356,7 @@ class NodeWidget(QtWidgets.QWidget):
     allOptionsToNode = Signal(object)
 
     def __init__(self, parent: Optional[QtWidgets.QWidget] = None,
-                 embedWidgetClass: Optional[Type[QtWidgets.QWidget]] = None,
+                 embedWidgetClass: Optional[EmbedWidgetType] = None,
                  node: Optional[Node] = None):
         super().__init__(parent)
 
@@ -365,7 +366,7 @@ class NodeWidget(QtWidgets.QWidget):
 
         self._emitGuiChange = True
 
-        self.widget: Optional[QtWidgets.QWidget] = None
+        self.widget: Optional[EmbedWidgetType] = None
 
         if embedWidgetClass is not None:
             layout = QtWidgets.QVBoxLayout()
