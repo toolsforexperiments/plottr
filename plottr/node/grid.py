@@ -6,7 +6,7 @@ A node and widget for placing data onto a grid (or not).
 
 from enum import Enum, unique
 
-from typing import Tuple, Dict, Any, List, Union, Optional, Sequence, TypedDict
+from typing import Tuple, Dict, Any, List, Union, Optional, Sequence, TypedDict, cast
 
 from plottr import QtGui, Signal, Slot, QtWidgets
 from .node import Node, NodeWidget, updateOption, updateGuiFromNode
@@ -86,7 +86,7 @@ class ShapeSpecificationWidget(QtWidgets.QWidget):
             'name': nameWidget,
             'shape': dimLenWidget,
         }
-        self.layout().insertRow(idx, nameWidget, dimLenWidget)
+        cast(QtWidgets.QFormLayout, self.layout()).insertRow(idx, nameWidget, dimLenWidget)
 
         nameWidget.currentTextChanged.connect(
             lambda x: self._processAxisChange(idx, x)
@@ -100,11 +100,11 @@ class ShapeSpecificationWidget(QtWidgets.QWidget):
         """
         if axes != self._axes:
             self._axes = axes
-
-            for i in range(self.layout().rowCount() - 1):
+            layout = cast(QtWidgets.QFormLayout, self.layout())
+            for i in range(layout.rowCount() - 1):
                 self._widgets[i]['name'].deleteLater()
                 self._widgets[i]['shape'].deleteLater()
-                self.layout().removeRow(0)
+                layout.removeRow(0)
 
             self._widgets = {}
 
