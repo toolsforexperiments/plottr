@@ -367,23 +367,24 @@ class XYSelectionWidget(DimensionReductionAssignmentWidget):
                     self.setRole(d, 'None')
 
 
-class DimensionReducerNodeWidget(NodeWidget):
+class DimensionReducerNodeWidget(NodeWidget[DimensionReductionAssignmentWidget]):
 
     def __init__(self, node: Optional[Node] = None):
         super().__init__(embedWidgetClass=DimensionReductionAssignmentWidget)
-        assert isinstance(self.widget, DimensionReductionAssignmentWidget)
+        # Not clear how to type that self.widget is not None
+        # iff embedWidgetClass is not None
+        assert self.widget is not None
         self.optSetters = {
             'reductions': self.setReductions,
         }
         self.optGetters = {
             'reductions': self.getReductions,
         }
-
         self.widget.rolesChanged.connect(
             lambda x: self.signalOption('reductions'))
 
     def getReductions(self) -> Dict[str, Optional[ReductionType]]:
-        assert isinstance(self.widget, DimensionReductionAssignmentWidget)
+        assert self.widget is not None
         roles = self.widget.getRoles()
         reductions: Dict[str, Optional[ReductionType]] = {}
         for dimName, rolesOptions in roles.items():
@@ -396,7 +397,7 @@ class DimensionReducerNodeWidget(NodeWidget):
         return reductions
 
     def setReductions(self, reductions: Dict[str, Optional[ReductionType]]) -> None:
-        assert isinstance(self.widget, DimensionReductionAssignmentWidget)
+        assert self.widget is not None
         for dimName, reduction in reductions.items():
             assert reduction is not None
             (method, arg, kw) = reduction
@@ -411,7 +412,7 @@ class DimensionReducerNodeWidget(NodeWidget):
                 structure: DataDictBase,
                 shapes: Dict[str, Dict[int, int]],
                 dtype: Type[DataDictBase]) -> None:
-        assert isinstance(self.widget, DimensionReductionAssignmentWidget)
+        assert self.widget is not None
         self.widget.setData(structure, shapes, dtype)
 
 
