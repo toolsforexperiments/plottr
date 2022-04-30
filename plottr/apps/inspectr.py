@@ -160,13 +160,15 @@ class RunList(QtWidgets.QTreeWidget):
         copy_icon = self.style().standardIcon(QtWidgets.QStyle.SP_DialogSaveButton)
         copy_action = menu.addAction(copy_icon, "Copy")
 
-        star_action = self.window().starAction
-        star_action.setText('Star' if current_tag_char != self.tag_dict['star'] else 'Unstar')
-        menu.addAction(star_action)
+        window = cast(QCodesDBInspector, self.window())
+        starAction: QtWidgets.QAction = window.starAction # type: ignore[has-type]
 
-        cross_action = self.window().crossAction
-        cross_action.setText('Cross' if current_tag_char != self.tag_dict['cross'] else 'Uncross')
-        menu.addAction(cross_action)
+        starAction.setText('Star' if current_tag_char != self.tag_dict['star'] else 'Unstar')
+        menu.addAction(starAction)
+
+        crossAction: QtWidgets.QAction = window.crossAction # type: ignore[has-type]
+        crossAction.setText('Cross' if current_tag_char != self.tag_dict['cross'] else 'Uncross')
+        menu.addAction(crossAction)
 
         action = menu.exec_(self.mapToGlobal(position))
         if action == copy_action:
