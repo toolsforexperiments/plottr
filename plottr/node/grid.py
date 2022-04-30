@@ -6,7 +6,9 @@ A node and widget for placing data onto a grid (or not).
 
 from enum import Enum, unique
 
-from typing import Tuple, Dict, Any, List, Union, Optional, Sequence, TypedDict, cast
+from typing import Tuple, Dict, Any, List, Optional, Sequence, cast
+
+from typing_extensions import TypedDict
 
 from plottr import QtGui, Signal, Slot, QtWidgets
 from .node import Node, NodeWidget, updateOption, updateGuiFromNode
