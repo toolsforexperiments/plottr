@@ -16,6 +16,16 @@ warn_redundant_casts = true
 no_implicit_optional = true
 disallow_untyped_defs = true
 plugins = "numpy.typing.mypy_plugin"
+show_error_codes = true
+enable_error_code = "ignore-without-code"
+
+# This module is auto generated so types
+# are hard to fix
+[[tool.mypy.overrides]]
+module = [
+    "plottr.apps.ui.Monitr_UI",
+]
+ignore_errors = true
 
 [tool.versioningit]
 default-version = "0.0"

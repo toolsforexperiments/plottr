@@ -2,4 +2,4 @@ qcodes
 pytest
 pytest-qt
 mypy==0.950
-PyQt5-stubs==5.15.2.0
+PyQt5-stubs==5.15.6.0

@@ -3,7 +3,7 @@ widgets.py
 
 Common GUI widgets that are re-used across plottr.
 """
-from typing import Union, List, Tuple, Optional, Type, Sequence, Dict, Any, Type
+from typing import Union, List, Tuple, Optional, Sequence, Dict, Any, Type, Generic, TypeVar
 
 from .tools import dictToTreeWidgetItems, dpiScalingFactor
 from plottr import QtGui, QtCore, Flowchart, QtWidgets, Signal, Slot
@@ -15,8 +15,10 @@ from .. import config_entry as getcfg
 __author__ = 'Wolfgang Pfaff'
 __license__ = 'MIT'
 
+ElementType = TypeVar("ElementType", bound=QtWidgets.QWidget)
 
-class FormLayoutWrapper(QtWidgets.QWidget):
+
+class FormLayoutWrapper(QtWidgets.QWidget, Generic[ElementType]):
     """
     Simple wrapper widget for forms.
     Expects a list of tuples of the form (label, widget),
@@ -24,11 +26,11 @@ class FormLayoutWrapper(QtWidgets.QWidget):
     Labels have to be unique.
     """
 
-    def __init__(self, elements: List[Tuple[str, QtWidgets.QWidget]],
+    def __init__(self, elements: List[Tuple[str, ElementType]],
                  parent: Union[None, QtWidgets.QWidget] = None):
         super().__init__(parent)
 
-        self.elements = {}
+        self.elements: Dict[str, ElementType] = {}
 
         layout = QtWidgets.QFormLayout()
         for lbl, widget in elements:
@@ -462,10 +464,11 @@ class MultiDimensionSelector(QtWidgets.QListWidget):
         """
         for i in range(self.count()):
             item = self.item(i)
-            if item.text() in selected:
-                item.setSelected(True)
-            else:
-                item.setSelected(False)
+            if item is not None:
+                if item.text() in selected:
+                    item.setSelected(True)
+                else:
+                    item.setSelected(False)
 
     def emitSelection(self) -> None:
         self.dimensionSelectionMade.emit(self.getSelected())
