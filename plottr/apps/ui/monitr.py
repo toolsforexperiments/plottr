@@ -128,9 +128,10 @@ class DataFileList(QtWidgets.QTreeWidget):
 
         item = None
         for item_ in existingItems:
-            if item_.text(0) == name:
-                item = item_
-                break
+            if item_ is not None:
+                if item_.text(0) == name:
+                    item = item_
+                    break
         return item
 
     def itemPath(self, item: QtWidgets.QTreeWidgetItem) -> str:

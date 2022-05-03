@@ -3,7 +3,7 @@
 
 import logging
 from collections import OrderedDict
-from typing import Dict, List, Tuple, Union, Optional, Any, Type
+from typing import Dict, List, Tuple, Union, Optional, Any, Type, cast
 from types import TracebackType
 
 import numpy as np
@@ -359,7 +359,8 @@ class AutoPlot(MPLPlotWidget):
 
         # A toolbar for configuring the plot
         self.plotOptionsToolBar = AutoPlotToolBar('Plot options', self)
-        self.layout().insertWidget(1, self.plotOptionsToolBar)
+        layout = cast(QtWidgets.QVBoxLayout, self.layout())
+        layout.insertWidget(1, self.plotOptionsToolBar)
 
         self.plotOptionsToolBar.plotTypeSelected.connect(
             self._plotTypeFromToolBar

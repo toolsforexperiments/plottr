@@ -68,7 +68,8 @@ class DateList(QtWidgets.QListWidget):
 
         i = 0
         while i < self.count():
-            if self.item(i).text() not in dates:
+            elem = self.item(i)
+            if elem is not None and elem.text() not in dates:
                 item = self.takeItem(i)
                 del item
             else:
@@ -116,7 +117,7 @@ class SortableTreeWidgetItem(QtWidgets.QTreeWidgetItem):
     def __init__(self, strings: Iterable[str]):
         super().__init__(strings)
 
-    def __lt__(self, other: "SortableTreeWidgetItem") -> bool:
+    def __lt__(self, other: QtWidgets.QTreeWidgetItem) -> bool:
         col = self.treeWidget().sortColumn()
         text1 = self.text(col)
         text2 = other.text(col)
@@ -151,6 +152,7 @@ class RunList(QtWidgets.QTreeWidget):
     def showContextMenu(self, position: QtCore.QPoint) -> None:
         model_index = self.indexAt(position)
         item = self.itemFromIndex(model_index)
+        assert item is not None
         current_tag_char = item.text(1)
 
         menu = QtWidgets.QMenu()
@@ -158,13 +160,15 @@ class RunList(QtWidgets.QTreeWidget):
         copy_icon = self.style().standardIcon(QtWidgets.QStyle.SP_DialogSaveButton)
         copy_action = menu.addAction(copy_icon, "Copy")
 
-        star_action = self.window().starAction
-        star_action.setText('Star' if current_tag_char != self.tag_dict['star'] else 'Unstar')
-        menu.addAction(star_action)
+        window = cast(QCodesDBInspector, self.window())
+        starAction: QtWidgets.QAction = window.starAction # type: ignore[has-type]
 
-        cross_action = self.window().crossAction
-        cross_action.setText('Cross' if current_tag_char != self.tag_dict['cross'] else 'Uncross')
-        menu.addAction(cross_action)
+        starAction.setText('Star' if current_tag_char != self.tag_dict['star'] else 'Unstar')
+        menu.addAction(starAction)
+
+        crossAction: QtWidgets.QAction = window.crossAction # type: ignore[has-type]
+        crossAction.setText('Cross' if current_tag_char != self.tag_dict['cross'] else 'Uncross')
+        menu.addAction(crossAction)
 
         action = menu.exec_(self.mapToGlobal(position))
         if action == copy_action:

@@ -265,7 +265,7 @@ class DimensionAssignmentWidget(QtWidgets.QTreeWidget):
     @Slot(dict)
     def setDimInfos(self, infos: Dict[str, str]) -> None:
         for ax, info in infos.items():
-            self.setInfo(ax, info)
+            self.setDimInfo(ax, info)
 
 
 class DimensionReductionAssignmentWidget(DimensionAssignmentWidget):
@@ -367,10 +367,12 @@ class XYSelectionWidget(DimensionReductionAssignmentWidget):
                     self.setRole(d, 'None')
 
 
-class DimensionReducerNodeWidget(NodeWidget):
+class DimensionReducerNodeWidget(NodeWidget[DimensionReductionAssignmentWidget]):
 
     def __init__(self, node: Optional[Node] = None):
         super().__init__(embedWidgetClass=DimensionReductionAssignmentWidget)
+        # Not clear how to type that self.widget is not None
+        # iff embedWidgetClass is not None
         assert self.widget is not None
         self.optSetters = {
             'reductions': self.setReductions,
@@ -378,7 +380,6 @@ class DimensionReducerNodeWidget(NodeWidget):
         self.optGetters = {
             'reductions': self.getReductions,
         }
-
         self.widget.rolesChanged.connect(
             lambda x: self.signalOption('reductions'))
 
@@ -640,7 +641,7 @@ class DimensionReducer(Node):
         self.newDataStructure.connect(self.ui.setData)
 
 
-class XYSelectorNodeWidget(NodeWidget):
+class XYSelectorNodeWidget(NodeWidget[XYSelectionWidget]):
 
     def __init__(self, node: Optional[Node] = None):
         self.icon = get_xySelectIcon()
@@ -658,10 +659,10 @@ class XYSelectorNodeWidget(NodeWidget):
             lambda x: self.signalOption('dimensionRoles')
         )
 
-    def getRoles(self) -> Dict[str, str]:
+    def getRoles(self) -> Dict[str, Union[str, Tuple[ReductionMethod, List[Any], Dict[str, Any]]]]:
         assert self.widget is not None
         widgetRoles = self.widget.getRoles()
-        roles = {}
+        roles: Dict[str, Union[str, Tuple[ReductionMethod, List[Any], Dict[str, Any]]]] = {}
         for dimName, rolesOptions in widgetRoles.items():
             role = rolesOptions['role']
             opts = rolesOptions['options']
@@ -677,7 +678,7 @@ class XYSelectorNodeWidget(NodeWidget):
         return roles
 
     def setRoles(self, roles: Dict[str, str]) -> None:
-        assert isinstance(self.widget, XYSelectionWidget)
+        assert self.widget is not None
         # when this is called, we do not want the UI to signal changes.
         self.widget.emitRoleChangeSignal = False
 
