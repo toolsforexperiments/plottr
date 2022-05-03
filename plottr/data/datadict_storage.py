@@ -1,18 +1,6 @@
 """plottr.data.datadict_storage
 
 Provides file-storage tools for the DataDict class.
-
-Description of the HDF5 storage format
-======================================
-
-We use a simple mapping from DataDict to the HDF5 file. Within the file,
-a single DataDict is stored in a (top-level) group of the file.
-The data fields are datasets within that group.
-
-Global meta data of the DataDict are attributes of the group; field meta data
-are attributes of the dataset (incl., the `unit` and `axes` values). The meta
-data keys are given exactly like in the DataDict, i.e., incl the double
-underscore pre- and suffix.
 """
 import os
 import time
@@ -47,11 +35,11 @@ TIMESTRFORMAT = "%Y-%m-%d %H:%M:%S"
 
 class AppendMode(Enum):
     """How/Whether to append data to existing data."""
-    #: data that is additional compared to already existing data is appended
+    #: Data that is additional compared to already existing data is appended.
     new = 0
-    #: all data is appended to existing data
+    #: All data is appended to existing data.
     all = 1
-    #: data is overwritten
+    #: Data is overwritten.
     none = 2
 
 
@@ -64,8 +52,8 @@ def h5ify(obj: Any) -> Any:
     Performs the following conversions:
     - list/array of strings -> numpy chararray of unicode type
 
-    :param obj: input object
-    :return: object, converted if necessary
+    :param obj: Input object.
+    :return: Object, converted if necessary.
     """
     if isinstance(obj, list):
         all_string = True
@@ -83,7 +71,11 @@ def h5ify(obj: Any) -> Any:
 
 
 def deh5ify(obj: Any) -> Any:
-    """Convert slightly mangled types back to more handy ones."""
+    """Convert slightly mangled types back to more handy ones.
+
+    :param obj: Input object.
+    :return: Object
+    """
     if type(obj) == bytes:
         return obj.decode()
 
@@ -109,7 +101,14 @@ def set_attr(h5obj: Any, name: str, val: Any) -> None:
 
 def add_cur_time_attr(h5obj: Any, name: str = 'creation',
                       prefix: str = '__', suffix: str = '__') -> None:
-    """Add current time information to the given HDF5 object."""
+    """Add current time information to the given HDF5 object, following the format of:
+    ``<prefix><name>_time_sec<suffix>``.
+
+    :param h5obj: The HDF5 object.
+    :param name: The name of the attribute.
+    :param prefix: Prefix of the attribute.
+    :param suffix: Suffix of the attribute.
+    """
 
     t = time.localtime()
     tsec = time.mktime(t)
@@ -143,19 +142,21 @@ def datadict_to_hdf5(datadict: DataDict,
                      append_mode: AppendMode = AppendMode.new) -> None:
     """Write a DataDict to DDH5
 
-    Note: meta data is only written during initial writing of the dataset.
+    Note: Meta data is only written during initial writing of the dataset.
     If we're appending to existing datasets, we're not setting meta
     data anymore.
 
-    :param datadict: datadict to write to disk.
-    :param path: path of the file (extension may be omitted)
-    :param groupname: name of the top level group to store the data in
+    :param datadict: Datadict to write to disk.
+    :param path: Path of the file (extension may be omitted).
+    :param groupname: Name of the top level group to store the data in.
     :param append_mode:
-        - `AppendMode.none` : delete and re-create group
-        - `AppendMode.new` : append rows in the datadict that exceed
-            the number of existing rows in the dataset already stored.
-            Note: we're not checking for content, only length!
-        - `AppendMode.all` : append all data in datadict to file data sets
+        - `AppendMode.none` : Delete and re-create group.
+        - `AppendMode.new` : Append rows in the datadict that exceed
+          the number of existing rows in the dataset already stored.
+          Note: we're not checking for content, only length!
+
+        - `AppendMode.all` : Append all data in datadict to file data sets.
+
     """
     filepath = _data_file_path(path, True)
     if not filepath.exists():
@@ -233,14 +234,14 @@ def datadict_from_hdf5(path: str,
                        ignore_unequal_lengths: bool = True) -> DataDict:
     """Load a DataDict from file.
 
-    :param path: full filepath without the file extension
-    :param groupname: name of hdf5 group
-    :param startidx: start row
-    :param stopidx: end row + 1
-    :param structure_only: if `True`, don't load the data values
-    :param ignore_unequal_lengths: if `True`, don't fail when the rows have
+    :param path: Full filepath without the file extension.
+    :param groupname: Name of hdf5 group.
+    :param startidx: Start row.
+    :param stopidx: End row + 1.
+    :param structure_only: If `True`, don't load the data values.
+    :param ignore_unequal_lengths: If `True`, don't fail when the rows have
         unequal length; will return the longest consistent DataDict possible.
-    :return: validated DataDict.
+    :return: Validated DataDict.
     """
     filepath = _data_file_path(path)
     if not filepath.exists():
@@ -303,6 +304,13 @@ def datadict_from_hdf5(path: str,
 
 
 def all_datadicts_from_hdf5(path: str, **kwargs: Any) -> Dict[str, Any]:
+    """
+    Loads all the DataDicts contained on a single HDF5 file. Returns a dictionary with the group names as keys and
+    the DataDicts as the values of that key.
+
+    :param path: The path of the HDF5 file.
+    :return: Dictionary with group names as key, and the DataDicts inside them as values.
+    """
     filepath = _data_file_path(path)
     if not os.path.exists(filepath):
         raise ValueError("Specified file does not exist.")
@@ -318,7 +326,7 @@ def all_datadicts_from_hdf5(path: str, **kwargs: Any) -> Dict[str, Any]:
 # File access with locking
 
 class FileOpener:
-    """Class for opening files while respecting file system locks."""
+    """Context manager for opening files while respecting file system locks."""
 
     def __init__(self, path: Path,
                  mode: str = 'r',
@@ -503,16 +511,6 @@ class DDH5Writer(object):
     """Context manager for writing data to DDH5.
     Based on typical needs in taking data in an experimental physics lab.
 
-    Example usage::
-        >>> data = DataDict(
-        ...     x = dict(unit='x_unit'),
-        ...     y = dict(unit='y_unit', axes=['x'])
-        ... )
-        ... with DDH5Writer('./data/', data, name='Test') as writer:
-        ...     for x in range(10):
-        ...         writer.add_data(x=x, y=x**2)
-        Data location: ./data/2020-06-05/2020-06-05T102345_d11541ca-Test/data.ddh5
-
     :param basedir: The root directory in which data is stored.
         :meth:`.create_file_structure` is creating the structure inside this root and
         determines the file name of the data. The default structure implemented here is
@@ -520,12 +518,12 @@ class DDH5Writer(object):
         where <ID> is a short identifier string and <name> is the value of parameter `name`.
         To change this, re-implement :meth:`.data_folder` and/or
         :meth:`.create_file_structure`.
-    :param datadict: initial data object. Must contain at least the structure of the
+    :param datadict: Initial data object. Must contain at least the structure of the
         data to be able to use :meth:`add_data` to add data.
-    :param groupname: name of the top-level group in the file container. An existing
+    :param groupname: Name of the top-level group in the file container. An existing
         group of that name will be deleted.
-    :param name: name of this dataset. Used in path/file creation and added as meta data.
-    :param filename: filename to use. defaults to 'data.ddh5'.
+    :param name: Name of this dataset. Used in path/file creation and added as meta data.
+    :param filename: Filename to use. Defaults to 'data.ddh5'.
     """
 
     # TODO: need an operation mode for not keeping data in memory.
@@ -586,6 +584,8 @@ class DDH5Writer(object):
         Default format:
         ``<basedir>/YYYY-MM-DD/YYYY-mm-ddTHHMMSS_<ID>-<name>``.
         In this implementation we use the first 8 characters of a UUID as ID.
+
+        :returns: The folder path.
         """
         ID = str(uuid.uuid1()).split('-')[0]
         parent = f"{datetime.datetime.now().replace(microsecond=0).isoformat().replace(':', '')}_{ID}"
@@ -597,7 +597,7 @@ class DDH5Writer(object):
     def data_file_path(self) -> Path:
         """Determine the filepath of the data file.
 
-        :returns: the filepath of the data file.
+        :returns: The filepath of the data file.
         """
         data_folder_path = Path(self.basedir, self.data_folder())
         appendix = ''
