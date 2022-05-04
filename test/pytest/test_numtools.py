@@ -9,17 +9,32 @@ from plottr.utils import num
 def test_array_equality():
     """Test if two arrays are correctly identified as having equal content"""
 
+    # different dtype should not matter
+    a = np.arange(2 * 4).astype(int).reshape(4, 2)
+    b = np.arange(2 * 4).astype(np.complex128).reshape(4, 2)
+    assert num.arrays_equal(a, b)
+
+    # different representation of invalid data should not matter
     a = np.arange(2 * 4).astype(object).reshape(4, 2)
     a[2, 0] = None
     b = np.arange(2 * 4).astype(np.complex128).reshape(4, 2)
     b[2, 0] = np.nan
     assert num.arrays_equal(a, b)
 
+    # invalid is not the same as valid
     a = np.arange(2 * 4).astype(object).reshape(4, 2)
     a[2, 0] = 0
     b = np.arange(2 * 4).astype(np.complex128).reshape(4, 2)
     b[2, 0] = np.nan
     assert not num.arrays_equal(a, b)
+
+    a = np.array(['a', 1, None])
+    b = np.array(['b', 1, np.nan])
+    assert not num.arrays_equal(a, b)
+
+    a = np.array(['a', 1, None])
+    b = np.array(['a', 1.0, None])
+    assert num.arrays_equal(a, b)
 
 
 def test_array_reshape():

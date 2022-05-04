@@ -171,7 +171,7 @@ class DimensionAssignmentWidget(QtWidgets.QTreeWidget):
                 for o in opts:
                     combo.addItem(o)
 
-        scaling = np.rint(self.logicalDpiX() / 96.0)
+        scaling = int(np.rint(self.logicalDpiX() / 96.0))
         combo.setMinimumSize(50*scaling, 22*scaling)
         combo.setMaximumHeight(22 * scaling)
         self.setItemWidget(item, 1, combo)
@@ -265,7 +265,7 @@ class DimensionAssignmentWidget(QtWidgets.QTreeWidget):
     @Slot(dict)
     def setDimInfos(self, infos: Dict[str, str]) -> None:
         for ax, info in infos.items():
-            self.setInfo(ax, info)
+            self.setDimInfo(ax, info)
 
 
 class DimensionReductionAssignmentWidget(DimensionAssignmentWidget):
@@ -309,7 +309,7 @@ class DimensionReductionAssignmentWidget(DimensionAssignmentWidget):
                 w.valueChanged.connect(
                     lambda x: self.elementSelectionSliderChange(dim))
 
-                scaling = np.rint(self.logicalDpiX() / 96.0)
+                scaling = int(np.rint(self.logicalDpiX() / 96.0))
                 width = 150 + 50*(scaling - 1)
                 height = 22*scaling
                 w.setMinimumSize(width, height)
@@ -367,10 +367,12 @@ class XYSelectionWidget(DimensionReductionAssignmentWidget):
                     self.setRole(d, 'None')
 
 
-class DimensionReducerNodeWidget(NodeWidget):
+class DimensionReducerNodeWidget(NodeWidget[DimensionReductionAssignmentWidget]):
 
     def __init__(self, node: Optional[Node] = None):
         super().__init__(embedWidgetClass=DimensionReductionAssignmentWidget)
+        # Not clear how to type that self.widget is not None
+        # iff embedWidgetClass is not None
         assert self.widget is not None
         self.optSetters = {
             'reductions': self.setReductions,
@@ -378,7 +380,6 @@ class DimensionReducerNodeWidget(NodeWidget):
         self.optGetters = {
             'reductions': self.getReductions,
         }
-
         self.widget.rolesChanged.connect(
             lambda x: self.signalOption('reductions'))
 
@@ -556,9 +557,13 @@ class DimensionReducer(Node):
           the second element is taken as the arg-list.
           The function can be of type :class:`.ReductionMethod`.
         """
-
         delete = []
         for ax, reduction in self._reductions.items():
+
+            if ax not in data.axes():
+                self.logger().warning(f"{ax} is not a known dimension. Removing.")
+                delete.append(ax)
+                continue
 
             if reduction is None:
                 if isinstance(data, MeshgridDataDict):
@@ -599,6 +604,7 @@ class DimensionReducer(Node):
                 self.logger().info(f'Reduction set for axis {ax} is only suited for '
                                    f'grid data. Removing.')
                 delete.append(ax)
+                continue
 
             # set the reduction in the correct format.
             self._reductions[ax] = (fun, arg, kw)
@@ -635,7 +641,7 @@ class DimensionReducer(Node):
         self.newDataStructure.connect(self.ui.setData)
 
 
-class XYSelectorNodeWidget(NodeWidget):
+class XYSelectorNodeWidget(NodeWidget[XYSelectionWidget]):
 
     def __init__(self, node: Optional[Node] = None):
         self.icon = get_xySelectIcon()
@@ -653,10 +659,10 @@ class XYSelectorNodeWidget(NodeWidget):
             lambda x: self.signalOption('dimensionRoles')
         )
 
-    def getRoles(self) -> Dict[str, str]:
+    def getRoles(self) -> Dict[str, Union[str, Tuple[ReductionMethod, List[Any], Dict[str, Any]]]]:
         assert self.widget is not None
         widgetRoles = self.widget.getRoles()
-        roles = {}
+        roles: Dict[str, Union[str, Tuple[ReductionMethod, List[Any], Dict[str, Any]]]] = {}
         for dimName, rolesOptions in widgetRoles.items():
             role = rolesOptions['role']
             opts = rolesOptions['options']
@@ -672,7 +678,7 @@ class XYSelectorNodeWidget(NodeWidget):
         return roles
 
     def setRoles(self, roles: Dict[str, str]) -> None:
-        assert isinstance(self.widget, XYSelectionWidget)
+        assert self.widget is not None
         # when this is called, we do not want the UI to signal changes.
         self.widget.emitRoleChangeSignal = False
 
@@ -817,7 +823,6 @@ class XYSelector(DimensionReducer):
             self.optionChangeNotification.emit(
                 {'dimensionRoles': self.dimensionRoles}
             )
-
         return True
 
     def process(
