@@ -18,9 +18,7 @@ from pyqtgraph.flowchart import Flowchart as pgFlowchart, Node as pgNode
 Flowchart = pgFlowchart
 NodeBase = pgNode
 
-from ._version import get_versions
-__version__ = get_versions()['version']
-del get_versions
+from ._version import __version__
 
 logger = logging.getLogger(__name__)
 logger.info(f"Imported plottr version: {__version__}")
@@ -96,7 +94,7 @@ def config(names: Optional[List[str]] = None) -> \
     for name in names:
         modn = f"plottrcfg_{name}"
         filen = f"{modn}.py"
-        this_cfg = {}
+        this_cfg: Dict[str, Any] = {}
         for filep in configFiles(filen)[::-1]:
             spec = spec_from_file_location(modn, filep)
             if spec is None:

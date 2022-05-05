@@ -7,7 +7,7 @@ import traceback
 from logging import Logger
 
 from functools import wraps
-from typing import Any, Union, Tuple, Dict, Optional, Type, List, Callable, TypeVar
+from typing import Any, Union, Tuple, Dict, Optional, Type, List, Callable, TypeVar, Generic
 
 from .. import NodeBase
 from .. import QtGui, QtCore, Signal, Slot, QtWidgets
@@ -18,7 +18,6 @@ __author__ = 'Wolfgang Pfaff'
 __license__ = 'MIT'
 
 
-# TODO: implement a threaded version of Node
 R = TypeVar('R', bound="Node")
 S = TypeVar('S')
 T = TypeVar('T')
@@ -101,8 +100,11 @@ def emitGuiUpdate(signalName: str) -> Callable[[Callable[..., Any]], Callable[..
 
     return decorator
 
+NodeWidgetType = TypeVar("NodeWidgetType", bound="NodeWidget")
 
-class Node(NodeBase):
+# TODO: should we add a list of options to the class?
+#   that would allow programmatic syncing from node to widget, for instance.
+class Node(NodeBase, Generic[NodeWidgetType]):
     """Base class of the Node we use for plotter.
 
     This class inherits from ``pyqtgraph``'s Node, and adds a few additional
@@ -120,7 +122,7 @@ class Node(NodeBase):
 
     #: UI node widget class. If not None, and ``useUi`` is ``True``, an
     #: instance of the widget is created, and signal/slots are connected.
-    uiClass: Optional[Type["NodeWidget"]] = None
+    uiClass: Optional[Type[NodeWidgetType]] = None
 
     #: Whether or not to automatically set up a UI widget.
     useUi = True
@@ -135,6 +137,10 @@ class Node(NodeBase):
     #: signal emitted when available data axes change
     #: emits a the list of names of new axes
     dataAxesChanged = Signal(list)
+
+    #: signal emitted when available dependents change
+    #: emits a the list of names of new dependents
+    dataDependentsChanged = Signal(list)
 
     #: signal emitted when any available data fields change (dep. and indep.)
     #: emits a the list of names of new axes
@@ -171,7 +177,7 @@ class Node(NodeBase):
         self.dataStructure: Optional[DataDictBase] = None
 
         if self.useUi and self.__class__.uiClass is not None:
-            self.ui: Optional["NodeWidget"] = self.__class__.uiClass(node=self)
+            self.ui: Optional["NodeWidgetType"] = self.__class__.uiClass(node=self)
             self.setupUi()
         else:
             self.ui = None
@@ -246,41 +252,46 @@ class Node(NodeBase):
         """
         return True
 
+    # TODO: should think about nodes with multiple inputs -- how would this look then?
+    # FIXME: return should only be Optional[Dict[str, DataDictBase]]
     def process(self, dataIn: Optional[DataDictBase]=None) -> Optional[Dict[str, Optional[DataDictBase]]]:
         if dataIn is None:
             return None
 
-        if isinstance(dataIn, DataDictBase):
-            dtype = type(dataIn)
-            daxes = dataIn.axes()
-            ddeps = dataIn.dependents()
-            dshapes = dataIn.shapes()
+        if not isinstance(dataIn, DataDictBase):
+            raise ValueError('Unsupported data format provided.')
 
-            _axesChanged = False
-            _fieldsChanged = False
-            _typeChanged = False
-            _structChanged = False
-            _shapesChanged = False
+        _axesChanged = False
+        _fieldsChanged = False
+        _typeChanged = False
+        _structChanged = False
+        _shapesChanged = False
+        _depsChanged = False
 
-            if self.dataAxes is None and daxes is not None:
+        dtype = type(dataIn)
+        daxes = dataIn.axes()
+        ddeps = dataIn.dependents()
+        dshapes = dataIn.shapes()
+        dstruct = dataIn.structure(add_shape=False)
+
+        if None in [self.dataAxes, self.dataDependents, self.dataType, self.dataShapes]:
+            _axesChanged = True
+            _fieldsChanged = True
+            _typeChanged = True
+            _structChanged = True
+            _shapesChanged = True
+            _depsChanged = True
+
+        else:
+            if daxes != self.dataAxes:
                 _fieldsChanged = True
                 _structChanged = True
                 _axesChanged = True
-            elif self.dataAxes is not None and daxes is None:
-                assert daxes is not None and self.dataAxes is not None
-                if set(daxes) != set(self.dataAxes):
-                    _axesChanged = True
-                    _fieldsChanged = True
-                    _structChanged = True
 
-            if self.dataDependents is None and ddeps is not None:
+            if ddeps != self.dataDependents:
                 _fieldsChanged = True
                 _structChanged = True
-            else:
-                assert ddeps is not None and self.dataDependents is not None
-                if set(ddeps) != set(self.dataDependents):
-                    _fieldsChanged = True
-                    _structChanged = True
+                _depsChanged = True
 
             if dtype != self.dataType:
                 _typeChanged = True
@@ -289,39 +300,31 @@ class Node(NodeBase):
             if dshapes != self.dataShapes:
                 _shapesChanged = True
 
-            self.dataAxes = daxes
-            self.dataDependents = ddeps
-            self.dataType = dtype
-            self.dataShapes = dshapes
-            self.dataStructure = dataIn.structure(add_shape=False)
+        self.dataAxes = daxes
+        self.dataDependents = ddeps
+        self.dataType = dtype
+        self.dataShapes = dshapes
+        self.dataStructure = dstruct
 
-            if _axesChanged:
-                self.dataAxesChanged.emit(daxes)
+        if _axesChanged:
+            self.dataAxesChanged.emit(daxes)
 
-            if _fieldsChanged:
-                self.dataFieldsChanged.emit(daxes + ddeps)
+        if _depsChanged:
+            self.dataDependentsChanged.emit(ddeps)
 
-            if _typeChanged:
-                self.dataTypeChanged.emit(dtype)
+        if _fieldsChanged:
+            self.dataFieldsChanged.emit(daxes + ddeps)
 
-            if _structChanged:
-                self.dataStructureChanged.emit(self.dataStructure)
-                self.newDataStructure.emit(
-                    self.dataStructure, self.dataShapes, self.dataType)
+        if _typeChanged:
+            self.dataTypeChanged.emit(dtype)
 
-            if _shapesChanged and not _structChanged:
-                self.dataShapesChanged.emit(dshapes)
+        if _structChanged:
+            self.dataStructureChanged.emit(self.dataStructure)
+            self.newDataStructure.emit(
+                self.dataStructure, self.dataShapes, self.dataType)
 
-        else:
-            dtype = type(dataIn)
-            daxes = None
-            ddeps = None
-            dshapes = None
-
-            if dtype != self.dataType:
-                _typeChanged = True
-            if _typeChanged:
-                self.dataTypeChanged.emit(dtype)
+        if _shapesChanged and not _structChanged:
+            self.dataShapesChanged.emit(dshapes)
 
         if not self.validateOptions(dataIn):
             self.logger().debug("Option validation not passed")
@@ -329,8 +332,9 @@ class Node(NodeBase):
 
         return dict(dataOut=dataIn)
 
+EmbedWidgetType = TypeVar("EmbedWidgetType", bound=QtWidgets.QWidget)
 
-class NodeWidget(QtWidgets.QWidget):
+class NodeWidget(QtWidgets.QWidget, Generic[EmbedWidgetType]):
     """
     Base class for Node control widgets.
 
@@ -353,7 +357,7 @@ class NodeWidget(QtWidgets.QWidget):
     allOptionsToNode = Signal(object)
 
     def __init__(self, parent: Optional[QtWidgets.QWidget] = None,
-                 embedWidgetClass: Optional[Type[QtWidgets.QWidget]] = None,
+                 embedWidgetClass: Optional[Type[EmbedWidgetType]] = None,
                  node: Optional[Node] = None):
         super().__init__(parent)
 
@@ -363,7 +367,7 @@ class NodeWidget(QtWidgets.QWidget):
 
         self._emitGuiChange = True
 
-        self.widget: Optional[QtWidgets.QWidget] = None
+        self.widget: Optional[EmbedWidgetType] = None
 
         if embedWidgetClass is not None:
             layout = QtWidgets.QVBoxLayout()

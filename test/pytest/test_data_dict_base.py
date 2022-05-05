@@ -1,11 +1,9 @@
 import pytest
 import numpy as np
-from plottr.utils.num import arrays_equal
-from plottr.data.datadict import DataDict, DataDictBase, str2dd
+
+from plottr.data.datadict import DataDict, DataDictBase, str2dd, datasets_are_equal, datadict_to_meshgrid
 from plottr.data.datadict import combine_datadicts
 
-
-# TODO: full description of tests.
 
 def test_get_data():
     """Test basic accessing of data."""
@@ -57,12 +55,26 @@ def test_meta():
     assert dd.meta_val('info')(1) == 0
     assert dd.meta_val('@^&', 'x') == 0
 
+    assert dd.has_meta('meta1')
+    assert dd.has_meta('meta3')
+
     for k in ['meta1', 'meta2', '@^&']:
         assert dd.meta_val(k, data='x') == dd['x'][f'__{k}__']
         assert f'__{k}__' in dd['x']
         assert k in [n for n, _ in dd.meta_items('x')]
 
     # test stripping of meta information
+
+    # test stripping specific data field
+
+    dd.clear_meta('x')
+    assert dd.validate()
+    x_nmeta = 0
+    for k, _ in dd['x'].items():
+        if k[:2] == '__' and k[-2:] == '__':
+            x_nmeta += 1
+    assert x_nmeta == 0
+
     dd.clear_meta()
     assert dd.validate()
 
@@ -78,9 +90,9 @@ def test_meta():
                 nmeta += 1
         assert nmeta == 0
 
-
-def test_extract():
-    """Test extraction of data fields."""
+#
+# def test_extract():
+#     """Test extraction of data fields."""
 
 
 def test_structure():
@@ -309,6 +321,7 @@ def test_combine_ddicts():
                            z_0=dict(values=z[::-1], axes=['x', 'y']))
     assert combined_dd == expected_dd
 
+
 def test_creation_from_string():
     """Test simplified datadict generation"""
     str_ok_1 = "z(x,y)"
@@ -342,4 +355,45 @@ def test_creation_from_string():
     assert dd.dependents() == []
     assert dd.axes() == []
     assert 'z' in dd
+
+
+def test_equality():
+    """test whether direct comparison of datasets is working."""
+    dd1 = DataDict(
+        x=dict(values=np.arange(5), unit='A'),
+        y=dict(values=np.arange(5)**2, axes=['x']),
+    )
+    assert dd1.validate()
+    dd1.add_meta('some_info', 'some_value')
+    dd2 = dd1.copy()
+    assert datasets_are_equal(dd1, dd2)
+    assert dd1 == dd2
+
+    dd2 = dd1.copy()
+    dd2.delete_meta('some_info')
+    assert not datasets_are_equal(dd1, dd2)
+    assert not dd1 == dd2
+    assert datasets_are_equal(dd1, dd2, ignore_meta=True)
+
+    dd2 = dd1.copy()
+    dd2['x']['unit'] = 'B'
+    assert not datasets_are_equal(dd1, dd2)
+
+    dd2 = dd1.copy()
+    dd2['y']['values'][-1] -= 1
+    assert not datasets_are_equal(dd1, dd2)
+
+    dd2 = DataDictBase(**dd1)
+    assert not datasets_are_equal(dd1, dd2)
+
+    dd2 = datadict_to_meshgrid(dd1)
+    assert not datasets_are_equal(dd1, dd2)
+
+    dd2 = dd1.copy()
+    dd2['w'] = dict(values=np.arange(5), unit='C')
+    dd2['y']['axes'] = ['w', 'x']
+    assert not datasets_are_equal(dd1, dd2)
+
+    assert not dd1 == 'abc'
+
 

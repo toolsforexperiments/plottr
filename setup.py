@@ -1,8 +1,7 @@
 from setuptools import setup
+from versioningit import get_cmdclasses
 
-import versioneer
-
-setup(
-    version=versioneer.get_version(),
-    cmdclass=versioneer.get_cmdclass(),
-)
+if __name__ == "__main__":
+    setup(
+        cmdclass=get_cmdclasses(),
+    )
