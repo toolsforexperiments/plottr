@@ -161,12 +161,12 @@ class RunList(QtWidgets.QTreeWidget):
         copy_action = menu.addAction(copy_icon, "Copy")
 
         window = cast(QCodesDBInspector, self.window())
-        starAction: QtWidgets.QAction = window.starAction # type: ignore[has-type]
+        starAction: QtWidgets.QAction = window.starAction
 
         starAction.setText('Star' if current_tag_char != self.tag_dict['star'] else 'Unstar')
         menu.addAction(starAction)
 
-        crossAction: QtWidgets.QAction = window.crossAction # type: ignore[has-type]
+        crossAction: QtWidgets.QAction = window.crossAction
         crossAction.setText('Cross' if current_tag_char != self.tag_dict['cross'] else 'Uncross')
         menu.addAction(crossAction)
 

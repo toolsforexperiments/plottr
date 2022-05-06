@@ -9,21 +9,21 @@ import lmfit
 
 class Parameter:
 
-    def __init__(self, name, value: Any = None, **kw: Any):
+    def __init__(self, name: str, value: Any = None, **kw: Any):
         self.name = name
         self.value = value
         self._attrs = {}
-        for k, v in kw:
+        for k, v in kw.items():
             self._attrs[k] = v
 
-    def __getattr__(self, key):
+    def __getattr__(self, key: str) -> Any:
         return self._attrs[key]
 
 
 class Parameters(OrderedDict):
     """A collection of parameters"""
 
-    def add(self, name: str, **kw: Any):
+    def add(self, name: str, **kw: Any) -> None:
         """Add/overwrite a parameter in the collection."""
         self[name] = Parameter(name, **kw)
 
@@ -62,7 +62,7 @@ class Analysis(object):
         self.coordinates = coordinates
         self.data = data
 
-    def analyze(self, coordinates, data, *args: Any,
+    def analyze(self, coordinates: Union[Tuple[np.ndarray, ...], np.ndarray], data: np.ndarray, *args: Any,
                 **kwargs: Any) -> AnalysisResult:
         """Needs to be implemented by each inheriting class."""
         raise NotImplementedError
