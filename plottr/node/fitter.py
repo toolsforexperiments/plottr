@@ -4,17 +4,18 @@ import pkgutil
 import importlib
 from importlib import reload, import_module
 import warnings
-from typing import Dict, Optional, Type, Callable
+from typing import Dict, Optional, Type, Callable, Tuple, Any, List, Union
 import inspect
 from dataclasses import dataclass
 import numbers
+from types import ModuleType
 
 import lmfit
 from lmfit import Parameter as lmParameter, Parameters as lmParameters
 
 from plottr import QtGui, QtCore, Slot, Signal, QtWidgets
 from plottr.analyzer import fitters
-from plottr.analyzer.fitters.fitter_base import Fit
+from plottr.analyzer.fitters.fitter_base import Fit, FitResult
 
 from ..data.datadict import DataDictBase
 from .node import Node, NodeWidget, updateOption, updateGuiFromNode
@@ -22,11 +23,12 @@ from .node import Node, NodeWidget, updateOption, updateGuiFromNode
 __author__ = 'Chao Zhou'
 __license__ = 'MIT'
 
-def reload_module_get_model(module):
+
+def reload_module_get_model(module: ModuleType) -> Tuple[ModuleType, Dict[str, type]]:
     '''Gather the model classes in the the fitting module file
     :return : a dictionary that contains all the model classed in the module
     '''
-    def is_Fit_subclass(cls: Type[Fit]):
+    def is_Fit_subclass(cls: Type[Fit]) -> bool:
         """ check if a class is the subclass of analyzer.fitters.fitter_base.Fit
         """
         try:
@@ -49,7 +51,7 @@ def reload_module_get_model(module):
         model_dict[mc[0]] = mc[1]
     return module, model_dict
 
-def get_modules_in_pkg(pkg):
+def get_modules_in_pkg(pkg: ModuleType) -> Dict[str, ModuleType]:
     '''Gather the fitting modules in a package
     '''
     modules = {}
@@ -89,15 +91,16 @@ class FittingGui(NodeWidget):
     """ Gui for controlling the fitting function and the initial guess of
     fitting parameters.
     """
-    def __init__(self, parent=None, node=None):
+    def __init__(self, parent: Optional[QtWidgets.QWidget] = None, node: Optional[Node] = None):
+
         super().__init__(parent)
-        self.input_options = None # fitting option in dataIn
+        self.input_options: Optional[FittingOptions] = None # fitting option in dataIn
         self.live_update = False
         self.dry_run = False
-        self.param_signals = []
+        self.param_signals: List[QtCore.pyqtBoundSignal] = []
         self.fitting_modules = INITIAL_MODULES
-        self.layout = QtWidgets.QGridLayout()
-        self.setLayout(self.layout)
+        self.my_layout = QtWidgets.QGridLayout()
+        self.setLayout(self.my_layout)
 
         # fitting module widgets
         module_sel_widget = QtWidgets.QWidget()
@@ -123,7 +126,7 @@ class FittingGui(NodeWidget):
                                   QtWidgets.QSizePolicy.Fixed)
         module_sel_grid.addWidget(open_button, 0, 2)
         module_sel_widget.setLayout(module_sel_grid)
-        self.layout.addWidget(module_sel_widget, 0, 0)
+        self.my_layout.addWidget(module_sel_widget, 0, 0)
 
 
         # model list widget
@@ -153,19 +156,18 @@ class FittingGui(NodeWidget):
         splitter2 = QtWidgets.QSplitter(QtCore.Qt.Vertical)
         splitter2.addWidget(splitter1)
         splitter2.addWidget(self.param_table)
-        self.layout.addWidget(splitter2, 1, 0)
+        self.my_layout.addWidget(splitter2, 1, 0)
 
         # fitting update options
         self.update_option_widget = self.addUpdateOptions()
-        self.layout.addWidget(self.update_option_widget, 2, 0)
+        self.my_layout.addWidget(self.update_option_widget, 2, 0)
 
 
         # getter and setter
         self.optGetters['fitting_options'] = self.fittingOptionGetter
         self.optSetters['fitting_options'] = self.fittingOptionSetter
 
-
-    def addModuleComboBox(self):
+    def addModuleComboBox(self) -> QtWidgets.QComboBox:
         """ Set up the model function drop down manual widget.
         """
         combo = QtWidgets.QComboBox()
@@ -175,7 +177,7 @@ class FittingGui(NodeWidget):
         return combo
 
     @Slot(str)
-    def moduleUpdate(self, current_module_name):
+    def moduleUpdate(self, current_module_name: str) -> None:
         if DEBUG:
             print ("GUI...: ", "moduleUpdate called. Updating",current_module_name)
         self.model_list.clear()
@@ -197,10 +199,10 @@ class FittingGui(NodeWidget):
         #-------------------------------------------------
 
     @Slot()
-    def moduleRefreshClicked(self):
+    def moduleRefreshClicked(self) -> None:
         self.moduleUpdate(self.module_combo.currentText())
 
-    def add_user_module(self):
+    def add_user_module(self) -> None:
         mod_file = QtWidgets.QFileDialog.getOpenFileName(
             self, 'Open file',fitters.__path__[0], "Python files (""*.py)")[0]
         if (mod_file is None) or mod_file[-3:] !=".py":
@@ -230,11 +232,10 @@ class FittingGui(NodeWidget):
         self.module_combo.addItem(mod_name)
         self.module_combo.setCurrentText(mod_name)
 
-
     @Slot(QtWidgets.QListWidgetItem, QtWidgets.QListWidgetItem)
     def modelChanged(self,
                      current: QtWidgets.QListWidgetItem,
-                     previous: QtWidgets.QListWidgetItem):
+                     previous: QtWidgets.QListWidgetItem) -> None:
         """ Process a change in fit model selection.
         Will update the parameter table based on the new selection.
         """
@@ -248,7 +249,7 @@ class FittingGui(NodeWidget):
         self.updateParamTable(model_cls)
         self.model_doc_box.setText(model_cls.model.__doc__)
 
-    def updateParamTable(self, model_cls: Type[Fit]):
+    def updateParamTable(self, model_cls: Type[Fit]) -> None:
         """ Update the parameter table based on the current model selection.
         :param model_cls: the current selected fitting model class
         """
@@ -273,10 +274,10 @@ class FittingGui(NodeWidget):
             upperBoundBox.newTextEntered.connect(initialGuessBox.setMaximum)
 
             # gather the param change signals for enabling live update
-            self.param_signals.extend((fixParamCheck.stateChanged,
+            self.param_signals.extend([fixParamCheck.stateChanged,
                                        initialGuessBox.valueChanged,
                                        lowerBoundBox.newTextEntered,
-                                       upperBoundBox.newTextEntered))
+                                       upperBoundBox.newTextEntered])
             # put param options into table
             self.param_table.setCellWidget(idx, 0, fixParamCheck)
             self.param_table.setCellWidget(idx, 1, initialGuessBox)
@@ -285,7 +286,7 @@ class FittingGui(NodeWidget):
 
         self.changeParamLiveUpdate(self.live_update)
 
-    def _paramFixCheck(self, default_value: bool = False):
+    def _paramFixCheck(self, default_value: bool = False) -> QtWidgets.QCheckBox:
         """generate a push checkbox for the parameter fix option.
         :param default_value : param is fixed by default or not
         :returns: a checkbox widget
@@ -296,7 +297,7 @@ class FittingGui(NodeWidget):
                           "initial guess value during fitting")
         return widget
 
-    def addUpdateOptions(self):
+    def addUpdateOptions(self) -> QtWidgets.QWidget:
         ''' Add check box & buttons that control the fitting update policy.
         '''
         update_option_widget = QtWidgets.QWidget()
@@ -316,7 +317,7 @@ class FittingGui(NodeWidget):
         grid.addWidget(reloadInputOptButton, 0, 3)
 
         @Slot(QtCore.Qt.CheckState)
-        def setLiveUpdate(live: QtCore.Qt.CheckState):
+        def setLiveUpdate(live: QtCore.Qt.CheckState) -> None:
             ''' connect/disconnects the changing signal of each fitting
             option to signalAllOptions slot
             '''
@@ -335,21 +336,19 @@ class FittingGui(NodeWidget):
                 self.live_update = False
 
         @Slot()
-        def reloadInputOption():
+        def reloadInputOption() -> None:
             if DEBUG:
                 print("GUI...: ", "reload input option")
             self.fittingOptionSetter(self.input_options)
 
         @Slot()
-        def setGuessParam():
+        def setGuessParam() -> None:
             if DEBUG:
                 print("GUI...: ", "setGuessParam called, setting fitting parameter to guess")
             if self.model_list.currentItem() is None:
                 return
             self.dry_run = True
             self.signalAllOptions()
-
-
 
         liveUpdateCheck.stateChanged.connect(setLiveUpdate)
         updateFitButton.pressed.connect(self.signalAllOptions)
@@ -361,7 +360,7 @@ class FittingGui(NodeWidget):
         update_option_widget.setLayout(grid)
         return update_option_widget
 
-    def changeParamLiveUpdate(self, enable: bool):
+    def changeParamLiveUpdate(self, enable: bool) -> None:
         ''' connect/disconnects the changing signal of each fitting param
         option to signalAllOptions slot
         :param enable: connect/disconnect when enable is True/False.
@@ -383,7 +382,7 @@ class FittingGui(NodeWidget):
         current_module = self.fitting_modules[self.module_combo.currentText()]
         model_selected = self.model_list.currentItem()
         if model_selected is None:
-            return
+            return None
         model = getattr(current_module, model_selected.text())
         return model
 
@@ -391,22 +390,34 @@ class FittingGui(NodeWidget):
     def fittingOptionGetter(self) -> Optional[FittingOptions]:
         """ get all the fitting options and put them into a dictionary
         """
+        print(f'I GOT IN THE FITTING OPTION GETTER')
         if DEBUG:
             print("GUI...: ", 'getter in gui called')
         # get the current model selected
         model = self.getCurrentModel()
         if model is None:
-            return
+            print(f'THE MODEL IS NONE SO WE RETURNING')
+            return None
         # get the parameters for current model
         parameters = lmParameters()
+        print(f'about to excecute the for loop')
         for i in range(self.param_table.rowCount()):
-            param_name = self.param_table.verticalHeaderItem(i).text()
+            table_item = self.param_table.verticalHeaderItem(i)
+            assert isinstance(table_item, QtWidgets.QTableWidgetItem)
+            param_name = table_item.text()
             param = lmParameter(param_name)
-            get_cell = self.param_table.cellWidget
-            param.vary = not get_cell(i, 0).isChecked()
-            param.value = get_cell(i, 1).value()
-            param.min = get_cell(i, 2).value()
-            param.max = get_cell(i, 3).value()
+            item0 = self.param_table.cellWidget(i, 0)
+            item1 = self.param_table.cellWidget(i, 1)
+            item2 = self.param_table.cellWidget(i, 2)
+            item3 = self.param_table.cellWidget(i, 3)
+            assert isinstance(item0, QtWidgets.QCheckBox)
+            assert isinstance(item1, OptionSpinbox)
+            assert isinstance(item2, NumberInput)
+            assert isinstance(item3, NumberInput)
+            param.vary = not item0.isChecked()
+            param.value = item1.value()
+            param.min = item2.value()
+            param.max = item3.value()
             parameters[param_name] = param
 
         fitting_options = FittingOptions(model, parameters, self.dry_run)
@@ -414,7 +425,7 @@ class FittingGui(NodeWidget):
             print("GUI...: ", 'getter in gui got', fitting_options)
         return fitting_options
 
-    def fittingOptionSetter(self, fitting_options: FittingOptions):
+    def fittingOptionSetter(self, fitting_options: Optional[FittingOptions]) -> None:
         """ Set all the fitting options
         """
         if DEBUG:
@@ -453,16 +464,27 @@ class FittingGui(NodeWidget):
 
         # set the parameter table in gui
         for i in range(self.param_table.rowCount()):
-            param_name = self.param_table.verticalHeaderItem(i).text()
+            table_item = self.param_table.verticalHeaderItem(i)
+            assert isinstance(table_item, QtWidgets.QTableWidgetItem)
+            param_name = table_item.text()
             param_options = fitting_options.parameters[param_name]
-            get_cell = self.param_table.cellWidget
-            get_cell(i, 0).setChecked(not param_options.vary)
-            get_cell(i, 1).setValue(param_options.value)
-            get_cell(i, 2).setValue(param_options.min)
-            get_cell(i, 3).setValue(param_options.max)
+
+            item0 = self.param_table.cellWidget(i, 0)
+            item1 = self.param_table.cellWidget(i, 1)
+            item2 = self.param_table.cellWidget(i, 2)
+            item3 = self.param_table.cellWidget(i, 3)
+            assert isinstance(item0, QtWidgets.QCheckBox)
+            assert isinstance(item1, OptionSpinbox)
+            assert isinstance(item2, NumberInput)
+            assert isinstance(item3, NumberInput)
+
+            item0.setChecked(not param_options.vary)
+            item1.setValue(param_options.value)
+            item2.setValue(param_options.min)
+            item3.setValue(param_options.max)
         self.dry_run = fitting_options.dry_run
 
-    def _signalAllOptions(self, *args):
+    def _signalAllOptions(self, *args: Any) -> None:
         # to make the signalAllOptions accept signals w/ multi args
         if DEBUG:
             print("GUI...: ", "signal all option change")
@@ -470,7 +492,7 @@ class FittingGui(NodeWidget):
             self.signalAllOptions()
 
     @updateGuiFromNode
-    def setDefaultFit(self, fitting_options: FittingOptions):
+    def setDefaultFit(self, fitting_options: FittingOptions) -> None:
         ''' set the gui to the fitting options in the input data
         '''
         if DEBUG:
@@ -480,12 +502,13 @@ class FittingGui(NodeWidget):
         self.input_options = fitting_options
 
     @updateGuiFromNode
-    def setGuessParam(self, fitting_options: FittingOptions):
+    def setGuessParam(self, fitting_options: FittingOptions) -> None:
         """ set the parameter to the guess parameter from guess function
         """
         if DEBUG:
             print("GUI...: ", f'updateGuiFromNode setGuessParam got {fitting_options}')
         self.fittingOptionSetter(fitting_options)
+
 
 class OptionSpinbox(QtWidgets.QDoubleSpinBox):
     """A spinBox widget for parameter options
@@ -493,27 +516,27 @@ class OptionSpinbox(QtWidgets.QDoubleSpinBox):
     """
 
     # TODO: Support easier input for large numbers
-    def __init__(self, default_value=1.0, parent=None):
+    def __init__(self, default_value: float = 1.0, parent: Optional[QtWidgets.QWidget] = None):
         super().__init__(parent)
         self.setRange(-1 * MAX_FLOAT, MAX_FLOAT)
         self.setValue(default_value)
 
-    def setMaximum(self, maximum):
+    def setMaximum(self, maximum: str) -> None:  # type: ignore[override]
         try:
             value = eval(maximum)
         except:
             value = MAX_FLOAT
-        if isinstance(value, numbers.Number):
+        if isinstance(value, float):
             super().setMaximum(value)
         else:
             super().setMaximum(MAX_FLOAT)
 
-    def setMinimum(self, minimum):
+    def setMinimum(self, minimum: str) -> None:  # type: ignore[override]
         try:
             value = eval(minimum)
         except:
             value = -1 * MAX_FLOAT
-        if isinstance(value, numbers.Number):
+        if isinstance(value, float):
             super().setMinimum(value)
         else:
             super().setMinimum(-1 * MAX_FLOAT)
@@ -527,12 +550,12 @@ class NumberInput(QtWidgets.QLineEdit):
     """
     newTextEntered = Signal(str)
 
-    def __init__(self, default_value, parent=None):
+    def __init__(self, default_value: Union[numbers.Number, None], parent: Optional[QtWidgets.QWidget] = None):
         super().__init__(parent)
         self.setValue(default_value)
         self.editingFinished.connect(self.emitNewText)
 
-    def value(self):
+    def value(self) -> Optional[numbers.Number]:
         try:
             value = eval(self.text())
         except:
@@ -542,10 +565,10 @@ class NumberInput(QtWidgets.QLineEdit):
         else:
             return None
 
-    def setValue(self, value):
+    def setValue(self, value: Union[numbers.Number, None]) -> None:
         self.setText(str(value))
 
-    def emitNewText(self):
+    def emitNewText(self) -> None:
         self.newTextEntered.emit(self.text())
 
 
@@ -556,26 +579,26 @@ class FittingNode(Node):
     default_fitting_options = Signal(object)
     guess_fitting_options = Signal(object)
 
-    def __init__(self, name):
+    def __init__(self, name: str):
         super().__init__(name)
-        self._fitting_options = None
+        self._fitting_options: Optional[FittingOptions] = None
 
-    def process(self, dataIn: DataDictBase = None):
+    def process(self, dataIn: Optional[DataDictBase] = None) -> Optional[Dict[str, Optional[DataDictBase]]]:
         return self.fitting_process(dataIn)
 
     @property
-    def fitting_options(self):
+    def fitting_options(self) -> Optional[FittingOptions]:
         return self._fitting_options
 
-    @fitting_options.setter
+    @fitting_options.setter  # type: ignore[misc] # https://github.com/python/mypy/issues/1362
     @updateOption('fitting_options')
-    def fitting_options(self, opt):
+    def fitting_options(self, opt: Optional[FittingOptions]) -> None:
         if isinstance(opt, FittingOptions) or opt is None:
             self._fitting_options = opt
         else:
             raise TypeError('Wrong fitting options')
 
-    def fitting_process(self, dataIn: DataDictBase = None):
+    def fitting_process(self, dataIn: Optional[DataDictBase] = None) -> Optional[Dict[str, Optional[DataDictBase]]]:
         if dataIn is None:
             return None
 
@@ -586,7 +609,7 @@ class FittingNode(Node):
         dataOut = dataIn.copy()
 
         # no fitting option selected in gui
-        if self.fitting_options is None :
+        if self.fitting_options is None:
             if dataIn_opt is not None:
                 self._fitting_options = dataIn_opt
             else:
@@ -604,9 +627,10 @@ class FittingNode(Node):
         axname = dataIn.axes()[0]
         x = dataIn.data_vals(axname)
         y = dataIn.data_vals(dataIn.dependents()[0])
-        fit = self.fitting_options.model(x, y)
 
-        if self.fitting_options.dry_run == True:
+        assert isinstance(self.fitting_options, FittingOptions)
+        fit = self.fitting_options.model(x, y)
+        if self.fitting_options.dry_run:
             guess_params = lmParameters()
             for pn, pv in fit.guess(x, y).items():
                 guess_params.add(pn, value=pv)
@@ -620,7 +644,8 @@ class FittingNode(Node):
             result_y = fit_result.eval(coordinates=x)
             dataOut['guess'] = dict(values=result_y, axes=[axname, ])
         else:
-            fit_result = fit.run(params = self.fitting_options.parameters)
+            fit_result = fit.run(params=self.fitting_options.parameters)
+            assert isinstance(fit_result, FitResult)
             lm_result = fit_result.lmfit_result
             if lm_result.success:
                 dataOut['fit'] = dict(values=lm_result.best_fit, axes=[axname,])
@@ -628,8 +653,9 @@ class FittingNode(Node):
 
         return dict(dataOut=dataOut)
 
-
-    def setupUi(self):
+    def setupUi(self) -> None:
         super().setupUi()
+        assert isinstance(self.ui, FittingGui)
         self.default_fitting_options.connect(self.ui.setDefaultFit)
         self.guess_fitting_options.connect(self.ui.setGuessParam)
+
