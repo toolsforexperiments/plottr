@@ -97,10 +97,10 @@ class FittingGui(NodeWidget):
         self.input_options: Optional[FittingOptions] = None # fitting option in dataIn
         self.live_update = False
         self.dry_run = False
-        self.param_signals: List[QtCore.Signal] = []
+        self.param_signals: List[QtCore.pyqtBoundSignal] = []
         self.fitting_modules = INITIAL_MODULES
-        self.layout = QtWidgets.QGridLayout()
-        self.setLayout(self.layout)
+        self.my_layout = QtWidgets.QGridLayout()
+        self.setLayout(self.my_layout)
 
         # fitting module widgets
         module_sel_widget = QtWidgets.QWidget()
@@ -126,7 +126,7 @@ class FittingGui(NodeWidget):
                                   QtWidgets.QSizePolicy.Fixed)
         module_sel_grid.addWidget(open_button, 0, 2)
         module_sel_widget.setLayout(module_sel_grid)
-        self.layout.addWidget(module_sel_widget, 0, 0)
+        self.my_layout.addWidget(module_sel_widget, 0, 0)
 
 
         # model list widget
@@ -156,11 +156,11 @@ class FittingGui(NodeWidget):
         splitter2 = QtWidgets.QSplitter(QtCore.Qt.Vertical)
         splitter2.addWidget(splitter1)
         splitter2.addWidget(self.param_table)
-        self.layout.addWidget(splitter2, 1, 0)
+        self.my_layout.addWidget(splitter2, 1, 0)
 
         # fitting update options
         self.update_option_widget = self.addUpdateOptions()
-        self.layout.addWidget(self.update_option_widget, 2, 0)
+        self.my_layout.addWidget(self.update_option_widget, 2, 0)
 
 
         # getter and setter
@@ -274,10 +274,10 @@ class FittingGui(NodeWidget):
             upperBoundBox.newTextEntered.connect(initialGuessBox.setMaximum)
 
             # gather the param change signals for enabling live update
-            self.param_signals.extend((fixParamCheck.stateChanged,
+            self.param_signals.extend([fixParamCheck.stateChanged,
                                        initialGuessBox.valueChanged,
                                        lowerBoundBox.newTextEntered,
-                                       upperBoundBox.newTextEntered))
+                                       upperBoundBox.newTextEntered])
             # put param options into table
             self.param_table.setCellWidget(idx, 0, fixParamCheck)
             self.param_table.setCellWidget(idx, 1, initialGuessBox)
@@ -390,22 +390,34 @@ class FittingGui(NodeWidget):
     def fittingOptionGetter(self) -> Optional[FittingOptions]:
         """ get all the fitting options and put them into a dictionary
         """
+        print(f'I GOT IN THE FITTING OPTION GETTER')
         if DEBUG:
             print("GUI...: ", 'getter in gui called')
         # get the current model selected
         model = self.getCurrentModel()
         if model is None:
+            print(f'THE MODEL IS NONE SO WE RETURNING')
             return None
         # get the parameters for current model
         parameters = lmParameters()
+        print(f'about to excecute the for loop')
         for i in range(self.param_table.rowCount()):
-            param_name = self.param_table.verticalHeaderItem(i).text()
+            table_item = self.param_table.verticalHeaderItem(i)
+            assert isinstance(table_item, QtWidgets.QTableWidgetItem)
+            param_name = table_item.text()
             param = lmParameter(param_name)
-            get_cell = self.param_table.cellWidget
-            param.vary = not get_cell(i, 0).isChecked()
-            param.value = get_cell(i, 1).value()
-            param.min = get_cell(i, 2).value()
-            param.max = get_cell(i, 3).value()
+            item0 = self.param_table.cellWidget(i, 0)
+            item1 = self.param_table.cellWidget(i, 1)
+            item2 = self.param_table.cellWidget(i, 2)
+            item3 = self.param_table.cellWidget(i, 3)
+            assert isinstance(item0, QtWidgets.QCheckBox)
+            assert isinstance(item1, OptionSpinbox)
+            assert isinstance(item2, NumberInput)
+            assert isinstance(item3, NumberInput)
+            param.vary = not item0.isChecked()
+            param.value = item1.value()
+            param.min = item2.value()
+            param.max = item3.value()
             parameters[param_name] = param
 
         fitting_options = FittingOptions(model, parameters, self.dry_run)
@@ -452,13 +464,24 @@ class FittingGui(NodeWidget):
 
         # set the parameter table in gui
         for i in range(self.param_table.rowCount()):
-            param_name = self.param_table.verticalHeaderItem(i).text()
+            table_item = self.param_table.verticalHeaderItem(i)
+            assert isinstance(table_item, QtWidgets.QTableWidgetItem)
+            param_name = table_item.text()
             param_options = fitting_options.parameters[param_name]
-            get_cell = self.param_table.cellWidget
-            get_cell(i, 0).setChecked(not param_options.vary)
-            get_cell(i, 1).setValue(param_options.value)
-            get_cell(i, 2).setValue(param_options.min)
-            get_cell(i, 3).setValue(param_options.max)
+
+            item0 = self.param_table.cellWidget(i, 0)
+            item1 = self.param_table.cellWidget(i, 1)
+            item2 = self.param_table.cellWidget(i, 2)
+            item3 = self.param_table.cellWidget(i, 3)
+            assert isinstance(item0, QtWidgets.QCheckBox)
+            assert isinstance(item1, OptionSpinbox)
+            assert isinstance(item2, NumberInput)
+            assert isinstance(item3, NumberInput)
+
+            item0.setChecked(not param_options.vary)
+            item1.setValue(param_options.value)
+            item2.setValue(param_options.min)
+            item3.setValue(param_options.max)
         self.dry_run = fitting_options.dry_run
 
     def _signalAllOptions(self, *args: Any) -> None:
@@ -493,27 +516,27 @@ class OptionSpinbox(QtWidgets.QDoubleSpinBox):
     """
 
     # TODO: Support easier input for large numbers
-    def __init__(self, default_value: float = 1.0, parent: QtWidgets.QWidget = None):
+    def __init__(self, default_value: float = 1.0, parent: Optional[QtWidgets.QWidget] = None):
         super().__init__(parent)
         self.setRange(-1 * MAX_FLOAT, MAX_FLOAT)
         self.setValue(default_value)
 
-    def setMaximum(self, maximum: str) -> None:
+    def setMaximum(self, maximum: str) -> None:  # type: ignore[override]
         try:
             value = eval(maximum)
         except:
             value = MAX_FLOAT
-        if isinstance(value, numbers.Number):
+        if isinstance(value, float):
             super().setMaximum(value)
         else:
             super().setMaximum(MAX_FLOAT)
 
-    def setMinimum(self, minimum: str) -> None:
+    def setMinimum(self, minimum: str) -> None:  # type: ignore[override]
         try:
             value = eval(minimum)
         except:
             value = -1 * MAX_FLOAT
-        if isinstance(value, numbers.Number):
+        if isinstance(value, float):
             super().setMinimum(value)
         else:
             super().setMinimum(-1 * MAX_FLOAT)
@@ -527,7 +550,7 @@ class NumberInput(QtWidgets.QLineEdit):
     """
     newTextEntered = Signal(str)
 
-    def __init__(self, default_value: Union[numbers.Number, None], parent: QtWidgets.QWidget =None):
+    def __init__(self, default_value: Union[numbers.Number, None], parent: Optional[QtWidgets.QWidget] = None):
         super().__init__(parent)
         self.setValue(default_value)
         self.editingFinished.connect(self.emitNewText)
