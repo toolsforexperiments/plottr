@@ -1237,7 +1237,6 @@ class ImageViewer(QtWidgets.QLabel):
     """
     def __init__(self, path_file: Path, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self.setScaledContents(True)
         self.pixmap = QtGui.QPixmap(str(path_file))
         self.original_height = self.pixmap.height()
         self.original_width = self.pixmap.width()
@@ -1254,7 +1253,7 @@ class ImageViewer(QtWidgets.QLabel):
         Scales the image, gets called every time the widget changes size.
         """
         parent_width = self.parent().width()
-        self.pixmap.scaled(parent_width, parent_width, QtCore.Qt.KeepAspectRatio)
+        self.setPixmap(self.pixmap.scaled(parent_width, parent_width, QtCore.Qt.KeepAspectRatio))
 
 
 class VerticalScrollArea(QtWidgets.QScrollArea):
