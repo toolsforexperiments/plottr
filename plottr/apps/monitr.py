@@ -32,6 +32,7 @@ from .ui.Monitr_UI import Ui_MainWindow
 
 TIMESTRFORMAT = "%Y-%m-%dT%H%M%S"
 
+
 class Monitr_depreceated(QtWidgets.QMainWindow):
     # TODO: keep a list of app processes and monitor them if alive.
 
@@ -268,28 +269,20 @@ class FileTree(QtWidgets.QTreeWidget):
         super().clear()
         self.main_items_dictionary = {}
 
-    @QtCore.Slot(str)
-    def change_filter_text_item(self, filter_str: str):
+    def update_filter_matches(self, filter: Optional[List[Path]] = None) -> None:
         """
-        Matches the current text with filter_str and triggers an update of filter_items.
+        Updates current_filter_matches by converting the Path items from filter into the TreeWidgetItems they represent.
+        calls filter_items afterwards.
 
-        :param filter_str: The string to filter the tree.
+        :param filter: List of paths that should be shown. If the list is empty, no item will be shown. If the list
+            is None, everything will be shown.
         """
-        # If the string is empty show all items in the tree.
-        if filter_str == '':
-            self.current_filter_matches = None
-            self.filter_items()
-        else:
-            try:
-                filter_pattern = re.compile(filter_str, flags=re.IGNORECASE)
-                # list of the items with matching paths.
-                matches = [value for key, value in self.main_items_dictionary.items() if
-                           filter_pattern.search(str(key.name))]
-                self.current_filter_matches = matches
-                self.filter_items()
+        filtered_objects = None
+        if filter is not None:
+            filtered_objects = [self.main_items_dictionary[path] for path in filter]
 
-            except re.error as e:
-                logger().error(f'Regex matching failed: {e}')
+        self.current_filter_matches = filtered_objects
+        self.filter_items()
 
     def refresh_tree(self, update: Dict):
         """
@@ -331,6 +324,7 @@ class FileTree(QtWidgets.QTreeWidget):
         :param files_dict: Optional. If adding a file, `files_dict` should be `None`. If adding a folder, this should
             be a dictionary with the file `Path`.
         """
+        # TODO: optimize the conversion of path.
         # Check that the new file or folder are Paths, if not convert them.
         if isinstance(file_or_folder_path, str):
             file_or_folder_path = Path(file_or_folder_path)
@@ -660,7 +654,7 @@ class FileTree(QtWidgets.QTreeWidget):
 
         self.filter_items()
 
-    def filter_items(self):
+    def filter_items(self) -> None:
         """
         Filters the items according to the status of the star and trash buttons and the filter line edit.
 
@@ -787,7 +781,6 @@ class FileExplorer(QtWidgets.QWidget):
         self.main_layout.addLayout(self.filter_and_buttons_layout)
         self.main_layout.addWidget(self.file_tree)
 
-        self.filter_line_edit.textEdited.connect(self.file_tree.change_filter_text_item)
         self.file_tree.setContextMenuPolicy(QtCore.Qt.CustomContextMenu)
         self.file_tree.customContextMenuRequested.connect(self.file_tree.on_context_menu_requested)
         self.star_button.clicked.connect(self.star_button_clicked)
@@ -1411,6 +1404,7 @@ class Monitr(QtWidgets.QMainWindow):
         self.tree.item_selected.connect(self.on_new_folder_selected)
         self.tree.item_starred.connect(self.on_new_item_starred)
         self.tree.item_trashed.connect(self.on_new_item_trashed)
+        self.file_explorer.filter_line_edit.textChanged.connect(self.on_filter_line_edit_text_change)
 
         # Connect the Signals.
         self.watcher.moved.connect(self.on_file_moved)
@@ -1779,8 +1773,120 @@ class Monitr(QtWidgets.QMainWindow):
         # print(f'here comes the dictionary. remember: WIDTH, HEIGHT')
 
         file_tree = self.file_explorer.file_tree.main_items_dictionary
-        print_dict = {file_name: dict(star=file.star, trash=file.trash) for file_name, file in file_tree.items()}
-        pprint.pprint(print_dict)
+        # print_dict = {file_name: dict(star=file.star, trash=file.trash) for file_name, file in file_tree.items()}
+        # pprint.pprint(print_dict)
+        pprint.pprint(file_tree)
+
+    # TODO: Make this more efficient by having some kind of memory, so you don't have to make every search
+    #   every time a single character gets changed, but instead a new item gets added.
+    @Slot(str)
+    def on_filter_line_edit_text_change(self, filter_str: str) -> None:
+        """
+        Gets triggered everytime the text of the filter line text edit changes. It identifies what kind of query and
+        matches it with the main dictionary. Queries are separated by commas (','). Empty queries or composed of only
+        a single whitespace are ignored. It also ignores the first character of a query if this is a whitespace.
+
+        It accepts 5 kinds of queries:
+            * labels: queries starting with, 'label:', 'l:', or 'L:'.
+            * Markdown files: queries starting with, 'md:', 'm:', or 'M:'.
+            * Images: queries starting with, 'image:', 'i:', or 'I:'.
+            * Json files: queries starting with, 'json:', 'j:', or 'J:'.
+            * Folder names: any other query.
+
+        :param filter_str: The str that is currently in the filter line text edit
+        """
+
+        raw_queries = filter_str.split(',')
+        queries_with_empty_spaces = [item[1:] if len(item) >= 1 and item[0] == " " else item for item in raw_queries]
+        queries = [item for item in queries_with_empty_spaces if item != '' and item != ' ']
+
+        label_queries = []
+        md_queries = []
+        image_queries = []
+        json_queries = []
+        name_queries = []
+        for query in queries:
+            if query[:6] == 'label:':
+                label_queries.append(query[6:])
+            elif query[:2] == 'l:' or query[:2] == 'L:':
+                label_queries.append(query[2:])
+            elif query[:3] == 'md:':
+                md_queries.append(query[3:])
+            elif query[:2] == 'm:' or query[:2] == 'M:':
+                md_queries.append(query[2:])
+            elif query[:6] == 'image:':
+                image_queries.append(query[6:])
+            elif query[:2] == 'i:' or query[:2] == 'I:':
+                image_queries.append(query[2:])
+            elif query[:5] == 'json:':
+                json_queries.append(query[5:])
+            elif query[:2] == 'j:' or query[:2] == 'J:':
+                json_queries.append(query[2:])
+            else:
+                name_queries.append(query)
+
+        matches_dict = {}
+        if len(name_queries) > 0:
+            name_matches = self._match_items(name_queries)
+            matches_dict.update(name_matches)
+        if len(label_queries) > 0:
+            label_matches = self._match_items(label_queries, ContentType.tag)
+            matches_dict.update(label_matches)
+        if len(md_queries) > 0:
+            md_matches = self._match_items(md_queries, ContentType.md)
+            matches_dict.update(md_matches)
+        if len(image_queries) > 0:
+            image_matches = self._match_items(image_queries, ContentType.image)
+            matches_dict.update(image_matches)
+        if len(json_queries):
+            json_matches = self._match_items(json_queries, ContentType.json)
+            matches_dict.update(json_matches)
+
+        # Verified matches are matches that match every query requested and not only one.
+        verified_matches = []
+
+        # verifies all the matches.
+        for key, values in matches_dict.items():
+            for value in values:
+                if value in verified_matches:
+                    continue
+                found = True
+                for second_values in matches_dict.values():
+                    if value not in second_values:
+                        found = False
+                if found:
+                    verified_matches.append(value)
+
+        if len(verified_matches) == 0 and len(queries) == 0:
+            verified_matches = None
+
+        self.tree.update_filter_matches(filter=verified_matches)
+
+    def _match_items(self, queries: List[str], content_type: Optional[ContentType] = None) -> Dict[str, List[Path]]:
+        """
+        Helper function that matches the queries asked with items in the main dictionary.
+
+        :param queries: List of the queries that should be used to match against the main dictionary.
+        :param content_type: Optional ContentType indicating what kind of file the query should be matched against.
+            If none, it will look for folder names (main_dictionary keys) instead of specific file kinds.
+
+        :return: A dictionary with each query as a key and a list of matching Path as a value.
+        """
+        matches = {}
+        if content_type is None:
+            for query in queries:
+                match_pattern = re.compile(query, flags=re.IGNORECASE)
+                query_matches = [key for key in self.main_dictionary.keys() if match_pattern.search(str(key))]
+                matches[query] = query_matches
+        else:
+            for query in queries:
+                match_pattern = re.compile(query, flags=re.IGNORECASE)
+                query_matches = [key for key, values in self.main_dictionary.items()
+                                 for file_name, file_type in values.items() if (match_pattern.search(str(file_name.name))
+                                 and file_type == content_type)]
+                matches[query] = query_matches
+
+        return matches
 
     @Slot(Path)
     def on_new_folder_selected(self, path):
