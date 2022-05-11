@@ -1309,6 +1309,42 @@ class TagLabel(QtWidgets.QWidget):
         self.setSizePolicy(size_policy)
 
 
+class TagCreator(QtWidgets.QLineEdit):
+    """
+    A QLineEdit that allows for the creation of tags in the selected folder.
+
+    Multiple tags can be created simultaneously by separating them with commas.
+    """
+
+    def __init__(self, current_folder_path: Path, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+
+        self.current_folder_path = current_folder_path
+        self.setPlaceholderText('Create new tags')
+
+        self.returnPressed.connect(self.create_new_tags)
+
+    @Slot()
+    def create_new_tags(self) -> None:
+        """
+        Gets called when the TagCreator is being selected and the user presses enter. Creates the tags that are
+        currently in the TagCreator.
+        """
+        text = self.text()
+
+        raw_text = text.split(',')
+        text_with_empty_spaces = [item[1:] if len(item) >= 1 and item[0] == " " else item for item in raw_text]
+        new_tags = [item for item in text_with_empty_spaces if item != '' and item != ' ']
+
+        for tag in new_tags:
+            tag_path = self.current_folder_path.joinpath(f'{tag}.tag')
+            print(f'for {tag} : {tag_path}')
+            if not tag_path.exists():
+                f = open(tag_path, 'x')
+
+        self.setText('')
+
+
 # TODO: look over logger and start utilizing in a similar way like instrument server is being used right now.
 # TODO: Test deletion of nested folder situations for large data files to see if this is fast enough.
 class Monitr(QtWidgets.QMainWindow):
@@ -1371,6 +1407,7 @@ class Monitr(QtWidgets.QMainWindow):
         self.scroll_area = None
         self.file_windows_splitter = None
         self.tag_label = None
+        self.tags_creator = None
         self.right_side_layout_dummy_holder = QtWidgets.QWidget()
 
         self.right_side_layout = QtWidgets.QVBoxLayout()
@@ -1959,7 +1996,9 @@ class Monitr(QtWidgets.QMainWindow):
                 if file_type == ContentType.tag]
 
         self.tag_label = TagLabel(tags)
+        self.tags_creator = TagCreator(path)
         self.right_side_layout.addWidget(self.tag_label)
+        self.right_side_layout.addWidget(self.tags_creator)
 
     def add_text_input(self, path):
         """
@@ -2069,6 +2108,11 @@ class Monitr(QtWidgets.QMainWindow):
             self.right_side_layout.removeWidget(self.tag_label)
             self.tag_label.deleteLater()
             self.tag_label = None
+
+        if self.tags_creator is not None:
+            self.right_side_layout.removeWidget(self.tags_creator)
+            self.tags_creator.deleteLater()
+            self.tags_creator = None
 
         if self.text_input is not None:
             self.right_side_layout.removeWidget(self.text_input)
