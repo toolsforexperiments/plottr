@@ -1338,7 +1338,6 @@ class TagCreator(QtWidgets.QLineEdit):
 
         for tag in new_tags:
             tag_path = self.current_folder_path.joinpath(f'{tag}.tag')
-            print(f'for {tag} : {tag_path}')
             if not tag_path.exists():
                 f = open(tag_path, 'x')
 
@@ -1824,7 +1823,7 @@ class Monitr(QtWidgets.QMainWindow):
         a single whitespace are ignored. It also ignores the first character of a query if this is a whitespace.
 
         It accepts 5 kinds of queries:
-            * labels: queries starting with, 'label:', 'l:', or 'L:'.
+            * tags: queries starting with, 'tag:', 't:', or 'T:'.
             * Markdown files: queries starting with, 'md:', 'm:', or 'M:'.
             * Images: queries starting with, 'image:', 'i:', or 'I:'.
             * Json files: queries starting with, 'json:', 'j:', or 'J:'.
@@ -1837,16 +1836,16 @@ class Monitr(QtWidgets.QMainWindow):
         queries_with_empty_spaces = [item[1:] if len(item) >= 1 and item[0] == " " else item for item in raw_queries]
         queries = [item for item in queries_with_empty_spaces if item != '' and item != ' ']
 
-        label_queries = []
+        tag_queries = []
         md_queries = []
         image_queries = []
         json_queries = []
         name_queries = []
         for query in queries:
-            if query[:6] == 'label:':
-                label_queries.append(query[6:])
-            elif query[:2] == 'l:' or query[:2] == 'L:':
-                label_queries.append(query[2:])
+            if query[:6] == 'tag:':
+                tag_queries.append(query[6:])
+            elif query[:2] == 't:' or query[:2] == 'T:':
+                tag_queries.append(query[2:])
             elif query[:3] == 'md:':
                 md_queries.append(query[3:])
             elif query[:2] == 'm:' or query[:2] == 'M:':
@@ -1866,9 +1865,9 @@ class Monitr(QtWidgets.QMainWindow):
         if len(name_queries) > 0:
             name_matches = self._match_items(name_queries)
             matches_dict.update(name_matches)
-        if len(label_queries) > 0:
-            label_matches = self._match_items(label_queries, ContentType.tag)
-            matches_dict.update(label_matches)
+        if len(tag_queries) > 0:
+            tag_matches = self._match_items(tag_queries, ContentType.tag)
+            matches_dict.update(tag_matches)
         if len(md_queries) > 0:
             md_matches = self._match_items(md_queries, ContentType.md)
             matches_dict.update(md_matches)
