@@ -2,7 +2,7 @@
 Script obtained from: https://doc-snapshots.qt.io/qtforpython-dev/examples/example_widgets_itemviews_jsonmodel.html
 """
 
-from typing import Any, List, Dict, Union
+from typing import Any, List, Dict, Union, Optional
 
 from qtpy.QtCore import QAbstractItemModel, QModelIndex, QObject, Qt
 
@@ -10,14 +10,14 @@ from qtpy.QtCore import QAbstractItemModel, QModelIndex, QObject, Qt
 class TreeItem:
     """A Json item corresponding to a line in QTreeView"""
 
-    def __init__(self, parent: "TreeItem" = None):
+    def __init__(self, parent: Optional["TreeItem"] = None):
         self._parent = parent
         self._key = ""
         self._value = ""
         self._value_type = None
-        self._children = []
+        self._children: List["TreeItem"] = []
 
-    def appendChild(self, item: "TreeItem"):
+    def appendChild(self, item: "TreeItem") -> None:
         """Add item as a child"""
         self._children.append(item)
 
@@ -25,7 +25,7 @@ class TreeItem:
         """Return the child of the current item from the given row"""
         return self._children[row]
 
-    def parent(self) -> "TreeItem":
+    def parent(self) -> Optional["TreeItem"]:
         """Return the parent of the current item"""
         return self._parent
 
@@ -43,7 +43,7 @@ class TreeItem:
         return self._key
 
     @key.setter
-    def key(self, key: str):
+    def key(self, key: str) -> None:
         """Set key name of the current item"""
         self._key = key
 
@@ -63,7 +63,7 @@ class TreeItem:
         return self._value_type
 
     @value_type.setter
-    def value_type(self, value):
+    def value_type(self, value) -> None:
         """Set the python type of the item's value."""
         self._value_type = value
 
@@ -118,11 +118,11 @@ class JsonModel(QAbstractItemModel):
         self._rootItem = TreeItem()
         self._headers = ("key", "value")
 
-    def clear(self):
+    def clear(self) -> None:
         """ Clear data from the model """
         self.load({})
 
-    def load(self, document: dict):
+    def load(self, document: dict) -> bool:
         """Load model from a nested dictionary returned by json.loads()
 
         Arguments:
@@ -164,7 +164,7 @@ class JsonModel(QAbstractItemModel):
             if index.column() == 1:
                 return item.value
 
-    def setData(self, index: QModelIndex, value: Any, role: Qt.ItemDataRole):
+    def setData(self, index: QModelIndex, value: Any, role: Qt.ItemDataRole) -> bool:
         """Override from QAbstractItemModel
 
         Set json item according index and role
