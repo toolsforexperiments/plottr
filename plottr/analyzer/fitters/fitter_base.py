@@ -1,4 +1,4 @@
-from typing import Tuple, Any, Optional, Union, Dict, List
+from typing import Tuple, Any, Union, Dict
 
 import numpy as np
 import lmfit
@@ -6,13 +6,24 @@ import lmfit
 from ..base import Analysis, AnalysisResult
 
 
+class FitResult(AnalysisResult):
+
+    def __init__(self, lmfit_result: lmfit.model.ModelResult):
+        self.lmfit_result = lmfit_result
+        self.params = lmfit_result.params
+
+    def eval(self, *args: Any, **kwargs: Any) -> np.ndarray:
+        return self.lmfit_result.eval(*args, **kwargs)
+
+
 class Fit(Analysis):
 
     @staticmethod
-    def model(*arg, **kwarg) -> np.ndarray:
+    def model(*arg: Any, **kwarg: Any) -> np.ndarray:
         raise NotImplementedError
 
-    def analyze(self, coordinates, data, dry=False, params={}, **fit_kwargs):
+    def analyze(self, coordinates: Union[Tuple[np.ndarray, ...], np.ndarray], data: np.ndarray,
+                dry: bool = False, params: Dict[str, Any] = {}, *args: Any, **fit_kwargs: Any) -> FitResult:
         model = lmfit.model.Model(self.model)
 
         _params = lmfit.Parameters()
@@ -33,15 +44,6 @@ class Fit(Analysis):
         return FitResult(lmfit_result)
 
     @staticmethod
-    def guess(coordinates, data) -> Dict[str, Any]:
+    def guess(coordinates: Union[Tuple[np.ndarray, ...], np.ndarray],
+              data: np.ndarray) -> Dict[str, Any]:
         raise NotImplementedError
-
-
-class FitResult(AnalysisResult):
-
-    def __init__(self, lmfit_result: lmfit.model.ModelResult):
-        self.lmfit_result = lmfit_result
-        self.params = lmfit_result.params
-
-    def eval(self, *args: Any, **kwargs: Any):
-        return self.lmfit_result.eval(*args, **kwargs)
