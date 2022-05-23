@@ -390,17 +390,14 @@ class FittingGui(NodeWidget):
     def fittingOptionGetter(self) -> Optional[FittingOptions]:
         """ get all the fitting options and put them into a dictionary
         """
-        print(f'I GOT IN THE FITTING OPTION GETTER')
         if DEBUG:
             print("GUI...: ", 'getter in gui called')
         # get the current model selected
         model = self.getCurrentModel()
         if model is None:
-            print(f'THE MODEL IS NONE SO WE RETURNING')
             return None
         # get the parameters for current model
         parameters = lmParameters()
-        print(f'about to excecute the for loop')
         for i in range(self.param_table.rowCount()):
             table_item = self.param_table.verticalHeaderItem(i)
             assert isinstance(table_item, QtWidgets.QTableWidgetItem)

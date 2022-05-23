@@ -58,6 +58,12 @@ You might want to install freshly if you still use the old version.
 
 # Recent changes:
 
+## not yet released
+
+### Added 
+
+- added a generalized way for fitting data (or similar procedures that generate analysis parameters from datasets) (#293)
+
 ## v0.9.1 2022-01-12
 
 ### Added
