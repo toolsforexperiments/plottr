@@ -14,7 +14,7 @@ class TreeItem:
         self._parent = parent
         self._key = ""
         self._value = ""
-        self._value_type = None
+        self._value_type: Any = None
         self._children: List["TreeItem"] = []
 
     def appendChild(self, item: "TreeItem") -> None:
@@ -53,23 +53,23 @@ class TreeItem:
         return self._value
 
     @value.setter
-    def value(self, value: str):
+    def value(self, value: str) -> None:
         """Set value name of the current item"""
         self._value = value
 
     @property
-    def value_type(self):
+    def value_type(self) -> Any:
         """Return the python type of the item's value."""
         return self._value_type
 
     @value_type.setter
-    def value_type(self, value) -> None:
+    def value_type(self, value: Any) -> None:
         """Set the python type of the item's value."""
         self._value_type = value
 
     @classmethod
     def load(
-        cls, value: Union[List, Dict], parent: "TreeItem" = None, sort=True
+        cls, value: Union[List, Dict], parent: Optional["TreeItem"] = None, sort: bool = True
     ) -> "TreeItem":
         """Create a 'root' TreeItem from a nested list or a nested dictonary
 
@@ -98,7 +98,7 @@ class TreeItem:
         elif isinstance(value, list):
             for index, value in enumerate(value):
                 child = cls.load(value, rootItem)
-                child.key = index
+                child.key = str(index)
                 child.value_type = type(value)
                 rootItem.appendChild(child)
 
@@ -180,7 +180,7 @@ class JsonModel(QAbstractItemModel):
                 item = index.internalPointer()
                 item.value = str(value)
 
-                if __binding__ in ("PySide", "PyQt4"):
+                if __binding__ in ("PySide", "PyQt4"):  # type: ignore[name-defined]
                     self.dataChanged.emit(index, index)
                 else:
                     self.dataChanged.emit(index, index, [Qt.EditRole])
@@ -191,7 +191,7 @@ class JsonModel(QAbstractItemModel):
 
     def headerData(
         self, section: int, orientation: Qt.Orientation, role: Qt.ItemDataRole
-    ):
+    ) -> Optional[str]:
         """Override from QAbstractItemModel
 
         For the JsonModel, it returns only data for columns (orientation = Horizontal)
@@ -203,7 +203,9 @@ class JsonModel(QAbstractItemModel):
         if orientation == Qt.Horizontal:
             return self._headers[section]
 
-    def index(self, row: int, column: int, parent=QModelIndex()) -> QModelIndex:
+        return None
+
+    def index(self, row: int, column: int, parent: QModelIndex = QModelIndex()) -> QModelIndex:
         """Override from QAbstractItemModel
 
         Return index according row, column and parent
@@ -241,7 +243,7 @@ class JsonModel(QAbstractItemModel):
 
         return self.createIndex(parentItem.row(), 0, parentItem)
 
-    def rowCount(self, parent=QModelIndex()):
+    def rowCount(self, parent: QModelIndex = QModelIndex()) -> int:
         """Override from QAbstractItemModel
 
         Return row count from parent index
@@ -256,7 +258,7 @@ class JsonModel(QAbstractItemModel):
 
         return parentItem.childCount()
 
-    def columnCount(self, parent=QModelIndex()):
+    def columnCount(self, parent: QModelIndex = QModelIndex()) -> int:
         """Override from QAbstractItemModel
 
         Return column number. For the model, it always return 2 columns
@@ -275,7 +277,7 @@ class JsonModel(QAbstractItemModel):
         else:
             return flags
 
-    def to_json(self, item=None):
+    def to_json(self, item: Optional["TreeItem"] = None) -> Any:
 
         if item is None:
             item = self._rootItem
@@ -290,11 +292,11 @@ class JsonModel(QAbstractItemModel):
             return document
 
         elif item.value_type == list:
-            document = []
+            document_list = []
             for i in range(nchild):
                 ch = item.child(i)
-                document.append(self.to_json(ch))
-            return document
+                document_list.append(self.to_json(ch))
+            return document_list
 
         else:
             return item.value
