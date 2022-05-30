@@ -1454,6 +1454,7 @@ class Monitr(QtWidgets.QMainWindow):
         self.tag_label = None
         self.tags_creator = None
         self.right_side_layout_dummy_holder = QtWidgets.QWidget()
+        self.invalid_data_label = None
 
         self.right_side_layout = QtWidgets.QVBoxLayout()
         self.right_side_layout_dummy_holder.setLayout(self.right_side_layout)
@@ -2001,7 +2002,11 @@ class Monitr(QtWidgets.QMainWindow):
             self.currently_selected_folder = path
             self.clear_right_layout()
             self.add_tag_label(path)
-            self.add_data_window(path)
+            try:
+                self.add_data_window(path)
+            except Exception as e:
+                self.invalid_data_label = QtWidgets.QLabel(f'Could not load  data: {type(e)}: {e}')
+                self.right_side_layout.addWidget(self.invalid_data_label)
             self.add_text_input(path)
             self.add_all_files(path, collapsed_settings)
 
@@ -2146,6 +2151,11 @@ class Monitr(QtWidgets.QMainWindow):
             self.right_side_layout.removeWidget(self.data_window)
             self.data_window.deleteLater()
             self.data_window = None
+
+        if self.invalid_data_label is not None:
+            self.right_side_layout.removeWidget(self.invalid_data_label)
+            self.invalid_data_label.deleteLater()
+            self.invalid_data_label = None
 
         if self.tag_label is not None:
             self.right_side_layout.removeWidget(self.tag_label)

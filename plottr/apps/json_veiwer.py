@@ -112,7 +112,7 @@ class TreeItem:
 class JsonModel(QAbstractItemModel):
     """ An editable model of Json data """
 
-    def __init__(self, parent: QObject = None):
+    def __init__(self, parent: Optional[QObject] = None):
         super().__init__(parent)
 
         self._rootItem = TreeItem()
@@ -142,7 +142,7 @@ class JsonModel(QAbstractItemModel):
 
         return True
 
-    def data(self, index: QModelIndex, role: Qt.ItemDataRole) -> Any:
+    def data(self, index: QModelIndex, role: Qt.ItemDataRole) -> Any:  #type: ignore[override]
         """Override from QAbstractItemModel
 
         Return data from a json item according index and role
@@ -164,7 +164,7 @@ class JsonModel(QAbstractItemModel):
             if index.column() == 1:
                 return item.value
 
-    def setData(self, index: QModelIndex, value: Any, role: Qt.ItemDataRole) -> bool:
+    def setData(self, index: QModelIndex, value: Any, role: Qt.ItemDataRole) -> bool:  #type: ignore[override]
         """Override from QAbstractItemModel
 
         Set json item according index and role
@@ -189,7 +189,7 @@ class JsonModel(QAbstractItemModel):
 
         return False
 
-    def headerData(
+    def headerData(  #type: ignore[override]
         self, section: int, orientation: Qt.Orientation, role: Qt.ItemDataRole
     ) -> Optional[str]:
         """Override from QAbstractItemModel
@@ -225,7 +225,7 @@ class JsonModel(QAbstractItemModel):
         else:
             return QModelIndex()
 
-    def parent(self, index: QModelIndex) -> QModelIndex:
+    def parent(self, index: QModelIndex) -> QModelIndex:  #type: ignore[override]
         """Override from QAbstractItemModel
 
         Return parent index of index
