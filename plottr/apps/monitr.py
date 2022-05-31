@@ -13,7 +13,7 @@ import json
 from enum import Enum, auto
 from pathlib import Path
 from multiprocessing import Process
-from typing import List, Optional, Dict, Any, Union, Generator
+from typing import List, Optional, Dict, Any, Union, Generator, Iterable
 from functools import partial
 from itertools import cycle
 
@@ -186,15 +186,26 @@ class TreeWidgetItem(QtWidgets.QTreeWidgetItem):
     Modified class of QtWidgets.QTreeWidgetItem where the only modification is the addition of the path parameter.
 
     :param path: The path this QTreeWidgetItem represents.
+    :param tags: A list of the tags associated with this item.
     :param star: Indicates if this item is star.
     :param trash: Indicates if this item is trash.
     """
 
-    def __init__(self, path: Path, star: bool = False, trash: bool = False, *args: Any, **kwargs: Any):
+    def __init__(self, path: Path, tags: Optional[List[str]] = None,
+                 star: bool = False, trash: bool = False, *args: Any, **kwargs: Any):
         super(TreeWidgetItem, self).__init__(*args, **kwargs)
         self.path = path
         self.star = star
         self.trash = trash
+
+        if tags is not None:
+            self.tags_widget = TagLabel(tags, True)
+
+    def resize_tags(self, size: int) -> None:
+        """
+        Gets called everytime the 'Tags' column changes sizes. Set the new maximum size for the tags widget.
+        """
+        self.tags_widget.setMaximumWidth(size)
 
 
 # TODO: Check consistency in the type of argument required for the add, delete, modified methods (if they should accept
@@ -243,8 +254,10 @@ class FileTree(QtWidgets.QTreeWidget):
         self.trash_text = 'Trash'
         self.un_trash_text = 'Un-trash'
 
-        self.setHeaderLabel('Files')
+        self.setColumnCount(2)
+        self.setHeaderLabels(['Files', 'Tags'])
         self.refresh_tree(dic)
+        self.header().swapSections(1, 0)
 
         # Popup menu.
         self.delete_popup_action = QtWidgets.QAction('Delete')
@@ -262,6 +275,18 @@ class FileTree(QtWidgets.QTreeWidget):
 
         self.itemChanged.connect(self.renaming_item)
         self.itemClicked.connect(self.item_clicked)
+
+        self.header().sectionResized.connect(self.columnResized)
+
+    def columnResized(self, column: int, oldSize: int, newSize: int) -> None:
+        """
+        Gets called every time a column gets resized. Used to pass the new width to the column for correct tags
+        displaying.
+        """
+        super().columnResized(column, oldSize, newSize)
+        if column == 1:
+            for item in self.main_items_dictionary.items():
+                item[1].resize_tags(newSize)
 
     def clear(self) -> None:
         """
@@ -293,86 +318,77 @@ class FileTree(QtWidgets.QTreeWidget):
             like::
                 update = {
                     path_of_folder_1_containing_files : {
-                        path_of_file_1: ContentType.sort(path_of_file_1)
-                        path_of_file_2: ContentType.sort(path_of_file_2)}
+                        path_of_file_1: ContentType.sort(path_of_file_1),
+                        path_of_file_2: ContentType.sort(path_of_file_2)},
                     path_of_folder_2_containing_files : {
-                        path_of_file_1: ContentType.sort(path_of_file_1)
+                        path_of_file_1: ContentType.sort(path_of_file_1),
                         path_of_file_2: ContentType.sort(path_of_file_2)}
                 }
         """
         start_timer = time.time_ns()
         self.clear()
         for folder_path, files_dict in update.items():
-            self.sort_and_add_tree_widget_item(folder_path) #, files_dict)
+            self.sort_and_add_tree_widget_item(folder_path, files_dict)
         final_timer = time.time_ns() - start_timer
         logger().info(f'generating the tree widget took: {final_timer * 10 ** -9}s')
 
-    def sort_and_add_tree_widget_item(self, file_or_folder_path: Union[Path, str], files_dict: Optional[Dict] = None) -> None:
+    def sort_and_add_tree_widget_item(self, folder_path: Union[Path, str], files_dict: Optional[Dict] = None) -> None:
         """
         Adds one or more items into the tree. The items are properly sorted and new items are created if required.
 
-        This method can create individual files or groups of them:
-            * To create an individual file, one should pass the path of the file to `file_or_folder_path` and
-              nothing else.
-            * To create multiple files inside a specific folder, one should pass the path of the folder to
-              `file_or_folder_path` and a dictionary with the path of every file as keys, and their respective file type
-              as values. The combination of both arguments should follow the same format as the `update` argument in the
-              `refresh_tree` method, where the key of the entry should be `file_or_folder_path` and the dictionary
-               containing it should be `files_dict`.
-
-        :param file_or_folder_path: `Path` of the file or folder being added to the tree.
+        :param folder_path: `Path` of the file or folder being added to the tree.
             Strings of the path also supported.
-        :param files_dict: Optional. If adding a file, `files_dict` should be `None`. If adding a folder, this should
-            be a dictionary with the file `Path`.
+        :param files_dict: Optional. Used to get the tags for showing in the 'Tags' column of the tree. It will check
+            for all tag file type and create the item for it. The format should be:
+                {path_of_file_1: ContentType.sort(path_of_file_1),
+                path_of_file_2: ContentType.sort(path_of_file_2)}
         """
         # TODO: optimize the conversion of path.
         # Check that the new file or folder are Paths, if not convert them.
-        if isinstance(file_or_folder_path, str):
-            file_or_folder_path = Path(file_or_folder_path)
-        elif isinstance(file_or_folder_path, Path):
-            file_or_folder_path = file_or_folder_path
+        if isinstance(folder_path, str):
+            folder_path = Path(folder_path)
+        elif isinstance(folder_path, Path):
+            folder_path = folder_path
         else:
-            file_or_folder_path = Path(file_or_folder_path)
+            folder_path = Path(folder_path)
 
         # Check if the new item should have a parent item. If the new item should have a parent, but this does
         # not yet exist, create it.
-        if file_or_folder_path.parent == self.monitor_path:
+        if folder_path.parent == self.monitor_path:
             parent_item, parent_path = None, None
-        elif file_or_folder_path.parent in self.main_items_dictionary:
+        elif folder_path.parent in self.main_items_dictionary:
             parent_item, parent_path = \
-                self.main_items_dictionary[file_or_folder_path.parent], file_or_folder_path.parent
+                self.main_items_dictionary[folder_path.parent], folder_path.parent
         else:
-            self.sort_and_add_tree_widget_item(file_or_folder_path.parent, None)
+            self.sort_and_add_tree_widget_item(folder_path.parent, None)
             parent_item, parent_path = \
-                self.main_items_dictionary[file_or_folder_path.parent], file_or_folder_path.parent
+                self.main_items_dictionary[folder_path.parent], folder_path.parent
+
+        # Get the tags this item has.
+        tags = []
+        if files_dict is not None:
+            tags = [key.stem for key, item in files_dict.items() if item == ContentType.tag]
 
         # Create the new TreeWidgetItem.
-        tree_widget_item = TreeWidgetItem(file_or_folder_path, False, False, [str(file_or_folder_path.name)])
+        tree_widget_item = TreeWidgetItem(folder_path, tags, False, False, [str(folder_path.name)])
         tree_widget_item.setFlags(tree_widget_item.flags() | QtCore.Qt.ItemIsEditable)
 
-        # Create and add child items if necessary.
-        if files_dict is not None:
-            for file_key, file_type in files_dict.items():
-                child = TreeWidgetItem(file_key, False, False, [str(file_key.name)])
-                child.setForeground(0, ContentType.sort_Qcolor(file_type))
-                child.setFlags(child.flags() | QtCore.Qt.ItemIsEditable)
-                self.main_items_dictionary[file_key] = child
-                tree_widget_item.addChild(child)
-
-                # Sort the children.
-                tree_widget_item.sortChildren(0, QtCore.Qt.DescendingOrder)
-
         if parent_path is None:
-            self.main_items_dictionary[file_or_folder_path] = tree_widget_item
+            self.main_items_dictionary[folder_path] = tree_widget_item
             self.insertTopLevelItem(0, tree_widget_item)
         else:
-            self.main_items_dictionary[file_or_folder_path] = tree_widget_item
-            tree_widget_item.setForeground(0, ContentType.sort_Qcolor(ContentType.sort(file_or_folder_path)))
+            self.main_items_dictionary[folder_path] = tree_widget_item
+            tree_widget_item.setForeground(0, ContentType.sort_Qcolor(ContentType.sort(folder_path)))
             assert isinstance(parent_item, TreeWidgetItem)
             parent_item.addChild(tree_widget_item)
 
             # Sort the children after you add a new one.
             parent_item.sortChildren(0, QtCore.Qt.DescendingOrder)
+
+        if len(tree_widget_item.tags_widget.tags) >= 1:
+            self.setItemWidget(tree_widget_item, 1, tree_widget_item.tags_widget)
+        self.resizeColumnToContents(1)
+        tree_widget_item.resize_tags(self.columnWidth(1))
 
     def delete_item(self, path: Path) -> None:
         """
@@ -401,20 +417,25 @@ class FileTree(QtWidgets.QTreeWidget):
                 item.parent().removeChild(item)
             del self.main_items_dictionary[path]
 
-    def update_item(self, old_path: Path, new_path: Path, new_color: Optional[ContentType] = None) -> None:
+    def update_item(self, old_path: Path, new_path: Path) -> None:
         """
-        Updates text and color of a TreeWidgetItem when the name (or type) of a file or directory changes.
+        Updates text of a TreeWidgetItem when the name (or type) of a file or directory changes.
 
         :param old_path: The path of the TreeWidgetItem that needs to be updated.
         :param new_path: The new Path of the TreeWidgetItem.
-        :param new_color: The updated type of file. Used to change the color of the TreeWidgetItem.
         """
         if old_path in self.main_items_dictionary:
             self.main_items_dictionary[new_path] = self.main_items_dictionary.pop(old_path)
             self.main_items_dictionary[new_path].path = new_path
             self.main_items_dictionary[new_path].setText(0, str(new_path.name))
-            if new_color is not None:
-                self.main_items_dictionary[new_path].setForeground(0, ContentType.sort_Qcolor(new_color))
+        elif old_path.parent in self.main_items_dictionary:
+            tree_item = self.main_items_dictionary[old_path.parent]
+
+            if old_path.stem in tree_item.tags_widget.tags and old_path.suffix == '.tag':
+                tree_item.tags_widget.delete_tag(old_path.stem)
+
+            if new_path.stem not in tree_item.tags_widget.tags and new_path.suffix == '.tag':
+                tree_item.tags_widget.add_tag(new_path.stem)
 
     @Slot(QtCore.QPoint)
     def on_context_menu_requested(self, pos: QtCore.QPoint) -> None:
@@ -504,22 +525,23 @@ class FileTree(QtWidgets.QTreeWidget):
         happens, the text is not changed and a message pops with the error. If the icon of the item changes, nothing
         happens
         """
-        assert isinstance(item, TreeWidgetItem)
-        new_text = item.text(column)
-        path = item.path
-        # Checking if either a file or folder exists for the path. If it does it mean that the change was the icon and
-        # nothing happens.
-        if new_text != path.name:
-            try:
-                new_path = path.rename(path.parent.joinpath(new_text))
-            except Exception as e:
-                # Reset the text of the item
-                self.main_items_dictionary[path].setText(0, str(path.name))
-                # Show the error message
-                error_msg = QtWidgets.QMessageBox()
-                error_msg.setText(f"{e}")
-                error_msg.setWindowTitle(f'Could not rename directory.')
-                error_msg.exec_()
+        if column == 0:
+            assert isinstance(item, TreeWidgetItem)
+            new_text = item.text(column)
+            path = item.path
+            # Checking if either a file or folder exists for the path. If it does it mean that the change was the icon and
+            # nothing happens.
+            if new_text != path.name:
+                try:
+                    new_path = path.rename(path.parent.joinpath(new_text))
+                except Exception as e:
+                    # Reset the text of the item
+                    self.main_items_dictionary[path].setText(0, str(path.name))
+                    # Show the error message
+                    error_msg = QtWidgets.QMessageBox()
+                    error_msg.setText(f"{e}")
+                    error_msg.setWindowTitle(f'Could not rename directory.')
+                    error_msg.exec_()
 
     @Slot()
     def emit_plot_requested_signal(self) -> None:
@@ -572,12 +594,12 @@ class FileTree(QtWidgets.QTreeWidget):
             if item.star:
                 item.star = False
                 if not item.trash:
-                    item.setIcon(0, QtGui.QIcon())
+                    item.setIcon(1, QtGui.QIcon())
 
             else:
                 if not item.trash:
                     item.star = True
-                    item.setIcon(0, get_star_icon())
+                    item.setIcon(1, get_star_icon())
 
             if path.parent in self.main_items_dictionary:
                 self.star_parent_item(path)
@@ -605,11 +627,11 @@ class FileTree(QtWidgets.QTreeWidget):
 
         if all(children_star):
             item.star = True
-            item.setIcon(0, get_star_icon())
+            item.setIcon(1, get_star_icon())
         else:
             item.star = False
             if not item.trash:
-                item.setIcon(0, QtGui.QIcon())
+                item.setIcon(1, QtGui.QIcon())
 
         parent_item = item.parent()
         if parent_item is not None:
@@ -630,11 +652,11 @@ class FileTree(QtWidgets.QTreeWidget):
             if item.trash:
                 item.trash = False
                 if not item.star:
-                    item.setIcon(0, QtGui.QIcon())
+                    item.setIcon(1, QtGui.QIcon())
             else:
                 if not item.star:
                     item.trash = True
-                    item.setIcon(0, get_trash_icon())
+                    item.setIcon(1, get_trash_icon())
 
             self.trash_parent_item(path)
             self.filter_items()
@@ -662,11 +684,11 @@ class FileTree(QtWidgets.QTreeWidget):
 
         if all(children_trash):
             item.trash = True
-            item.setIcon(0, get_trash_icon())
+            item.setIcon(1, get_trash_icon())
         else:
             item.trash = False
             if not item.star:
-                item.setIcon(0, QtGui.QIcon())
+                item.setIcon(1, QtGui.QIcon())
 
         parent_item = item.parent()
         if parent_item is not None:
@@ -781,6 +803,26 @@ class FileTree(QtWidgets.QTreeWidget):
             item.setHidden(False)
             self._show_parent_item(item.parent())
 
+    def new_tag_created(self, path: Path) -> None:
+        """
+        Adds the tag to the correct tree_item tag widget and displays it.
+
+        :param path: The path of the new tag.
+        """
+        if path.parent in self.main_items_dictionary:
+            tree_item = self.main_items_dictionary[path.parent]
+            tree_item.tags_widget.add_tag(path.stem)
+
+    def tag_deleted(self, path: Path) -> None:
+        """
+        Deletes a tag that was in the correct tree_item tag widget.
+
+        :param path: The path of the deleted tag.
+        """
+        if path.parent in self.main_items_dictionary:
+            tree_item = self.main_items_dictionary[path.parent]
+            tree_item.tags_widget.delete_tag(path.stem)
+
 
 class FileExplorer(QtWidgets.QWidget):
     """
@@ -884,7 +926,7 @@ class DataTreeWidget(QtWidgets.QTreeWidget):
         """
 
         for index, data in enumerate(self.data):
-            parent_tree_widget = TreeWidgetItem(self.paths[index], False, False, self, [str(self.paths[index].name)])
+            parent_tree_widget = TreeWidgetItem(self.paths[index], None, False, False, self, [str(self.paths[index].name)])
 
             data_parent = QtWidgets.QTreeWidgetItem(parent_tree_widget, ['Data'])
             meta_parent = QtWidgets.QTreeWidgetItem(parent_tree_widget, ['Meta'])
@@ -1315,44 +1357,82 @@ class TagLabel(QtWidgets.QWidget):
     Widget that displays the tags passed in the argument. The tags will each be displayed in a different color.
 
     :param tags: List of each tag that should be displayed.
+    :param tree_item: Indicates if this widget is used on the right side of the app or in the treeWidget.
     """
 
-    def __init__(self, tags: List[str], *args: Any, **kwargs: Any):
+    def __init__(self, tags: List[str], tree_item: bool = False, *args: Any, **kwargs: Any):
         super().__init__(*args, **kwargs)
 
         self.tags = tags
-        self.html_tags = []
+        self.html_tags: List[str] = []
+        self.tree_item = tree_item
+        self.tag_str = ''
 
         if not tags:
             self.tags_str = 'No labels present.'
         else:
-            color_generator = html_color_generator()
+            self.generate_tag_string()
 
-            # Add every tag followed by a come, except the last item.
-            for i in range(len(self.tags) - 1):
-                html_str = f'<font color={next(color_generator)}>{self.tags[i]}, </font>'
-                self.html_tags.append(html_str)
-
-            # Last item is followed by a dot instead of a coma.
-            html_str = f'<font color={next(color_generator)}>{self.tags[-1]}.</font>'
-            self.html_tags.append(html_str)
-
-            self.tags_str = ''.join(self.html_tags)
-
-        self.header_label = QtWidgets.QLabel('This is tagged by:', parent=self)
         self.tags_label = QtWidgets.QLabel(self.tags_str, parent=self)
-        self.tags_label.setWordWrap(True)
-        self.tags_label.setIndent(30)
 
         # Final underscore fixes mypy errors.
         self.layout_ = QtWidgets.QVBoxLayout()
-        self.layout_.addWidget(self.header_label)
+
+        if not self.tree_item:
+            self.tags_label.setWordWrap(True)
+            self.header_label = QtWidgets.QLabel('This is tagged by:', parent=self)
+            self.layout_.addWidget(self.header_label)
+            self.tags_label.setIndent(30)
+
         self.layout_.addWidget(self.tags_label)
 
         self.setLayout(self.layout_)
 
-        size_policy = QtWidgets.QSizePolicy(QtWidgets.QSizePolicy.Minimum, QtWidgets.QSizePolicy.Fixed)
+        size_policy = QtWidgets.QSizePolicy(QtWidgets.QSizePolicy.Minimum, QtWidgets.QSizePolicy.Minimum)
         self.setSizePolicy(size_policy)
+
+    def add_tag(self, tag: str) -> None:
+        """
+        Adds a new tag to the list.
+
+        :param tag: The new tag.
+        """
+        self.tags.append(tag)
+        self.generate_tag_string()
+        if self.tree_item:
+            self.tags_label.setText(self.tags_str)
+
+    def delete_tag(self, tag: str) -> None:
+        """
+        Deletes a tag.
+
+        :param tag: The deleted tag.
+        """
+        if tag in self.tag:
+            self.tags.remove(tag)
+
+        self.generate_tag_string()
+        if self.tree_item:
+            self.tags_label.setText(self.tags_str)
+
+    def generate_tag_string(self) -> None:
+        """
+        Converts the list of tags into the html formated string.
+        """
+        self.tags_str = ''
+        self.html_tags = []
+        color_generator = html_color_generator()
+
+        # Add every tag followed by a come, except the last item.
+        for i in range(len(self.tags) - 1):
+            html_str = f'<font color={next(color_generator)}>{self.tags[i]}, </font>'
+            self.html_tags.append(html_str)
+
+        # Last item is followed by a dot instead of a coma.
+        html_str = f'<font color={next(color_generator)}>{self.tags[-1]}.</font>'
+        self.html_tags.append(html_str)
+
+        self.tags_str = ''.join(self.html_tags)
 
 
 class TagCreator(QtWidgets.QLineEdit):
@@ -1463,7 +1543,7 @@ class Monitr(QtWidgets.QMainWindow):
         # debug items
         # self.debug_layout = QtWidgets.QHBoxLayout()
         # self.main_dict_button = QtWidgets.QPushButton(f'Print main dictionary')
-        # self.tree_main_dict_button = QtWidgets.QPushButton(f'print tree dict')
+        # self.tree_main_dict_button = QtWidgets.QPushButton(f'print tree main dictionary')
         # self.debug_layout.addWidget(self.main_dict_button)
         # self.debug_layout.addWidget(self.tree_main_dict_button)
         # self.main_dict_button.clicked.connect(self.print_main_dictionary)
@@ -1514,8 +1594,8 @@ class Monitr(QtWidgets.QMainWindow):
         self.main_dictionary = {Path(walk_entry[0]): {Path(walk_entry[0]).joinpath(file): ContentType.sort(file)
                                                       for file in walk_entry[2]} for walk_entry in walk_results
                                 if 'data.ddh5' in walk_entry[2]}
-        # Changed to not send any children
-        self.tree.refresh_tree({key: None for key in self.main_dictionary.keys()})
+
+        self.tree.refresh_tree(self.main_dictionary)
 
         # Filters what folders should be starred.
         starred_folders = [Path(walk_entry[0]) for walk_entry in walk_results if '__star__.tag' in walk_entry[2] and
@@ -1571,8 +1651,8 @@ class Monitr(QtWidgets.QMainWindow):
                         self.main_dictionary[path.parent].update({path: ContentType.sort(path.name)})
                         self._check_special_tag_creation(path)
 
-                        # Changed to not add children to the tree
-                        # self.tree.sort_and_add_tree_widget_item(path)
+                        if path.suffix == '.tag':
+                            self.tree.new_tag_created(path)
 
             # If a file is created in the currently displaying folder update the right side.
             if path.parent == self.currently_selected_folder:
@@ -1623,6 +1703,9 @@ class Monitr(QtWidgets.QMainWindow):
                             self.tree.star_item(path.parent)
                         elif path.name == '__trash__.tag':
                             self.tree.trash_item(path.parent)
+
+                        if path.suffix == '.tag':
+                            self.tree.tag_deleted(path)
 
                         del self.main_dictionary[path.parent][path]
                         self.tree.delete_item(path)
