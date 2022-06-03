@@ -1408,7 +1408,7 @@ class TagLabel(QtWidgets.QWidget):
 
         :param tag: The deleted tag.
         """
-        if tag in self.tag:
+        if tag in self.tags:
             self.tags.remove(tag)
 
         self.generate_tag_string()
@@ -1470,6 +1470,193 @@ class TagCreator(QtWidgets.QLineEdit):
         self.setText('')
 
 
+class SingleFolderItem(QtWidgets.QSplitter):
+    def __init__(self, folder_path, items_dictionary, parent=None, *args, **kwargs):
+        super().__init__(parent, *args, **kwargs)
+        self.folder_path = folder_path
+        self.items_dictionary = items_dictionary
+        self.tags = [file.stem for file, file_type in items_dictionary.items() if file_type == ContentType.tag]
+        self.tag_label = None
+        self.items = {}
+        self.children_ = []
+
+        self.left_side_widget_dummy = QtWidgets.QWidget(parent=self)
+        self.left_side_layout = QtWidgets.QVBoxLayout()
+        self.left_side_widget_dummy.setLayout(self.left_side_layout)
+        self.addWidget(self.left_side_widget_dummy)
+        # self.left_side_widget_dummy.setSizePolicy(QtWidgets.QSizePolicy.Minimum, QtWidgets.QSizePolicy.Fixed)
+
+        self.right_side_widget_dummy = QtWidgets.QWidget(parent=self)
+        self.right_side_layout = QtWidgets.QVBoxLayout()
+        self.right_side_widget_dummy.setLayout(self.right_side_layout)
+        self.addWidget(self.right_side_widget_dummy)
+
+        self.folder_name_label = QtWidgets.QLabel(self.folder_path.name, parent=self)
+        self.folder_name_label.setSizePolicy(QtWidgets.QSizePolicy.Minimum, QtWidgets.QSizePolicy.Fixed)
+        self.folder_name_label.setWordWrap(True)
+        self.left_side_layout.addWidget(self.folder_name_label)
+
+        self.tag_label = TagLabel(self.tags, parent=self)
+        self.tag_label.setSizePolicy(QtWidgets.QSizePolicy.Minimum, QtWidgets.QSizePolicy.Fixed)
+        self.left_side_layout.addWidget(self.tag_label)
+
+        self.left_side_layout.addStretch()
+
+        files = [(file, file_type) for file, file_type in self.items_dictionary.items()
+                 if file_type == ContentType.json or
+                 file_type == ContentType.md or
+                 file_type == ContentType.image]
+
+        # Adding extra check if multiple files get deleted at once to update with files that do exists
+        files = [file for file in files if file[0].is_file()]
+
+        files = sorted(files, key=lambda x: str.lower(x[0].name), reverse=True)
+
+        for row, (file, file_type) in enumerate(files):
+            if file_type == ContentType.md:
+                text_edit = Collapsible(widget=TextEditWidget(path=file), title=file.name, parent=self)
+                self.items[file] = text_edit
+                self.right_side_layout.addWidget(text_edit)
+
+            elif file_type == ContentType.image:
+                image_viewer = Collapsible(widget=ImageViewer(file), title=file.name, parent=self)
+                self.items[file] = image_viewer
+                self.right_side_layout.addWidget(image_viewer)
+
+
+class GenericParent(QtWidgets.QWidget):
+    def __init__(self, path, parent_item, parent_path, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.path = path
+        self.parent_item = parent_item
+        self.parent_path = parent_path
+        self.children_ = []
+        self.children_separators = []
+
+        self.main_layout = QtWidgets.QVBoxLayout(self)
+        self.setLayout(self.main_layout)
+
+        self.separator = QtWidgets.QFrame(self)
+        self.separator.setFrameShape(QtWidgets.QFrame.HLine)
+        self.separator.setStyleSheet('background-color: black;')
+        self.main_layout.addWidget(self.separator)
+
+        self.name_label = QtWidgets.QLabel(self.path.name)
+        self.name_label.setWordWrap(True)
+        self.main_layout.addWidget(self.name_label)
+
+    def add_child(self, item) -> None:
+        self.children_.append(item)
+        child_separator = QtWidgets.QFrame(self)
+        self.children_separators.append(child_separator)
+        child_separator.setFrameShape(QtWidgets.QFrame.HLine)
+        self.main_layout.addWidget(child_separator)
+        self.main_layout.addWidget(item)
+
+    def remove_child(self, item) -> None:
+        self.main_layout.removeWidget(item)
+        item.deleteLater()
+        self.children_.remove(item)
+
+
+class AnnotationWindow(QtWidgets.QMainWindow):
+
+    # Signal() -- Emitted when the user activates edit mode.
+    splitter_moved = Signal(int, int)
+
+    def __init__(self, incoming_update, monitor_path, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+
+        self.incoming_update = incoming_update
+        self.main_dictionary = {}
+        self.monitor_path = monitor_path
+        self.splitter_list: List[QtWidgets.QSplitter] = []
+        self.splitter_pos = None
+        self.current_splitter_pos = 10
+
+        self.central_widget_dummy = QtWidgets.QWidget()
+        self.main_layout = QtWidgets.QVBoxLayout()
+        self.central_widget_dummy.setLayout(self.main_layout)
+
+        self.search_bar_layout = QtWidgets.QHBoxLayout()
+
+        self.filter_line_edit = QtWidgets.QLineEdit()
+        self.filter_line_edit.setPlaceholderText('Filter Items')
+
+        self.star_button = QtWidgets.QPushButton('Star')
+        self.trash_button = QtWidgets.QPushButton('Hide Trash')
+
+        self.star_button.setCheckable(True)
+        self.trash_button.setCheckable(True)
+
+        self.search_bar_layout.addWidget(self.filter_line_edit)
+        self.search_bar_layout.addWidget(self.star_button)
+        self.search_bar_layout.addWidget(self.trash_button)
+        self.main_layout.addLayout(self.search_bar_layout)
+
+        self.comments_scroll_area = VerticalScrollArea()
+        self.scroll_area_dummy_widget = QtWidgets.QWidget()
+        self.scroll_area_layout = QtWidgets.QVBoxLayout()
+        self.scroll_area_dummy_widget.setLayout(self.scroll_area_layout)
+        self.comments_scroll_area.setWidget(self.scroll_area_dummy_widget)
+
+        for i, (keys, items) in enumerate(self.incoming_update.items()):
+            self.sort_and_add_item(keys, items)
+
+        self.main_layout.addWidget(self.comments_scroll_area)
+        # self.connect_splitter_slots()
+
+        self.splitter_list[0].splitterMoved.connect(self.on_moved_splitter)
+        # self.splitter_list[0].splitterMoved.connect(self.splitter_list[1].moveSplitter)
+        # self.splitter_list[1].splitterMoved.connect(self.splitter_list[0].moveSplitter)
+        self.star_button.clicked.connect(self.on_star_toggle)
+
+        # self.set_position_for_all_splitters()
+        self.setCentralWidget(self.central_widget_dummy)
+
+    def sort_and_add_item(self, path, files) -> None:
+        if path.parent == self.monitor_path:
+            parent_item, parent_path = None, None
+        elif path.parent in self.main_dictionary:
+            parent_item, parent_path = self.main_dictionary[path.parent], path.parent
+        else:
+            self.sort_and_add_item(path.parent, None)
+            parent_item, parent_path = self.main_dictionary[path.parent], path.parent
+
+        if files is None:
+            item = GenericParent(path, parent_item, parent_path)
+            if parent_item is None:
+                self.scroll_area_layout.addWidget(item)
+
+        else:
+            item = SingleFolderItem(folder_path=path, items_dictionary=files, parent=parent_item)
+            self.splitter_list.append(item)
+
+        if parent_item is not None:
+            parent_item.add_child(item)
+
+        self.main_dictionary[path] = item
+
+    def connect_splitter_slots(self) -> None:
+        for splitter in self.splitter_list:
+            # splitter.splitterMoved.connect(self.on_moved_splitter)
+            self.splitter_moved.connect(splitter.splitterMoved)
+
+    @Slot(int, int)
+    def on_moved_splitter(self, pos: int, index: int) -> None:
+        # self.splitter_moved.emit(pos, index)
+        pass
+
+    def set_position_for_all_splitters(self) -> None:
+        for splitter in self.splitter_list:
+            splitter.moveSplitter(self.current_splitter_pos, 1)
+
+    @Slot()
+    def on_star_toggle(self):
+        self.splitter_list[1].setSizes(self.splitter_list[0].sizes())
+
+
+
 # TODO: look over logger and start utilizing in a similar way like instrument server is being used right now.
 # TODO: Test deletion of nested folder situations for large data files to see if this is fast enough.
 class Monitr(QtWidgets.QMainWindow):
@@ -1491,8 +1678,9 @@ class Monitr(QtWidgets.QMainWindow):
         self.main_partition_splitter = QtWidgets.QSplitter()
         self.file_tree_layout = QtWidgets.QVBoxLayout()
         self.file_tree_dummy_widget_holder = QtWidgets.QWidget()
-        self.expand_collapse_refresh_layout = QtWidgets.QHBoxLayout()
+        self.bottom_buttons_layout = QtWidgets.QHBoxLayout()
         self.dummy_widget = QtWidgets.QWidget()
+        self.annotation_window = None
 
         # Left side of the main window
 
@@ -1500,17 +1688,20 @@ class Monitr(QtWidgets.QMainWindow):
         self.expand_all_button = QtWidgets.QPushButton('Expand all')
         self.collapse_all_button = QtWidgets.QPushButton('Collapse all')
         self.refresh_button = QtWidgets.QPushButton('Refresh')
+        self.annotation_window_button = QtWidgets.QPushButton('Annotation window')
+        self.annotation_window_button.setCheckable(True)
 
         # Adding buttons to layout
-        self.expand_collapse_refresh_layout.addWidget(self.refresh_button)
-        self.expand_collapse_refresh_layout.addWidget(self.expand_all_button)
-        self.expand_collapse_refresh_layout.addWidget(self.collapse_all_button)
+        self.bottom_buttons_layout.addWidget(self.refresh_button)
+        self.bottom_buttons_layout.addWidget(self.expand_all_button)
+        self.bottom_buttons_layout.addWidget(self.collapse_all_button)
+        self.bottom_buttons_layout.addWidget(self.annotation_window_button)
 
         self.file_explorer = FileExplorer(self.main_dictionary, self.monitor_path, parent=self.dummy_widget)
         self.tree = self.file_explorer.file_tree
         self.file_tree_layout.addWidget(self.file_explorer)
 
-        self.file_tree_layout.addLayout(self.expand_collapse_refresh_layout)
+        self.file_tree_layout.addLayout(self.bottom_buttons_layout)
 
         self.file_tree_dummy_widget_holder.setLayout(self.file_tree_layout)
 
@@ -1562,6 +1753,7 @@ class Monitr(QtWidgets.QMainWindow):
         self.expand_all_button.clicked.connect(self.tree.expandAll)
         self.collapse_all_button.clicked.connect(self.tree.collapseAll)
         self.refresh_button.clicked.connect(self.refresh_files)
+        self.annotation_window_button.clicked.connect(self.on_comments_window_toggle)
 
         self.tree.plot_requested.connect(self.on_plot_data)
         self.tree.item_selected.connect(self.on_new_folder_selected)
@@ -2354,6 +2546,16 @@ class Monitr(QtWidgets.QMainWindow):
                     trash_path = child.joinpath('__trash__.tag')
                     if trash_path.is_file():
                         trash_path.unlink()
+
+    @Slot()
+    def on_comments_window_toggle(self):
+        if self.annotation_window_button.isChecked():
+            if self.annotation_window is None:
+                self.annotation_window = AnnotationWindow(self.main_dictionary, self.monitor_path)
+            self.annotation_window.show()
+        else:
+            self.annotation_window.hide()
+
 
 
 def script() -> int:
