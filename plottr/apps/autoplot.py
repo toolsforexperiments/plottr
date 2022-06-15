@@ -369,7 +369,7 @@ def autoplotDDH5(filepath: str = '', groupname: str = 'data') \
     fc.nodes()['Data loader'].filepath = filepath
     fc.nodes()['Data loader'].groupname = groupname
     win.refreshData()
-    win.setMonitorInterval(5.0)
+    win.setMonitorInterval(0.0)
 
     return fc, win
 
