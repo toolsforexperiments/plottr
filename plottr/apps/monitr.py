@@ -830,6 +830,7 @@ class FileTreeView(QtWidgets.QTreeView):
         The TreeView used in the FileExplorer widget.
         """
         super().__init__(parent)
+        self.setSortingEnabled(True)
 
 
 # TODO: Figure out the parent situation going on here.
@@ -838,9 +839,9 @@ class FileExplorer(QtWidgets.QWidget):
     Helper widget to unify the FileTree with the line edit and status buttons.
     """
 
-    def __init__(self, model: QtGui.QStandardItemModel, parent: Optional[Any]=None,
+    def __init__(self, model: QtCore.QAbstractItemModel, parent: Optional[Any]=None,
                  *args: Any, **kwargs: Any):
-        super().__init__(parent=parent, *args, **kwargs)
+        super().__init__(parent=parent, *args, **kwargs)  # type: ignore[misc] # I suspect this error comes from having parent possibly be a kwarg too.
 
         self.model = model
         self.file_tree = FileTreeView(parent=self)
@@ -2621,12 +2622,33 @@ class Item(QtGui.QStandardItem):
         if files is not None:
             self.files.update(files)
 
+        self.setText(str(self.path.name))
+
     def add_file(self, path: Path) -> None:
-        merge_dictionary = {path: ContentType.sort(path)}
-        self.files.update(merge_dictionary)
+        self.files[path] = ContentType.sort(path)
 
     def delete_file(self, path: Path) -> None:
         self.files.pop(path)
+
+    def change_path(self, path: Path) -> None:
+        """Changes the internal path of the item as welll as the text of it."""
+        self.path = path
+        self.setText(str(path.name))
+
+    def removeRow(self, row: int) -> None:
+        """
+        Checks if this item also needs to be deleted when deleting a children.
+        """
+        super().removeRow(row)
+        files = [file for file in self.files.keys()]
+        if not self.hasChildren() and not SupportedDataTypes.check_valid_data(files):
+            parent = self.parent()
+            if parent is None:
+                self.model().delete_root_item(self.row(), self.path)
+            else:
+                del self.model().main_dictionary[self.path]
+                parent.removeRow(self.row())
+
 
 class FileModel(QtGui.QStandardItemModel):
     """
@@ -2641,7 +2663,7 @@ class FileModel(QtGui.QStandardItemModel):
     def __init__(self, monitor_path: str, rows: int, columns: int, parent: Optional[Any]=None):
         super().__init__(rows, columns, parent=parent)
         self.monitor_path = Path(monitor_path)
-        self.setHorizontalHeaderLabels(['File path'])
+        self.header_labels = ['File path']
 
         # The main dictionary has all the datasets (folders) Path as keys, with the actual item as its value.
         self.main_dictionary: Dict[Path, Item] = {}
@@ -2673,6 +2695,9 @@ class FileModel(QtGui.QStandardItemModel):
         """
         Goes through all the files in the monitor path and loads the model.
         """
+        # Sets the header data.
+        self.setHorizontalHeaderLabels(self.header_labels)
+
         walk_results = [i for i in os.walk(self.monitor_path)]
 
         # Sorts the results of the walk. Creates a dictionary of all the current files and directories in the
@@ -2707,13 +2732,13 @@ class FileModel(QtGui.QStandardItemModel):
             parent_item, parent_path = \
                 self.main_dictionary[folder_path.parent], folder_path.parent
         else:
-            self.sort_and_add_item(folder_path.parent, None)
+            parent_folder_files = {file: ContentType.sort(file) for file in folder_path.parent.iterdir() if file.is_file()}
+            self.sort_and_add_item(folder_path.parent, parent_folder_files)
             parent_item, parent_path = \
                 self.main_dictionary[folder_path.parent], folder_path.parent
 
         # Create Item and add it to the model
         item = Item(folder_path, files_dict)
-        item.setText(folder_path.name)
 
         self.main_dictionary[folder_path] = item
         if parent_path is None:
@@ -2731,7 +2756,7 @@ class FileModel(QtGui.QStandardItemModel):
         logger().info(f'file created: {event}')
 
         path = Path(event.src_path)
-        # If a folder is created, it will be added when an important data file will be created.
+        # If a folder is created, it will be added when a data file will be created.
         if not path.is_dir():
             # Every folder that is currently in the tree will be in the main dictionary.
             if path.parent in self.main_dictionary:
@@ -2778,7 +2803,7 @@ class FileModel(QtGui.QStandardItemModel):
                         all_folder_files = [file for file in parent.path.iterdir()]
 
                         # Checks if the folder itself needs to be deleted or only the file
-                        if SupportedDataTypes.check_valid_data(all_folder_files):  # type: ignore[arg-type] # This seems to be an issue: https://github.com/python/mypy/issues/3935
+                        if SupportedDataTypes.check_valid_data(all_folder_files) or parent.hasChildren():  # type: ignore[arg-type] # This seems to be an issue: https://github.com/python/mypy/issues/3935
                            parent.delete_file(path)
                         else:
                             # If the parent needs to be deleted, removes it from the correct widget.
@@ -2808,9 +2833,81 @@ class FileModel(QtGui.QStandardItemModel):
     @Slot(FileSystemEvent)
     def on_file_moved(self, event: FileSystemEvent) -> None:
         """
-        Gets triggered everytime a file is moved
+        Gets triggered everytime a file is moved or the name of a file (including type) changes.
         """
         logger().info(f'file moved: {event}')
+
+        # File moved gets triggered with None and '', for the event paths. From what I can tell, they are not useful,
+        # so we ignore them.
+        if event.src_path is not None and event.src_path != ''\
+                and event.dest_path is not None and event.dest_path != '':
+            src_path = Path(event.src_path)
+            dest_path = Path(event.dest_path)
+
+            # If a directory is moved, only need to change the old path for the new path
+            if event.is_directory:
+                if src_path in self.main_dictionary:
+                    changed_item = self.main_dictionary.pop(src_path)
+                    self.main_dictionary[dest_path] = changed_item
+                    changed_item.change_path(dest_path)
+
+            # Checking for a file becoming a data file.
+            elif not SupportedDataTypes.check_valid_data([src_path]) and SupportedDataTypes.check_valid_data([dest_path]):
+                # If the parent exists in the main dictionary, the model already has all the files and its tracking
+                # that folder, only updates the file itself.
+                if src_path.parent in self.main_dictionary:
+                    parent = self.main_dictionary[src_path.parent]
+                    del parent.files[src_path]
+                    parent.files[dest_path] = ContentType.sort(dest_path)
+                elif dest_path.parent in self.main_dictionary:
+                    parent = self.main_dictionary[dest_path.parent]
+                    del parent.files[src_path]
+                    parent.files[dest_path] = ContentType.sort(dest_path)
+
+                # New folder to keep track.
+                else:
+                    new_entry = {file: ContentType.sort(file) for file in dest_path.parent.iterdir() if
+                                           str(file.suffix) != ''}
+                    self.sort_and_add_item(dest_path.parent, new_entry)
+
+            # Checking if a data file stops being a data file.
+            elif SupportedDataTypes.check_valid_data([src_path]) and not SupportedDataTypes.check_valid_data([dest_path]):
+                if src_path.parent in self.main_dictionary:
+                    file_parent = self.main_dictionary[src_path.parent]
+                elif dest_path.parent in self.main_dictionary:
+                    file_parent = self.main_dictionary[dest_path.parent]
+                del file_parent.files[src_path]
+                file_parent.files[dest_path] = ContentType.sort(dest_path)
+
+                # Checks if there are other data files in the parent.
+                file_parent_files = [key for key in file_parent.files.keys()]
+                if not SupportedDataTypes.check_valid_data(file_parent_files) and not file_parent.hasChildren():  # type: ignore[arg-type] # This seems to be an issue: https://github.com/python/mypy/issues/3935
+                    # If the parent has other children, it means there are more data files down the file tree
+                    # and the model should keep track of these folders.
+                    del self.main_dictionary[file_parent.path]
+
+                    # Checks if we need to remove a row from a parent item or the root model itself.
+                    if file_parent.parent() is None:
+                        self.removeRow(file_parent.row())
+                    else:
+                        file_parent.parent().removeRow(file_parent.row())
+
+            # A normal file changed.
+            else:
+                # Find the parent.
+                parent = None
+                if src_path.parent in self.main_dictionary:
+                    parent = self.main_dictionary[src_path.parent]
+                elif dest_path.parent in self.main_dictionary:
+                    parent = self.main_dictionary[dest_path.parent]
+
+                # Update the file.
+                if parent is not None:
+                    if src_path in parent.files:
+                        del parent.files[src_path]
+                    if dest_path not in parent.files:
+                        parent.files[dest_path] = ContentType.sort(dest_path)
+
 
     @Slot(FileSystemEvent)
     def on_file_modified(self, event: FileSystemEvent) -> None:
@@ -2829,6 +2926,13 @@ class FileModel(QtGui.QStandardItemModel):
         pass
 
 
+    def delete_root_item(self, row: int, path: Path) -> None:
+        """
+        Deletes a root item from the model and main_dictionary.
+        """
+        self.removeRow(row)
+        del self.main_dictionary[path]
+
 class Monitr(QtWidgets.QMainWindow):
     def __init__(self, monitorPath: str = '.',
                  parent: Optional[QtWidgets.QMainWindow] = None):
@@ -2837,6 +2941,8 @@ class Monitr(QtWidgets.QMainWindow):
         self.monitor_path = monitorPath
 
         self.model = FileModel(self.monitor_path, 0, 1)
+        self.proxy_model = QtCore.QSortFilterProxyModel(parent=self)  # Used for filtering.
+        self.proxy_model.setSourceModel(self.model)
 
         # Setting up main window
         self.main_partition_splitter = QtWidgets.QSplitter()
@@ -2848,7 +2954,7 @@ class Monitr(QtWidgets.QMainWindow):
         self.left_side_dummy_widget.setLayout(self.left_side_layout)
 
         # Load left side layout
-        self.file_explorer = FileExplorer(model=self.model, parent=self.left_side_dummy_widget)
+        self.file_explorer = FileExplorer(model=self.proxy_model, parent=self.left_side_dummy_widget)
         self.left_side_layout.addWidget(self.file_explorer)
 
         # When the refresh button of the file explorer is pressed, refresh the model
@@ -2916,7 +3022,11 @@ class Monitr(QtWidgets.QMainWindow):
         """
         Misselaneous button action. Used to trigger any specific action during testing
         """
-        pass
+
+        print(
+            f'=================================================================================== \n'
+            f' ==================================================================================='
+            f' \n ===================================================================================')
 
 
 def script() -> int:
