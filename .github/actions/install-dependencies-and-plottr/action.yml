@@ -8,5 +8,5 @@ runs:
         python -m pip install --upgrade pip setuptools wheel
         pip install -r requirements.txt
         pip install -r test_requirements.txt
-        pip install .[pyqt5] --use-feature=in-tree-build
+        pip install .[pyqt5]
       shell: bash
