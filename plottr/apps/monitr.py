@@ -26,7 +26,7 @@ from ..data.datadict import DataDict
 from ..utils.misc import unwrap_optional
 from ..apps.watchdog_classes import WatcherClient
 from ..gui.widgets import Collapsible
-from .json_veiwer import JsonModel
+from .json_veiwer import JsonModel, JsonTreeView
 from ..icons import get_starIcon as get_star_icon, get_trashIcon as get_trash_icon
 
 from .ui.Monitr_UI import Ui_MainWindow
@@ -1350,6 +1350,7 @@ class ImageViewer(QtWidgets.QLabel):
     def __init__(self, path_file: Path, *args: Any, **kwargs: Any):
         super().__init__(*args, **kwargs)
         self.pixmap_ = QtGui.QPixmap(str(path_file))
+        self.path = path_file
         self.original_height = self.pixmap_.height()
         self.original_width = self.pixmap_.width()
         self.setPixmap(self.pixmap_)
@@ -2977,6 +2978,7 @@ class Monitr(QtWidgets.QMainWindow):
         self.monitor_path = monitorPath
         self.current_selected_folder = Path()
         self.previous_selected_folder = Path()
+        self.collapsed_state_dictionary = {}
 
         self.model = FileModel(self.monitor_path, 0, 1)
         self.proxy_model = QtCore.QSortFilterProxyModel(parent=self)  # Used for filtering.
@@ -3011,8 +3013,6 @@ class Monitr(QtWidgets.QMainWindow):
         self.tags_label = None
         self.tags_creator = None
         self.invalid_data_label = None
-
-
 
         # Debug items
         self.debug_layout = QtWidgets.QHBoxLayout()
@@ -3073,13 +3073,11 @@ class Monitr(QtWidgets.QMainWindow):
 
     def extra_action(self) -> None:
         """
-        Misselaneous button action. Used to trigger any specific action during testing
+        Miscellaneous button action. Used to trigger any specific action during testing
         """
-
-        print(
-            f'=================================================================================== \n'
-            f' ==================================================================================='
-            f' \n ===================================================================================')
+        print(f'----------------------------------------------------------------------------------')
+        print(f'here comes the collapsed options dictionary:')
+        pprint.pprint(self.collapsed_state_dictionary)
 
     @Slot(QtCore.QModelIndex, QtCore.QModelIndex)
     def on_current_item_selection_changed(self, current: QtCore.QModelIndex, previous: QtCore.QModelIndex) -> None:
@@ -3157,6 +3155,11 @@ class Monitr(QtWidgets.QMainWindow):
             self.text_input = None
 
         if len(self.file_windows) >= 1:
+
+            # Save the collapsed state before deleting them.
+            current_collapsed_state = {window.widget.path: window.btn.isChecked() for window in self.file_windows}
+            self.collapsed_state_dictionary.update(current_collapsed_state)
+
             for window in self.file_windows:
                 self.right_side_layout.removeWidget(window)
                 window.deleteLater()
@@ -3335,7 +3338,17 @@ class Monitr(QtWidgets.QMainWindow):
         for file, name, file_type in zip(files_dict['paths'], files_dict['names'], files_dict['type']):
             if file_type == ContentType.json:
 
-                json_view = Collapsible(widget=QtWidgets.QTreeView(), title=name, expanding=False)
+                expand = False
+                if file in self.collapsed_state_dictionary:
+                    expand = self.collapsed_state_dictionary[file]
+                json_view = Collapsible(widget=JsonTreeView(path=file), title=name, expanding=expand)
+                json_view.widget.setVisible(expand)
+                json_view.btn.setChecked(expand)
+                if expand:
+                    json_view.btn.setText(json_view.expandedTitle)
+                else:
+                    json_view.btn.setText(json_view.collapsedTitle)
+
                 json_model = JsonModel(json_view)
                 json_view.widget.setModel(json_model)
 
@@ -3349,15 +3362,34 @@ class Monitr(QtWidgets.QMainWindow):
                 self.right_side_layout.addWidget(json_view)
 
             elif file_type == ContentType.md:
+                expand = True
+                if file in self.collapsed_state_dictionary:
+                    expand = self.collapsed_state_dictionary[file]
                 plain_text_edit = Collapsible(widget=TextEditWidget(path=file),
-                                              title=name,)
+                                              title=name, expanding=expand)
+
+                plain_text_edit.widget.setVisible(expand)
+                plain_text_edit.btn.setChecked(expand)
+                if expand:
+                    plain_text_edit.btn.setText(plain_text_edit.expandedTitle)
+                else:
+                    plain_text_edit.btn.setText(plain_text_edit.collapsedTitle)
 
                 self.file_windows.append(plain_text_edit)
                 self.right_side_layout.addWidget(plain_text_edit)
 
             elif file_type == ContentType.image:
+                expand = True
+                if file in self.collapsed_state_dictionary:
+                    expand = self.collapsed_state_dictionary[file]
                 label = Collapsible(ImageViewer(file, parent=self.right_side_dummy_widget),
-                                    title=name, )
+                                    title=name, expanding=expand)
+                label.widget.setVisible(expand)
+                label.btn.setChecked(expand)
+                if expand:
+                    label.btn.setText(label.expandedTitle)
+                else:
+                    label.btn.setText(label.collapsedTitle)
                 self.file_windows.append(label)
                 self.right_side_layout.addWidget(label)
 
