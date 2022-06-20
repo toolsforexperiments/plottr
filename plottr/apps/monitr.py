@@ -22,6 +22,7 @@ from watchdog.events import FileSystemEvent
 from .. import log as plottrlog
 from .. import QtCore, QtWidgets, Signal, Slot, QtGui
 from ..data.datadict_storage import all_datadicts_from_hdf5, datadict_from_hdf5
+from ..data.datadict import DataDict
 from ..utils.misc import unwrap_optional
 from ..apps.watchdog_classes import WatcherClient
 from ..gui.widgets import Collapsible
@@ -824,13 +825,6 @@ class FileTree(QtWidgets.QTreeWidget):
             tree_item.tags_widget.delete_tag(path.stem)
 
 
-class FileTreeView(QtWidgets.QTreeView):
-    def __init__(self, parent: Optional[Any]=None):
-        """
-        The TreeView used in the FileExplorer widget.
-        """
-        super().__init__(parent)
-        self.setSortingEnabled(True)
 
 
 # TODO: Figure out the parent situation going on here.
@@ -901,9 +895,26 @@ class FileExplorer(QtWidgets.QWidget):
 #   while the folder display is open. It should absolutely update.
 class DataTreeWidget(QtWidgets.QTreeWidget):
     """
-    Widget that displays the data of all ddh5 files inside a folder.
+    Widget that displays all ddh5 files passed in incoming_data. All items must be in ordered lists with their names,
+    paths and DataDicts for the widget to laod properly.
 
-    Displays all basic metadata of each ddh5 file. Also opens a popup menu in the ddh5 parent item to plot it.
+    :param incoming_data: Dictionary containing all the information required to load all ddh5 files. The dictionary
+        should contain 3 different items with they keys being: "paths", "names", and "data", each containing a list
+        of (in order): Path, str, DataDict. All 3 lists should be ordered by index (meaning for example that index
+        number 3 represents a single datadicts). E.g.:
+            incoming_data = {"paths": [Path(r"~/data/measurement_1"),
+                                       Path(r"~/data/measurement_2"),],
+                             "names": ["measurement_1/data",
+                                       "measurement_2/data],
+                             "data": [{'__creation_time_sec__': 1641938645.0,
+                                       '__creation_time_str__': '2022-01-11 16:04:05',
+                                       'x': {'__creation_time_sec__': 1641938645.0,
+                                             '__creation_time_str__': '2022-01-11 16:04:05',
+                                             '__shape__': (1444, 1444),
+                                             'axes': [],
+                                             'label': '',
+                                             'unit': '',
+                                             'values': array([[-721.68783649, ....]]) ...
     """
 
     # Signal(Path) -- Emitted when the user selects the plot option in the popup menu.
@@ -911,7 +922,7 @@ class DataTreeWidget(QtWidgets.QTreeWidget):
     #:   - The path of the ddh5 with the data for the requested plot.
     plot_requested = Signal(Path)
 
-    def __init__(self, data_paths: List[Path], *args: Any, **kwargs: Any):
+    def __init__(self, incoming_data: Dict[str, Union[Path, str, DataDict]], *args: Any, **kwargs: Any):
         super().__init__(*args, **kwargs)
 
         header_item = self.headerItem()
@@ -919,8 +930,9 @@ class DataTreeWidget(QtWidgets.QTreeWidget):
         header_item.setText(0, "Object")
         header_item.setText(1, "Content")
         header_item.setText(2, "Type")
-        self.paths = data_paths
-        self.data = [datadict_from_hdf5(str(data_file)) for data_file in self.paths]
+        self.paths = incoming_data['paths']
+        self.names = incoming_data['names']
+        self.data = incoming_data['data']
 
         # Popup menu.
         self.plot_popup_action = QtWidgets.QAction('Plot')
@@ -949,7 +961,7 @@ class DataTreeWidget(QtWidgets.QTreeWidget):
         """
 
         for index, data in enumerate(self.data):
-            parent_tree_widget = TreeWidgetItem(self.paths[index], None, False, False, self, [str(self.paths[index].name)])
+            parent_tree_widget = TreeWidgetItem(self.paths[index], None, False, False, self, [self.names[index]])
 
             data_parent = QtWidgets.QTreeWidgetItem(parent_tree_widget, ['Data'])
             meta_parent = QtWidgets.QTreeWidgetItem(parent_tree_widget, ['Meta'])
@@ -2580,7 +2592,6 @@ class Monitr_old(QtWidgets.QMainWindow):
             self.annotation_window.hide()
 
 
-
 class SupportedDataTypes:
 
     valid_types = ['.ddh5', 'md', '.json']
@@ -2603,6 +2614,30 @@ class SupportedDataTypes:
                 if match_pattern.search(name):
                     return True
         return False
+
+
+class FileTreeView(QtWidgets.QTreeView):
+    # Signal(Path) -- Emitted when the selected item changes.
+    #: Arguments:
+    #:  - The current selected item index, the previously selected item index.
+    selection_changed = Signal(QtCore.QModelIndex, QtCore.QModelIndex)
+
+    def __init__(self, parent: Optional[Any] = None):
+        """
+        The TreeView used in the FileExplorer widget.
+        """
+        super().__init__(parent)
+        self.setSortingEnabled(True)
+
+    def currentChanged(self, current: QtCore.QModelIndex, previous: QtCore.QModelIndex) -> None:
+        """
+        Gets called everytime the selection of the tree changes. Emits a signal indicating the current and previous
+        selected item.
+
+        :param current: The QModelIndex of the current selected item.
+        :param previous: The QModelIndex of the previously selected item.
+        """
+        self.selection_changed.emit(current, previous)
 
 
 class Item(QtGui.QStandardItem):
@@ -2938,7 +2973,10 @@ class Monitr(QtWidgets.QMainWindow):
                  parent: Optional[QtWidgets.QMainWindow] = None):
         super().__init__(parent=parent)
 
+        # Instantiating variables.
         self.monitor_path = monitorPath
+        self.current_selected_folder = Path()
+        self.previous_selected_folder = Path()
 
         self.model = FileModel(self.monitor_path, 0, 1)
         self.proxy_model = QtCore.QSortFilterProxyModel(parent=self)  # Used for filtering.
@@ -2959,6 +2997,21 @@ class Monitr(QtWidgets.QMainWindow):
 
         # When the refresh button of the file explorer is pressed, refresh the model
         self.file_explorer.refresh_button.clicked.connect(self.model.refresh_model)
+        self.file_explorer.file_tree.selection_changed.connect(self.on_current_item_selection_changed)
+
+        # Right side items
+        self.right_side_dummy_widget = QtWidgets.QWidget()
+        self.right_side_layout = QtWidgets.QVBoxLayout()
+        self.right_side_dummy_widget.setLayout(self.right_side_layout)
+
+        self.data_window = None
+        self.text_input = None
+        self.file_windows: List[Collapsible] = []
+        self.scroll_area = None
+        self.tags_label = None
+        self.tags_creator = None
+        self.invalid_data_label = None
+
 
 
         # Debug items
@@ -3027,6 +3080,286 @@ class Monitr(QtWidgets.QMainWindow):
             f'=================================================================================== \n'
             f' ==================================================================================='
             f' \n ===================================================================================')
+
+    @Slot(QtCore.QModelIndex, QtCore.QModelIndex)
+    def on_current_item_selection_changed(self, current: QtCore.QModelIndex, previous: QtCore.QModelIndex) -> None:
+        """
+        Gets called everytime the selected item gets changed. Converts the model index from the proxy sorting model,
+        into an index from self.model and gets the current and previous item. Triggers the right side window creation.
+
+        :param current: QModelIndex of the proxy model of the currently selected item.
+        :param previous: QModelIndex of the proxy model of the previously selected item.
+        """
+        current_model_index = self.proxy_model.mapToSource(current)
+        previous_model_index = self.proxy_model.mapToSource(previous)
+
+        current_item = self.model.itemFromIndex(current_model_index)
+        previous_item = self.model.itemFromIndex(previous_model_index)
+
+        self.current_selected_folder = current_item.path
+        # The first time the user clicks on a folder, the previous item is None.
+        if previous_item is not None:
+            self.previous_selected_folder = previous_item.path
+
+        self.generate_right_side_window()
+
+    def generate_right_side_window(self) -> None:
+        """
+        Generates the right side window. Clears the window first, gets all the necesary data and loads all of the
+        widgets.
+        """
+
+        # Check that the folder passed is a dataset.
+        if self.current_selected_folder in self.model.main_dictionary:
+
+            # If it's the first time, create the right side scroll area and add it to the splitter.
+            if self.scroll_area is None:
+                self.scroll_area = VerticalScrollArea()
+                self.scroll_area.setWidget(self.right_side_dummy_widget)
+                self.main_partition_splitter.addWidget(self.scroll_area)
+
+            self.clear_right_layout()
+            files_meta = self.gather_all_right_side_window_data(
+                self.model.main_dictionary[self.current_selected_folder])
+
+            self.add_tag_label(files_meta['tag_labels'])
+            self.add_data_window(files_meta['data_files'])
+            self.add_text_input(self.current_selected_folder)
+            self.add_all_files(files_meta['extra_files'])
+
+    def clear_right_layout(self) -> None:
+        """
+        Clears every item on the right side of the screen.
+        """
+        if self.tags_label is not None:
+            self.right_side_layout.removeWidget(self.tags_label)
+            self.tags_label.deleteLater()
+            self.tags_label = None
+
+        if self.tags_creator is not None:
+            self.right_side_layout.removeWidget(self.tags_creator)
+            self.tags_creator.deleteLater()
+            self.tags_creator = None
+
+        if self.data_window is not None:
+            self.right_side_layout.removeWidget(self.data_window)
+            self.data_window.deleteLater()
+            self.data_window = None
+
+        if self.invalid_data_label is not None:
+            self.right_side_layout.removeWidget(self.invalid_data_label)
+            self.invalid_data_label.deleteLater()
+            self.invalid_data_label = None
+
+        if self.text_input is not None:
+            self.right_side_layout.removeWidget(self.text_input)
+            self.text_input.deleteLater()
+            self.text_input = None
+
+        if len(self.file_windows) >= 1:
+            for window in self.file_windows:
+                self.right_side_layout.removeWidget(window)
+                window.deleteLater()
+            self.file_windows = []
+
+    @classmethod
+    def gather_all_right_side_window_data(cls, item: Item) ->\
+            dict:
+        """
+        Static method used to create a dictionary with all the necessary information (file names, paths, etc.)
+         of an item of the model to create the right side window. This function will also go through all the children the item might have, and add the
+         names of each nested folders in front of the windows titles. Utilizes 2 helper functions to do this.
+
+        :param item: Item of the model to generate the dictionary
+        :return: A dictionary with the following structure:
+            return {'tag_labels': [str],
+                    'data_files': {'paths': [Path],
+                                   'names': [str],
+                                   'data': [DataDict]},
+                    'extra_files': {'paths': [Path],
+                                    'names': [str],
+                                    'type': [ContentType]}}
+        """
+        data = {'tag_labels': [],
+                'data_files': {'paths': [],
+                               'names': [],
+                               'data': []},
+                'extra_files': {'paths': [],
+                                'names': [],
+                                'type': []}}
+
+        data = cls._fill_dict(data, item.files, '')
+
+        # Get the data of all of the children.
+        for i in range(item.rowCount()):
+            data = cls._check_children_data(item.child(i, 0), data, 1)
+        return data
+
+    @classmethod
+    def _fill_dict(cls, data_in: dict, files_dict: Dict[Path, ContentType], prefix_text: str) -> dict:
+        """
+        Helper method for gather_all_right_sice_window_data. Fills in the data dictionary with the files inside of
+        files_dict and adds prefix text to all tittles.
+
+        :param data_in: Dictionary with the same structure as the data dictionary of gather_all_right_sice_window_data.
+        :param files_dict: Dictionary with Path of files as keys and their ContentType as values.
+        :param prefix_text: String to add to the front of the titles for the widgets. Used to specify from which
+            specific nested folder this file is coming from.
+        :return: data_in with the files of files_dict in it.
+        """
+
+        for file, file_type in files_dict.items():
+            if file_type == ContentType.tag:
+                data_in['tag_labels'].append(prefix_text + str(file.stem))
+            elif file_type == ContentType.data:
+                data_in['data_files']['paths'].append(file)
+                data_in['data_files']['names'].append(prefix_text + str(file.stem))
+                # There might be an error with the ddh5 trying to be loaded.
+                try:
+                    data_dict = datadict_from_hdf5(str(file))
+                    data_in['data_files']['data'].append(data_dict)
+                except Exception as e:
+                    logger().error(f'Failed to load the data file: {file} \n {e}')
+            elif file_type == ContentType.json or file_type == ContentType.md or file_type == ContentType.image:
+                data_in['extra_files']['paths'].append(file)
+                data_in['extra_files']['names'].append(prefix_text + str(file.name))
+                data_in['extra_files']['type'].append(file_type)
+        return data_in
+
+    @classmethod
+    def _check_children_data(cls, child_item: Item, data_in: dict, deepness: int) -> dict:
+        """
+        Helper function for gather_all_right_side_window_data. Fills the data_in dictionary with the files of
+         child_item and all of its children. Returns the filled dictionary with the information of child_item and all
+
+        :param child_item: Item for which files and children the data should be gathered.
+        :param data_in: Already partially filled dictionary with the parent data. Same structure as data from
+            gather_all_right_side_window_data
+        :param deepness: int marking the level of recursion. If calling this function for the first level children of an
+            item should be 1, for the children of the first children should be 2 and so on.
+        :return: data_in with the data of all of the children.
+        """
+
+        child_path = child_item.path
+        prefix_text = ''
+        # Make the prefix text. Should be all the parent folders until the original parent item.
+        for i in range(deepness):
+            prefix_text = child_path.parts[-i - 1] + '/' + prefix_text
+
+        data_in = cls._fill_dict(data_in, child_item.files, prefix_text)
+
+        for i in range(child_item.rowCount()):
+            data_in = cls._check_children_data(child_item.child(i, 0), data_in, deepness + 1)
+
+        return data_in
+
+    def add_tag_label(self, tags: List[str]) -> None:
+        """
+        Add the tags present in the folder selected.
+
+        :param path: List with the tags that should be displayed.
+        """
+        self.tags_label = TagLabel(tags)
+        self.tags_creator = TagCreator(self.current_selected_folder)
+        self.right_side_layout.addWidget(self.tags_label)
+        self.right_side_layout.addWidget(self.tags_creator)
+
+    def add_data_window(self, data_files: Dict) -> None:
+        """
+        Creates the widget to display the data.
+
+        :param data_files: Dictionary containing all the information required to load all ddh5 files. The dictionary
+            should contain 3 different items with they keys being: "paths", "names", and "data", each containing a list
+            of (in order): Path, str, DataDict. All 3 lists should be ordered by index (meaning for example that index
+            number 3 represents a single datadicts). E.g.:
+                incoming_data = {"paths": [Path(r"~/data/measurement_1"),
+                                           Path(r"~/data/measurement_2"),],
+                                 "names": ["measurement_1/data",
+                                           "measurement_2/data],
+                                 "data": [{'__creation_time_sec__': 1641938645.0,
+                                           '__creation_time_str__': '2022-01-11 16:04:05',
+                                           'x': {'__creation_time_sec__': 1641938645.0,
+                                                 '__creation_time_str__': '2022-01-11 16:04:05',
+                                                 '__shape__': (1444, 1444),
+                                                 'axes': [],
+                                                 'label': '',
+                                                 'unit': '',
+                                                 'values': array([[-721.68783649, ....]]) ...
+        """
+        # Checks that there is data to display, if not just create a Qlabel indicating that there is no valid data.
+        if len(data_files['data']) < 1:
+                self.invalid_data_label = QtWidgets.QLabel(f'No data to display.')
+                self.right_side_layout.addWidget(self.invalid_data_label)
+                return
+
+        self.data_window = Collapsible(DataTreeWidget(data_files), 'Data Display')
+        self.data_window.widget.plot_requested.connect(self.on_plot_data)
+
+        size_policy = QtWidgets.QSizePolicy(QtWidgets.QSizePolicy.Minimum, QtWidgets.QSizePolicy.Expanding)
+        self.data_window.setSizePolicy(size_policy)
+
+        self.right_side_layout.addWidget(self.data_window)
+
+    @Slot(Path)
+    def on_plot_data(self, path: Path) -> None:
+        """
+        Gets called when the user clicks plot on the context menu of the data viewer. Opens an autoplot app for the
+        selected ddh5 file.
+
+        :param path: The path of the ddh5 file that should be displayed.
+        :return:
+        """
+        plot_app = 'plottr.apps.autoplot.autoplotDDH5'
+        process = launchApp(plot_app, str(path), 'data')
+
+    def add_text_input(self, path: Path) -> None:
+        """
+        Adds the widget to add a comment in the selected folder.
+
+        :param path: The path of the folder being selected
+        """
+        self.text_input = Collapsible(TextInput(path), title='Add Comment:')
+        self.right_side_layout.addWidget(self.text_input)
+
+    def add_all_files(self, files_dict: Dict[str, List[Union[Path, str, ContentType]]]) -> None:
+        """
+        Adds all other md, json or images files on the right side of the screen.
+
+        :param file_dict: Dictionary containing 3 lists with the required infromation of all the files that should
+            be displayed in the right side window. The items of the 3 lists should be ordered such that a specific
+            index referes to the same file in all 3 lists. The format looks like this:
+                'extra_files': {'paths': [Path],
+                                'names': [str],
+                                'type': [ContentType]}
+        """
+        for file, name, file_type in zip(files_dict['paths'], files_dict['names'], files_dict['type']):
+            if file_type == ContentType.json:
+
+                json_view = Collapsible(widget=QtWidgets.QTreeView(), title=name, expanding=False)
+                json_model = JsonModel(json_view)
+                json_view.widget.setModel(json_model)
+
+                with open(file) as json_file:
+                    json_model.load(json.load(json_file))
+
+                for i in range(len(json_model._headers)):
+                    json_view.widget.resizeColumnToContents(i)
+
+                self.file_windows.append(json_view)
+                self.right_side_layout.addWidget(json_view)
+
+            elif file_type == ContentType.md:
+                plain_text_edit = Collapsible(widget=TextEditWidget(path=file),
+                                              title=name,)
+
+                self.file_windows.append(plain_text_edit)
+                self.right_side_layout.addWidget(plain_text_edit)
+
+            elif file_type == ContentType.image:
+                label = Collapsible(ImageViewer(file, parent=self.right_side_dummy_widget),
+                                    title=name, )
+                self.file_windows.append(label)
+                self.right_side_layout.addWidget(label)
 
 
 def script() -> int:
