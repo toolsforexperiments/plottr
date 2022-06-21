@@ -17,7 +17,7 @@ import json
 from enum import Enum, auto
 from pathlib import Path
 from multiprocessing import Process
-from typing import List, Optional, Dict, Any, Union, Generator, Iterable
+from typing import List, Optional, Dict, Any, Union, Generator, Iterable, Tuple
 from functools import partial
 from itertools import cycle
 
