@@ -2659,7 +2659,7 @@ class Item(QtGui.QStandardItem):
             self.files.update(files)
 
         self.setText(str(self.path.name))
-
+        
     def add_file(self, path: Path) -> None:
         self.files[path] = ContentType.sort(path)
 
@@ -2718,6 +2718,30 @@ class FileModel(QtGui.QStandardItemModel):
         self.watcher.closed.connect(self.on_file_closed)
 
         self.watcher_thread.start()
+
+        self.itemChanged.connect(self.rename_the_actual_file)
+    
+    @Slot(QtGui.QStandardItem)
+    def on_renaming_file(self, item):
+        """        
+        Triggered every time an item changes.
+
+        If the user changes the name of an item in the view, the item gets the name changed in the actual holder. If an error while changing the name
+        happens, the text is not changed and a message pops with the error.
+
+        :param item: QStandardItem, to be renamed
+        """
+        p = item.path
+        new_name = item.text()
+        if new_name != p.name:
+            try:
+                target = p.parent.joinpath(new_name)
+                p.rename(target)
+            except Exception as e:
+                item.setText(p.name)
+                error_message = QtWidgets.QMessageBox()
+                error_message.setText(f"{e}")
+                error_message.exec_()
 
     def refresh_model(self) -> None:
         """
