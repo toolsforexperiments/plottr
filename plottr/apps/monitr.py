@@ -6,6 +6,10 @@ import argparse
 import time
 import importlib
 
+# Uncomment the next 2 lines if the app sudenly crash with no error.
+# import cgitb
+# cgitb.enable(format = 'text')
+
 import logging
 import re
 import pprint
@@ -13,7 +17,7 @@ import json
 from enum import Enum, auto
 from pathlib import Path
 from multiprocessing import Process
-from typing import List, Optional, Dict, Any, Union, Generator, Iterable
+from typing import List, Optional, Dict, Any, Union, Generator, Iterable, Tuple
 from functools import partial
 from itertools import cycle
 
@@ -1118,8 +1122,12 @@ class TextEditWidget(QtWidgets.QTextEdit):
         size_policy = QtWidgets.QSizePolicy(QtWidgets.QSizePolicy.Minimum, QtWidgets.QSizePolicy.Minimum)
         self.setSizePolicy(size_policy)
 
-        with open(path) as file:
-            self.file_text = file.read()
+        try:
+            with open(path) as file:
+                self.file_text = file.read()
+        except FileNotFoundError as e:
+            logger().error(e)
+            self.file_text = 'Comment file could not load. Do not edit as this could rewrite the original comment.'
         self.setReadOnly(True)
         self.setPlainText(self.file_text)
         document = QtGui.QTextDocument(self.file_text, parent=self)
@@ -1349,11 +1357,19 @@ class ImageViewer(QtWidgets.QLabel):
     """
     def __init__(self, path_file: Path, *args: Any, **kwargs: Any):
         super().__init__(*args, **kwargs)
-        self.pixmap_ = QtGui.QPixmap(str(path_file))
+
         self.path = path_file
-        self.original_height = self.pixmap_.height()
-        self.original_width = self.pixmap_.width()
-        self.setPixmap(self.pixmap_)
+
+        try:
+            self.pixmap_ = QtGui.QPixmap(str(path_file))
+            self.original_height = self.pixmap_.height()
+            self.original_width = self.pixmap_.width()
+            self.setPixmap(self.pixmap_)
+
+        # except Exception as e:
+        except FileNotFoundError as e:
+            self.setText(f'Image could not me displayed')
+            logger().error(e)
 
         self.setMinimumWidth(1)
 
@@ -2695,11 +2711,16 @@ class FileModel(QtGui.QStandardItemModel):
     :param columns: The number of initial columns
     :param Parent: The parent of the model.
     """
+    # Signal(Path) -- Emitted when there has been an update to the currently selected folder.
+    #: Arguments:
+    #:   - The path of the currently selected folder.
+    update_me = Signal(Path)
 
     def __init__(self, monitor_path: str, rows: int, columns: int, parent: Optional[Any]=None):
         super().__init__(rows, columns, parent=parent)
         self.monitor_path = Path(monitor_path)
         self.header_labels = ['File path']
+        self.currently_selected_folder = None
 
         # The main dictionary has all the datasets (folders) Path as keys, with the actual item as its value.
         self.main_dictionary: Dict[Path, Item] = {}
@@ -2828,8 +2849,10 @@ class FileModel(QtGui.QStandardItemModel):
             elif SupportedDataTypes.check_valid_data([path]):
                 new_files_dict = {file: ContentType.sort(file) for file in path.parent.iterdir() if str(file.suffix) != ''}
                 self.sort_and_add_item(path.parent, new_files_dict)
-
-
+                parent = self.main_dictionary[path.parent]
+            # Send signal indicating that current folder requires update
+            if parent.path.is_relative_to(self.currently_selected_folder):
+                self.update_me.emit(parent.path)
 
     @Slot(FileSystemEvent)
     def on_file_deleted(self, event: FileSystemEvent) -> None:
@@ -2864,7 +2887,7 @@ class FileModel(QtGui.QStandardItemModel):
 
                         # Checks if the folder itself needs to be deleted or only the file
                         if SupportedDataTypes.check_valid_data(all_folder_files) or parent.hasChildren():  # type: ignore[arg-type] # This seems to be an issue: https://github.com/python/mypy/issues/3935
-                           parent.delete_file(path)
+                            parent.delete_file(path)
                         else:
                             # If the parent needs to be deleted, removes it from the correct widget.
                             if parent.parent() is None:
@@ -2874,6 +2897,10 @@ class FileModel(QtGui.QStandardItemModel):
                             del self.main_dictionary[parent.path]
                     else:
                         parent.delete_file(path)
+                # Send signal indicating that current folder requires update.
+                if self.currently_selected_folder is not None and parent.path.is_relative_to(
+                        self.currently_selected_folder):
+                    self.update_me.emit(parent.path)
 
     def _delete_all_children_from_main_dictionary(self, item: Item) -> None:
         """
@@ -2896,6 +2923,8 @@ class FileModel(QtGui.QStandardItemModel):
         Gets triggered everytime a file is moved or the name of a file (including type) changes.
         """
         logger().info(f'file moved: {event}')
+
+        parent = None
 
         # File moved gets triggered with None and '', for the event paths. From what I can tell, they are not useful,
         # so we ignore them.
@@ -2929,28 +2958,33 @@ class FileModel(QtGui.QStandardItemModel):
                     new_entry = {file: ContentType.sort(file) for file in dest_path.parent.iterdir() if
                                            str(file.suffix) != ''}
                     self.sort_and_add_item(dest_path.parent, new_entry)
+                    parent = self.main_dictionary[dest_path.parent]
 
             # Checking if a data file stops being a data file.
             elif SupportedDataTypes.check_valid_data([src_path]) and not SupportedDataTypes.check_valid_data([dest_path]):
                 if src_path.parent in self.main_dictionary:
-                    file_parent = self.main_dictionary[src_path.parent]
+                    parent = self.main_dictionary[src_path.parent]
                 elif dest_path.parent in self.main_dictionary:
-                    file_parent = self.main_dictionary[dest_path.parent]
-                del file_parent.files[src_path]
-                file_parent.files[dest_path] = ContentType.sort(dest_path)
+                    parent = self.main_dictionary[dest_path.parent]
+                del parent.files[src_path]
+                parent.files[dest_path] = ContentType.sort(dest_path)
 
                 # Checks if there are other data files in the parent.
-                file_parent_files = [key for key in file_parent.files.keys()]
-                if not SupportedDataTypes.check_valid_data(file_parent_files) and not file_parent.hasChildren():  # type: ignore[arg-type] # This seems to be an issue: https://github.com/python/mypy/issues/3935
+                parent_files = [key for key in parent.files.keys()]
+                if not SupportedDataTypes.check_valid_data(parent_files) and not parent.hasChildren():  # type: ignore[arg-type] # This seems to be an issue: https://github.com/python/mypy/issues/3935
                     # If the parent has other children, it means there are more data files down the file tree
                     # and the model should keep track of these folders.
-                    del self.main_dictionary[file_parent.path]
+                    del self.main_dictionary[parent.path]
 
                     # Checks if we need to remove a row from a parent item or the root model itself.
-                    if file_parent.parent() is None:
-                        self.removeRow(file_parent.row())
+                    if parent.parent() is None:
+                        self.removeRow(parent.row())
+                        parent = None
                     else:
-                        file_parent.parent().removeRow(file_parent.row())
+                        parent_row = parent.row()
+                        # Renaming parent to its parent for the update_me check.
+                        parent = parent.parent()
+                        parent.removeRow(parent_row)
 
             # A normal file changed.
             else:
@@ -2968,6 +3002,38 @@ class FileModel(QtGui.QStandardItemModel):
                     if dest_path not in parent.files:
                         parent.files[dest_path] = ContentType.sort(dest_path)
 
+            if self.currently_selected_folder is not None and dest_path.is_relative_to(self.currently_selected_folder):
+                # This happenes when a top level item is changed.
+                if parent is None:
+                    check = self.check_all_files_are_valid(self.main_dictionary[dest_path], dest_path)[0]
+                else:
+                    check = self.check_all_files_are_valid(parent, parent.path)[0]
+
+                if check:
+                    self.update_me.emit(self.currently_selected_folder)
+
+    def check_all_files_are_valid(self, item: Item, first_path: Path) -> Tuple[bool, Path]:
+        """
+        Checks that all the files inside of the item have a valid path. This is used when changing the name of currently
+        selected folders to see if an update to change the folders should be triggered or not.
+
+        :param item: The item we need to do the check.
+        :param first_path: The path of the first item. This is needed because the function is recursive and need a way
+            of knowing what the original path was.
+        :return: Returns a tuple composed of a bool indicating if it passed or not the check and the first_path.
+        """
+        ret = True
+        for file in item.files.keys():
+            if not file.is_relative_to(first_path):
+                return False, first_path
+
+        if item.hasChildren():
+            for i in range(item.rowCount()):
+                ret = self.check_all_files_are_valid(item.child(i, 0), first_path)
+                if not ret[0]:
+                    return ret[0], first_path
+
+        return True, first_path
 
     @Slot(FileSystemEvent)
     def on_file_modified(self, event: FileSystemEvent) -> None:
@@ -2993,6 +3059,13 @@ class FileModel(QtGui.QStandardItemModel):
         self.removeRow(row)
         del self.main_dictionary[path]
 
+    def update_currently_selected_folder(self, path: Path) -> None:
+        """
+        Updates the currently selected folder.
+        """
+        self.currently_selected_folder = path
+
+
 class Monitr(QtWidgets.QMainWindow):
     def __init__(self, monitorPath: str = '.',
                  parent: Optional[QtWidgets.QMainWindow] = None):
@@ -3003,8 +3076,10 @@ class Monitr(QtWidgets.QMainWindow):
         self.current_selected_folder = Path()
         self.previous_selected_folder = Path()
         self.collapsed_state_dictionary = {}
+        self.setWindowTitle('Monitr')
 
         self.model = FileModel(self.monitor_path, 0, 1)
+        self.model.update_me.connect(self.on_update_right_side_window)
         self.proxy_model = QtCore.QSortFilterProxyModel(parent=self)  # Used for filtering.
         self.proxy_model.setSourceModel(self.model)
 
@@ -3016,6 +3091,12 @@ class Monitr(QtWidgets.QMainWindow):
         self.left_side_layout = QtWidgets.QVBoxLayout()
         self.left_side_dummy_widget = QtWidgets.QTreeWidget()
         self.left_side_dummy_widget.setLayout(self.left_side_layout)
+
+        left_side_dummy_size_ploicy = QtWidgets.QSizePolicy(QtWidgets.QSizePolicy.Preferred,
+                                                                          QtWidgets.QSizePolicy.Preferred)
+        left_side_dummy_size_ploicy.setHorizontalStretch(1)
+        left_side_dummy_size_ploicy.setVerticalStretch(0)
+        self.left_side_dummy_widget.setSizePolicy(left_side_dummy_size_ploicy)
 
         # Load left side layout
         self.file_explorer = FileExplorer(model=self.proxy_model, parent=self.left_side_dummy_widget)
@@ -3089,7 +3170,7 @@ class Monitr(QtWidgets.QMainWindow):
 
     def print_model_main_dictionary(self) -> None:
         """
-        Prints the main dictionary
+        Prints the main dictionary.
         """
         print('---------------------------------------------------------------------------------')
         print(f'Here comes the model main dictionary')
@@ -3097,11 +3178,9 @@ class Monitr(QtWidgets.QMainWindow):
 
     def extra_action(self) -> None:
         """
-        Miscellaneous button action. Used to trigger any specific action during testing
+        Miscellaneous button action. Used to trigger any specific action during testing.
         """
-        print(f'----------------------------------------------------------------------------------')
-        print(f'here comes the collapsed options dictionary:')
-        pprint.pprint(self.collapsed_state_dictionary)
+        pass
 
     @Slot(QtCore.QModelIndex, QtCore.QModelIndex)
     def on_current_item_selection_changed(self, current: QtCore.QModelIndex, previous: QtCore.QModelIndex) -> None:
@@ -3119,6 +3198,7 @@ class Monitr(QtWidgets.QMainWindow):
         previous_item = self.model.itemFromIndex(previous_model_index)
 
         self.current_selected_folder = current_item.path
+        self.model.update_currently_selected_folder(self.current_selected_folder)
         # The first time the user clicks on a folder, the previous item is None.
         if previous_item is not None:
             self.previous_selected_folder = previous_item.path
@@ -3130,7 +3210,6 @@ class Monitr(QtWidgets.QMainWindow):
         Generates the right side window. Clears the window first, gets all the necesary data and loads all of the
         widgets.
         """
-
         # Check that the folder passed is a dataset.
         if self.current_selected_folder in self.model.main_dictionary:
 
@@ -3148,6 +3227,11 @@ class Monitr(QtWidgets.QMainWindow):
             self.add_data_window(files_meta['data_files'])
             self.add_text_input(self.current_selected_folder)
             self.add_all_files(files_meta['extra_files'])
+
+            # Sets the stretch factor so when the main window expands, the files get the extra real-state instead
+            # of the file tree
+            self.main_partition_splitter.setStretchFactor(0, 0)
+            self.main_partition_splitter.setStretchFactor(1, 255)
 
     def clear_right_layout(self) -> None:
         """
@@ -3417,6 +3501,17 @@ class Monitr(QtWidgets.QMainWindow):
                 self.file_windows.append(label)
                 self.right_side_layout.addWidget(label)
 
+    @Slot(Path)
+    def on_update_right_side_window(self, path: Path) -> None:
+        """
+        Gets called everytime the model emits the update_me signal. This happen when the model thinks the right side
+        window should be changed. The method checks if the path of the item that has the change is related to the
+        currently selected one.
+
+        :param path: The path of the item that has changed.
+        """
+        if path.is_relative_to(self.current_selected_folder):
+            self.generate_right_side_window()
 
 def script() -> int:
     parser = argparse.ArgumentParser(description='Monitr main application')
