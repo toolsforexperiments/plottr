@@ -9,6 +9,8 @@ object for plotting data automatically using ``pyqtgraph``.
 """
 
 import logging
+from pathlib import Path
+import time
 from dataclasses import dataclass
 from typing import List, Optional, Any
 
@@ -25,6 +27,7 @@ from ..base import AutoFigureMaker as BaseFM, PlotDataType, \
 
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
+TIMESTRFORMAT = "%Y-%m-%dT%H%M%S"
 
 
 class FigureWidget(QtWidgets.QWidget):
@@ -301,6 +304,8 @@ class AutoPlot(PlotWidget):
                                                  parent=self)
             self.layout().addWidget(self.figConfig)
             self.figConfig.optionsChanged.connect(self._refreshPlot)
+            self.figConfig.figCopied.connect(self.onfigCopied)
+            self.figConfig.figSaved.connect(self.onfigSaved)
 
         if self.data.has_meta('title'):
             self.fmWidget.setTitle(self.data.meta_val('title'))
@@ -308,6 +313,36 @@ class AutoPlot(PlotWidget):
     @Slot()
     def _refreshPlot(self) -> None:
         self._plotData()
+
+    @Slot()
+    def onfigCopied(self) -> None:
+        """
+        Gets triggered when figCopied signal is emitted from self.figConfig
+        Copy the current figuremaker widget to the clipboard.
+        """
+        assert isinstance(self.fmWidget, FigureWidget)
+        screenshot = self.fmWidget.grab(rectangle=QtCore.QRect(QtCore.QPoint(0, 0), QtCore.QSize(-1, -1)))
+        clipboard = QtWidgets.QApplication.clipboard()
+        clipboard.setImage(screenshot.toImage())
+
+    @Slot()
+    def onfigSaved(self) -> None:
+        """
+        Gets triggered when figSaved signal is emitted from self.figConfig
+        Save the current figuremaker widget to the data directory as a png
+        with a timestamp at the front.
+        """
+        assert isinstance(self.fmWidget, FigureWidget)
+        assert isinstance(self.data, DataDictBase)
+        screenshot = self.fmWidget.grab(rectangle=QtCore.QRect(QtCore.QPoint(0, 0), QtCore.QSize(-1, -1)))
+        path = Path(self.data.meta_val('title'))
+        # add a timestamp here
+        t = time.localtime()
+        time_str = time.strftime(TIMESTRFORMAT, t)
+        filename = time_str+str(path.stem)+'.png'
+        screenshot.save(str(path.parent)+'/'+filename, format='PNG')
+
+    # TODO: Allow for the option to choose filetypes and the name/directory
 
 
 @dataclass
@@ -329,6 +364,10 @@ class FigureConfigToolBar(QtWidgets.QToolBar):
 
     #: Signal() -- emitted when options have been changed in the GUI.
     optionsChanged = Signal()
+    #: Signal() -- emitted when the copy figure button has been pressed
+    figCopied = Signal()
+    #: Signal() -- emitted when the save figure button has been pressed
+    figSaved = Signal()
 
     def __init__(self, options: FigureOptions,
                  parent: Optional[QtWidgets.QWidget] = None) -> None:
@@ -370,6 +409,16 @@ class FigureConfigToolBar(QtWidgets.QToolBar):
         complexButton.setMenu(complexOptions)
         self.addWidget(complexButton)
 
+        # Adding functionality to copy and save the graph
+        self.copyFig = self.addAction('Copy Figure', self._copyFig)
+        self.saveFig = self.addAction('Save Figure', self._saveFig)
+
     def _setOption(self, option: str, value: Any) -> None:
         setattr(self.options, option, value)
         self.optionsChanged.emit()
+
+    def _copyFig(self):
+        self.figCopied.emit()
+
+    def _saveFig(self):
+        self.figSaved.emit()
