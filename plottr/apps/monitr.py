@@ -3002,7 +3002,7 @@ class FileModel(QtGui.QStandardItemModel):
 
         self.watcher_thread.start()
 
-        self.itemChanged.connect(self.rename_the_actual_file)
+        self.itemChanged.connect(self.on_renaming_file)
     
     @Slot(QtGui.QStandardItem)
     def on_renaming_file(self, item):
