@@ -3014,6 +3014,9 @@ class FileModel(QtGui.QStandardItemModel):
 
         :param item: QStandardItem, to be renamed
         """
+        if item.column() == 1:
+            return
+
         p = item.path
         new_name = item.text()
         if new_name != p.name:
