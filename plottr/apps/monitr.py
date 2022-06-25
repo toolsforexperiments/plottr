@@ -837,13 +837,18 @@ class FileExplorer(QtWidgets.QWidget):
     Helper widget to unify the FileTree with the line edit and status buttons.
     """
 
-    def __init__(self, model: QtCore.QAbstractItemModel, parent: Optional[Any]=None,
+    def __init__(self, proxy_model: QtCore.QAbstractItemModel, parent: Optional[Any]=None,
                  *args: Any, **kwargs: Any):
         super().__init__(parent=parent, *args, **kwargs)  # type: ignore[misc] # I suspect this error comes from having parent possibly be a kwarg too.
 
-        self.model = model
+        # Tree and model initialization
+        self.proxy_model = proxy_model
+        self.model = proxy_model.sourceModel()
         self.file_tree = FileTreeView(parent=self)
-        self.file_tree.setModel(model)
+        self.file_tree.setModel(proxy_model)
+        self.file_tree.set_all_tags()
+        self.model.adjust_width.connect(self.file_tree.on_adjust_column_width)
+        self.model.model_refreshed.connect(self.file_tree.set_all_tags)
 
         self.main_layout = QtWidgets.QVBoxLayout(self)
         self.filter_and_buttons_layout = QtWidgets.QHBoxLayout()
@@ -857,7 +862,6 @@ class FileExplorer(QtWidgets.QWidget):
         self.refresh_button = QtWidgets.QPushButton('Refresh')
         self.expand_button = QtWidgets.QPushButton('Expand')
         self.collapse_button = QtWidgets.QPushButton('Collapse')
-
 
         self.star_button.setCheckable(True)
         self.trash_button.setCheckable(True)
@@ -948,16 +952,6 @@ class DataTreeWidget(QtWidgets.QTreeWidget):
         self.customContextMenuRequested.connect(self.on_context_menu_requested)
 
         self.set_data()
-
-        # TODO: Test if the try-except statement here is truly necessary.
-        # try:
-        #     self.data = [datadict_from_hdf5(str(data_file)) for data_file in self.paths]
-        #     self.set_data()
-        # except Exception as e:
-        #     error_msg = QtWidgets.QMessageBox()
-        #     error_msg.setText(f'Could not load data: \n {e}')
-        #     error_msg.setWindowTitle(f'Data File Invalid.')
-        #     error_msg.exec_()
 
     def set_data(self) -> None:
         """
@@ -1418,7 +1412,7 @@ class TagLabel(QtWidgets.QWidget):
         self.tags = tags
         self.html_tags: List[str] = []
         self.tree_item = tree_item
-        self.tag_str = ''
+        self.tags_str = ''
 
         if not tags:
             self.tags_str = 'No labels present.'
@@ -1475,7 +1469,7 @@ class TagLabel(QtWidgets.QWidget):
         self.html_tags = []
         color_generator = html_color_generator()
 
-        # Add every tag followed by a come, except the last item.
+        # Add every tag followed by a coma, except the last item.
         for i in range(len(self.tags) - 1):
             html_str = f'<font color={next(color_generator)}>{self.tags[i]}, </font>'
             self.html_tags.append(html_str)
@@ -1485,6 +1479,67 @@ class TagLabel(QtWidgets.QWidget):
         self.html_tags.append(html_str)
 
         self.tags_str = ''.join(self.html_tags)
+
+class ItemTagLabel(QtWidgets.QLabel):
+    """
+    Qlabel wisget used in the FileTree to display the tags in an item of the model.
+
+    :param tags: List with the tags that should be displayed.
+    """
+
+
+    def __init__(self, tags: List[str], parent=None, flags=None):
+        super().__init__(parent, flags)
+        self.tags = tags.copy()
+        self.tags_str = ""
+        self.html_tags = []
+        self.generate_tag_string()
+        self.setText(self.tags_str)
+
+    def add_tag(self, tag: str) -> None:
+        """
+        Adds a new tag to the list.
+
+        :param tag: The new tag.
+        """
+        if tag not in self.tags:
+            self.tags.append(tag)
+            self.generate_tag_string()
+            self.setText(self.tags_str)
+
+    def delete_tag(self, tag: str) -> None:
+        """
+        Deletes a tag.
+
+        :param tag: The deleted tag.
+        """
+        if tag in self.tags:
+            self.tags.remove(tag)
+
+        self.generate_tag_string()
+        self.setText(self.tags_str)
+
+
+    def generate_tag_string(self) -> None:
+        """
+        Converts the list of tags into the html formated string.
+        """
+        self.tags_str = ''
+        self.html_tags = []
+
+        if self.tags:
+            color_generator = html_color_generator()
+
+            # Add every tag followed by a coma, except the last item.
+            for i in range(len(self.tags) - 1):
+                html_str = f'<font color={next(color_generator)}>{self.tags[i]}, </font>'
+                self.html_tags.append(html_str)
+
+            # Last item is followed by a dot instead of a coma.
+            html_str = f'<font color={next(color_generator)}>{self.tags[-1]}.</font>'
+            self.html_tags.append(html_str)
+
+            self.tags_str = ''.join(self.html_tags)
 
 
 class TagCreator(QtWidgets.QLineEdit):
@@ -2611,7 +2666,7 @@ class Monitr_old(QtWidgets.QMainWindow):
 
 class SupportedDataTypes:
 
-    valid_types = ['.ddh5', 'md', '.json']
+    valid_types = ['.ddh5', '.md', '.json']
 
     @classmethod
     def check_valid_data(cls, file_names: List[Union[str, Path]]) -> bool:
@@ -2639,12 +2694,159 @@ class FileTreeView(QtWidgets.QTreeView):
     #:  - The current selected item index, the previously selected item index.
     selection_changed = Signal(QtCore.QModelIndex, QtCore.QModelIndex)
 
+    # Signal(Path) -- Emitted when the star action has been clicked.
+    #: Arguments:
+    #:  - The index of the currently selected item.
+    item_starred = Signal(QtCore.QModelIndex)
+
+    # Signal(Path) -- Emitted when the trash action has been clicked.
+    #: Arguments:
+    #:  - The index of the currently selected item.
+    item_trashed = Signal(QtCore.QModelIndex)
+
+    # Signal(Path) -- Emitted when the delete action has been clicked.
+    #: Arguments:
+    #:  - The index of the currently selected item.
+    item_deleted = Signal(QtCore.QModelIndex)
+
     def __init__(self, parent: Optional[Any] = None):
         """
         The TreeView used in the FileExplorer widget.
         """
         super().__init__(parent)
+
+        self.proxy_model = None
+        self.model_ = None
+        self.star_text = 'Star'
+        self.un_star_text = 'Un-star'
+        self.trash_text = 'Trash'
+        self.un_trash_text = 'Un-trash'
+
+        self.context_menu = QtWidgets.QMenu(self)
+        self.star_action = QtWidgets.QAction('Star')
+        self.trash_action = QtWidgets.QAction('Trash')
+        self.delete_action = QtWidgets.QAction('Delete')
+
+        self.star_action.triggered.connect(self.on_emit_item_starred)
+        self.trash_action.triggered.connect(self.on_emit_item_trashed)
+        self.delete_action.triggered.connect(self.on_emit_item_delete)
+
+        self.setContextMenuPolicy(QtCore.Qt.CustomContextMenu)
+        self.customContextMenuRequested.connect(self.on_context_menu_requested)
+
+        self.setUniformRowHeights(True)
         self.setSortingEnabled(True)
+
+    def setModel(self, model: Optional[QtCore.QAbstractItemModel]) -> None:
+        """
+        Override function of setModel. it calls the super set model and saves both the model and the proxy model as
+        class attributes.
+
+        :param model: QSortFilterProxyModel based on the data model.
+        """
+        super().setModel(model)
+        self.proxy_model = model
+        self.model_ = model.sourceModel()
+
+    def set_all_tags(self):
+        """
+        Sets the tag label widget for all the rows.
+        """
+        for i in range(self.model_.rowCount()):
+            item = self.model_.item(i, 0)
+            if item is not None:
+                self._set_widget_for_item_and_children(item)
+
+    def _set_widget_for_item_and_children(self, item):
+        """
+        Helper function of set_all_tags, goes throguh the passed item and all of its children and sets all of the
+        tag widget from column 0 for the items in row 1.
+
+        :param item: The item that its setting the widget for.
+        """
+        parent = item.parent()
+        if parent is None:
+            tags_item = self.model_.item(item.row(), 1)
+        else:
+            tags_item = parent.child(item.row(), 1)
+
+        tags_index = self.model_.indexFromItem(tags_item)
+        proxy_tag_index = self.proxy_model.mapFromSource(tags_index)
+        self.setIndexWidget(proxy_tag_index, item.tags_widget)
+        if item.hasChildren():
+            for i in range(item.rowCount()):
+                self._set_widget_for_item_and_children(item.child(i))
+
+    @Slot(QtCore.QPoint)
+    def on_context_menu_requested(self, pos: QtCore.QPoint) -> None:
+        """
+        Shows the context menu when a right click happens.
+
+        :param pos: The position of the mouse when the call happens
+        """
+        proxy_index = self.indexAt(pos)
+        if proxy_index.column() == 1:
+            proxy_index = proxy_index.siblingAtColumn(0)
+        index = self.proxy_model.mapToSource(proxy_index)
+        item = self.model_.itemFromIndex(index)
+        # if the selected item is None, no menu should be shown.
+        if item is None:
+            return
+
+        # Sets the correct the correct text for the context menu depending on the state of the item.
+        if item.star:
+            self.star_action.setText(self.un_star_text)
+        else:
+            self.star_action.setText(self.star_text)
+        if item.trash:
+            self.trash_action.setText(self.un_trash_text)
+        else:
+            self.trash_action.setText(self.trash_text)
+
+        self.context_menu.addAction(self.star_action)
+        self.context_menu.addAction(self.trash_action)
+        self.context_menu.addSeparator()
+        self.context_menu.addAction(self.delete_action)
+        self.context_menu.exec_(self.mapToGlobal(pos))
+
+    @Slot()
+    def on_emit_item_starred(self):
+        """
+        Gets called when the user press the star action. Emits the star_item signal.
+        """
+        item_proxy_index = self.currentIndex()
+        item_index = self.proxy_model.mapToSource(item_proxy_index)
+        self.model_.star_item(item_index)
+
+    @Slot()
+    def on_emit_item_trashed(self):
+        """
+        Gets called when the user press the trash action. Emits the trash_item signal.
+        """
+        item_proxy_index = self.currentIndex()
+        item_index = self.proxy_model.mapToSource(item_proxy_index)
+        self.model_.trash_item(item_index)
+
+    @Slot()
+    def on_emit_item_delete(self):
+        """
+        Gets called when the user press the delete action. Emits the delete_item signal.
+        """
+        item_proxy_index = self.currentIndex()
+        item_index = self.proxy_model.mapToSource(item_proxy_index)
+        self.model_.delete_item(item_index)
+
+    @Slot()
+    def on_adjust_column_width(self):
+        """
+        Gets called when the model changed the icon of an item. When changing an item icons that has the tag widget
+        displaying tags, the icon would be superimposed with the widget, moving the column_width by 1 pixel and
+        setting it back fixes it.
+        """
+        column_width = self.columnWidth(1)
+        self.setColumnWidth(1, column_width + 1)
+        self.setColumnWidth(1, column_width - 1)
+
 
     def currentChanged(self, current: QtCore.QModelIndex, previous: QtCore.QModelIndex) -> None:
         """
@@ -2669,18 +2871,69 @@ class Item(QtGui.QStandardItem):
         super().__init__()
         self.path = path
         self.files = {}
+        self.tags = []
+        self.tags_widget = None
         self.star = False
         self.trash = False
         if files is not None:
             self.files.update(files)
+            self.tags = [file.stem for file, file_type in self.files.items() if file_type == ContentType.tag]
+            self.tags_widget = ItemTagLabel(self.tags)
+            if '__star__' in self.tags and '__trash__' in self.tags:
+                logger().error(f'something very wrong happened here')
+            elif '__star__' in self.tags:
+                self.star = True
+            elif '__trash__' in self.tags:
+                self.trash = True
 
         self.setText(str(self.path.name))
 
     def add_file(self, path: Path) -> None:
-        self.files[path] = ContentType.sort(path)
+        """
+        Adds a file to the item files. If the file is a tag, changes the widget and runs the model tags_changed
+        method.
+
+        :param path: The file to be added.
+        """
+        file_type = ContentType.sort(path)
+        self.files[path] = file_type
+
+        if file_type == ContentType.tag:
+            self.tags.append(path.stem)
+            self.tags_widget.add_tag(path.stem)
+
+            if path.name == '__star__.tag':
+                self.star = True
+                if self.trash:
+                    self.trash = False
+
+            elif path.name == '__trash__.tag':
+                self.trash = True
+                if self.star:
+                    self.star = False
+
+            self.model().tags_changed(self)
 
     def delete_file(self, path: Path) -> None:
+        """
+        deletes a file from item files. If the file is a tag, changes the widget and runs the model tags_changed
+        method.
+
+        :param path: The file to be deleted.
+        """
+        file_type = ContentType.sort(path)
         self.files.pop(path)
+
+        if file_type == ContentType.tag:
+            self.tags.remove(path.stem)
+            self.tags_widget.delete_tag(path.stem)
+
+            if path.name == '__star__.tag':
+                self.star = False
+            elif path.name == '__trash__.tag':
+                self.trash = False
+
+            self.model().tags_changed(self)
 
     def change_path(self, path: Path) -> None:
         """Changes the internal path of the item as welll as the text of it."""
@@ -2704,7 +2957,10 @@ class Item(QtGui.QStandardItem):
 
 class FileModel(QtGui.QStandardItemModel):
     """
-    Model holding the file structure.
+    Model holding the file structure. Column 0 holds the items that represent datasets, these have all the information
+    about them, the files they have, the tags they hold and wether or not they are star or trash. Column 1 are only
+    there to display the tags of each item in the same row. The widget displayed in column 1 point towards the
+    tag_widget of column 0, so the only thing that needs to be manually changed of them is the icon.
 
     :param monitor_path: The directory that we are monitoring as a string.
     :param rows: The number of initial rows.
@@ -2716,10 +2972,16 @@ class FileModel(QtGui.QStandardItemModel):
     #:   - The path of the currently selected folder.
     update_me = Signal(Path)
 
+    # Signal() -- Emitted when an item has changed its icon.
+    adjust_width = Signal()
+
+    # Signal() -- Emitted when the model gets refreshed.
+    model_refreshed = Signal()
+
     def __init__(self, monitor_path: str, rows: int, columns: int, parent: Optional[Any]=None):
         super().__init__(rows, columns, parent=parent)
         self.monitor_path = Path(monitor_path)
-        self.header_labels = ['File path']
+        self.header_labels = ['File path', 'Tags']
         self.currently_selected_folder = None
 
         # The main dictionary has all the datasets (folders) Path as keys, with the actual item as its value.
@@ -2747,6 +3009,7 @@ class FileModel(QtGui.QStandardItemModel):
         self.clear()
         self.main_dictionary = {}
         self.load_data()
+        self.model_refreshed.emit()
 
     def load_data(self) -> None:
         """
@@ -2796,13 +3059,24 @@ class FileModel(QtGui.QStandardItemModel):
 
         # Create Item and add it to the model
         item = Item(folder_path, files_dict)
+        tags_item = QtGui.QStandardItem()
+
+        if item.star:
+            tags_item.setIcon(get_star_icon())
+        elif item.trash:
+            tags_item.setIcon(get_trash_icon())
+        else:
+            tags_item.setIcon(QtGui.QIcon())
 
         self.main_dictionary[folder_path] = item
         if parent_path is None:
-            self.setItem(self.rowCount(), 0, item)
+            row = self.rowCount()
+            self.setItem(row, 0, item)
+            self.setItem(row, 1, tags_item)
         else:
             assert isinstance(parent_item, Item)
-            parent_item.appendRow(item)
+            parent_item.appendRow([item, tags_item])
+
 
     @Slot(FileSystemEvent)
     def on_file_created(self, event: FileSystemEvent) -> None:
@@ -2823,12 +3097,14 @@ class FileModel(QtGui.QStandardItemModel):
 
             # If the parent of the file does not exist, we first need to check that file is valid data.
             elif SupportedDataTypes.check_valid_data([path]):
-                new_files_dict = {file: ContentType.sort(file) for file in path.parent.iterdir() if str(file.suffix) != ''}
+                new_files_dict = {file: ContentType.sort(file) for file in path.parent.iterdir() if
+                                  str(file.suffix) != ''}
                 self.sort_and_add_item(path.parent, new_files_dict)
                 parent = self.main_dictionary[path.parent]
             # Send signal indicating that current folder requires update
-            if parent.path.is_relative_to(self.currently_selected_folder):
-                self.update_me.emit(parent.path)
+                if self.currently_selected_folder is not None and parent.path.is_relative_to(
+                        self.currently_selected_folder):
+                    self.update_me.emit(parent.path)
 
     @Slot(FileSystemEvent)
     def on_file_deleted(self, event: FileSystemEvent) -> None:
@@ -2974,9 +3250,9 @@ class FileModel(QtGui.QStandardItemModel):
                 # Update the file.
                 if parent is not None:
                     if src_path in parent.files:
-                        del parent.files[src_path]
+                        parent.delete_file(src_path)
                     if dest_path not in parent.files:
-                        parent.files[dest_path] = ContentType.sort(dest_path)
+                        parent.add_file(dest_path)
 
             if self.currently_selected_folder is not None and dest_path.is_relative_to(self.currently_selected_folder):
                 # This happenes when a top level item is changed.
@@ -3041,6 +3317,88 @@ class FileModel(QtGui.QStandardItemModel):
         """
         self.currently_selected_folder = path
 
+    def star_item(self, item_index: QtCore.QModelIndex) -> None:
+        """
+        Creates the __star__.tag file if it doesn't exist, deletes it if it does, in the folder for the item.
+         If it finds __trash__.tag there it will delete it.
+
+        :param index: The index of the item that needs to be starred.
+        """
+       # If the item is of column 1, change it to the sibling at column 0
+        if item_index.column() == 1:
+            item_index = item_index.siblingAtColumn(0)
+
+        item = self.itemFromIndex(item_index)
+        path = item.path
+        star_path = path.joinpath('__star__.tag')
+        trash_path = path.joinpath('__trash__.tag')
+        # If a trash file in the star folder exists, delete it.
+        if trash_path.is_file():
+            trash_path.unlink()
+
+        # If the folder is already a starred folder, un-star it.
+        if star_path.is_file():
+            star_path.unlink()
+        else:
+            with open(star_path, 'w') as file:
+                file.write('')
+
+    def trash_item(self, item_index: QtCore.QModelIndex) -> None:
+        """
+        Creates the __trash__.tag file if it doesn't exist, deletes it if it does, in the folder for the item.
+         If it finds __star__.tag there it will delete it
+
+        :param index: The index of the item that needs to be trashed.
+        """
+
+        # If the item is of column 1, change it to the sibling at column 0
+        if item_index.column() == 1:
+            item_index = item_index.siblingAtColumn(0)
+
+        item = self.itemFromIndex(item_index)
+        path = item.path
+        star_path = path.joinpath('__star__.tag')
+        trash_path = path.joinpath('__trash__.tag')
+        # If a star file in the star folder exists, delete it.
+        if star_path.is_file():
+            star_path.unlink()
+
+        # If the folder is already a trashed folder, un-trash it.
+        if trash_path.is_file():
+            trash_path.unlink()
+        else:
+            with open(trash_path, 'w') as file:
+                file.write('')
+
+    def delete_item(self, item_index: QtCore.QModelIndex) -> None:
+        """
+        Currently nothing happens. This is not yet implemented
+        """
+        item = self.itemFromIndex(item_index)
+
+    def tags_changed(self, item: Item):
+        """
+        Gets called when item changes its tags, checks if item is either star, trash or nothing and sets the correct
+        icon.
+
+        :param item: The Item that had its tags changed.
+        """
+        parent = item.parent()
+        if parent is None:
+            row = item.row()
+            item_column_1 = self.item(row, 1)
+        else:
+            item_column_1 = parent.child(item.row(), 1)
+
+        if item.star:
+            item_column_1.setIcon(get_star_icon())
+        elif item.trash:
+            item_column_1.setIcon(get_trash_icon())
+        else:
+            item_column_1.setIcon(QtGui.QIcon())
+
+        self.adjust_width.emit()
+
 
 class Monitr(QtWidgets.QMainWindow):
     def __init__(self, monitorPath: str = '.',
@@ -3054,7 +3412,7 @@ class Monitr(QtWidgets.QMainWindow):
         self.collapsed_state_dictionary = {}
         self.setWindowTitle('Monitr')
 
-        self.model = FileModel(self.monitor_path, 0, 1)
+        self.model = FileModel(self.monitor_path, 0, 2)
         self.model.update_me.connect(self.on_update_right_side_window)
         self.proxy_model = QtCore.QSortFilterProxyModel(parent=self)  # Used for filtering.
         self.proxy_model.setSourceModel(self.model)
@@ -3075,7 +3433,7 @@ class Monitr(QtWidgets.QMainWindow):
         self.left_side_dummy_widget.setSizePolicy(left_side_dummy_size_ploicy)
 
         # Load left side layout
-        self.file_explorer = FileExplorer(model=self.proxy_model, parent=self.left_side_dummy_widget)
+        self.file_explorer = FileExplorer(proxy_model=self.proxy_model, parent=self.left_side_dummy_widget)
         self.left_side_layout.addWidget(self.file_explorer)
 
         # When the refresh button of the file explorer is pressed, refresh the model
@@ -3126,7 +3484,9 @@ class Monitr(QtWidgets.QMainWindow):
                     child_dictionary = create_inner_dictionary(child)
                     step_dictionary[child.path.name] = child_dictionary
 
-            step_dictionary[str(item.path.name) + ' files'] = item.files
+            step_dictionary['files'] = item.files
+            step_dictionary['star'] = item.star
+            step_dictionary['trash'] = item.trash
             return step_dictionary
 
         print('==================================================================================')
@@ -3156,7 +3516,7 @@ class Monitr(QtWidgets.QMainWindow):
         """
         Miscellaneous button action. Used to trigger any specific action during testing.
         """
-        pass
+        self.file_explorer.file_tree.set_all_tags()
 
     @Slot(QtCore.QModelIndex, QtCore.QModelIndex)
     def on_current_item_selection_changed(self, current: QtCore.QModelIndex, previous: QtCore.QModelIndex) -> None:
@@ -3167,6 +3527,13 @@ class Monitr(QtWidgets.QMainWindow):
         :param current: QModelIndex of the proxy model of the currently selected item.
         :param previous: QModelIndex of the proxy model of the previously selected item.
         """
+        # When the user clicks on column 1, converts those items to their siblings at column 0
+        # (the one were all the data is)
+        if current.column() == 1:
+            current = current.siblingAtColumn(0)
+        if previous.column() == 1:
+            previous = previous.siblingAtColumn(0)
+
         current_model_index = self.proxy_model.mapToSource(current)
         previous_model_index = self.proxy_model.mapToSource(previous)
 
