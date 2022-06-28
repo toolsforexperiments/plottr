@@ -3,6 +3,7 @@ Script obtained from: https://doc-snapshots.qt.io/qtforpython-dev/examples/examp
 """
 
 from typing import Any, List, Dict, Union, Optional
+from pathlib import Path
 
 from qtpy.QtCore import QAbstractItemModel, QModelIndex, QObject, Qt
 from qtpy.QtWidgets import QTreeView
@@ -143,7 +144,7 @@ class JsonModel(QAbstractItemModel):
 
         return True
 
-    def data(self, index: QModelIndex, role: Qt.ItemDataRole) -> Any:  #type: ignore[override]
+    def data(self, index: QModelIndex, role: Qt.ItemDataRole) -> Any:
         """Override from QAbstractItemModel
 
         Return data from a json item according index and role
@@ -165,7 +166,7 @@ class JsonModel(QAbstractItemModel):
             if index.column() == 1:
                 return item.value
 
-    def setData(self, index: QModelIndex, value: Any, role: Qt.ItemDataRole) -> bool:  #type: ignore[override]
+    def setData(self, index: QModelIndex, value: Any, role: Qt.ItemDataRole) -> bool:
         """Override from QAbstractItemModel
 
         Set json item according index and role
@@ -190,7 +191,7 @@ class JsonModel(QAbstractItemModel):
 
         return False
 
-    def headerData(  #type: ignore[override]
+    def headerData(
         self, section: int, orientation: Qt.Orientation, role: Qt.ItemDataRole
     ) -> Optional[str]:
         """Override from QAbstractItemModel
@@ -226,7 +227,7 @@ class JsonModel(QAbstractItemModel):
         else:
             return QModelIndex()
 
-    def parent(self, index: QModelIndex) -> QModelIndex:  #type: ignore[override]
+    def parent(self, index: QModelIndex) -> QModelIndex:
         """Override from QAbstractItemModel
 
         Return parent index of index
@@ -310,6 +311,6 @@ class JsonTreeView(QTreeView):
     :param path: The path of the file this view is showing.
     """
 
-    def __init__(self, path, *args, **kwargs):
+    def __init__(self, path: Path, *args: Any, **kwargs: Any):
         super().__init__(*args, **kwargs)
         self.path = path
