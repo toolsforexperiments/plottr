@@ -339,7 +339,7 @@ class AutoPlot(PlotWidget):
         # add a timestamp here
         t = time.localtime()
         time_str = time.strftime(TIMESTRFORMAT, t)
-        filename = time_str+str(path.stem)+'.png'
+        filename = time_str+'_'+str(path.stem)+'.png'
         screenshot.save(str(path.parent)+'/'+filename, format='PNG')
 
     # TODO: Allow for the option to choose filetypes and the name/directory
