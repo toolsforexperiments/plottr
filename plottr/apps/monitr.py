@@ -849,13 +849,21 @@ class Item(QtGui.QStandardItem):
         if files is not None:
             self.files.update(files)
             self.tags = [file.stem for file, file_type in self.files.items() if file_type == ContentType.tag]
-            self.tags_widget = ItemTagLabel(self.tags)
             if '__star__' in self.tags and '__trash__' in self.tags:
-                logger().error(f'something very wrong happened here')
+                star_path = self.path.joinpath('__star__.tag')
+                trash_path = self.path.joinpath('__trash__.tag')
+                if star_path.is_file() and trash_path.is_file():
+                    logger().error(
+                        f'The folder: {self.path} contains both the star and trash tag. Both tags will be deleted.')
+                    star_path.unlink()
+                    trash_path.unlink()
+                    self.tags.remove('__star__')
+                    self.tags.remove('__trash__')
             elif '__star__' in self.tags:
                 self.star = True
             elif '__trash__' in self.tags:
                 self.trash = True
+            self.tags_widget = ItemTagLabel(self.tags)
 
         self.setText(str(self.path.name))
 
@@ -870,18 +878,37 @@ class Item(QtGui.QStandardItem):
         self.files[path] = file_type
 
         if file_type == ContentType.tag:
-            self.tags.append(path.stem)
-            self.tags_widget.add_tag(path.stem)
-
             if path.name == '__star__.tag':
-                self.star = True
-                if self.trash:
-                    self.trash = False
+                # Check if the item is not already trash.
+                trash_path = path.parent.joinpath('__trash__.tag')
+                if trash_path.is_file():
+                    path.unlink()
+                    error_msg = QtWidgets.QMessageBox()
+                    error_msg.setText(f'Folder is already trash. Please do not add both __trash__ and __star__ tags in the same folder. '
+                                      f' \n {path} was deleted ')
+                    error_msg.setWindowTitle(f'Deleting __trash__.tag')
+                    error_msg.exec_()
+                    return
+                else:
+                    self.star = True
 
             elif path.name == '__trash__.tag':
-                self.trash = True
-                if self.star:
-                    self.star = False
+                # Check if the item is not already star.
+                star_path = path.parent.joinpath('__star__.tag')
+                if star_path.is_file():
+                    path.unlink()
+                    error_msg = QtWidgets.QMessageBox()
+                    error_msg.setText(
+                        f'Folder is already star. Please do not add both __trash__ and __star__ tags in the same folder. '
+                        f' \n {path} was deleted ')
+                    error_msg.setWindowTitle(f'Deleting __star__.tag')
+                    error_msg.exec_()
+                    return
+                else:
+                    self.trash = True
+
+            self.tags.append(path.stem)
+            self.tags_widget.add_tag(path.stem)
 
             model = self.model()
             assert isinstance(model, FileModel)
@@ -898,17 +925,18 @@ class Item(QtGui.QStandardItem):
         self.files.pop(path)
 
         if file_type == ContentType.tag:
-            self.tags.remove(path.stem)
-            self.tags_widget.delete_tag(path.stem)
+            if path.stem in self.tags:
+                self.tags.remove(path.stem)
+                self.tags_widget.delete_tag(path.stem)
 
-            if path.name == '__star__.tag':
-                self.star = False
-            elif path.name == '__trash__.tag':
-                self.trash = False
+                if path.name == '__star__.tag':
+                    self.star = False
+                elif path.name == '__trash__.tag':
+                    self.trash = False
 
-            model = self.model()
-            assert isinstance(model, FileModel)
-            model.tags_changed(self)
+                model = self.model()
+                assert isinstance(model, FileModel)
+                model.tags_changed(self)
 
     def change_path(self, path: Path) -> None:
         """Changes the internal path of the item as welll as the text of it."""
