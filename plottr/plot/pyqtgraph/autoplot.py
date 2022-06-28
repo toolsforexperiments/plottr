@@ -417,8 +417,8 @@ class FigureConfigToolBar(QtWidgets.QToolBar):
         setattr(self.options, option, value)
         self.optionsChanged.emit()
 
-    def _copyFig(self):
+    def _copyFig(self) -> None:
         self.figCopied.emit()
 
-    def _saveFig(self):
+    def _saveFig(self) -> None:
         self.figSaved.emit()
