@@ -1137,9 +1137,9 @@ class FileModel(QtGui.QStandardItemModel):
                 self.sort_and_add_item(path.parent, new_files_dict)
                 parent = self.main_dictionary[path.parent]
                 # Send signal indicating that current folder requires update
-                if self.currently_selected_folder is not None and parent.path.is_relative_to(
-                        self.currently_selected_folder):
-                    self.update_me.emit(parent.path)
+            if self.currently_selected_folder is not None and parent.path.is_relative_to(
+                    self.currently_selected_folder):
+                self.update_me.emit(parent.path)
 
     @Slot(FileSystemEvent)
     def on_file_deleted(self, event: FileSystemEvent) -> None:
