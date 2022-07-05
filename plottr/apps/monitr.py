@@ -3221,7 +3221,6 @@ class Monitr(QtWidgets.QMainWindow):
 
         self.current_selected_folder = current_item.path
         self.model.update_currently_selected_folder(self.current_selected_folder)
-        # The first time the user clicks on a folder, the previous item is None.
         if previous_item is not None:
             self.previous_selected_folder = previous_item.path
 
