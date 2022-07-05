@@ -3,7 +3,6 @@ Script obtained from: https://doc-snapshots.qt.io/qtforpython-dev/examples/examp
 """
 
 from typing import Any, List, Dict, Union, Optional
-from pathlib import Path
 
 from qtpy.QtCore import QAbstractItemModel, QModelIndex, QObject, Qt
 from qtpy.QtWidgets import QTreeView
@@ -311,6 +310,6 @@ class JsonTreeView(QTreeView):
     :param path: The path of the file this view is showing.
     """
 
-    def __init__(self, path: Path, *args: Any, **kwargs: Any):
+    def __init__(self, path, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.path = path
