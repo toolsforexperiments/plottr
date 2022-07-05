@@ -1394,15 +1394,35 @@ class VerticalScrollArea(QtWidgets.QScrollArea):
     """
     def __init__(self, *args: Any, **kwargs: Any):
         super().__init__(*args, **kwargs)
+        self.first_scroll = False
+        self.scroll_height = 0
 
         self.setVerticalScrollBarPolicy(QtCore.Qt.ScrollBarAsNeeded)
         self.setHorizontalScrollBarPolicy(QtCore.Qt.ScrollBarAlwaysOff)
         self.setWidgetResizable(True)
+        # self.verticalScrollBar().actionTriggered.connect(self.on_action_triggered)
+        self.verticalScrollBar().rangeChanged.connect(self.on_range_changed)
 
     def eventFilter(self, a0: QtCore.QObject, a1: QtCore.QEvent) -> bool:
         self.setMinimumWidth(self.widget().minimumSizeHint().width())
         return super().eventFilter(a0, a1)
 
+    @Slot(int)
+    def on_action_triggered(self):
+        print("action triggered. The scroll bar height is now: ", self.verticalScrollBar().value())
+    
+    @Slot(int)
+    def on_range_changed(self):
+        if self.first_scroll is True:
+            bar = self.verticalScrollBar()
+            if bar is not None:
+                if bar.maximum() > 0 and bar.maximum() >= self.scroll_height:
+                    bar.setValue(self.scroll_height)
+                    self.first_scroll = False
+    
+    def viewportEvent(self, a0: QtCore.QEvent) -> bool:
+        ret = super().viewportEvent(a0)
+        return ret
 
 class TagLabel(QtWidgets.QWidget):
     """
@@ -2671,6 +2691,7 @@ class Item(QtGui.QStandardItem):
         self.files = {}
         self.star = False
         self.trash = False
+        self.scroll_height = 0
         if files is not None:
             self.files.update(files)
 
@@ -2740,7 +2761,7 @@ class FileModel(QtGui.QStandardItemModel):
 
         self.watcher_thread.start()
 
-        self.itemChanged.connect(self.rename_the_actual_file)
+        self.itemChanged.connect(self.on_renaming_file)
     
     @Slot(QtGui.QStandardItem)
     def on_renaming_file(self, item):
@@ -3073,8 +3094,8 @@ class Monitr(QtWidgets.QMainWindow):
 
         # Instantiating variables.
         self.monitor_path = monitorPath
-        self.current_selected_folder = Path()
-        self.previous_selected_folder = Path()
+        self.current_selected_folder = None
+        self.previous_selected_folder = None
         self.collapsed_state_dictionary = {}
         self.setWindowTitle('Monitr')
 
@@ -3151,6 +3172,7 @@ class Monitr(QtWidgets.QMainWindow):
                     step_dictionary[child.path.name] = child_dictionary
 
             step_dictionary[str(item.path.name) + ' files'] = item.files
+            step_dictionary[str(item.path.name) + ' height'] = item.scroll_height
             return step_dictionary
 
         print('==================================================================================')
@@ -3233,10 +3255,21 @@ class Monitr(QtWidgets.QMainWindow):
             self.main_partition_splitter.setStretchFactor(0, 0)
             self.main_partition_splitter.setStretchFactor(1, 255)
 
+            current_item = self.model.main_dictionary[self.current_selected_folder]
+            assert self.scroll_area is not None
+            self.scroll_area.scroll_height = current_item.scroll_height
+            self.scroll_area.first_scroll = True
+
     def clear_right_layout(self) -> None:
         """
-        Clears every item on the right side of the screen.
+        Records the scroll height of the previous item if the scroll bar exists. Then clears every item on the right side of the screen.
         """
+        if self.previous_selected_folder is not None:
+            previous_item = self.model.main_dictionary[self.previous_selected_folder]
+            bar = self.scroll_area.verticalScrollBar()
+            if bar is not None:
+                previous_item.scroll_height = bar.value()
+
         if self.tags_label is not None:
             self.right_side_layout.removeWidget(self.tags_label)
             self.tags_label.deleteLater()
