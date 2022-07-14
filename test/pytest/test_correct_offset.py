@@ -33,11 +33,14 @@ def test_average_subtraction(qtbot):
     fc.setInput(dataIn=data)
     assert num.arrays_equal(
         zz,
-        fc.outputValues()['dataOut'].data_vals('z')
+        fc.outputValues()['dataOut'].data_vals('z'),
+        rtol=1e-8,  # when comparing independently computed values need to take into account
+                    # numerical noise
     )
 
     node.averagingAxis = 'y'
     assert num.arrays_equal(
         zz_ref_avg_y,
         fc.outputValues()['dataOut'].data_vals('z'),
+        rtol=1e-8,
     )

@@ -74,9 +74,10 @@ class DataSelectionWidget(QtWidgets.QTreeWidget):
         """Set shapes of given elements"""
         for i in range(self.topLevelItemCount()):
             item = self.topLevelItem(i)
-            name = item.text(0)
-            if name in shape:
-                item.setText(2, str(shape[name]))
+            if item is not None:
+                name = item.text(0)
+                if name in shape:
+                    item.setText(2, str(shape[name]))
 
     def clear(self) -> None:
         """Clear the tree, and make sure all selections are cleared."""

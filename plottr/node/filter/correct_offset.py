@@ -2,59 +2,9 @@ from typing import Sequence, Optional, Dict
 
 import numpy as np
 
-from plottr import Signal, Slot, QtWidgets
 from plottr.node import Node, NodeWidget, updateOption
-from plottr.node.node import updateGuiQuietly, emitGuiUpdate
-from plottr.gui.widgets import FormLayoutWrapper
+from plottr.gui.widgets import AxisSelector
 from plottr.data.datadict import DataDictBase, MeshgridDataDict
-
-
-class DimensionCombo(QtWidgets.QComboBox):
-    dimensionSelected = Signal(str)
-
-    def __init__(self, parent: Optional[QtWidgets.QWidget] = None,
-                 dimensionType: str = 'axes'):
-        super().__init__(parent)
-
-        self.node: Optional[Node] = None
-        self.dimensionType = dimensionType
-
-        self.clear()
-        self.entries = ['None']
-        for e in self.entries:
-            self.addItem(e)
-
-        self.currentTextChanged.connect(self.signalDimensionSelection)
-
-    def connectNode(self, node: Optional[Node] = None) -> None:
-        if node is None:
-            raise RuntimeError
-        self.node = node
-        if self.dimensionType == 'axes':
-            self.node.dataAxesChanged.connect(self.setDimensions)
-        else:
-            raise NotImplementedError('Only Axes supported ATM.')
-
-    @updateGuiQuietly
-    def setDimensions(self, dims: Sequence[str]) -> None:
-        self.clear()
-        allDims = self.entries + list(dims)
-        for d in allDims:
-            self.addItem(d)
-
-    @Slot(str)
-    @emitGuiUpdate('dimensionSelected')
-    def signalDimensionSelection(self, val: str) -> str:
-        return val
-
-
-class AxisSelector(FormLayoutWrapper):
-
-    def __init__(self, parent: Optional[QtWidgets.QWidget] = None):
-        super().__init__(
-            parent=parent,
-            elements=[('Axis', DimensionCombo(dimensionType='axes'))],
-        )
 
 
 class SubtractAverageWidget(NodeWidget):

@@ -12,13 +12,16 @@ def test_basic_flowchart_and_nodes(qtbot):
     fc.connectTerminals(fc['dataIn'], node['dataIn'])
     fc.connectTerminals(node['dataOut'], fc['dataOut'])
 
-    fc.setInput(dataIn='abcdef')
-    assert fc.outputValues() == dict(dataOut='abcdef')
+    data = DataDict(
+        data=dict(values=[1, 2, 3])
+    )
+    assert data.validate()
+
+    fc.setInput(dataIn=data)
+    assert fc.outputValues() == dict(dataOut=data)
 
     for i in range(3):
         lst = [(f'node{j}', Node) for j in range(i)]
         fc = linearFlowchart(*lst)
-        fc.setInput(dataIn='abcdef')
-        assert fc.outputValues() == dict(dataOut='abcdef')
-
-# def test_
+        fc.setInput(dataIn=data)
+        assert fc.outputValues() == dict(dataOut=data)

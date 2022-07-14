@@ -185,4 +185,3 @@ class DataSelector(Node):
         assert self.ui is not None
         self.newDataStructure.connect(self.ui.setData)
         self.dataShapesChanged.connect(self.ui.setShape)
-
