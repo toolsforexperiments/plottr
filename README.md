@@ -58,11 +58,14 @@ You might want to install freshly if you still use the old version.
 
 # Recent changes:
 
-## not yet released
+See the [plottr GitHub Releases page](https://github.com/toolsforexperiments/plottr/releases) for versions and their changelogs
+
+## v0.10.0 2022-07-14
 
 ### Added 
 
 - added a generalized way for fitting data (or similar procedures that generate analysis parameters from datasets) (#293)
+- ... and more, see here https://github.com/toolsforexperiments/plottr/releases/tag/v0.10.0
 
 ## v0.9.1 2022-01-12
 
