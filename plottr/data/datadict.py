@@ -853,7 +853,7 @@ class DataDict(DataDictBase):
             return self.copy()
 
         ishp = self._inner_shapes()
-        size = max([np.prod(s) for s in ishp.values()])
+        size = max([int(np.prod(s)) for s in ishp.values()])
 
         for k, v in self.data_items():
             reps = size // np.prod(ishp[k])
