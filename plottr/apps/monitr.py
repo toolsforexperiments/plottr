@@ -166,7 +166,7 @@ class ContentType(Enum):
             return ContentType.json
         elif extension == 'md':
             return ContentType.md
-        elif extension == 'jpg' or extension == 'jpeg' or extension == 'png':
+        elif extension == 'jpg' or extension == 'jpeg' or extension == 'png' or extension == 'image':
             return ContentType.image
         else:
             return ContentType.unknown
@@ -960,6 +960,80 @@ class Item(QtGui.QStandardItem):
                 del model.main_dictionary[self.path]
                 parent.removeRow(self.row())
 
+    def create_tags(self) -> None:
+        """
+        Creates the tags widget. When filtering the widgets gets deleted.
+        """
+        # Deleting the tags_widget widget.
+        self.tags_widget = None  # type: ignore[assignment] # This variable gets re populated immediately afterwards.
+        self.tags_widget = ItemTagLabel(self.tags)
+
+    def match(self, queries_dict: Dict[str, List[str]]) -> bool:
+        """
+        Checks if this item matches the queries passed in the queries_dict. To determine the match a regex check is
+        performed either on the path of the items (for 'names' queries) or agaisnt all of the files inside the Item
+        (for every other type of query). If the Item contains any children, it will perform the same check for all of
+        its children recursively. If any of its children matches, this Item will match too.
+
+        :param queries_dict: Dictionary with the queries. The keys for the dictionary should be the different values
+            of ContentType in the form of strings, with the exception of the key 'names' (this is to match the path
+            of the item, not its files). E.g.:
+
+                queries_dict = {'tag': ["invalid data"],
+                                'md': [],
+                                'image': ["plot"],
+                                'json': [],
+                                'name': []}
+
+                The item will pass this check if it has a tag file whose name passes a regex check agaisnt
+                "invalid data" and an image file whose name passes a regex check agaisnt "plot".
+        """
+        # Check the children first.
+        children_matches = []
+        if self.hasChildren():
+            for i in range(self.rowCount()):
+                child = self.child(i, 0)
+                assert isinstance(child, Item)
+                children_matches.append(child.match(queries_dict))
+        # If any children passes, this item passes too.
+        if True in children_matches:
+            return True
+
+        # Start the check for this item
+
+        # Checks specifically for the path name.
+        if len(queries_dict['name']) > 0:
+            name_matches = [re.compile(query, flags=re.IGNORECASE).search(str(self.path)) for query in
+                            queries_dict['name']]
+            if None in name_matches:
+                return False
+
+        # Check the rest of the files.
+        if self.files:
+            for file_types, queries in queries_dict.items():
+                if file_types != 'name':
+                    if len(queries) > 0:
+                        sorted_type = ContentType.sort(file_types)
+                        # Get all the matches
+                        matches = [re.compile(query, flags=re.IGNORECASE).search(str(file.name)) for file, file_type in
+                                   self.files.items() for query in queries if file_type == sorted_type]
+
+                        # Convert the matches into booleans and count them
+                        n_matches = 0
+                        for match in matches:
+                            if match:
+                                n_matches += 1
+
+                        # Multiple files can pass the same query, meaning that the true counts might be higher than the
+                        # length of queries.
+                        if n_matches < len(queries):
+                            return False
+            return True
+
+        # TODO: Make sure this is correct.
+        # If it has no files, it fails the check
+        return False
+
 
 class FileModel(QtGui.QStandardItemModel):
     """
@@ -1138,6 +1212,7 @@ class FileModel(QtGui.QStandardItemModel):
                 self.sort_and_add_item(path.parent, new_files_dict)
                 parent = self.main_dictionary[path.parent]
                 # Send signal indicating that current folder requires update
+            # TODO: Play with deleting files while you have a the folder selected, this line seem to crash.
             if self.currently_selected_folder is not None and parent.path.is_relative_to(
                     self.currently_selected_folder):
                 self.update_me.emit(parent.path)
@@ -1443,13 +1518,143 @@ class FileModel(QtGui.QStandardItemModel):
         self.adjust_width.emit()
 
 
+class SortFilterProxyModel(QtCore.QSortFilterProxyModel):
+
+    # Signal() -- Emitted when the current filter changed.
+    filter_triggered = Signal()
+
+    def __init__(self, parent: Optional[QtCore.QObject] = None):
+        """
+        QSortFilterProxyModel with our custom filtering and stars and trash. The parent status always overrides
+        the children status, e.g.: If a parent is trash but its children are not, the parent with the children will be
+        hidden.
+        """
+        super().__init__(parent=parent)
+
+        self.only_star = False
+        self.hide_trash = False
+
+        self.queries_dict: Optional[Dict[str, List[str]]] = None
+
+    def star_trash_toggle(self, star_status: bool, trash_status: bool) -> None:
+        """
+        Updates the star and trash status and triggers a filter.
+
+        :param star_status: The new star status. True for showing only starred items.
+        :param trash_status: The new trash status. True for hiding all stars.
+        """
+        self.only_star = star_status
+        self.hide_trash = trash_status
+        self.trigger_filter()
+
+    def filter_text_changed(self, queries_dict: Optional[Dict[str, List[str]]]) -> None:
+        """
+        Gets called every time the filter text edit changes and triggers and update.
+
+        :queries_dict: The dictionary with the queries. Same structure as Item.match().
+        """
+        self.queries_dict = queries_dict
+        self.trigger_filter()
+
+
+    def filterAcceptsRow(self, source_row: int, source_parent: QtCore.QModelIndex) -> bool:
+        """
+        Override of the QSortFilterProxyModel. Our custom filtering needs are implemented here.
+        Checks wether or not to show the item.
+
+        :param source_row: The row of the item.
+        :param source_parent: The index of the parent of the item.
+        :returns: `True` if the item should be shown or `False` if the item should be hidden.
+        """
+        # Get the item
+        source_model = self.sourceModel()
+        assert isinstance(source_model, FileModel)
+        parent_item = source_model.itemFromIndex(source_parent)
+        if parent_item is None:
+            item = source_model.item(source_row, 0)
+        else:
+            item = parent_item.child(source_row, 0)
+        assert isinstance(item, Item)
+
+        # Check if it passes the current queries.
+        if self.queries_dict is not None:
+            if not item.match(self.queries_dict):
+                return False
+
+        # Checks for star or trash status
+        if self.only_star and item.star:
+            return True
+        elif self.only_star and not item.star:
+            # Checks if their children should be shown, so that this item gets shown too.
+            if item.hasChildren():
+                if not self.hide_trash:
+                    return self._check_children_filter(item)
+                elif not item.trash:
+                    return self._check_children_filter(item)
+
+            # If a parent is star, shows the children items too.
+            if self._check_parent_filter(item):
+                return True
+            return False
+        elif self.hide_trash and not item.trash:
+            return True
+        elif self.hide_trash and item.trash:
+            return False
+        else:
+            return True
+
+    def _check_children_filter(self, item: Item) -> bool:
+        """
+        Helper function, recursively checks if any of the children of item should be shown.
+
+        :param item: The item who's children should be checked.
+        :return: True if it should be shown, False otherwise.
+        """
+        for i in range(item.rowCount()):
+            child = item.child(i, 0)
+            assert isinstance(child, Item)
+            if child.hasChildren():
+                childs_children_check = self._check_children_filter(child)
+                if childs_children_check:
+                    return True
+            if self.only_star and child.star:
+                return True
+        return False
+
+    def _check_parent_filter(self, item: Item) -> bool:
+        """
+        Checks if a parent of the item is starred and star only is is True.
+
+        :param item: The item who's children should be checked.
+        :return: True if it should be shown, False otherwise.
+        """
+        parent = item.parent()
+        if parent is not None:
+            keep_going = True
+            while keep_going:
+                assert isinstance(parent, Item)
+                if self.only_star and parent.star:
+                    return True
+                parent = parent.parent()
+                if parent is None:
+                    keep_going = False
+        return False
+
+    def trigger_filter(self) -> None:
+        """
+        Convenience function for invalidating the filter and triggering the filter_triggered signal.
+        """
+        self.invalidateFilter()
+        self.filter_triggered.emit()
+
+
 # TODO: Figure out the parent situation going on here.
 class FileExplorer(QtWidgets.QWidget):
     """
     Helper widget to unify the FileTree with the line edit and status buttons.
     """
 
-    def __init__(self, proxy_model: QtCore.QSortFilterProxyModel, parent: Optional[Any]=None,
+    def __init__(self, proxy_model: SortFilterProxyModel, parent: Optional[Any]=None,
                  *args: Any, **kwargs: Any):
         super().__init__(parent=parent, *args, **kwargs)  # type: ignore[misc] # I suspect this error comes from having parent possibly be a kwarg too.
 
@@ -1488,27 +1693,81 @@ class FileExplorer(QtWidgets.QWidget):
         self.main_layout.addWidget(self.file_tree)
         self.main_layout.addLayout(self.bottom_buttons_layout)
 
-        self.star_button.clicked.connect(self.star_button_clicked)
-        self.trash_button.clicked.connect(self.trash_button_clicked)
+        self.star_button.clicked.connect(self.star_trash_clicked)
+        self.trash_button.clicked.connect(self.star_trash_clicked)
         self.expand_button.clicked.connect(self.file_tree.expandAll)
         self.collapse_button.clicked.connect(self.file_tree.collapseAll)
 
+        self.filter_line_edit.textChanged.connect(self.on_filter_line_edit_text_change)
+
 
     @Slot()
-    def star_button_clicked(self) -> None:
+    def star_trash_clicked(self) -> None:
         """
         Updates the status of the buttons to the FileTree.
         """
-        # self.file_tree.update_filter_status(self.star_button.isChecked(), self.trash_button.isChecked())
-        pass
+        self.proxy_model.star_trash_toggle(self.star_button.isChecked(), self.trash_button.isChecked())
 
-    @Slot()
-    def trash_button_clicked(self) -> None:
+    @Slot(str)
+    def on_filter_line_edit_text_change(self, filter_str: str) -> None:
         """
-        Updates the status of the buttons to the FileTree.
+        Gets called everytime the filter line edit changes texts. Process the text in the line edit, separtes them into
+        the different queries and triggers the filtering in the proxy model.
+
+        Queries are separated by commas (','). Empty queries or composed of only
+        a single whitespace are ignored. It also ignores the first character of a query if this is a whitespace.
+
+        It accepts 5 kinds of queries:
+            * tags: queries starting with, 'tag:', 't:', or 'T:'.
+            * Markdown files: queries starting with, 'md:', 'm:', or 'M:'.
+            * Images: queries starting with, 'image:', 'i:', or 'I:'.
+            * Json files: queries starting with, 'json:', 'j:', or 'J:'.
+            * Folder names: any other query.
+
+        :param filter_str: The str that is currently in the filter line text edit.
         """
-        pass
-        # self.file_tree.update_filter_status(self.star_button.isChecked(), self.trash_button.isChecked())
+        raw_queries = filter_str.split(',')
+        queries_with_empty_spaces = [item[1:] if len(item) >= 1 and item[0] == " " else item for item in raw_queries]
+        queries = [item for item in queries_with_empty_spaces if item != '' and item != ' ']
+
+        if len(queries) == 0:
+            queries_dict = None
+            self.proxy_model.filter_text_changed(queries_dict)
+            return
+
+        tag_queries = []
+        md_queries = []
+        image_queries = []
+        json_queries = []
+        name_queries = []
+        for query in queries:
+            if query != '':
+                if query[:4] == 'tag:':
+                    tag_queries.append(query[4:])
+                elif query[:2] == 't:' or query[:2] == 'T:':
+                    tag_queries.append(query[2:])
+                elif query[:3] == 'md:':
+                    md_queries.append(query[3:])
+                elif query[:2] == 'm:' or query[:2] == 'M:':
+                    md_queries.append(query[2:])
+                elif query[:6] == 'image:':
+                    image_queries.append(query[6:])
+                elif query[:2] == 'i:' or query[:2] == 'I:':
+                    image_queries.append(query[2:])
+                elif query[:5] == 'json:':
+                    json_queries.append(query[5:])
+                elif query[:2] == 'j:' or query[:2] == 'J:':
+                    json_queries.append(query[2:])
+                else:
+                    name_queries.append(query)
+
+            queries_dict = {'tag': tag_queries,
+                            'md': md_queries,
+                            'image': image_queries,
+                            'json': json_queries,
+                            'name': name_queries, }
+
+        self.proxy_model.filter_text_changed(queries_dict)
 
 
 # TODO: Right now the data display only updates when you click on the parent folder. What happens if data is created
@@ -3142,7 +3401,7 @@ class FileTreeView(QtWidgets.QTreeView):
     #:  - The index of the currently selected item.
     item_deleted = Signal(QtCore.QModelIndex)
 
-    def __init__(self, proxy_model: QtCore.QSortFilterProxyModel, parent: Optional[Any] = None):
+    def __init__(self, proxy_model: SortFilterProxyModel, parent: Optional[Any] = None):
         """
         The TreeView used in the FileExplorer widget.
         """
@@ -3165,6 +3424,7 @@ class FileTreeView(QtWidgets.QTreeView):
         self.star_action.triggered.connect(self.on_emit_item_starred)
         self.trash_action.triggered.connect(self.on_emit_item_trashed)
         self.delete_action.triggered.connect(self.on_emit_item_delete)
+        self.proxy_model.filter_triggered.connect(self.set_all_tags)
 
         self.setContextMenuPolicy(QtCore.Qt.CustomContextMenu)
         self.customContextMenuRequested.connect(self.on_context_menu_requested)
@@ -3182,6 +3442,7 @@ class FileTreeView(QtWidgets.QTreeView):
             item = self.model_.item(i, 0)
             if item is not None and isinstance(item, Item):
                 self._set_widget_for_item_and_children(item)
+        self.on_adjust_column_width()
 
     def _set_widget_for_item_and_children(self, item: Item) -> None:
         """
@@ -3198,6 +3459,7 @@ class FileTreeView(QtWidgets.QTreeView):
 
         tags_index = self.model_.indexFromItem(tags_item)
         proxy_tag_index = self.proxy_model.mapFromSource(tags_index)
+        item.create_tags()  # The tags get created every time because they get deleted after filtering.
         self.setIndexWidget(proxy_tag_index, item.tags_widget)
         if item.hasChildren():
             for i in range(item.rowCount()):
@@ -3301,7 +3563,7 @@ class Monitr(QtWidgets.QMainWindow):
 
         self.model = FileModel(self.monitor_path, 0, 2)
         self.model.update_me.connect(self.on_update_right_side_window)
-        self.proxy_model = QtCore.QSortFilterProxyModel(parent=self)  # Used for filtering.
+        self.proxy_model = SortFilterProxyModel(parent=self)  # Used for filtering.
         self.proxy_model.setSourceModel(self.model)
 
         # Setting up main window
@@ -3398,6 +3660,7 @@ class Monitr(QtWidgets.QMainWindow):
         print('---------------------------------------------------------------------------------')
         print(f'Here comes the model main dictionary')
         pprint.pprint(self.model.main_dictionary)
+        print(f'the length of the items in the main dictionary is: {len(self.model.main_dictionary)}')
 
     def extra_action(self) -> None:
         """
@@ -3428,15 +3691,16 @@ class Monitr(QtWidgets.QMainWindow):
         current_item = self.model.itemFromIndex(current_model_index)
         previous_item = self.model.itemFromIndex(previous_model_index)
 
-        assert isinstance(current_item, Item)
-        self.current_selected_folder = current_item.path
-        self.model.update_currently_selected_folder(self.current_selected_folder)
-        # The first time the user clicks on a folder, the previous item is None.
-        if previous_item is not None:
-            assert isinstance(previous_item, Item)
-            self.previous_selected_folder = previous_item.path
+        if current_item is not None:
+            assert isinstance(current_item, Item)
+            self.current_selected_folder = current_item.path
+            self.model.update_currently_selected_folder(self.current_selected_folder)
+            # The first time the user clicks on a folder, the previous item is None.
+            if previous_item is not None:
+                assert isinstance(previous_item, Item)
+                self.previous_selected_folder = previous_item.path
 
-        self.generate_right_side_window()
+            self.generate_right_side_window()
 
     def generate_right_side_window(self) -> None:
         """
@@ -3507,7 +3771,6 @@ class Monitr(QtWidgets.QMainWindow):
             self.text_input = None
 
         if len(self.file_windows) >= 1:
-
             # Save the collapsed state before deleting them.
             current_collapsed_state = {window.widget.path: window.btn.isChecked() for window in self.file_windows if  # type: ignore[attr-defined] # The hasattr already checks if the widget has a path attribute.
                                        hasattr(window.widget,
