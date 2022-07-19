@@ -226,20 +226,19 @@ class Item(QtGui.QStandardItem):
         """
         file_type = ContentType.sort(path)
         self.files.pop(path)
-
         if file_type == ContentType.tag:
             if path.stem in self.tags:
                 self.tags.remove(path.stem)
                 self.tags_widget.delete_tag(path.stem)
 
-                if path.name == '__star__.tag':
-                    self.star = False
-                elif path.name == '__trash__.tag':
-                    self.trash = False
+            if path.name == '__star__.tag':
+                self.star = False
+            elif path.name == '__trash__.tag':
+                self.trash = False
 
-                model = self.model()
-                assert isinstance(model, FileModel)
-                model.tags_changed(self)
+            model = self.model()
+            assert isinstance(model, FileModel)
+            model.tags_changed(self)
 
     def change_path(self, path: Path) -> None:
         """Changes the internal path of the item as welll as the text of it."""
@@ -482,11 +481,11 @@ class FileModel(QtGui.QStandardItemModel):
         tags_item = QtGui.QStandardItem()
 
         if item.star:
-            tags_item.setIcon(get_star_icon())
+            item.setIcon(get_star_icon())
         elif item.trash:
-            tags_item.setIcon(get_trash_icon())
+            item.setIcon(get_trash_icon())
         else:
-            tags_item.setIcon(QtGui.QIcon())
+            item.setIcon(QtGui.QIcon())
 
         self.main_dictionary[folder_path] = item
         if parent_path is None:
@@ -810,19 +809,12 @@ class FileModel(QtGui.QStandardItemModel):
 
         :param item: The Item that had its tags changed.
         """
-        parent = item.parent()
-        if parent is None:
-            row = item.row()
-            item_column_1 = self.item(row, 1)
-        else:
-            item_column_1 = parent.child(item.row(), 1)
-
         if item.star:
-            item_column_1.setIcon(get_star_icon())
+            item.setIcon(get_star_icon())
         elif item.trash:
-            item_column_1.setIcon(get_trash_icon())
+            item.setIcon(get_trash_icon())
         else:
-            item_column_1.setIcon(QtGui.QIcon())
+            item.setIcon(QtGui.QIcon())
 
         self.adjust_width.emit()
 
@@ -886,44 +878,48 @@ class SortFilterProxyModel(QtCore.QSortFilterProxyModel):
             item = source_model.item(source_row, 0)
         else:
             item = parent_item.child(source_row, 0)
-        assert isinstance(item, Item)
 
-        # Check if it passes the current queries.
-        if self.queries_dict is not None:
-            if not item.match(self.queries_dict):
-                item.show = False
-                return False
+        if not item is None:
+            assert isinstance(item, Item)
 
-        # Checks for star or trash status
-        if self.only_star and item.star:
-            item.show = True
-            return True
-        elif self.only_star and not item.star:
-            # Checks if their children should be shown, so that this item gets shown too.
-            if item.hasChildren():
-                if not self.hide_trash:
-                    ret = self._check_children_filter(item)
-                    item.show = ret
-                    return ret
-                elif not item.trash:
-                    ret = self._check_children_filter(item)
-                    item.show = ret
-                    return ret
-            # If a parent is star, shows the children items too.
-            if self._check_parent_filter(item):
+            # Check if it passes the current queries.
+            if self.queries_dict is not None:
+                if not item.match(self.queries_dict):
+                    item.show = False
+                    return False
+
+            # Checks for star or trash status
+            if self.only_star and item.star:
                 item.show = True
                 return True
-            item.show = False
-            return False
-        elif self.hide_trash and not item.trash:
-            item.show = True
-            return True
-        elif self.hide_trash and item.trash:
-            item.show = False
-            return False
-        else:
-            item.show = True
-            return True
+            elif self.only_star and not item.star:
+                # Checks if their children should be shown, so that this item gets shown too.
+                if item.hasChildren():
+                    if not self.hide_trash:
+                        ret = self._check_children_filter(item)
+                        item.show = ret
+                        return ret
+                    elif not item.trash:
+                        ret = self._check_children_filter(item)
+                        item.show = ret
+                        return ret
+                # If a parent is star, shows the children items too.
+                if self._check_parent_filter(item):
+                    item.show = True
+                    return True
+                item.show = False
+                return False
+            elif self.hide_trash and not item.trash:
+                item.show = True
+                return True
+            elif self.hide_trash and item.trash:
+                item.show = False
+                return False
+            else:
+                item.show = True
+                return True
+
+        return False
 
     def _check_children_filter(self, item: Item) -> bool:
         """
@@ -1024,6 +1020,7 @@ class FileTreeView(QtWidgets.QTreeView):
 
         self.setUniformRowHeights(True)
         self.setSortingEnabled(True)
+        self.header().setStretchLastSection(True)
 
         self.setModel(self.proxy_model)
 
@@ -1317,6 +1314,16 @@ class FileExplorer(QtWidgets.QWidget):
         self.proxy_model.filter_text_changed(queries_dict)
 
 
+class DataTreeWidgetItem(QtWidgets.QTreeWidgetItem):
+    """
+    Modified class of QtWidgets.QTreeWidgetItem where the only modification is the addition of the path parameter.
+    :param path: The path this QTreeWidgetItem represents.h.
+    """
+
+    def __init__(self, path: Path, *args: Any, **kwargs: Any):
+        super(DataTreeWidgetItem, self).__init__(*args, **kwargs)
+        self.path = path
+
 # TODO: Right now the data display only updates when you click on the parent folder. What happens if data is created
 #   while the folder display is open. It should absolutely update.
 class DataTreeWidget(QtWidgets.QTreeWidget):
@@ -1378,7 +1385,7 @@ class DataTreeWidget(QtWidgets.QTreeWidget):
         """
 
         for index, data in enumerate(self.data):
-            parent_tree_widget = TreeWidgetItem(self.paths[index], None, False, False, self, [self.names[index]])
+            parent_tree_widget = DataTreeWidgetItem(self.paths[index], self, [self.names[index]])
 
             data_parent = QtWidgets.QTreeWidgetItem(parent_tree_widget, ['Data'])
             meta_parent = QtWidgets.QTreeWidgetItem(parent_tree_widget, ['Meta'])
@@ -1425,7 +1432,7 @@ class DataTreeWidget(QtWidgets.QTreeWidget):
         the current selected item as an argument.
         """
         current_item = self.currentItem()
-        assert isinstance(current_item, TreeWidgetItem)
+        assert isinstance(current_item, DataTreeWidgetItem)
         self.plot_requested.emit(current_item.path)
 
     def sizeHint(self) -> QtCore.QSize:
@@ -2035,7 +2042,7 @@ class Monitr(QtWidgets.QMainWindow):
 
         # Set left side layout
         self.left_side_layout = QtWidgets.QVBoxLayout()
-        self.left_side_dummy_widget = QtWidgets.QTreeWidget()
+        self.left_side_dummy_widget = QtWidgets.QWidget()
         self.left_side_dummy_widget.setLayout(self.left_side_layout)
 
         left_side_dummy_size_ploicy = QtWidgets.QSizePolicy(QtWidgets.QSizePolicy.Preferred,
@@ -2066,17 +2073,17 @@ class Monitr(QtWidgets.QMainWindow):
         self.invalid_data_label: Optional[QtWidgets.QLabel] = None
 
         # Debug items
-        self.debug_layout = QtWidgets.QHBoxLayout()
-        self.model_button = QtWidgets.QPushButton(f'Print model data')
-        self.model_main_dictionary_button = QtWidgets.QPushButton('Print model main dictionary')
-        self.extra_action_button = QtWidgets.QPushButton('Extra action')  # For when you want to trigger a specific thing.
-        self.debug_layout.addWidget(self.model_button)
-        self.debug_layout.addWidget(self.model_main_dictionary_button)
-        self.debug_layout.addWidget(self.extra_action_button)
-        self.model_button.clicked.connect(self.print_model_data)
-        self.model_main_dictionary_button.clicked.connect(self.print_model_main_dictionary)
-        self.extra_action_button.clicked.connect(self.extra_action)
-        self.left_side_layout.addLayout(self.debug_layout)
+        # self.debug_layout = QtWidgets.QHBoxLayout()
+        # self.model_button = QtWidgets.QPushButton(f'Print model data')
+        # self.model_main_dictionary_button = QtWidgets.QPushButton('Print model main dictionary')
+        # self.extra_action_button = QtWidgets.QPushButton('Extra action')  # For when you want to trigger a specific thing.
+        # self.debug_layout.addWidget(self.model_button)
+        # self.debug_layout.addWidget(self.model_main_dictionary_button)
+        # self.debug_layout.addWidget(self.extra_action_button)
+        # self.model_button.clicked.connect(self.print_model_data)
+        # self.model_main_dictionary_button.clicked.connect(self.print_model_main_dictionary)
+        # self.extra_action_button.clicked.connect(self.extra_action)
+        # self.left_side_layout.addLayout(self.debug_layout)
 
 
         self.main_partition_splitter.addWidget(self.left_side_dummy_widget)
@@ -2187,7 +2194,8 @@ class Monitr(QtWidgets.QMainWindow):
             self.add_tag_label(files_meta['tag_labels'])
             self.add_data_window(files_meta['data_files'])
             self.add_text_input(self.current_selected_folder)
-            self.add_all_files(files_meta['extra_files']['paths'], files_meta['extra_files']['names'], files_meta['extra_files']['type'])
+            self.add_all_files(files_meta['extra_files']['paths'], files_meta['extra_files']['names'],
+                               files_meta['extra_files']['type'])
 
             # Sets the stretch factor so when the main window expands, the files get the extra real-state instead
             # of the file tree
@@ -2386,7 +2394,7 @@ class Monitr(QtWidgets.QMainWindow):
         assert isinstance(self.data_window.widget, DataTreeWidget)
         self.data_window.widget.plot_requested.connect(self.on_plot_data)
 
-        size_policy = QtWidgets.QSizePolicy(QtWidgets.QSizePolicy.Minimum, QtWidgets.QSizePolicy.Expanding)
+        size_policy = QtWidgets.QSizePolicy(QtWidgets.QSizePolicy.Expanding, QtWidgets.QSizePolicy.Expanding)
         self.data_window.setSizePolicy(size_policy)
 
         self.right_side_layout.addWidget(self.data_window)
