@@ -1004,31 +1004,38 @@ class Item(QtGui.QStandardItem):
 
         # Checks specifically for the path name.
         if len(queries_dict['name']) > 0:
-            name_matches = [re.compile(query, flags=re.IGNORECASE).search(str(self.path)) for query in
-                            queries_dict['name']]
-            if None in name_matches:
-                return False
+            try:
+                name_matches = [re.compile(query, flags=re.IGNORECASE).search(str(self.path)) for query in
+                                queries_dict['name']]
+                if None in name_matches:
+                    return False
+            except re.error as e:
+                logger().error(f'Regex matching failed: {e}')
 
         # Check the rest of the files.
         if self.files:
+
             for file_types, queries in queries_dict.items():
                 if file_types != 'name':
-                    if len(queries) > 0:
-                        sorted_type = ContentType.sort(file_types)
-                        # Get all the matches
-                        matches = [re.compile(query, flags=re.IGNORECASE).search(str(file.name)) for file, file_type in
-                                   self.files.items() for query in queries if file_type == sorted_type]
+                    try:
+                        if len(queries) > 0:
+                            sorted_type = ContentType.sort(file_types)
+                            # Get all the matches
+                            matches = [re.compile(query, flags=re.IGNORECASE).search(str(file.name)) for file, file_type in
+                                       self.files.items() for query in queries if file_type == sorted_type]
 
-                        # Convert the matches into booleans and count them
-                        n_matches = 0
-                        for match in matches:
-                            if match:
-                                n_matches += 1
+                            # Convert the matches into booleans and count them
+                            n_matches = 0
+                            for match in matches:
+                                if match:
+                                    n_matches += 1
 
-                        # Multiple files can pass the same query, meaning that the true counts might be higher than the
-                        # length of queries.
-                        if n_matches < len(queries):
-                            return False
+                            # Multiple files can pass the same query, meaning that the true counts might be higher than the
+                            # length of queries.
+                            if n_matches < len(queries):
+                                return False
+                    except re.error as e:
+                        logger().error(f'Regex matching failed: {e}')
             return True
 
         # TODO: Make sure this is correct.
