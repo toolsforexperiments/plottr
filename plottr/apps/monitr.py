@@ -863,8 +863,10 @@ class Item(QtGui.QStandardItem):
                     self.tags.remove('__trash__')
             elif '__star__' in self.tags:
                 self.star = True
+                self.tags.remove('__star__')
             elif '__trash__' in self.tags:
                 self.trash = True
+                self.tags.remove('__trash__')
             self.tags_widget = ItemTagLabel(self.tags)
 
         self.setText(str(self.path.name))
@@ -908,9 +910,9 @@ class Item(QtGui.QStandardItem):
                     return
                 else:
                     self.trash = True
-
-            self.tags.append(path.stem)
-            self.tags_widget.add_tag(path.stem)
+            else:
+                self.tags.append(path.stem)
+                self.tags_widget.add_tag(path.stem)
 
             model = self.model()
             assert isinstance(model, FileModel)
@@ -1021,8 +1023,8 @@ class Item(QtGui.QStandardItem):
                         if len(queries) > 0:
                             sorted_type = ContentType.sort(file_types)
                             # Get all the matches
-                            matches = [re.compile(query, flags=re.IGNORECASE).search(str(file.name)) for file, file_type in
-                                       self.files.items() for query in queries if file_type == sorted_type]
+                            matches = [re.compile(query, flags=re.IGNORECASE).search(str(file.name)) for file, file_type
+                                       in self.files.items() for query in queries if file_type == sorted_type]
 
                             # Convert the matches into booleans and count them
                             n_matches = 0
