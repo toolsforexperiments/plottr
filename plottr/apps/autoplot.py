@@ -363,13 +363,12 @@ def autoplotDDH5(filepath: str = '', groupname: str = 'data') \
     win = AutoPlotMainWindow(fc, loaderName='Data loader',
                              widgetOptions=widgetOptions,
                              monitor=True,
-                             monitorInterval=5.0)
+                             monitorInterval=0.0)
     win.show()
 
     fc.nodes()['Data loader'].filepath = filepath
     fc.nodes()['Data loader'].groupname = groupname
     win.refreshData()
-    win.setMonitorInterval(5.0)
 
     return fc, win
 
