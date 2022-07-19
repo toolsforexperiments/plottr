@@ -847,6 +847,7 @@ class Item(QtGui.QStandardItem):
         self.star = False
         self.trash = False
         self.scroll_height = 0
+        self.show = True
         if files is not None:
             self.files.update(files)
             self.tags = [file.stem for file, file_type in self.files.items() if file_type == ContentType.tag]
@@ -1520,8 +1521,11 @@ class FileModel(QtGui.QStandardItemModel):
 
 class SortFilterProxyModel(QtCore.QSortFilterProxyModel):
 
-    # Signal() -- Emitted when the current filter changed.
-    filter_triggered = Signal()
+    # Signal() -- Emitted before filtering is going to happen.
+    filter_incoming = Signal()
+
+    # Signal() -- Emitted when the filtering has finished.
+    filter_finished = Signal()
 
     def __init__(self, parent: Optional[QtCore.QObject] = None):
         """
@@ -1579,28 +1583,38 @@ class SortFilterProxyModel(QtCore.QSortFilterProxyModel):
         # Check if it passes the current queries.
         if self.queries_dict is not None:
             if not item.match(self.queries_dict):
+                item.show = False
                 return False
 
         # Checks for star or trash status
         if self.only_star and item.star:
+            item.show = True
             return True
         elif self.only_star and not item.star:
             # Checks if their children should be shown, so that this item gets shown too.
             if item.hasChildren():
                 if not self.hide_trash:
-                    return self._check_children_filter(item)
+                    ret = self._check_children_filter(item)
+                    item.show = ret
+                    return ret
                 elif not item.trash:
-                    return self._check_children_filter(item)
-
+                    ret = self._check_children_filter(item)
+                    item.show = ret
+                    return ret
             # If a parent is star, shows the children items too.
             if self._check_parent_filter(item):
+                item.show = True
                 return True
+            item.show = False
             return False
         elif self.hide_trash and not item.trash:
+            item.show = True
             return True
         elif self.hide_trash and item.trash:
+            item.show = False
             return False
         else:
+            item.show = True
             return True
 
     def _check_children_filter(self, item: Item) -> bool:
@@ -1644,8 +1658,9 @@ class SortFilterProxyModel(QtCore.QSortFilterProxyModel):
         """
         Convenience function for invalidating the filter and triggering the filter_triggered signal.
         """
+        self.filter_incoming.emit()
         self.invalidateFilter()
-        self.filter_triggered.emit()
+        self.filter_finished.emit()
 
 
 # TODO: Figure out the parent situation going on here.
@@ -3411,6 +3426,7 @@ class FileTreeView(QtWidgets.QTreeView):
         model = proxy_model.sourceModel()
         assert isinstance(model, FileModel)
         self.model_ = model
+        self.collapsed_state: Dict[Path, bool] = {}
         self.star_text = 'Star'
         self.un_star_text = 'Un-star'
         self.trash_text = 'Trash'
@@ -3424,7 +3440,8 @@ class FileTreeView(QtWidgets.QTreeView):
         self.star_action.triggered.connect(self.on_emit_item_starred)
         self.trash_action.triggered.connect(self.on_emit_item_trashed)
         self.delete_action.triggered.connect(self.on_emit_item_delete)
-        self.proxy_model.filter_triggered.connect(self.set_all_tags)
+        self.proxy_model.filter_incoming.connect(self.on_filter_incoming_event)
+        self.proxy_model.filter_finished.connect(self.on_filter_ended_event)
 
         self.setContextMenuPolicy(QtCore.Qt.CustomContextMenu)
         self.customContextMenuRequested.connect(self.on_context_menu_requested)
@@ -3433,6 +3450,21 @@ class FileTreeView(QtWidgets.QTreeView):
         self.setSortingEnabled(True)
 
         self.setModel(self.proxy_model)
+
+    @Slot()
+    def on_filter_incoming_event(self) -> None:
+        """
+        Gets called everytime the proxy model emmits the filter_incoming_event signal.
+        """
+        self.create_collapsed_state()
+
+    def on_filter_ended_event(self) -> None:
+        """
+        Gets called everytime the proxy model emmits the filter_ended_event signal.
+        The tags need to be reset after a filtering event happens.
+        """
+        self.set_all_tags()
+        self.restore_previous_collapsed_state()
 
     def set_all_tags(self) -> None:
         """
@@ -3547,6 +3579,44 @@ class FileTreeView(QtWidgets.QTreeView):
         :param previous: The QModelIndex of the previously selected item.
         """
         self.selection_changed.emit(current, previous)
+
+    def create_collapsed_state(self, incoming_item: Optional[Item] = None) -> None:
+        """
+        Updates the self.collapsed_state dictionary with the currently shown items.
+        Gets called recursively to update all items.
+        """
+        if incoming_item is None:
+            for i in range(self.model_.rowCount()):
+                item = self.model_.item(i, 0)
+                assert isinstance(item, Item)
+                # If the item is not shown, the collapsed setting don't change.
+                if item.show:
+                    source_index = self.model_.index(i, 0, QtCore.QModelIndex())
+                    index = self.proxy_model.mapFromSource(source_index)
+                    self.collapsed_state[item.path] = self.isExpanded(index)
+                    if item.hasChildren():
+                        self.create_collapsed_state(incoming_item=item)
+
+        else:
+            for i in range(incoming_item.rowCount()):
+                child = incoming_item.child(i, 0)
+                assert isinstance(child, Item)
+                # If the item is not shown, the collapsed setting don't change.
+                if child.show:
+                    source_index = self.model_.indexFromItem(child)
+                    child_index = self.proxy_model.mapFromSource(source_index)
+                    self.collapsed_state[child.path] = self.isExpanded(child_index)
+                    if child.hasChildren():
+                        self.create_collapsed_state(incoming_item=child)
+
+    def restore_previous_collapsed_state(self) -> None:
+        """
+        Sets every item in the collapsed_state dictionary the correct collapsed setting.
+        """
+        for path, state in self.collapsed_state.items():
+            source_index = self.model_.indexFromItem(self.model_.main_dictionary[path])
+            proxy_index = self.proxy_model.mapFromSource(source_index)
+            self.setExpanded(proxy_index, state)
 
 
 class Monitr(QtWidgets.QMainWindow):
@@ -3666,8 +3736,9 @@ class Monitr(QtWidgets.QMainWindow):
         """
         Miscellaneous button action. Used to trigger any specific action during testing.
         """
-        print(f'here comes the collapsed options')
-        pprint.pprint(self.collapsed_state_dictionary)
+        print(f'NOTHING HAPPENS HERE IS EMPTY SPACE')
+        print(f'\n \n \n \n \n \n \n \n \n \n \n \n .')
+
 
     @Slot(QtCore.QModelIndex, QtCore.QModelIndex)
     def on_current_item_selection_changed(self, current: QtCore.QModelIndex, previous: QtCore.QModelIndex) -> None:
@@ -4029,6 +4100,7 @@ class Monitr(QtWidgets.QMainWindow):
         """
         if path.is_relative_to(self.current_selected_folder):
             self.generate_right_side_window()
+
 
 def script() -> int:
     parser = argparse.ArgumentParser(description='Monitr main application')
