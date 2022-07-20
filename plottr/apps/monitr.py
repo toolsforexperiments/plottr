@@ -5,7 +5,6 @@ import os
 import argparse
 import time
 import importlib
-import copy
 
 # Uncomment the next 2 lines if the app sudenly crash with no error.
 # import cgitb
@@ -2220,8 +2219,7 @@ class Monitr(QtWidgets.QMainWindow):
             self.add_tag_label(files_meta['tag_labels'])
             self.add_data_window(files_meta['data_files'])
             self.add_text_input(self.current_selected_folder)
-            self.add_all_files(files_meta['extra_files']['paths'], files_meta['extra_files']['names'],
-                               files_meta['extra_files']['type'])
+            self.add_all_files(files_meta['extra_files'])
 
             # Sets the stretch factor so when the main window expands, the files get the extra real-state instead
             # of the file tree
@@ -2295,17 +2293,13 @@ class Monitr(QtWidgets.QMainWindow):
                     'data_files': {'paths': [Path],
                                    'names': [str],
                                    'data': [DataDict]},
-                    'extra_files': {'paths': [Path],
-                                    'names': [str],
-                                    'type': [ContentType]}}
+                    'extra_files': [(Path, str, ContentType)]}
         """
         data = {'tag_labels': [],
                 'data_files': {'paths': [],
                                'names': [],
                                'data': []},
-                'extra_files': {'paths': [],
-                                'names': [],
-                                'type': []}}
+                'extra_files': []}
 
         data = cls._fill_dict(data, item.files, '')
 
@@ -2314,6 +2308,9 @@ class Monitr(QtWidgets.QMainWindow):
             child = item.child(i, 0)
             assert isinstance(child, Item)
             data = cls._check_children_data(child, data, 1)
+
+        # Sort the files so that they appear in reverse alphabetical order.
+        data['extra_files'] = sorted(data['extra_files'], key=lambda x: str.lower(x[0].name), reverse=True)
         return data
 
     @classmethod
@@ -2342,9 +2339,9 @@ class Monitr(QtWidgets.QMainWindow):
                 except Exception as e:
                     logger().error(f'Failed to load the data file: {file} \n {e}')
             elif file_type == ContentType.json or file_type == ContentType.md or file_type == ContentType.image:
-                data_in['extra_files']['paths'].append(file)
-                data_in['extra_files']['names'].append(prefix_text + str(file.name))
-                data_in['extra_files']['type'].append(file_type)
+                # Check if the files exist.
+                if file.is_file():
+                    data_in['extra_files'].append((file, prefix_text + str(file.name), file_type))
         return data_in
 
     @classmethod
@@ -2446,18 +2443,14 @@ class Monitr(QtWidgets.QMainWindow):
         self.text_input = Collapsible(TextInput(path), title='Add Comment:')
         self.right_side_layout.addWidget(self.text_input)
 
-    def add_all_files(self, paths: List[Path], names: List[str], type: List[ContentType]) -> None:
+    def add_all_files(self, files_data: List[Tuple[Path, str, ContentType]]) -> None:
         """
         Adds all other md, json or images files on the right side of the screen.
 
-        :param file_dict: Dictionary containing 3 lists with the required infromation of all the files that should
-            be displayed in the right side window. The items of the 3 lists should be ordered such that a specific
-            index referes to the same file in all 3 lists. The format looks like this:
-                'extra_files': {'paths': [Path],
-                                'names': [str],
-                                'type': [ContentType]}
+        :param file_dict: List containing 3 items Tuples. The first item should always be the Path of the file.
+            The second item should be the name of the file. The third item should be the ContentType of it.
         """
-        for file, name, file_type in zip(paths, names, type):
+        for file, name, file_type in files_data:
             if file_type == ContentType.json:
 
                 expand = False
