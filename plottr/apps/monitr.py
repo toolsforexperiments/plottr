@@ -5,6 +5,7 @@ import os
 import argparse
 import time
 import importlib
+import copy
 
 # Uncomment the next 2 lines if the app sudenly crash with no error.
 # import cgitb
@@ -1777,35 +1778,60 @@ class ImageViewer(QtWidgets.QLabel):
     """
     def __init__(self, path_file: Path, *args: Any, **kwargs: Any):
         super().__init__(*args, **kwargs)
-
         self.path = path_file
+        parent = self.parent()
+        assert isinstance(parent, QtWidgets.QWidget)
+        self.old_size = parent.size()
+        self.old_pixmap = QtGui.QPixmap()
+        self.event_record: List[QtCore.QEvent] = []
+        self.rep_counter = 0
 
         try:
-            self.pixmap_ = QtGui.QPixmap(str(path_file))
-            self.original_height = self.pixmap_.height()
-            self.original_width = self.pixmap_.width()
-            self.setPixmap(self.pixmap_)
+            self.image = QtGui.QImage(str(path_file))
+            self.old_pixmap = QtGui.QPixmap.fromImage((self.image.copy(QtCore.QRect())))
+            self.setPixmap(self.old_pixmap)
 
         # except Exception as e:
         except FileNotFoundError as e:
-            self.setText(f'Image could not me displayed')
+            self.setText(f'Image could not be displayed')
             logger().error(e)
 
+        self.installEventFilter(self)
         self.setMinimumWidth(1)
 
-    def resizeEvent(self, event: QtGui.QResizeEvent) -> None:
-        super().resizeEvent(event)
-        self.scale_image()
-
-    def scale_image(self) -> None:
+    def eventFilter(self, a0: QtCore.QObject, a1: QtCore.QEvent) -> bool:
         """
-        Scales the image, gets called every time the widget changes size.
+        Custom implementation of eventFilter. Sometimes rezising the pixmap will trigger a rezising event that would
+        rezise the pixmap and so on. To fix this bug, we create this filter to detect that case and ignore one of those
+        events, stopping the loop. For attributes and return details see Qt official documentation.
         """
-        parent = self.parent()
-        assert isinstance(parent, QtWidgets.QWidget)
-        parent_width = parent.width()
+        self.event_record.append(a1)
+        if a1.type() == QtCore.QEvent.Resize:
+            # Checks if the infinite loop sequence has happen 100 times already
+            if self.rep_counter >= 100:
+                self.event_record = []
+                self.rep_counter = 0
+                return False
 
-        self.setPixmap(self.pixmap_.scaled(parent_width, parent_width, QtCore.Qt.KeepAspectRatio))
+            parent = self.parent()
+            assert isinstance(parent, QtWidgets.QWidget)
+            parent_size = parent.size()
+            scaled_pixmap = QtGui.QPixmap.fromImage(self.image.copy(QtCore.QRect())).scaled(parent_size.width(),
+                                                                                            parent_size.height(),                                                                                            QtCore.Qt.KeepAspectRatio)
+            # If a rezising event happen, only update the pixmap if the size of the pixmap changed.
+            if self.old_pixmap.size() != scaled_pixmap.size():
+                self.setPixmap(scaled_pixmap)
+                self.old_pixmap = scaled_pixmap
+
+
+                if len(self.event_record) >= 2:
+                    # Checking that the last 2 events are of the same type, this is what happens when the infinite loop
+                    # gets triggered.
+                    if self.event_record[-1].type() == self.event_record[-2].type():
+                        self.rep_counter += 1
+                        self.event_record = []
+
+        return super().eventFilter(a0, a1)
 
 
 class VerticalScrollArea(QtWidgets.QScrollArea):
