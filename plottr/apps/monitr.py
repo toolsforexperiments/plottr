@@ -1798,6 +1798,8 @@ class ImageViewer(QtWidgets.QLabel):
         self.installEventFilter(self)
         self.setMinimumWidth(1)
 
+    # FIXME: Instead of detecting when the infinite loop starts occuring and stopping it, figure out exaclty what starts
+    #   it and prevent it all together.
     def eventFilter(self, a0: QtCore.QObject, a1: QtCore.QEvent) -> bool:
         """
         Custom implementation of eventFilter. Sometimes rezising the pixmap will trigger a rezising event that would
@@ -1816,7 +1818,8 @@ class ImageViewer(QtWidgets.QLabel):
             assert isinstance(parent, QtWidgets.QWidget)
             parent_size = parent.size()
             scaled_pixmap = QtGui.QPixmap.fromImage(self.image.copy(QtCore.QRect())).scaled(parent_size.width(),
-                                                                                            parent_size.height(),                                                                                            QtCore.Qt.KeepAspectRatio)
+                                                                                            parent_size.height(),
+                                                                                            QtCore.Qt.KeepAspectRatio)
             # If a rezising event happen, only update the pixmap if the size of the pixmap changed.
             if self.old_pixmap.size() != scaled_pixmap.size():
                 self.setPixmap(scaled_pixmap)
@@ -2310,7 +2313,7 @@ class Monitr(QtWidgets.QMainWindow):
             data = cls._check_children_data(child, data, 1)
 
         # Sort the files so that they appear in reverse alphabetical order.
-        data['extra_files'] = sorted(data['extra_files'], key=lambda x: str.lower(x[0].name), reverse=True)
+        data['extra_files'] = sorted(data['extra_files'], key=lambda x: str.lower(x[1]), reverse=True)
         return data
 
     @classmethod
