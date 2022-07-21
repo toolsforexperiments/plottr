@@ -366,6 +366,12 @@ class FileModel(QtGui.QStandardItemModel):
     # Signal() -- Emitted when the model gets refreshed.
     model_refreshed = Signal()
 
+    # Signal() -- Emitted when data should be updated.
+    #: Arguments:
+    #:   - The path of the data file that should be updated.
+    update_data = Signal(Path)
+
+
     def __init__(self, monitor_path: str, rows: int, columns: int, parent: Optional[Any] = None):
         super().__init__(rows, columns, parent=parent)
         self.monitor_path = Path(monitor_path)
@@ -375,6 +381,8 @@ class FileModel(QtGui.QStandardItemModel):
         # The main dictionary has all the datasets (folders) Path as keys, with the actual item as its value.
         self.main_dictionary: Dict[Path, Item] = {}
         self.load_data()
+
+        self.modified_exceptions: List[Path] = []
 
         # Watcher setup with connected signals.
         self.watcher_thread = QtCore.QThread(parent=self)
@@ -502,7 +510,7 @@ class FileModel(QtGui.QStandardItemModel):
         Gets called everytime a new file or folder gets created. Checks what it is and if it should be added and adds
         data to the model.
         """
-        logger().info(f'file created: {event}')
+        # logger().info(f'file created: {event}')
 
         path = Path(event.src_path)
         # If a folder is created, it will be added when a data file will be created.
@@ -512,6 +520,10 @@ class FileModel(QtGui.QStandardItemModel):
                 parent = self.main_dictionary[path.parent]
                 if path not in parent.files:
                     parent.add_file(path)
+                    if self.currently_selected_folder is not None and parent.path.is_relative_to(
+                            self.currently_selected_folder):
+                        self.update_me.emit(parent.path)
+
 
             # If the parent of the file does not exist, we first need to check that file is valid data.
             elif SupportedDataTypes.check_valid_data([path]):
@@ -520,10 +532,9 @@ class FileModel(QtGui.QStandardItemModel):
                 self.sort_and_add_item(path.parent, new_files_dict)
                 parent = self.main_dictionary[path.parent]
                 # Send signal indicating that current folder requires update
-            # TODO: Play with deleting files while you have a the folder selected, this line seem to crash.
-            if self.currently_selected_folder is not None and parent.path.is_relative_to(
-                    self.currently_selected_folder):
-                self.update_me.emit(parent.path)
+                if self.currently_selected_folder is not None and parent.path.is_relative_to(
+                        self.currently_selected_folder):
+                    self.update_me.emit(parent.path)
 
     @Slot(FileSystemEvent)
     def on_file_deleted(self, event: FileSystemEvent) -> None:
@@ -531,7 +542,7 @@ class FileModel(QtGui.QStandardItemModel):
         Triggered every time a file or directory is deleted. Identifies if the deleted file/folder is relevant and
         deletes it and any other non-relevant files.
         """
-        logger().info(f'file deleted: {event}')
+        # logger().info(f'file deleted: {event}')
 
         path = Path(event.src_path)
         if path.suffix == "":
@@ -593,7 +604,7 @@ class FileModel(QtGui.QStandardItemModel):
         """
         Gets triggered everytime a file is moved or the name of a file (including type) changes.
         """
-        logger().info(f'file moved: {event}')
+        # logger().info(f'file moved: {event}')
 
         parent = None
 
@@ -715,10 +726,26 @@ class FileModel(QtGui.QStandardItemModel):
     @Slot(FileSystemEvent)
     def on_file_modified(self, event: FileSystemEvent) -> None:
         """
-        Gets triggered everytime a file is modified
+        Gets triggered everytime a file is modified. Checks if the modification is for a current data file and
+        triggers the update_data signal if it is.
         """
         # logger().info(f'file modified: {event}')
-        pass
+
+        path = Path(event.src_path)
+
+        if path.parent in self.main_dictionary:
+            parent = self.main_dictionary[path.parent]
+            # If the folder is not currently being selected I don't care about modifications.
+            if self.currently_selected_folder is not None and parent.path.is_relative_to(
+                    self.currently_selected_folder):
+
+                # If im expecting this update, ignore it.
+                if path in self.modified_exceptions:
+                    self.modified_exceptions.remove(path)
+                    return
+
+                if ContentType.sort(path) == ContentType.data:
+                    self.update_data.emit(path)
 
     @Slot(FileSystemEvent)
     def on_file_closed(self, event: FileSystemEvent) -> None:
@@ -737,9 +764,30 @@ class FileModel(QtGui.QStandardItemModel):
 
     def update_currently_selected_folder(self, path: Path) -> None:
         """
-        Updates the currently selected folder.
+        Updates the currently selected folder and updates the exception list so that the data modification ignores a
+        modification caused by loading the data.
+
+        :param path: The path of the currently selected folder.
         """
+        if path in self.main_dictionary:
+            item = self.main_dictionary[path]
+            self.modified_exceptions = self._get_all_files_of_item(item)
         self.currently_selected_folder = path
+
+    def _get_all_files_of_item(self, item: Item, partial_list: List[Path] = []) -> List[Path]:
+        """
+        Recursively gets a list of all the files that are in item and all of its children.
+
+        :param item: The item you want the list of files in it and its children from.
+        :param partial_list: Currently filled list. Leave empty for the first item.
+        """
+        partial_list = partial_list + [file for file in item.files.keys()]
+        if item.hasChildren():
+            for i in range(item.rowCount()):
+                child = item.child(i,0)
+                assert isinstance(child, Item)
+                partial_list = partial_list + self._get_all_files_of_item(child)
+        return partial_list
 
     def star_item(self, item_index: QtCore.QModelIndex) -> None:
         """
@@ -2061,6 +2109,7 @@ class Monitr(QtWidgets.QMainWindow):
 
         self.model = FileModel(self.monitor_path, 0, 2)
         self.model.update_me.connect(self.on_update_right_side_window)
+        self.model.update_data.connect(self.on_update_data_widget)
         self.proxy_model = SortFilterProxyModel(parent=self)  # Used for filtering.
         self.proxy_model.setSourceModel(self.model)
 
@@ -2283,7 +2332,7 @@ class Monitr(QtWidgets.QMainWindow):
             self.file_windows = []
 
     @classmethod
-    def gather_all_right_side_window_data(cls, item: Item) ->\
+    def gather_all_right_side_window_data(cls, item: Item, only_data_files: bool = False) ->\
             dict:
         """
         Static method used to create a dictionary with all the necessary information (file names, paths, etc.)
@@ -2304,7 +2353,7 @@ class Monitr(QtWidgets.QMainWindow):
                                'data': []},
                 'extra_files': []}
 
-        data = cls._fill_dict(data, item.files, '')
+        data = cls._fill_dict(data, item.files, '', only_data_files)
 
         # Get the data of all of the children.
         for i in range(item.rowCount()):
@@ -2317,7 +2366,7 @@ class Monitr(QtWidgets.QMainWindow):
         return data
 
     @classmethod
-    def _fill_dict(cls, data_in: dict, files_dict: Dict[Path, ContentType], prefix_text: str) -> dict:
+    def _fill_dict(cls, data_in: dict, files_dict: Dict[Path, ContentType], prefix_text: str, only_data_files:bool = False) -> dict:
         """
         Helper method for gather_all_right_sice_window_data. Fills in the data dictionary with the files inside of
         files_dict and adds prefix text to all tittles.
@@ -2330,9 +2379,7 @@ class Monitr(QtWidgets.QMainWindow):
         """
 
         for file, file_type in files_dict.items():
-            if file_type == ContentType.tag:
-                data_in['tag_labels'].append(prefix_text + str(file.stem))
-            elif file_type == ContentType.data:
+            if file_type == ContentType.data:
                 data_in['data_files']['paths'].append(file)
                 data_in['data_files']['names'].append(prefix_text + str(file.stem))
                 # There might be an error with the ddh5 trying to be loaded.
@@ -2341,14 +2388,18 @@ class Monitr(QtWidgets.QMainWindow):
                     data_in['data_files']['data'].append(data_dict)
                 except Exception as e:
                     logger().error(f'Failed to load the data file: {file} \n {e}')
-            elif file_type == ContentType.json or file_type == ContentType.md or file_type == ContentType.image:
-                # Check if the files exist.
-                if file.is_file():
-                    data_in['extra_files'].append((file, prefix_text + str(file.name), file_type))
+
+            if not only_data_files:
+                if file_type == ContentType.tag:
+                    data_in['tag_labels'].append(prefix_text + str(file.stem))
+                elif file_type == ContentType.json or file_type == ContentType.md or file_type == ContentType.image:
+                    # Check if the files exist.
+                    if file.is_file():
+                        data_in['extra_files'].append((file, prefix_text + str(file.name), file_type))
         return data_in
 
     @classmethod
-    def _check_children_data(cls, child_item: Item, data_in: dict, deepness: int) -> dict:
+    def _check_children_data(cls, child_item: Item, data_in: dict, deepness: int, only_data_files: bool = False) -> dict:
         """
         Helper function for gather_all_right_side_window_data. Fills the data_in dictionary with the files of
          child_item and all of its children. Returns the filled dictionary with the information of child_item and all
@@ -2367,12 +2418,12 @@ class Monitr(QtWidgets.QMainWindow):
         for i in range(deepness):
             prefix_text = child_path.parts[-i - 1] + '/' + prefix_text
 
-        data_in = cls._fill_dict(data_in, child_item.files, prefix_text)
+        data_in = cls._fill_dict(data_in, child_item.files, prefix_text, only_data_files)
 
         for i in range(child_item.rowCount()):
             child = child_item.child(i, 0)
             assert isinstance(child, Item)
-            data_in = cls._check_children_data(child, data_in, deepness + 1)
+            data_in = cls._check_children_data(child, data_in, deepness + 1, only_data_files)
 
         return data_in
 
@@ -2523,6 +2574,21 @@ class Monitr(QtWidgets.QMainWindow):
         """
         if path.is_relative_to(self.current_selected_folder):
             self.generate_right_side_window()
+
+    @Slot(Path)
+    def on_update_data_widget(self, path: Path) -> None:
+        """
+        Updates the current DataTreeWidget. Resets the data widget to show updated numbers in the data window.
+
+        :param path: The path of the data file that should be updated.
+        """
+        if path.parent in self.model.main_dictionary:
+            item = self.model.main_dictionary[path.parent]
+            data_dicts = self.gather_all_right_side_window_data(item, True)
+            data_window_widget = DataTreeWidget(data_dicts['data_files']['paths'], data_dicts['data_files']['names'], data_dicts['data_files']['data'])
+            if self.data_window is not None:
+                self.data_window.restart_widget(data_window_widget)
+                data_window_widget.plot_requested.connect(self.on_plot_data)
 
 
 def script() -> int:
