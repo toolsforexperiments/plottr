@@ -2239,16 +2239,19 @@ class Monitr(QtWidgets.QMainWindow):
         current_item = self.model.itemFromIndex(current_model_index)
         previous_item = self.model.itemFromIndex(previous_model_index)
 
-        if current_item is not None:
-            assert isinstance(current_item, Item)
-            self.current_selected_folder = current_item.path
-            self.model.update_currently_selected_folder(self.current_selected_folder)
-            # The first time the user clicks on a folder, the previous item is None.
-            if previous_item is not None:
-                assert isinstance(previous_item, Item)
-                self.previous_selected_folder = previous_item.path
+        # This function gets triggered when the program first starts. Having the first parent folder being selected
+        #  significantly increases loading times.
+        if previous_item is not None:
+            if current_item is not None:
+                assert isinstance(current_item, Item)
+                self.current_selected_folder = current_item.path
+                self.model.update_currently_selected_folder(self.current_selected_folder)
+                # The first time the user clicks on a folder, the previous item is None.
+                if previous_item is not None:
+                    assert isinstance(previous_item, Item)
+                    self.previous_selected_folder = previous_item.path
 
-            self.generate_right_side_window()
+                self.generate_right_side_window()
 
     def generate_right_side_window(self) -> None:
         """
