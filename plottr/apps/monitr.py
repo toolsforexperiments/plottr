@@ -2593,6 +2593,14 @@ class Monitr(QtWidgets.QMainWindow):
                 self.data_window.restart_widget(data_window_widget)
                 data_window_widget.plot_requested.connect(self.on_plot_data)
 
+    def closeEvent(self, a0: QtGui.QCloseEvent) -> None:
+        """
+        Gets called when the program closes. Mkaes sure the watcher thread gets properly stopped.
+        """
+        self.model.watcher.observer.stop()
+        self.model.watcher_thread.quit()
+        super().closeEvent(a0)
+
 
 def script() -> int:
     parser = argparse.ArgumentParser(description='Monitr main application')
