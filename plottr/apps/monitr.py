@@ -2445,7 +2445,8 @@ class Monitr(QtWidgets.QMainWindow):
         Adds the folder header.
         """
         self.header_label = QtWidgets.QLabel(parent=self.right_side_dummy_widget)
-        text = f'<h1><u>{self.current_selected_folder.name}</n></h1>'
+        self.header_label.setWordWrap(True)
+        text = f'<h1><u>{self.current_selected_folder.name.replace("_", " ")}</n></h1>'
         self.header_label.setText(text)
         self.right_side_layout.addWidget(self.header_label)
 
