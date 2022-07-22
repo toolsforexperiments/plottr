@@ -309,6 +309,19 @@ class Collapsible(QtWidgets.QWidget):
             self.widget.setVisible(False)
             self.btn.setText(self.collapsedTitle)
 
+    def restart_widget(self, widget: QtWidgets.QWidget) -> None:
+        """
+        Deletes the current widget and replaces it with the incoming widget.
+
+        :param widget: The new widget that should be displayed. It should already be instantiated.
+        """
+
+        self.layout().removeWidget(self.widget)
+        self.widget.deleteLater()
+
+        self.widget = widget
+        self.layout().addWidget(self.widget)
+
 
 class DimensionCombo(QtWidgets.QComboBox):
     """A Combo Box that allows selection of a single data dimension.

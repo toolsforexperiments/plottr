@@ -1,4 +1,6 @@
 from logging import getLogger
+from pathlib import Path
+from typing import Union
 
 from watchdog.observers import Observer
 from watchdog.events import FileSystemEventHandler, FileSystemEvent
@@ -25,7 +27,11 @@ class QtHandler(FileSystemEventHandler):
 
     """
 
-    def __init__(self, closed_signal, deleted_signal, moved_signal, created_signal, modified_signal):
+    def __init__(self, closed_signal: Signal,
+                 deleted_signal: Signal,
+                 moved_signal: Signal,
+                 created_signal: Signal,
+                 modified_signal: Signal):
         super().__init__()
         self.closed_signal = closed_signal
         self.deleted_signal = deleted_signal
@@ -33,20 +39,20 @@ class QtHandler(FileSystemEventHandler):
         self.created_signal = created_signal
         self.modified_signal = modified_signal
 
-    def on_closed(self, event):
-        self.closed_signal.emit(event)
+    def on_closed(self, event: FileSystemEvent) -> None:
+        self.closed_signal.emit(event)  # type: ignore[attr-defined]
 
-    def on_deleted(self, event):
-        self.deleted_signal.emit(event)
+    def on_deleted(self, event: FileSystemEvent) -> None:
+        self.deleted_signal.emit(event)  # type: ignore[attr-defined]
 
-    def on_moved(self, event):
-        self.moved_signal.emit(event)
+    def on_moved(self, event: FileSystemEvent) -> None:
+        self.moved_signal.emit(event)  # type: ignore[attr-defined]
 
-    def on_created(self, event):
-        self.created_signal.emit(event)
+    def on_created(self, event: FileSystemEvent) -> None:
+        self.created_signal.emit(event)  # type: ignore[attr-defined]
 
-    def on_modified(self, event):
-        self.modified_signal.emit(event)
+    def on_modified(self, event: FileSystemEvent) -> None:
+        self.modified_signal.emit(event)  # type: ignore[attr-defined]
 
 
 class WatcherClient(QtCore.QObject):
@@ -80,17 +86,17 @@ class WatcherClient(QtCore.QObject):
     #:   - The FileSystemEvent with the information for the modified directory event.
     modified = Signal(FileSystemEvent)
 
-    def __init__(self, directory):
+    def __init__(self, directory: Path):
         super().__init__()
         self.directory = directory
         self.observer = Observer()
-        self.handler = QtHandler(closed_signal=self.closed,
-                                 deleted_signal=self.deleted,
-                                 moved_signal=self.moved,
-                                 created_signal=self.created,
-                                 modified_signal=self.modified)
+        self.handler = QtHandler(closed_signal=self.closed,  # type: ignore[arg-type]
+                                 deleted_signal=self.deleted,  # type: ignore[arg-type]
+                                 moved_signal=self.moved,  # type: ignore[arg-type]
+                                 created_signal=self.created,  # type: ignore[arg-type]
+                                 modified_signal=self.modified)  # type: ignore[arg-type]
 
-    def run(self):
+    def run(self) -> None:
         logger.info('starting the watcher')
         self.observer.schedule(self.handler, self.directory, recursive=True)
         self.observer.start()

@@ -2,22 +2,24 @@
 Script obtained from: https://doc-snapshots.qt.io/qtforpython-dev/examples/example_widgets_itemviews_jsonmodel.html
 """
 
-from typing import Any, List, Dict, Union
+from typing import Any, List, Dict, Union, Optional
+from pathlib import Path
 
 from qtpy.QtCore import QAbstractItemModel, QModelIndex, QObject, Qt
+from qtpy.QtWidgets import QTreeView
 
 
 class TreeItem:
     """A Json item corresponding to a line in QTreeView"""
 
-    def __init__(self, parent: "TreeItem" = None):
+    def __init__(self, parent: Optional["TreeItem"] = None):
         self._parent = parent
         self._key = ""
         self._value = ""
-        self._value_type = None
-        self._children = []
+        self._value_type: Any = None
+        self._children: List["TreeItem"] = []
 
-    def appendChild(self, item: "TreeItem"):
+    def appendChild(self, item: "TreeItem") -> None:
         """Add item as a child"""
         self._children.append(item)
 
@@ -25,7 +27,7 @@ class TreeItem:
         """Return the child of the current item from the given row"""
         return self._children[row]
 
-    def parent(self) -> "TreeItem":
+    def parent(self) -> Optional["TreeItem"]:
         """Return the parent of the current item"""
         return self._parent
 
@@ -43,7 +45,7 @@ class TreeItem:
         return self._key
 
     @key.setter
-    def key(self, key: str):
+    def key(self, key: str) -> None:
         """Set key name of the current item"""
         self._key = key
 
@@ -53,23 +55,23 @@ class TreeItem:
         return self._value
 
     @value.setter
-    def value(self, value: str):
+    def value(self, value: str) -> None:
         """Set value name of the current item"""
         self._value = value
 
     @property
-    def value_type(self):
+    def value_type(self) -> Any:
         """Return the python type of the item's value."""
         return self._value_type
 
     @value_type.setter
-    def value_type(self, value):
+    def value_type(self, value: Any) -> None:
         """Set the python type of the item's value."""
         self._value_type = value
 
     @classmethod
     def load(
-        cls, value: Union[List, Dict], parent: "TreeItem" = None, sort=True
+        cls, value: Union[List, Dict], parent: Optional["TreeItem"] = None, sort: bool = True
     ) -> "TreeItem":
         """Create a 'root' TreeItem from a nested list or a nested dictonary
 
@@ -98,7 +100,7 @@ class TreeItem:
         elif isinstance(value, list):
             for index, value in enumerate(value):
                 child = cls.load(value, rootItem)
-                child.key = index
+                child.key = str(index)
                 child.value_type = type(value)
                 rootItem.appendChild(child)
 
@@ -112,17 +114,17 @@ class TreeItem:
 class JsonModel(QAbstractItemModel):
     """ An editable model of Json data """
 
-    def __init__(self, parent: QObject = None):
+    def __init__(self, parent: Optional[QObject] = None):
         super().__init__(parent)
 
         self._rootItem = TreeItem()
         self._headers = ("key", "value")
 
-    def clear(self):
+    def clear(self) -> None:
         """ Clear data from the model """
         self.load({})
 
-    def load(self, document: dict):
+    def load(self, document: dict) -> bool:
         """Load model from a nested dictionary returned by json.loads()
 
         Arguments:
@@ -142,7 +144,7 @@ class JsonModel(QAbstractItemModel):
 
         return True
 
-    def data(self, index: QModelIndex, role: Qt.ItemDataRole) -> Any:
+    def data(self, index: QModelIndex, role: Qt.ItemDataRole) -> Any:  #type: ignore[override]
         """Override from QAbstractItemModel
 
         Return data from a json item according index and role
@@ -164,7 +166,7 @@ class JsonModel(QAbstractItemModel):
             if index.column() == 1:
                 return item.value
 
-    def setData(self, index: QModelIndex, value: Any, role: Qt.ItemDataRole):
+    def setData(self, index: QModelIndex, value: Any, role: Qt.ItemDataRole) -> bool:  #type: ignore[override]
         """Override from QAbstractItemModel
 
         Set json item according index and role
@@ -180,7 +182,7 @@ class JsonModel(QAbstractItemModel):
                 item = index.internalPointer()
                 item.value = str(value)
 
-                if __binding__ in ("PySide", "PyQt4"):
+                if __binding__ in ("PySide", "PyQt4"):  # type: ignore[name-defined]
                     self.dataChanged.emit(index, index)
                 else:
                     self.dataChanged.emit(index, index, [Qt.EditRole])
@@ -189,9 +191,9 @@ class JsonModel(QAbstractItemModel):
 
         return False
 
-    def headerData(
+    def headerData(  #type: ignore[override]
         self, section: int, orientation: Qt.Orientation, role: Qt.ItemDataRole
-    ):
+    ) -> Optional[str]:
         """Override from QAbstractItemModel
 
         For the JsonModel, it returns only data for columns (orientation = Horizontal)
@@ -203,7 +205,9 @@ class JsonModel(QAbstractItemModel):
         if orientation == Qt.Horizontal:
             return self._headers[section]
 
-    def index(self, row: int, column: int, parent=QModelIndex()) -> QModelIndex:
+        return None
+
+    def index(self, row: int, column: int, parent: QModelIndex = QModelIndex()) -> QModelIndex:
         """Override from QAbstractItemModel
 
         Return index according row, column and parent
@@ -223,7 +227,7 @@ class JsonModel(QAbstractItemModel):
         else:
             return QModelIndex()
 
-    def parent(self, index: QModelIndex) -> QModelIndex:
+    def parent(self, index: QModelIndex) -> QModelIndex:  #type: ignore[override]
         """Override from QAbstractItemModel
 
         Return parent index of index
@@ -241,7 +245,7 @@ class JsonModel(QAbstractItemModel):
 
         return self.createIndex(parentItem.row(), 0, parentItem)
 
-    def rowCount(self, parent=QModelIndex()):
+    def rowCount(self, parent: QModelIndex = QModelIndex()) -> int:
         """Override from QAbstractItemModel
 
         Return row count from parent index
@@ -256,7 +260,7 @@ class JsonModel(QAbstractItemModel):
 
         return parentItem.childCount()
 
-    def columnCount(self, parent=QModelIndex()):
+    def columnCount(self, parent: QModelIndex = QModelIndex()) -> int:
         """Override from QAbstractItemModel
 
         Return column number. For the model, it always return 2 columns
@@ -275,7 +279,7 @@ class JsonModel(QAbstractItemModel):
         else:
             return flags
 
-    def to_json(self, item=None):
+    def to_json(self, item: Optional["TreeItem"] = None) -> Any:
 
         if item is None:
             item = self._rootItem
@@ -290,11 +294,23 @@ class JsonModel(QAbstractItemModel):
             return document
 
         elif item.value_type == list:
-            document = []
+            document_list = []
             for i in range(nchild):
                 ch = item.child(i)
-                document.append(self.to_json(ch))
-            return document
+                document_list.append(self.to_json(ch))
+            return document_list
 
         else:
             return item.value
+
+
+class JsonTreeView(QTreeView):
+    """
+    Basic treeview. Only difference is a path variable to store the path of the file this view is showing.
+
+    :param path: The path of the file this view is showing.
+    """
+
+    def __init__(self, path: Path, *args: Any, **kwargs: Any):
+        super().__init__(*args, **kwargs)
+        self.path = path
