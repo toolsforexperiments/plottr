@@ -1835,6 +1835,7 @@ class ImageViewer(QtWidgets.QLabel):
 
         try:
             self.image = QtGui.QImage(str(path_file))
+            self.image_size = self.image.size()
             self.old_pixmap = QtGui.QPixmap.fromImage((self.image.copy(QtCore.QRect())))
             self.setPixmap(self.old_pixmap)
 
@@ -1870,16 +1871,18 @@ class ImageViewer(QtWidgets.QLabel):
                                                                                             QtCore.Qt.KeepAspectRatio)
             # If a rezising event happen, only update the pixmap if the size of the pixmap changed.
             if self.old_pixmap.size() != scaled_pixmap.size():
-                self.setPixmap(scaled_pixmap)
-                self.old_pixmap = scaled_pixmap
+                # Check if the new image is bigger than the original picture size. If it is don't show it.
+                if self.image_size.width() > scaled_pixmap.width():
+                    self.setPixmap(scaled_pixmap)
+                    self.old_pixmap = scaled_pixmap
 
+                    if len(self.event_record) >= 2:
+                        # Checking that the last 2 events are of the same type, this is what happens when the infinite loop
+                        # gets triggered.
+                        if self.event_record[-1].type() == self.event_record[-2].type():
+                            self.rep_counter += 1
+                            self.event_record = []
 
-                if len(self.event_record) >= 2:
-                    # Checking that the last 2 events are of the same type, this is what happens when the infinite loop
-                    # gets triggered.
-                    if self.event_record[-1].type() == self.event_record[-2].type():
-                        self.rep_counter += 1
-                        self.event_record = []
 
         return super().eventFilter(a0, a1)
 
@@ -2148,6 +2151,7 @@ class Monitr(QtWidgets.QMainWindow):
         self.tags_label: Optional[TagLabel] = None
         self.tags_creator: Optional[TagCreator] = None
         self.invalid_data_label: Optional[QtWidgets.QLabel] = None
+        self.header_label: Optional[QtWidgets.QLabel] = None
 
         # Debug items
         # self.debug_layout = QtWidgets.QHBoxLayout()
@@ -2202,7 +2206,7 @@ class Monitr(QtWidgets.QMainWindow):
 
     def print_model_main_dictionary(self) -> None:
         """
-        Prints the main dictionary.
+        Debug function. Prints the main dictionary.
         """
         print('---------------------------------------------------------------------------------')
         print(f'Here comes the model main dictionary')
@@ -2211,7 +2215,7 @@ class Monitr(QtWidgets.QMainWindow):
 
     def extra_action(self) -> None:
         """
-        Miscellaneous button action. Used to trigger any specific action during testing.
+        Debug function. Miscellaneous button action. Used to trigger any specific action during testing.
         """
         print(f'NOTHING HAPPENS HERE IS EMPTY SPACE')
         print(f'\n \n \n \n \n \n \n \n \n \n \n \n .')
@@ -2271,6 +2275,7 @@ class Monitr(QtWidgets.QMainWindow):
             files_meta = self.gather_all_right_side_window_data(
                 self.model.main_dictionary[self.current_selected_folder])
 
+            self.add_folder_header()
             self.add_tag_label(files_meta['tag_labels'])
             self.add_data_window(files_meta['data_files'])
             self.add_text_input(self.current_selected_folder)
@@ -2295,6 +2300,11 @@ class Monitr(QtWidgets.QMainWindow):
             if bar is not None:
                 previous_item = self.model.main_dictionary[self.previous_selected_folder]
                 previous_item.scroll_height = bar.value()
+
+        if self.header_label is not None:
+            self.right_side_layout.removeWidget(self.header_label)
+            self.header_label.deleteLater()
+            self.header_label = None
 
         if self.tags_label is not None:
             self.right_side_layout.removeWidget(self.tags_label)
@@ -2387,7 +2397,7 @@ class Monitr(QtWidgets.QMainWindow):
                 data_in['data_files']['names'].append(prefix_text + str(file.stem))
                 # There might be an error with the ddh5 trying to be loaded.
                 try:
-                    data_dict = datadict_from_hdf5(str(file))
+                    data_dict = datadict_from_hdf5(str(file), structure_only=True)
                     data_in['data_files']['data'].append(data_dict)
                 except Exception as e:
                     logger().error(f'Failed to load the data file: {file} \n {e}')
@@ -2430,6 +2440,15 @@ class Monitr(QtWidgets.QMainWindow):
 
         return data_in
 
+    def add_folder_header(self) -> None:
+        """
+        Adds the folder header.
+        """
+        self.header_label = QtWidgets.QLabel(parent=self.right_side_dummy_widget)
+        text = f'<h1><u>{self.current_selected_folder.name}</n></h1>'
+        self.header_label.setText(text)
+        self.right_side_layout.addWidget(self.header_label)
+
     def add_tag_label(self, tags: List[str]) -> None:
         """
         Add the tags present in the folder selected.
@@ -2461,7 +2480,7 @@ class Monitr(QtWidgets.QMainWindow):
                                                  'axes': [],
                                                  'label': '',
                                                  'unit': '',
-                                                 'values': array([[-721.68783649, ....]]) ...
+                                                 'values': array([]) ...
         """
         # Checks that there is data to display, if not just create a Qlabel indicating that there is no valid data.
         if len(data_files['data']) < 1:
