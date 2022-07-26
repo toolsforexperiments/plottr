@@ -9,7 +9,6 @@ object for plotting data automatically using ``pyqtgraph``.
 """
 
 import logging
-import pprint
 from pathlib import Path
 import time
 from dataclasses import dataclass
