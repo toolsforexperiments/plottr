@@ -267,6 +267,9 @@ class DimensionAssignmentWidget(QtWidgets.QTreeWidget):
         for ax, info in infos.items():
             self.setDimInfo(ax, info)
 
+    @Slot(dict)
+    def setShapes(self, shapes: Dict[str, Dict[int, int]]) -> None:
+        self._dataShapes = shapes
 
 class DimensionReductionAssignmentWidget(DimensionAssignmentWidget):
 
@@ -294,30 +297,49 @@ class DimensionReductionAssignmentWidget(DimensionAssignmentWidget):
         item = self.findItems(dim, QtCore.Qt.MatchExactly, 0)[0]
 
         if role == ReductionMethod.elementSelection.value:
-            value = kw.get('index', 0)
 
             # only create the slider widget if it doesn't exist yet
             if (self.itemWidget(item, 2) is None) or \
                     (self.choices[dim]['optionsWidget'] is None):
-                assert self._dataStructure is not None
-                assert self._dataShapes is not None
-                # get the number of elements in this dimension
-                axidx = self._dataStructure.axes().index(dim)
-                naxvals = self._dataShapes[dim][axidx]
+                self.setNewSlider(dim, item)
 
-                w = self.elementSelectionSlider(nvals=naxvals, value=value)
-                w.valueChanged.connect(
-                    lambda x: self.elementSelectionSliderChange(dim))
+    def setShapes(self, shapes: Dict[str, Dict[int, int]]) -> None:
+        oldShapes = self._dataShapes
+        super().setShapes(shapes)
+        for dim, values in shapes.items():
+            if dim in self.choices:
+                # Only element selection has a slider that needs to be updated.
+                if self.getRole(dim)[0] == ReductionMethod.elementSelection.value:
+                    # If this shape did not change, don't update the slider.
+                    if oldShapes is not None:
+                        if values != oldShapes[dim]:
+                            self.setNewSlider(dim, self.findItems(dim, QtCore.Qt.MatchExactly, 0)[0])
 
-                scaling = int(np.rint(self.logicalDpiX() / 96.0))
-                width = 150 + 50*(scaling - 1)
-                height = 22*scaling
-                w.setMinimumSize(width, height)
-                w.setMaximumHeight(height)
+    def setNewSlider(self, dim: str, item: QtWidgets.QTreeWidgetItem) -> None:
+        assert self._dataStructure is not None
+        assert self._dataShapes is not None
+        # get the number of elements in this dimension
+        axidx = self._dataStructure.axes().index(dim)
+        naxvals = self._dataShapes[dim][axidx]
 
-                self.choices[dim]['optionsWidget'] = w
-                self.setItemWidget(item, 2, w)
-                self.updateSizes()
+        previousSlider = self.itemWidget(item, 2)
+        sliderValue = 0
+        if isinstance(previousSlider, QtWidgets.QSlider):
+            sliderValue = previousSlider.value()
+
+        w = self.elementSelectionSlider(nvals=naxvals, value=sliderValue)
+        w.valueChanged.connect(lambda x: self.elementSelectionSliderChange(dim))
+
+        scaling = int(np.rint(self.logicalDpiX() / 96.0))
+        width = 150 + 50 * (scaling - 1)
+        height = 22 * scaling
+        w.setMinimumSize(width, height)
+        w.setMaximumHeight(height)
+
+        self.choices[dim]['optionsWidget'] = w
+        self.setItemWidget(item, 2, w)
+        self.setElementSelectionInfo(dim, item.text(3).split(' (')[0])
+        self.updateSizes()
 
     def elementSelectionSlider(self, nvals: int, value: int = 0) -> QtWidgets.QSlider:
         w = QtWidgets.QSlider(QtCore.Qt.Horizontal)
@@ -415,6 +437,9 @@ class DimensionReducerNodeWidget(NodeWidget[DimensionReductionAssignmentWidget])
         assert self.widget is not None
         self.widget.setData(structure, shapes, dtype)
 
+    def setShapes(self, shapes: Dict[str, Dict[int, int]]) -> None:
+        assert self.widget is not None
+        self.widget.setShapes(shapes)
 
 class DimensionReducer(Node):
     """
@@ -455,6 +480,9 @@ class DimensionReducer(Node):
     #: A signal that emits (structure, shapes, type) when data structure has
     #: changed.
     newDataStructure = Signal(object, object, object)
+
+    #: A signal that emits (shapes) when the shapes have changed.
+    dataShapesChanged = Signal(dict)
 
     def __init__(self,  name: str):
         self._reductions: Dict[str, Optional[ReductionType]] = {}
@@ -656,11 +684,11 @@ class DimensionReducer(Node):
 
         return dict(dataOut=data)
 
-    # FIXME: include connection to a method that helps updating sliders etc.
     def setupUi(self) -> None:
         super().setupUi()
         assert self.ui is not None
         self.newDataStructure.connect(self.ui.setData)
+        self.dataShapesChanged.connect(self.ui.setShapes)
 
 
 class XYSelectorNodeWidget(NodeWidget[XYSelectionWidget]):
@@ -732,6 +760,10 @@ class XYSelectorNodeWidget(NodeWidget[XYSelectionWidget]):
                 dtype: Type[DataDictBase]) -> None:
         assert self.widget is not None
         self.widget.setData(structure, shapes, dtype)
+
+    def setShapes(self, shapes: Dict[str, Dict[int, int]]) -> None:
+        assert self.widget is not None
+        self.widget.setShapes(shapes)
 
 
 class XYSelector(DimensionReducer):
