@@ -24,7 +24,7 @@ from itertools import cycle
 from watchdog.events import FileSystemEvent
 
 from .. import log as plottrlog
-from .. import QtCore, QtWidgets, Signal, Slot, QtGui
+from .. import QtCore, QtWidgets, Signal, Slot, QtGui, plottrPath
 from ..data.datadict_storage import all_datadicts_from_hdf5, datadict_from_hdf5
 from ..data.datadict import DataDict
 from ..utils.misc import unwrap_optional
@@ -2097,7 +2097,132 @@ class TagCreator(QtWidgets.QLineEdit):
 
         self.setText('')
 
+class IconLabel(QtWidgets.QLabel):
 
+    def __init__(self, movie: QtGui.QMovie, *args: Any, **kwargs: Any):
+        super().__init__(*args, **kwargs)
+        self.setAlignment(QtCore.Qt.AlignCenter)
+        self.setMovie(movie)
+
+
+    def start_animation(self) -> None:
+        self.movie().start()
+
+    def stop_animation(self) -> None:
+        self.movie().stop()
+
+
+class LoaderWorker(QtCore.QObject):
+
+    # Signal(dict) -- Emitted when the dictionary with all the data for the right side windows has been loaded.
+    #: Arguments:
+    #:   - The dictionary with all the necessary data to create the right side window.
+    finished = Signal(dict)
+
+    def run(self, item: Item) -> None:
+        data = self.gather_all_right_side_window_data(item)
+        self.finished.emit(data)
+
+    @classmethod
+    def gather_all_right_side_window_data(cls, item: Item, only_data_files: bool = False) -> \
+            dict:
+        """
+        Static method used to create a dictionary with all the necessary information (file names, paths, etc.)
+         of an item of the model to create the right side window. This function will also go through all the children the item might have, and add the
+         names of each nested folders in front of the windows titles. Utilizes 2 helper functions to do this.
+
+        :param item: Item of the model to generate the dictionary.
+        :return: A dictionary with the following structure:
+            return {'tag_labels': [str],
+                    'data_files': {'paths': [Path],
+                                   'names': [str],
+                                   'data': [DataDict]},
+                    'extra_files': [(Path, str, ContentType)]}
+        """
+        data = {'tag_labels': [],
+                'data_files': {'paths': [],
+                               'names': [],
+                               'data': []},
+                'extra_files': []}
+
+        data = cls._fill_dict(data, item.files, '', only_data_files)
+
+        # Get the data of all the children.
+        for i in range(item.rowCount()):
+            child = item.child(i, 0)
+            assert isinstance(child, Item)
+            data = cls._check_children_data(child, data, 1)
+
+        # Sort the files so that they appear in reverse alphabetical order.
+        data['extra_files'] = sorted(data['extra_files'], key=lambda x: str.lower(x[1]), reverse=True)
+        return data
+
+    @classmethod
+    def _fill_dict(cls, data_in: dict, files_dict: Dict[Path, ContentType], prefix_text: str,
+                   only_data_files: bool = False) -> dict:
+        """
+        Helper method for gather_all_right_sice_window_data. Fills in the data dictionary with the files inside of
+        files_dict and adds prefix text to all tittles.
+
+        :param data_in: Dictionary with the same structure as the data dictionary of gather_all_right_sice_window_data.
+        :param files_dict: Dictionary with Path of files as keys and their ContentType as values.
+        :param prefix_text: String to add to the front of the titles for the widgets. Used to specify from which
+            specific nested folder this file is coming from.
+        :return: data_in with the files of files_dict in it.
+        """
+
+        for file, file_type in files_dict.items():
+            if file_type == ContentType.data:
+                data_in['data_files']['paths'].append(file)
+                data_in['data_files']['names'].append(prefix_text + str(file.stem))
+                # There might be an error with the ddh5 trying to be loaded.
+                try:
+                    data_dict = datadict_from_hdf5(str(file), structure_only=True)
+                    data_in['data_files']['data'].append(data_dict)
+                except Exception as e:
+                    logger().error(f'Failed to load the data file: {file} \n {e}')
+
+            if not only_data_files:
+                if file_type == ContentType.tag:
+                    data_in['tag_labels'].append(prefix_text + str(file.stem))
+                elif file_type == ContentType.json or file_type == ContentType.md or file_type == ContentType.image:
+                    # Check if the files exist.
+                    if file.is_file():
+                        data_in['extra_files'].append((file, prefix_text + str(file.name), file_type))
+        return data_in
+
+    @classmethod
+    def _check_children_data(cls, child_item: Item, data_in: dict, deepness: int,
+                             only_data_files: bool = False) -> dict:
+        """
+        Helper function for gather_all_right_side_window_data. Fills the data_in dictionary with the files of
+         child_item and all of its children. Returns the filled dictionary with the information of child_item and all
+
+        :param child_item: Item for which files and children the data should be gathered.
+        :param data_in: Already partially filled dictionary with the parent data. Same structure as data from
+            gather_all_right_side_window_data
+        :param deepness: int marking the level of recursion. If calling this function for the first level children of an
+            item should be 1, for the children of the first children should be 2 and so on.
+        :return: data_in with the data of all the children.
+        """
+
+        child_path = child_item.path
+        prefix_text = ''
+        # Make the prefix text. Should be all the parent folders until the original parent item.
+        for i in range(deepness):
+            prefix_text = child_path.parts[-i - 1] + '/' + prefix_text
+
+        data_in = cls._fill_dict(data_in, child_item.files, prefix_text, only_data_files)
+
+        for i in range(child_item.rowCount()):
+            child = child_item.child(i, 0)
+            assert isinstance(child, Item)
+            data_in = cls._check_children_data(child, data_in, deepness + 1, only_data_files)
+
+        return data_in
+
+
+# TODO: Instead of saving  the currently selected folder, save the currently and previously selected item.
 class Monitr(QtWidgets.QMainWindow):
     def __init__(self, monitorPath: str = '.',
                  parent: Optional[QtWidgets.QMainWindow] = None):
@@ -2152,6 +2277,8 @@ class Monitr(QtWidgets.QMainWindow):
         self.tags_creator: Optional[TagCreator] = None
         self.invalid_data_label: Optional[QtWidgets.QLabel] = None
         self.header_label: Optional[QtWidgets.QLabel] = None
+        self.loading_label: Optional[IconLabel] = None
+        self.loading_movie = QtGui.QMovie(os.path.join(plottrPath, 'resource', 'gfx', "loading_gif.gif"))
 
         # Debug items
         # self.debug_layout = QtWidgets.QHBoxLayout()
@@ -2168,6 +2295,10 @@ class Monitr(QtWidgets.QMainWindow):
 
 
         self.main_partition_splitter.addWidget(self.left_side_dummy_widget)
+
+        # Threading stuff
+        self.loader_worker: Optional[LoaderWorker] = None
+        self.loader_thread: Optional[QtCore.QThread] = None
 
     def print_model_data(self) -> None:
         """
@@ -2272,28 +2403,60 @@ class Monitr(QtWidgets.QMainWindow):
                 self.main_partition_splitter.addWidget(self.scroll_area)
 
             self.clear_right_layout()
-            files_meta = self.gather_all_right_side_window_data(
-                self.model.main_dictionary[self.current_selected_folder])
 
-            self.add_folder_header()
-            self.add_tag_label(files_meta['tag_labels'])
-            self.add_data_window(files_meta['data_files'])
-            self.add_text_input(self.current_selected_folder)
-            self.add_all_files(files_meta['extra_files'])
+            if self.loading_label is None:
+                self.loading_label = IconLabel(self.loading_movie)
+            self.right_side_layout.addWidget(self.loading_label)
+            self.loading_label.start_animation()
 
-            # Sets the stretch factor so when the main window expands, the files get the extra real-state instead
-            # of the file tree
-            self.main_partition_splitter.setStretchFactor(0, 0)
-            self.main_partition_splitter.setStretchFactor(1, 255)
+            self.loader_thread = QtCore.QThread(self)
+            self.loader_worker = LoaderWorker()
+            self.loader_worker.moveToThread(self.loader_thread)
+            run_fun = partial(self.loader_worker.run, self.model.main_dictionary[self.current_selected_folder])
+            self.loader_thread.started.connect(run_fun)
+            self.loader_worker.finished.connect(self.populate_right_side_window)
+            self.loader_thread.start()
 
-            current_item = self.model.main_dictionary[self.current_selected_folder]
-            assert self.scroll_area is not None
-            self.scroll_area.scroll_height = current_item.scroll_height
-            self.scroll_area.first_scroll = True
+    @Slot(dict)
+    def populate_right_side_window(self, files_meta: dict) -> None:
+        """
+        Gets connected to the thread that is loading the data from all of the files and populates the right side window.
+
+        :param files_meta: A dictionary with all the data to load the right side window with the following structure:
+            files_meta = {'tag_labels': [str],
+                          'data_files': {'paths': [Path],
+                                         'names': [str],
+                                         'data': [DataDict]},
+                          'extra_files': [(Path, str, ContentType)]}
+        """
+        if self.loading_label is not None:
+            self.loading_label.stop_animation()
+            self.right_side_layout.removeWidget(self.loading_label)
+            self.loading_label.deleteLater()
+            self.loading_label = None
+
+        self.add_folder_header()
+        self.add_tag_label(files_meta['tag_labels'])
+        self.add_data_window(files_meta['data_files'])
+        self.add_text_input(self.current_selected_folder)
+        self.add_all_files(files_meta['extra_files'])
+
+        # Sets the stretch factor so when the main window expands, the files get the extra real-state instead
+        # of the file tree
+        self.main_partition_splitter.setStretchFactor(0, 0)
+        self.main_partition_splitter.setStretchFactor(1, 255)
+
+        current_item = self.model.main_dictionary[self.current_selected_folder]
+        assert self.scroll_area is not None
+        self.scroll_area.scroll_height = current_item.scroll_height
+        self.scroll_area.first_scroll = True
+
+
 
     def clear_right_layout(self) -> None:
         """
-        Records the scroll height of the previous item if the scroll bar exists. Then clears every item on the right side of the screen.
+        Records the scroll height of the previous item if the scroll bar exists.
+        Then clears every item on the right side of the screen.
         """
         if self.previous_selected_folder != Path() and self.scroll_area is not None:
             bar = self.scroll_area.verticalScrollBar()
