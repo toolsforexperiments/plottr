@@ -2113,6 +2113,9 @@ class IconLabel(QtWidgets.QLabel):
 
 
 class LoaderWorker(QtCore.QObject):
+    """
+    Worker that loads all the data necessary to display the right side window. Meant to be run in a separate thread.
+    """
 
     # Signal(dict) -- Emitted when the dictionary with all the data for the right side windows has been loaded.
     #: Arguments:
@@ -2121,13 +2124,13 @@ class LoaderWorker(QtCore.QObject):
 
     def run(self, item: Item) -> None:
         data = self.gather_all_right_side_window_data(item)
-        self.finished.emit(data)
+        if data is not None:
+            self.finished.emit(data)
 
-    @classmethod
-    def gather_all_right_side_window_data(cls, item: Item, only_data_files: bool = False) -> \
-            dict:
+    def gather_all_right_side_window_data(self, item: Item, only_data_files: bool = False) -> \
+            Optional[dict]:
         """
-        Static method used to create a dictionary with all the necessary information (file names, paths, etc.)
+        Method used to create a dictionary with all the necessary information (file names, paths, etc.)
          of an item of the model to create the right side window. This function will also go through all the children the item might have, and add the
          names of each nested folders in front of the windows titles. Utilizes 2 helper functions to do this.
 
@@ -2145,21 +2148,28 @@ class LoaderWorker(QtCore.QObject):
                                'data': []},
                 'extra_files': []}
 
-        data = cls._fill_dict(data, item.files, '', only_data_files)
+        data_ret = self._fill_dict(data, item.files, '', only_data_files)
+        if data_ret is None:
+            return None
+        data = data_ret
 
         # Get the data of all the children.
         for i in range(item.rowCount()):
+            if self.thread().isInterruptionRequested():
+                return None
             child = item.child(i, 0)
             assert isinstance(child, Item)
-            data = cls._check_children_data(child, data, 1)
+            data_ret = self._check_children_data(child, data, 1)
+            if data_ret is None:
+                return None
+            data = data_ret
 
         # Sort the files so that they appear in reverse alphabetical order.
         data['extra_files'] = sorted(data['extra_files'], key=lambda x: str.lower(x[1]), reverse=True)
         return data
 
-    @classmethod
-    def _fill_dict(cls, data_in: dict, files_dict: Dict[Path, ContentType], prefix_text: str,
-                   only_data_files: bool = False) -> dict:
+    def _fill_dict(self, data_in: Optional[dict], files_dict: Dict[Path, ContentType], prefix_text: str,
+                   only_data_files: bool = False) -> Optional[dict]:
         """
         Helper method for gather_all_right_sice_window_data. Fills in the data dictionary with the files inside of
         files_dict and adds prefix text to all tittles.
@@ -2172,6 +2182,8 @@ class LoaderWorker(QtCore.QObject):
         """
 
         for file, file_type in files_dict.items():
+            if self.thread().isInterruptionRequested() or data_in is None:
+                return None
             if file_type == ContentType.data:
                 data_in['data_files']['paths'].append(file)
                 data_in['data_files']['names'].append(prefix_text + str(file.stem))
@@ -2191,9 +2203,8 @@ class LoaderWorker(QtCore.QObject):
                         data_in['extra_files'].append((file, prefix_text + str(file.name), file_type))
         return data_in
 
-    @classmethod
-    def _check_children_data(cls, child_item: Item, data_in: dict, deepness: int,
-                             only_data_files: bool = False) -> dict:
+    def _check_children_data(self, child_item: Item, data_in: Optional[dict], deepness: int,
+                             only_data_files: bool = False) -> Optional[dict]:
         """
         Helper function for gather_all_right_side_window_data. Fills the data_in dictionary with the files of
          child_item and all of its children. Returns the filled dictionary with the information of child_item and all
@@ -2212,12 +2223,14 @@ class LoaderWorker(QtCore.QObject):
         for i in range(deepness):
             prefix_text = child_path.parts[-i - 1] + '/' + prefix_text
 
-        data_in = cls._fill_dict(data_in, child_item.files, prefix_text, only_data_files)
+        data_in = self._fill_dict(data_in, child_item.files, prefix_text, only_data_files)
 
         for i in range(child_item.rowCount()):
+            if self.thread().isInterruptionRequested():
+                return None
             child = child_item.child(i, 0)
             assert isinstance(child, Item)
-            data_in = cls._check_children_data(child, data_in, deepness + 1, only_data_files)
+            data_in = self._check_children_data(child, data_in, deepness + 1, only_data_files)
 
         return data_in
 
@@ -2378,15 +2391,15 @@ class Monitr(QtWidgets.QMainWindow):
         #  significantly increases loading times.
         if previous_item is not None:
             if current_item is not None:
-                assert isinstance(current_item, Item)
-                self.current_selected_folder = current_item.path
-                self.model.update_currently_selected_folder(self.current_selected_folder)
-                # The first time the user clicks on a folder, the previous item is None.
-                if previous_item is not None:
+                if current_item != previous_item:
+                    assert isinstance(current_item, Item)
+                    self.current_selected_folder = current_item.path
+                    self.model.update_currently_selected_folder(self.current_selected_folder)
+                    # The first time the user clicks on a folder, the previous item is None.
                     assert isinstance(previous_item, Item)
                     self.previous_selected_folder = previous_item.path
 
-                self.generate_right_side_window()
+                    self.generate_right_side_window()
 
     def generate_right_side_window(self) -> None:
         """
@@ -2408,6 +2421,13 @@ class Monitr(QtWidgets.QMainWindow):
                 self.loading_label = IconLabel(self.loading_movie)
             self.right_side_layout.addWidget(self.loading_label)
             self.loading_label.start_animation()
+
+            if self.loader_thread is not None:
+                if self.loader_thread.isRunning():
+                    self.loader_thread.requestInterruption()
+                    self.loader_thread.quit()
+                    self.loader_thread.wait()
+                    self.loader_thread = None
 
             self.loader_thread = QtCore.QThread(self)
             self.loader_worker = LoaderWorker()
@@ -2434,6 +2454,11 @@ class Monitr(QtWidgets.QMainWindow):
             self.right_side_layout.removeWidget(self.loading_label)
             self.loading_label.deleteLater()
             self.loading_label = None
+
+        if self.loader_thread is not None:
+            self.loader_thread.quit()
+            self.loader_thread.wait()
+            self.loader_thread = None
 
         self.add_folder_header()
         self.add_tag_label(files_meta['tag_labels'])
