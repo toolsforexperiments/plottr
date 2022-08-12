@@ -245,6 +245,7 @@ class AutoPlot(PlotWidget):
         self.fmWidget: Optional[FigureWidget] = None
         self.figConfig: Optional[FigureConfigToolBar] = None
         self.figOptions: FigureOptions = FigureOptions()
+        self.title : Optional[str] = None
 
         layout = QtWidgets.QVBoxLayout()
         layout.setContentsMargins(0, 0, 0, 0)
@@ -309,6 +310,7 @@ class AutoPlot(PlotWidget):
 
         if self.data.has_meta('title'):
             self.fmWidget.setTitle(self.data.meta_val('title'))
+            self.title = self.data.meta_val('title')
 
     @Slot()
     def _refreshPlot(self) -> None:
@@ -335,12 +337,16 @@ class AutoPlot(PlotWidget):
         assert isinstance(self.fmWidget, FigureWidget)
         assert isinstance(self.data, DataDictBase)
         screenshot = self.fmWidget.grab(rectangle=QtCore.QRect(QtCore.QPoint(0, 0), QtCore.QSize(-1, -1)))
-        path = Path(self.data.meta_val('title'))
-        # add a timestamp here
-        t = time.localtime()
-        time_str = time.strftime(TIMESTRFORMAT, t)
-        filename = time_str+'_'+str(path.stem)+'.png'
-        screenshot.save(str(path.parent)+'/'+filename, format='PNG')
+        if self.title is not None:
+            path = Path(self.title)
+            # add a timestamp here
+            t = time.localtime()
+            time_str = time.strftime(TIMESTRFORMAT, t)
+            filename = time_str+'_'+str(path.stem)+'.png'
+            screenshot.save(str(path.parent)+'/'+filename, format='PNG')
+            return
+
+        logger.error("Could not find the path of the figuer. Figure has not been saved")
 
     # TODO: Allow for the option to choose filetypes and the name/directory
 
