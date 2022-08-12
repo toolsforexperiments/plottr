@@ -1,5 +1,6 @@
 """ plottr.monitr -- a GUI tool for monitoring data files.
 """
+import copy
 import sys
 import os
 import argparse
@@ -24,7 +25,7 @@ from itertools import cycle
 from watchdog.events import FileSystemEvent
 
 from .. import log as plottrlog
-from .. import QtCore, QtWidgets, Signal, Slot, QtGui
+from .. import QtCore, QtWidgets, Signal, Slot, QtGui, plottrPath
 from ..data.datadict_storage import all_datadicts_from_hdf5, datadict_from_hdf5
 from ..data.datadict import DataDict
 from ..utils.misc import unwrap_optional
@@ -877,48 +878,38 @@ class SortFilterProxyModel(QtCore.QSortFilterProxyModel):
 
     def __init__(self, parent: Optional[QtCore.QObject] = None):
         """
-        QSortFilterProxyModel with our custom filtering and stars and trash. The parent status always overrides
-        the children status, e.g.: If a parent is trash but its children are not, the parent with the children will be
-        hidden.
+        QSortFilterProxyModel with our custom filtering and stars and trash. Should only be used with FileModel.
         """
         super().__init__(parent=parent)
 
         self.only_star = False
         self.hide_trash = False
+        self.allowed_items: List[QtGui.QStandardItem] = []
 
-        self.queries_dict: Optional[Dict[str, List[str]]] = None
-
-    def star_trash_toggle(self, star_status: bool, trash_status: bool) -> None:
+    def setSourceModel(self, sourceModel: QtCore.QAbstractItemModel) -> None:
         """
-        Updates the star and trash status and triggers a filter.
-
-        :param star_status: The new star status. True for showing only starred items.
-        :param trash_status: The new trash status. True for hiding all stars.
+        Sets source model and initialize the allowed items
         """
+        assert isinstance(sourceModel, FileModel)
+        self.allowed_items = [item for item in sourceModel.main_dictionary.values()]
+        super().setSourceModel(sourceModel)
+
+    def filter_requested(self, allowed_items: List[QtGui.QStandardItem], star_status: bool, trash_status: bool) -> None:
         self.only_star = star_status
         self.hide_trash = trash_status
+        self.allowed_items = allowed_items
         self.trigger_filter()
-
-    def filter_text_changed(self, queries_dict: Optional[Dict[str, List[str]]]) -> None:
-        """
-        Gets called every time the filter text edit changes and triggers and update.
-
-        :queries_dict: The dictionary with the queries. Same structure as Item.match().
-        """
-        self.queries_dict = queries_dict
-        self.trigger_filter()
-
 
     def filterAcceptsRow(self, source_row: int, source_parent: QtCore.QModelIndex) -> bool:
         """
         Override of the QSortFilterProxyModel. Our custom filtering needs are implemented here.
-        Checks wether or not to show the item.
+        Checks wether or not to show the item agaisnt its allowed items list..
 
         :param source_row: The row of the item.
         :param source_parent: The index of the parent of the item.
         :returns: `True` if the item should be shown or `False` if the item should be hidden.
         """
-        # Get the item
+
         source_model = self.sourceModel()
         assert isinstance(source_model, FileModel)
         parent_item = source_model.itemFromIndex(source_parent)
@@ -927,83 +918,20 @@ class SortFilterProxyModel(QtCore.QSortFilterProxyModel):
         else:
             item = parent_item.child(source_row, 0)
 
+        if self.allowed_items is None and self.only_star == False and self.hide_trash == False:
+            if item is not None:
+                item.show = True
+            return True
+
         if not item is None:
             assert isinstance(item, Item)
-
-            # Check if it passes the current queries.
-            if self.queries_dict is not None:
-                if not item.match(self.queries_dict):
-                    item.show = False
-                    return False
-
-            # Checks for star or trash status
-            if self.only_star and item.star:
+            if item in self.allowed_items:
                 item.show = True
                 return True
-            elif self.only_star and not item.star:
-                # Checks if their children should be shown, so that this item gets shown too.
-                if item.hasChildren():
-                    if not self.hide_trash:
-                        ret = self._check_children_filter(item)
-                        item.show = ret
-                        return ret
-                    elif not item.trash:
-                        ret = self._check_children_filter(item)
-                        item.show = ret
-                        return ret
-                # If a parent is star, shows the children items too.
-                if self._check_parent_filter(item):
-                    item.show = True
-                    return True
-                item.show = False
-                return False
-            elif self.hide_trash and not item.trash:
-                item.show = True
-                return True
-            elif self.hide_trash and item.trash:
-                item.show = False
-                return False
             else:
-                item.show = True
-                return True
+                item.show = False
+                return False
 
-        return False
-
-    def _check_children_filter(self, item: Item) -> bool:
-        """
-        Helper function, recursively checks if any of the children of item should be shown.
-
-        :param item: The item who's children should be checked.
-        :return: True if it should be shown, False otherwise.
-        """
-        for i in range(item.rowCount()):
-            child = item.child(i, 0)
-            assert isinstance(child, Item)
-            if child.hasChildren():
-                childs_children_check = self._check_children_filter(child)
-                if childs_children_check:
-                    return True
-            if self.only_star and child.star:
-                return True
-        return False
-
-    def _check_parent_filter(self, item: Item) -> bool:
-        """
-        Checks if a parent of the item is starred and star only is is True.
-
-        :param item: The item who's children should be checked.
-        :return: True if it should be shown, False otherwise.
-        """
-        parent = item.parent()
-        if parent is not None:
-            keep_going = True
-            while keep_going:
-                assert isinstance(parent, Item)
-                if self.only_star and parent.star:
-                    return True
-                parent = parent.parent()
-                if parent is None:
-                    keep_going = False
         return False
 
     def trigger_filter(self) -> None:
@@ -1240,6 +1168,201 @@ class FileTreeView(QtWidgets.QTreeView):
             self.setExpanded(proxy_index, state)
 
 
+class FilterWorker(QtCore.QObject):
+    """
+    Worker object to perform the filtering of items in a separate thread.
+    """
+
+    # Signal(dict) -- Emitted when the worker has finished filtering the items.
+    #: Arguments:
+    #:   - Dict[Path, Item]. Only the items inside of that dictionary have passed the filtering.
+    finished = Signal(dict)
+
+    def run(self, model: FileModel, star_status: bool, trash_status: bool, filter: str) -> None:
+        filter_dict = self.filter_items(model, star_status, trash_status, filter)
+        if filter_dict is not None:
+            self.finished.emit(filter_dict)
+
+    def filter_items(self, model: FileModel, star_status: bool, trash_status: bool, filter: str) -> \
+            Optional[Dict[Path, Item]]:
+        """
+        Process the text in filter, separtes them into the different queries and filters the items.
+
+        The parent status (its trash or star status) always overrides the children status,
+        e.g.: If a parent is trash but its children are not, the parent with the children will be
+        hidden.
+
+        Queries are separated by commas (','). Empty queries or composed of only
+        a single whitespace are ignored. It also ignores the first character of a query itis a whitespace.
+
+        It accepts 5 kinds of queries:
+            * tags: queries starting with, 'tag:', 't:', or 'T:'.
+            * Markdown files: queries starting with, 'md:', 'm:', or 'M:'.
+            * Images: queries starting with, 'image:', 'i:', or 'I:'.
+            * Json files: queries starting with, 'json:', 'j:', or 'J:'.
+            * Folder names: any other query.
+
+        The filtering is done by creating a copy of all the items in a dctionary, and deleting all the ones that don't
+        pass the filter. Parents of items that have passed are added in the end. Children of starred items are also
+        added after the item passed the check.
+
+        :param mode: The model to perform the filtering.
+        :param star_status: The status of the star button in the FileExplorer.
+        :param trash_status: The status of the trash button in the FileExplorer.
+        :param filter: The raw stirng that is located in the
+        """
+        raw_queries = filter.split(',')
+        queries_with_empty_spaces = [item[1:] if len(item) >= 1 and item[0] == " " else item for item in raw_queries]
+        queries = [item for item in queries_with_empty_spaces if item != '' and item != ' ']
+
+        queries_dict = {}
+        if len(queries) > 0:
+            tag_queries = []
+            md_queries = []
+            image_queries = []
+            json_queries = []
+            name_queries = []
+            for query in queries:
+                if self.thread().isInterruptionRequested():
+                    return None
+                if query != '':
+                    if query[:4] == 'tag:':
+                        tag_queries.append(query[4:])
+                    elif query[:2] == 't:' or query[:2] == 'T:':
+                        tag_queries.append(query[2:])
+                    elif query[:3] == 'md:':
+                        md_queries.append(query[3:])
+                    elif query[:2] == 'm:' or query[:2] == 'M:':
+                        md_queries.append(query[2:])
+                    elif query[:6] == 'image:':
+                        image_queries.append(query[6:])
+                    elif query[:2] == 'i:' or query[:2] == 'I:':
+                        image_queries.append(query[2:])
+                    elif query[:5] == 'json:':
+                        json_queries.append(query[5:])
+                    elif query[:2] == 'j:' or query[:2] == 'J:':
+                        json_queries.append(query[2:])
+                    else:
+                        name_queries.append(query)
+
+                queries_dict = {'tag': tag_queries,
+                                'md': md_queries,
+                                'image': image_queries,
+                                'json': json_queries,
+                                'name': name_queries, }
+
+        current_dict = {key: value for key, value in model.main_dictionary.items()}
+
+        if self.thread().isInterruptionRequested():
+            return None
+
+        child_dict: Optional[Dict[Path, Item]] = {}
+        if star_status or trash_status:
+            for path, item in model.main_dictionary.items():
+                if self.thread().isInterruptionRequested():
+                    return None
+                if star_status:
+                    if item.star:
+
+                        if item.hasChildren():
+                            child_dict = self._add_children(item, child_dict)
+                            if child_dict is None:
+                                return None
+                    else:
+                        del current_dict[path]
+
+                elif trash_status:
+                    if item.trash:
+                        del current_dict[path]
+
+        if len(queries) > 0:
+            for query_type, queries in queries_dict.items():
+                if self.thread().isInterruptionRequested():
+                    return None
+                if query_type == 'name':
+                    for query in queries:
+                        if self.thread().isInterruptionRequested():
+                            return None
+                        match_pattern = re.compile(query, flags=re.IGNORECASE)
+                        new_matches = {path: item for path, item in current_dict.items() if
+                                       match_pattern.search(str(path))}
+                        current_dict = new_matches
+                else:
+                    for query in queries:
+                        if self.thread().isInterruptionRequested():
+                            return None
+                        match_pattern = re.compile(query, flags=re.IGNORECASE)
+                        new_matches = {path: item for path, item in current_dict.items()
+                                       for file_path, file_type in item.files.items()
+                                       if (file_type == ContentType.sort(query_type) and match_pattern.search(str(file_path.name)))}
+                        current_dict = new_matches
+
+        # If the parents of all of the items that pass the search are not in the allowed list, the children will not be shown.
+        parent_dict: Optional[Dict[Path, Item]] = {}
+        for path, item in current_dict.items():
+            if self.thread().isInterruptionRequested():
+                return None
+            parent_dict = self._add_parent(item, parent_dict)
+            if parent_dict is None:
+                return None
+
+        if child_dict is None or parent_dict is None:
+            return None
+        current_dict = current_dict | child_dict
+        current_dict = current_dict | parent_dict
+
+        return current_dict
+
+    def _add_parent(self, item: Item, adding_dict: Optional[Dict[Path, Item]]) -> Optional[Dict[Path, Item]]:
+        """
+        Adds all the parents of item to adding_dict.
+
+        :param item: The item whose parents we want to add.
+        :param adding_dict: The dictionary of which we want to add the parents.
+        """
+
+        if self.thread().isInterruptionRequested() or adding_dict is None:
+            return None
+
+        parent_item = item.parent()
+        if parent_item is None:
+            return adding_dict
+
+        assert isinstance(parent_item, Item)
+        if parent_item.path in adding_dict:
+            return adding_dict
+
+
+        if adding_dict is not None:
+            adding_dict = self._add_parent(parent_item, adding_dict)
+            if adding_dict is not None:
+                adding_dict[parent_item.path] = parent_item
+                return adding_dict
+        return None
+
+
+    def _add_children(self, item: Item, adding_dict: Optional[Dict[Path, Item]]) -> Optional[Dict[Path, Item]]:
+        """
+        Adds all the children of item to adding_dict.
+
+        :param item: The item whose children we want to add.
+        :param adding_dict: The dictionary of which we want to add the children.
+        """
+        for i in range(item.rowCount()):
+            if self.thread().isInterruptionRequested() or adding_dict is None:
+                return None
+            child = item.child(i, 0)
+            assert isinstance(child, Item)
+            if child.path not in adding_dict:
+                if child.hasChildren():
+                    adding_dict = self._add_children(child, adding_dict)
+                if adding_dict is None:
+                    return None
+                adding_dict[child.path] = child
+
+        return adding_dict
+
+
 # TODO: Figure out the parent situation going on here.
 class FileExplorer(QtWidgets.QWidget):
     """
@@ -1275,6 +1398,12 @@ class FileExplorer(QtWidgets.QWidget):
         self.star_button.setCheckable(True)
         self.trash_button.setCheckable(True)
 
+        self.loading_label: Optional[IconLabel] = None
+        self.loading_movie = QtGui.QMovie(os.path.join(plottrPath, 'resource', 'gfx', "loading_gif.gif"))
+
+        self.filter_worker: Optional[FilterWorker] = None
+        self.filter_thread: Optional[QtCore.QThread] = None
+
         self.filter_and_buttons_layout.addWidget(self.filter_line_edit)
         self.filter_and_buttons_layout.addWidget(self.star_button)
         self.filter_and_buttons_layout.addWidget(self.trash_button)
@@ -1290,7 +1419,7 @@ class FileExplorer(QtWidgets.QWidget):
         self.expand_button.clicked.connect(self.file_tree.expandAll)
         self.collapse_button.clicked.connect(self.file_tree.collapseAll)
 
-        self.filter_line_edit.textChanged.connect(self.on_filter_line_edit_text_change)
+        self.filter_line_edit.textChanged.connect(self.on_filter_triggered)
 
 
     @Slot()
@@ -1298,68 +1427,58 @@ class FileExplorer(QtWidgets.QWidget):
         """
         Updates the status of the buttons to the FileTree.
         """
-        self.proxy_model.star_trash_toggle(self.star_button.isChecked(), self.trash_button.isChecked())
+        filter_str = self.filter_line_edit.text()
+        self.on_filter_triggered(filter_str)
 
     @Slot(str)
-    def on_filter_line_edit_text_change(self, filter_str: str) -> None:
+    def on_filter_triggered(self, filter: str) -> None:
         """
-        Gets called everytime the filter line edit changes texts. Process the text in the line edit, separtes them into
-        the different queries and triggers the filtering in the proxy model.
+        Gets called whenever a new filtering is triggered (text changed in the filter line edit or the star or trash
+        buttons have been clicked). Starts the loading animation and creates a FilterWorker and
+        starts it on a new thread.
 
-        Queries are separated by commas (','). Empty queries or composed of only
-        a single whitespace are ignored. It also ignores the first character of a query if this is a whitespace.
-
-        It accepts 5 kinds of queries:
-            * tags: queries starting with, 'tag:', 't:', or 'T:'.
-            * Markdown files: queries starting with, 'md:', 'm:', or 'M:'.
-            * Images: queries starting with, 'image:', 'i:', or 'I:'.
-            * Json files: queries starting with, 'json:', 'j:', or 'J:'.
-            * Folder names: any other query.
-
-        :param filter_str: The str that is currently in the filter line text edit.
+        :param filter: The string of the line edit.
         """
-        raw_queries = filter_str.split(',')
-        queries_with_empty_spaces = [item[1:] if len(item) >= 1 and item[0] == " " else item for item in raw_queries]
-        queries = [item for item in queries_with_empty_spaces if item != '' and item != ' ']
+        if self.loading_label is None:
+            self.loading_label = IconLabel(self.loading_movie, self.star_button.height())
+        self.filter_and_buttons_layout.insertWidget(1, self.loading_label)
+        self.loading_label.start_animation()
 
-        if len(queries) == 0:
-            queries_dict = None
-            self.proxy_model.filter_text_changed(queries_dict)
-            return
+        if self.filter_thread is not None:
+            if self.filter_thread.isRunning():
+                self.filter_thread.requestInterruption()
+                self.filter_thread.quit()
+                self.filter_thread.wait()
+                self.filter_thread = None
 
-        tag_queries = []
-        md_queries = []
-        image_queries = []
-        json_queries = []
-        name_queries = []
-        for query in queries:
-            if query != '':
-                if query[:4] == 'tag:':
-                    tag_queries.append(query[4:])
-                elif query[:2] == 't:' or query[:2] == 'T:':
-                    tag_queries.append(query[2:])
-                elif query[:3] == 'md:':
-                    md_queries.append(query[3:])
-                elif query[:2] == 'm:' or query[:2] == 'M:':
-                    md_queries.append(query[2:])
-                elif query[:6] == 'image:':
-                    image_queries.append(query[6:])
-                elif query[:2] == 'i:' or query[:2] == 'I:':
-                    image_queries.append(query[2:])
-                elif query[:5] == 'json:':
-                    json_queries.append(query[5:])
-                elif query[:2] == 'j:' or query[:2] == 'J:':
-                    json_queries.append(query[2:])
-                else:
-                    name_queries.append(query)
+        self.filter_thread = QtCore.QThread(self)
+        self.filter_worker = FilterWorker()
+        self.filter_worker.moveToThread(self.filter_thread)
+        run_fun = partial(self.filter_worker.run, self.model, self.star_button.isChecked(),
+                          self.trash_button.isChecked(), filter)
+        self.filter_thread.started.connect(run_fun)
+        self.filter_worker.finished.connect(self.on_finished_filtering)
+        self.filter_thread.start()
 
-            queries_dict = {'tag': tag_queries,
-                            'md': md_queries,
-                            'image': image_queries,
-                            'json': json_queries,
-                            'name': name_queries, }
+    @Slot(dict)
+    def on_finished_filtering(self, results_dict: Dict[Path, Item]) -> None:
+        """
+        Gets called when the FilterWorker is done filtering. Ends the loading animation and the thread and triggers the
+        filtering in the porxy model.
+        """
+        if self.loading_label is not None:
+            self.loading_label.stop_animation()
+            self.filter_and_buttons_layout.removeWidget(self.loading_label)
+            self.loading_label.deleteLater()
+            self.loading_label = None
 
-        self.proxy_model.filter_text_changed(queries_dict)
+        if self.filter_thread is not None:
+            self.filter_thread.quit()
+            self.filter_thread.wait()
+            self.filter_thread = None
+
+        items_list = [item for item in results_dict.values()]
+        self.proxy_model.filter_requested(list(items_list), self.star_button.isChecked(), self.trash_button.isChecked())
 
 
 class DataTreeWidgetItem(QtWidgets.QTreeWidgetItem):
@@ -1883,7 +2002,6 @@ class ImageViewer(QtWidgets.QLabel):
                             self.rep_counter += 1
                             self.event_record = []
 
-
         return super().eventFilter(a0, a1)
 
 
@@ -1905,7 +2023,7 @@ class VerticalScrollArea(QtWidgets.QScrollArea):
     def eventFilter(self, a0: QtCore.QObject, a1: QtCore.QEvent) -> bool:
         self.setMinimumWidth(self.widget().minimumSizeHint().width())
         return super().eventFilter(a0, a1)
-    
+
     @Slot(int)
     def on_range_changed(self) -> None:
         if self.first_scroll is True:
@@ -1914,7 +2032,7 @@ class VerticalScrollArea(QtWidgets.QScrollArea):
                 if bar.maximum() > 0 and bar.maximum() >= self.scroll_height:
                     bar.setValue(self.scroll_height)
                     self.first_scroll = False
-    
+
     def viewportEvent(self, a0: QtCore.QEvent) -> bool:
         ret = super().viewportEvent(a0)
         return ret
@@ -2097,7 +2215,157 @@ class TagCreator(QtWidgets.QLineEdit):
 
         self.setText('')
 
+class IconLabel(QtWidgets.QLabel):
 
+    def __init__(self, movie: QtGui.QMovie, size: Optional[int] = None, *args: Any, **kwargs: Any):
+        """
+        Label used to display loading animations.
+
+        :param movie: A QMovie object with the movie that it should display. The movie is not loaded every time the
+            label is created.
+        :param size: The loading animation will be scaled to a square of side size if this argument is passed.
+            The animation will retain its original size otherwise.
+        """
+        super().__init__(*args, **kwargs)
+        self.setAlignment(QtCore.Qt.AlignCenter)
+        self.setMovie(movie)
+
+        if size is not None:
+            qsize = QtCore.QSize(size, size)
+            self.setFixedSize(qsize)
+            self.movie().setScaledSize(qsize)
+
+    def start_animation(self) -> None:
+        self.movie().start()
+
+    def stop_animation(self) -> None:
+        self.movie().stop()
+
+
+class LoaderWorker(QtCore.QObject):
+    """
+    Worker that loads all the data necessary to display the right side window. Meant to be run in a separate thread.
+    """
+
+    # Signal(dict) -- Emitted when the dictionary with all the data for the right side windows has been loaded.
+    #: Arguments:
+    #:   - The dictionary with all the necessary data to create the right side window.
+    finished = Signal(dict)
+
+    def run(self, item: Item) -> None:
+        data = self.gather_all_right_side_window_data(item)
+        if data is not None:
+            self.finished.emit(data)
+
+    def gather_all_right_side_window_data(self, item: Item, only_data_files: bool = False) -> \
+            Optional[dict]:
+        """
+        Method used to create a dictionary with all the necessary information (file names, paths, etc.)
+         of an item of the model to create the right side window. This function will also go through all the children the item might have, and add the
+         names of each nested folders in front of the windows titles. Utilizes 2 helper functions to do this.
+
+        :param item: Item of the model to generate the dictionary.
+        :return: A dictionary with the following structure:
+            return {'tag_labels': [str],
+                    'data_files': {'paths': [Path],
+                                   'names': [str],
+                                   'data': [DataDict]},
+                    'extra_files': [(Path, str, ContentType)]}
+        """
+        data = {'tag_labels': [],
+                'data_files': {'paths': [],
+                               'names': [],
+                               'data': []},
+                'extra_files': []}
+
+        data_ret = self._fill_dict(data, item.files, '', only_data_files)
+        if data_ret is None:
+            return None
+        data = data_ret
+
+        # Get the data of all the children.
+        for i in range(item.rowCount()):
+            if self.thread().isInterruptionRequested():
+                return None
+            child = item.child(i, 0)
+            assert isinstance(child, Item)
+            data_ret = self._check_children_data(child, data, 1)
+            if data_ret is None:
+                return None
+            data = data_ret
+
+        # Sort the files so that they appear in reverse alphabetical order.
+        data['extra_files'] = sorted(data['extra_files'], key=lambda x: str.lower(x[1]), reverse=True)
+        return data
+
+    def _fill_dict(self, data_in: Optional[dict], files_dict: Dict[Path, ContentType], prefix_text: str,
+                   only_data_files: bool = False) -> Optional[dict]:
+        """
+        Helper method for gather_all_right_sice_window_data. Fills in the data dictionary with the files inside of
+        files_dict and adds prefix text to all tittles.
+
+        :param data_in: Dictionary with the same structure as the data dictionary of gather_all_right_sice_window_data.
+        :param files_dict: Dictionary with Path of files as keys and their ContentType as values.
+        :param prefix_text: String to add to the front of the titles for the widgets. Used to specify from which
+            specific nested folder this file is coming from.
+        :return: data_in with the files of files_dict in it.
+        """
+
+        for file, file_type in files_dict.items():
+            if self.thread().isInterruptionRequested() or data_in is None:
+                return None
+            if file_type == ContentType.data:
+                data_in['data_files']['paths'].append(file)
+                data_in['data_files']['names'].append(prefix_text + str(file.stem))
+                # There might be an error with the ddh5 trying to be loaded.
+                try:
+                    data_dict = datadict_from_hdf5(str(file), structure_only=True)
+                    data_in['data_files']['data'].append(data_dict)
+                except Exception as e:
+                    logger().error(f'Failed to load the data file: {file} \n {e}')
+
+            if not only_data_files:
+                if file_type == ContentType.tag:
+                    data_in['tag_labels'].append(prefix_text + str(file.stem))
+                elif file_type == ContentType.json or file_type == ContentType.md or file_type == ContentType.image:
+                    # Check if the files exist.
+                    if file.is_file():
+                        data_in['extra_files'].append((file, prefix_text + str(file.name), file_type))
+        return data_in
+
+    def _check_children_data(self, child_item: Item, data_in: Optional[dict], deepness: int,
+                             only_data_files: bool = False) -> Optional[dict]:
+        """
+        Helper function for gather_all_right_side_window_data. Fills the data_in dictionary with the files of
+         child_item and all of its children. Returns the filled dictionary with the information of child_item and all
+
+        :param child_item: Item for which files and children the data should be gathered.
+        :param data_in: Already partially filled dictionary with the parent data. Same structure as data from
+            gather_all_right_side_window_data
+        :param deepness: int marking the level of recursion. If calling this function for the first level children of an
+            item should be 1, for the children of the first children should be 2 and so on.
+        :return: data_in with the data of all the children.
+        """
+
+        child_path = child_item.path
+        prefix_text = ''
+        # Make the prefix text. Should be all the parent folders until the original parent item.
+        for i in range(deepness):
+            prefix_text = child_path.parts[-i - 1] + '/' + prefix_text
+
+        data_in = self._fill_dict(data_in, child_item.files, prefix_text, only_data_files)
+
+        for i in range(child_item.rowCount()):
+            if self.thread().isInterruptionRequested():
+                return None
+            child = child_item.child(i, 0)
+            assert isinstance(child, Item)
+            data_in = self._check_children_data(child, data_in, deepness + 1, only_data_files)
+
+        return data_in
+
+
+# TODO: Instead of saving  the currently selected folder, save the currently and previously selected item.
 class Monitr(QtWidgets.QMainWindow):
     def __init__(self, monitorPath: str = '.',
                  parent: Optional[QtWidgets.QMainWindow] = None):
@@ -2152,6 +2420,8 @@ class Monitr(QtWidgets.QMainWindow):
         self.tags_creator: Optional[TagCreator] = None
         self.invalid_data_label: Optional[QtWidgets.QLabel] = None
         self.header_label: Optional[QtWidgets.QLabel] = None
+        self.loading_label: Optional[IconLabel] = None
+        self.loading_movie = QtGui.QMovie(os.path.join(plottrPath, 'resource', 'gfx', "loading_gif.gif"))
 
         # Debug items
         # self.debug_layout = QtWidgets.QHBoxLayout()
@@ -2168,6 +2438,10 @@ class Monitr(QtWidgets.QMainWindow):
 
 
         self.main_partition_splitter.addWidget(self.left_side_dummy_widget)
+
+        # Threading stuff
+        self.loader_worker: Optional[LoaderWorker] = None
+        self.loader_thread: Optional[QtCore.QThread] = None
 
     def print_model_data(self) -> None:
         """
@@ -2247,15 +2521,15 @@ class Monitr(QtWidgets.QMainWindow):
         #  significantly increases loading times.
         if previous_item is not None:
             if current_item is not None:
-                assert isinstance(current_item, Item)
-                self.current_selected_folder = current_item.path
-                self.model.update_currently_selected_folder(self.current_selected_folder)
-                # The first time the user clicks on a folder, the previous item is None.
-                if previous_item is not None:
+                if current_item != previous_item:
+                    assert isinstance(current_item, Item)
+                    self.current_selected_folder = current_item.path
+                    self.model.update_currently_selected_folder(self.current_selected_folder)
+                    # The first time the user clicks on a folder, the previous item is None.
                     assert isinstance(previous_item, Item)
                     self.previous_selected_folder = previous_item.path
 
-                self.generate_right_side_window()
+                    self.generate_right_side_window()
 
     def generate_right_side_window(self) -> None:
         """
@@ -2272,28 +2546,72 @@ class Monitr(QtWidgets.QMainWindow):
                 self.main_partition_splitter.addWidget(self.scroll_area)
 
             self.clear_right_layout()
-            files_meta = self.gather_all_right_side_window_data(
-                self.model.main_dictionary[self.current_selected_folder])
 
-            self.add_folder_header()
-            self.add_tag_label(files_meta['tag_labels'])
-            self.add_data_window(files_meta['data_files'])
-            self.add_text_input(self.current_selected_folder)
-            self.add_all_files(files_meta['extra_files'])
+            if self.loading_label is None:
+                self.loading_label = IconLabel(self.loading_movie)
+            self.right_side_layout.addWidget(self.loading_label)
+            self.loading_label.start_animation()
 
-            # Sets the stretch factor so when the main window expands, the files get the extra real-state instead
-            # of the file tree
-            self.main_partition_splitter.setStretchFactor(0, 0)
-            self.main_partition_splitter.setStretchFactor(1, 255)
+            if self.loader_thread is not None:
+                if self.loader_thread.isRunning():
+                    self.loader_thread.requestInterruption()
+                    self.loader_thread.quit()
+                    self.loader_thread.wait()
+                    self.loader_thread = None
 
-            current_item = self.model.main_dictionary[self.current_selected_folder]
-            assert self.scroll_area is not None
-            self.scroll_area.scroll_height = current_item.scroll_height
-            self.scroll_area.first_scroll = True
+            self.loader_thread = QtCore.QThread(self)
+            self.loader_worker = LoaderWorker()
+            self.loader_worker.moveToThread(self.loader_thread)
+            run_fun = partial(self.loader_worker.run, self.model.main_dictionary[self.current_selected_folder])
+            self.loader_thread.started.connect(run_fun)
+            self.loader_worker.finished.connect(self.populate_right_side_window)
+            self.loader_thread.start()
+
+    @Slot(dict)
+    def populate_right_side_window(self, files_meta: dict) -> None:
+        """
+        Gets connected to the thread that is loading the data from all of the files and populates the right side window.
+
+        :param files_meta: A dictionary with all the data to load the right side window with the following structure:
+            files_meta = {'tag_labels': [str],
+                          'data_files': {'paths': [Path],
+                                         'names': [str],
+                                         'data': [DataDict]},
+                          'extra_files': [(Path, str, ContentType)]}
+        """
+        if self.loading_label is not None:
+            self.loading_label.stop_animation()
+            self.right_side_layout.removeWidget(self.loading_label)
+            self.loading_label.deleteLater()
+            self.loading_label = None
+
+        if self.loader_thread is not None:
+            self.loader_thread.quit()
+            self.loader_thread.wait()
+            self.loader_thread = None
+
+        self.add_folder_header()
+        self.add_tag_label(files_meta['tag_labels'])
+        self.add_data_window(files_meta['data_files'])
+        self.add_text_input(self.current_selected_folder)
+        self.add_all_files(files_meta['extra_files'])
+
+        # Sets the stretch factor so when the main window expands, the files get the extra real-state instead
+        # of the file tree
+        self.main_partition_splitter.setStretchFactor(0, 0)
+        self.main_partition_splitter.setStretchFactor(1, 255)
+
+        current_item = self.model.main_dictionary[self.current_selected_folder]
+        assert self.scroll_area is not None
+        self.scroll_area.scroll_height = current_item.scroll_height
+        self.scroll_area.first_scroll = True
+
+
 
     def clear_right_layout(self) -> None:
         """
-        Records the scroll height of the previous item if the scroll bar exists. Then clears every item on the right side of the screen.
+        Records the scroll height of the previous item if the scroll bar exists.
+        Then clears every item on the right side of the screen.
         """
         if self.previous_selected_folder != Path() and self.scroll_area is not None:
             bar = self.scroll_area.verticalScrollBar()
