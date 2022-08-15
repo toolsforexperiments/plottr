@@ -974,7 +974,7 @@ class FileTreeView(QtWidgets.QTreeView):
         model = proxy_model.sourceModel()
         assert isinstance(model, FileModel)
         self.model_ = model
-        self.collapsed_state: Dict[Path, bool] = {}
+        self.collapsed_state: Dict[QtCore.QModelIndex, bool] = {}
         self.star_text = 'Star'
         self.un_star_text = 'Un-star'
         self.trash_text = 'Trash'
@@ -1142,7 +1142,7 @@ class FileTreeView(QtWidgets.QTreeView):
                 if item.show:
                     source_index = self.model_.index(i, 0, QtCore.QModelIndex())
                     index = self.proxy_model.mapFromSource(source_index)
-                    self.collapsed_state[item.path] = self.isExpanded(index)
+                    self.collapsed_state[source_index] = self.isExpanded(index)
                     if item.hasChildren():
                         self.create_collapsed_state(incoming_item=item)
 
@@ -1154,7 +1154,7 @@ class FileTreeView(QtWidgets.QTreeView):
                 if child.show:
                     source_index = self.model_.indexFromItem(child)
                     child_index = self.proxy_model.mapFromSource(source_index)
-                    self.collapsed_state[child.path] = self.isExpanded(child_index)
+                    self.collapsed_state[source_index] = self.isExpanded(child_index)
                     if child.hasChildren():
                         self.create_collapsed_state(incoming_item=child)
 
@@ -1162,11 +1162,9 @@ class FileTreeView(QtWidgets.QTreeView):
         """
         Sets every item in the collapsed_state dictionary the correct collapsed setting.
         """
-        for path, state in self.collapsed_state.items():
-            source_index = self.model_.indexFromItem(self.model_.main_dictionary[path])
+        for source_index, state in self.collapsed_state.items():
             proxy_index = self.proxy_model.mapFromSource(source_index)
             self.setExpanded(proxy_index, state)
-
 
 class FilterWorker(QtCore.QObject):
     """
