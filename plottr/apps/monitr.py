@@ -826,68 +826,14 @@ class FileModel(QtGui.QStandardItemModel):
                 partial_list = partial_list + self._get_all_files_of_item(child)
         return partial_list
 
-    def star_item(self, item_index: QtCore.QModelIndex) -> None:
-        """
-        Creates the __star__.tag file if it doesn't exist, deletes it if it does, in the folder for the item.
-         If it finds __trash__.tag there it will delete it.
-
-        :param item_index: The index of the item that needs to be starred.
-        """
-        # If the item is of column 1, change it to the sibling at column 0
-        if item_index.column() == 1:
-            item_index = item_index.siblingAtColumn(0)
-
-        item = self.itemFromIndex(item_index)
-        assert isinstance(item, Item)
-        path = item.path
-        star_path = path.joinpath('__star__.tag')
-        trash_path = path.joinpath('__trash__.tag')
-        # If a trash file in the star folder exists, delete it.
-        if trash_path.is_file():
-            trash_path.unlink()
-
-        # If the folder is already a starred folder, un-star it.
-        if star_path.is_file():
-            star_path.unlink()
-        else:
-            with open(star_path, 'w') as file:
-                file.write('')
-
-    def trash_item(self, item_index: QtCore.QModelIndex) -> None:
-        """
-        Creates the __trash__.tag file if it doesn't exist, deletes it if it does, in the folder for the item.
-         If it finds __star__.tag there it will delete it
-
-        :param index: The index of the item that needs to be trashed.
-        """
-
-        # If the item is of column 1, change it to the sibling at column 0
-        if item_index.column() == 1:
-            item_index = item_index.siblingAtColumn(0)
-
-        item = self.itemFromIndex(item_index)
-        assert isinstance(item, Item)
-        path = item.path
-        star_path = path.joinpath('__star__.tag')
-        trash_path = path.joinpath('__trash__.tag')
-        # If a star file in the star folder exists, delete it.
-        if star_path.is_file():
-            star_path.unlink()
-
-        # If the folder is already a trashed folder, un-trash it.
-        if trash_path.is_file():
-            trash_path.unlink()
-        else:
-            with open(trash_path, 'w') as file:
-                file.write('')
-
     def tag_action_triggered(self, item_index: QtCore.QModelIndex, tag: str) -> None:
         """
         Gets called every time the user triggeres a tag action in the context menu of the view.
-        If the item doesn't have that tag, adds it. If it does, deletes it.
+        If the item doesn't have that tag, adds it. If it does, deletes it. Handles the special __trash__ and __star__
+        tags.
 
         :param item_index: The index of either the correct item or its sibling.
-        :param tag: The tag
+        :param tag: The tag.
         """
 
         # If the item is of column 1, change it to the sibling at column 0
@@ -897,12 +843,38 @@ class FileModel(QtGui.QStandardItemModel):
         item = self.itemFromIndex(item_index)
         assert isinstance(item, Item)
         path = item.path
-        tag_path = path.joinpath(tag + '.tag')
-        if tag_path.is_file():
-            tag_path.unlink()
+        star_path = path.joinpath('__star__.tag')
+        trash_path = path.joinpath('__trash__.tag')
+        if tag == 'star':
+            # If a trash file in the star folder exists, delete it.
+            if trash_path.is_file():
+                trash_path.unlink()
+
+            # If the folder is already a starred folder, un-star it.
+            if star_path.is_file():
+                star_path.unlink()
+            else:
+                with open(star_path, 'w') as file:
+                    file.write('')
+        elif tag == 'trash':
+            # If a star file in the star folder exists, delete it.
+            if star_path.is_file():
+                star_path.unlink()
+
+            # If the folder is already a trashed folder, un-trash it.
+            if trash_path.is_file():
+                trash_path.unlink()
+            else:
+                with open(trash_path, 'w') as file:
+                    file.write('')
+
         else:
-            with open(tag_path, 'w') as file:
-                file.write('')
+            tag_path = path.joinpath(tag + '.tag')
+            if tag_path.is_file():
+                tag_path.unlink()
+            else:
+                with open(tag_path, 'w') as file:
+                    file.write('')
 
     def delete_item(self, item_index: QtCore.QModelIndex) -> None:
         """
@@ -1074,23 +1046,20 @@ class FileTreeView(QtWidgets.QTreeView):
         assert isinstance(model, FileModel)
         self.model_ = model
         self.collapsed_state: Dict[Path, bool] = {}
-        self.star_text = 'Star'
-        self.un_star_text = 'Un-star'
-        self.trash_text = 'Trash'
-        self.un_trash_text = 'Un-trash'
+        self.star_text = 'star'
+        self.un_star_text = 'un-star'
+        self.trash_text = 'trash'
+        self.un_trash_text = 'un-trash'
 
         self.context_menu = QtWidgets.QMenu(self)
-        self.star_action = QtWidgets.QAction('Star')
-        self.trash_action = QtWidgets.QAction('Trash')
-        self.delete_action = QtWidgets.QAction('Delete')
+        self.star_action = QtWidgets.QAction('star')
+        self.trash_action = QtWidgets.QAction('trash')
+        self.delete_action = QtWidgets.QAction('delete')
         self.tag_actions: Dict[str, QtWidgets.QAction] = {}
         for tag in self.model_.tags_dict.keys():
             if tag not in self.tag_actions:
                 self.tag_actions[tag] = QtWidgets.QAction(str(tag))
 
-        self.star_action.triggered.connect(self.on_emit_item_starred)
-        self.trash_action.triggered.connect(self.on_emit_item_trashed)
-        self.delete_action.triggered.connect(self.on_emit_item_delete)
         self.proxy_model.filter_incoming.connect(self.on_filter_incoming_event)
         self.proxy_model.filter_finished.connect(self.on_filter_ended_event)
         self.model_.new_tag.connect(self.on_add_tag_action)
@@ -1196,33 +1165,6 @@ class FileTreeView(QtWidgets.QTreeView):
         self.context_menu.exec_(self.mapToGlobal(pos))
 
     @Slot()
-    def on_emit_item_starred(self) -> None:
-        """
-        Gets called when the user press the star action. Emits the star_item signal.
-        """
-        item_proxy_index = self.currentIndex()
-        item_index = self.proxy_model.mapToSource(item_proxy_index)
-        self.model_.star_item(item_index)
-
-    @Slot()
-    def on_emit_item_trashed(self) -> None:
-        """
-        Gets called when the user press the trash action. Emits the trash_item signal.
-        """
-        item_proxy_index = self.currentIndex()
-        item_index = self.proxy_model.mapToSource(item_proxy_index)
-        self.model_.trash_item(item_index)
-
-    @Slot()
-    def on_emit_item_delete(self) -> None:
-        """
-        Gets called when the user press the delete action. Emits the delete_item signal.
-        """
-        item_proxy_index = self.currentIndex()
-        item_index = self.proxy_model.mapToSource(item_proxy_index)
-        self.model_.delete_item(item_index)
-
-    @Slot()
     def on_adjust_column_width(self) -> None:
         """
         Gets called when the model changed the icon of an item. When changing an item icons that has the tag widget
@@ -1248,10 +1190,10 @@ class FileTreeView(QtWidgets.QTreeView):
         tag = action.text()
         if tag[0:3] == 'un-':
             tag = tag[3:]
-        if tag != 'Star' and tag != 'Trash':
-            item_proxy_index = self.currentIndex()
-            item_index = self.proxy_model.mapToSource(item_proxy_index)
-            self.model_.tag_action_triggered(item_index, tag)
+
+        item_proxy_index = self.currentIndex()
+        item_index = self.proxy_model.mapToSource(item_proxy_index)
+        self.model_.tag_action_triggered(item_index, tag)
 
     def currentChanged(self, current: QtCore.QModelIndex, previous: QtCore.QModelIndex) -> None:
         """
