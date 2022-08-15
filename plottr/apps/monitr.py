@@ -383,6 +383,16 @@ class FileModel(QtGui.QStandardItemModel):
     #:   - A list of the currently selected tags.
     selected_tags_changed = Signal(list)
 
+    # Signal(str) -- Emitted when a new tag has been created.
+    #: Arguments:
+    #:   - The new tag.
+    new_tag = Signal(str)
+
+    # Signal(str) -- Emitted when a tag has been deleted.
+    #: Arguments:
+    #:   - The deleted tag.
+    tag_deleted_signal = Signal(str)
+
     def __init__(self, monitor_path: str, rows: int, columns: int, parent: Optional[Any] = None):
         super().__init__(rows, columns, parent=parent)
         self.monitor_path = Path(monitor_path)
@@ -871,6 +881,29 @@ class FileModel(QtGui.QStandardItemModel):
             with open(trash_path, 'w') as file:
                 file.write('')
 
+    def tag_action_triggered(self, item_index: QtCore.QModelIndex, tag: str) -> None:
+        """
+        Gets called every time the user triggeres a tag action in the context menu of the view.
+        If the item doesn't have that tag, adds it. If it does, deletes it.
+
+        :param item_index: The index of either the correct item or its sibling.
+        :param tag: The tag
+        """
+
+        # If the item is of column 1, change it to the sibling at column 0
+        if item_index.column() == 1:
+            item_index = item_index.siblingAtColumn(0)
+
+        item = self.itemFromIndex(item_index)
+        assert isinstance(item, Item)
+        path = item.path
+        tag_path = path.joinpath(tag + '.tag')
+        if tag_path.is_file():
+            tag_path.unlink()
+        else:
+            with open(tag_path, 'w') as file:
+                file.write('')
+
     def delete_item(self, item_index: QtCore.QModelIndex) -> None:
         """
         Currently nothing happens. This is not yet implemented
@@ -909,6 +942,7 @@ class FileModel(QtGui.QStandardItemModel):
         new_tag_item.setFlags(QtCore.Qt.ItemIsUserCheckable | QtCore.Qt.ItemIsEnabled)
         new_tag_item.setData(QtCore.Qt.Unchecked, QtCore.Qt.CheckStateRole)
         self.tags_model.setItem(self.tags_model.rowCount(), 0, new_tag_item)
+        self.new_tag.emit(tag)
 
     def tag_deleted(self, tag: str) -> None:
         """
@@ -924,6 +958,7 @@ class FileModel(QtGui.QStandardItemModel):
                 tag_item = self.tags_model.findItems(tag, QtCore.Qt.MatchExactly)
                 if len(tag_item) > 0:
                     self.tags_model.removeRow(tag_item[0].row())
+                    self.tag_deleted_signal.emit(tag)
 
     @Slot()
     def on_checked_tag_change(self) -> None:
@@ -1048,15 +1083,22 @@ class FileTreeView(QtWidgets.QTreeView):
         self.star_action = QtWidgets.QAction('Star')
         self.trash_action = QtWidgets.QAction('Trash')
         self.delete_action = QtWidgets.QAction('Delete')
+        self.tag_actions: Dict[str, QtWidgets.QAction] = {}
+        for tag in self.model_.tags_dict.keys():
+            if tag not in self.tag_actions:
+                self.tag_actions[tag] = QtWidgets.QAction(str(tag))
 
         self.star_action.triggered.connect(self.on_emit_item_starred)
         self.trash_action.triggered.connect(self.on_emit_item_trashed)
         self.delete_action.triggered.connect(self.on_emit_item_delete)
         self.proxy_model.filter_incoming.connect(self.on_filter_incoming_event)
         self.proxy_model.filter_finished.connect(self.on_filter_ended_event)
+        self.model_.new_tag.connect(self.on_add_tag_action)
+        self.model_.tag_deleted_signal.connect(self.on_delete_tag_action)
 
         self.setContextMenuPolicy(QtCore.Qt.CustomContextMenu)
         self.customContextMenuRequested.connect(self.on_context_menu_requested)
+        self.context_menu.triggered.connect(self.on_context_action_triggered)
 
         self.setUniformRowHeights(True)
         self.setSortingEnabled(True)
@@ -1142,7 +1184,15 @@ class FileTreeView(QtWidgets.QTreeView):
         self.context_menu.addAction(self.star_action)
         self.context_menu.addAction(self.trash_action)
         self.context_menu.addSeparator()
-        self.context_menu.addAction(self.delete_action)
+        for tag, action in self.tag_actions.items():
+            if tag in item.tags:
+                action.setText('un-' + tag)
+            else:
+                action.setText(tag)
+            self.context_menu.addAction(action)
+        #  TODO: Implement the delete action in the model.
+        # self.context_menu.addSeparator()
+        # self.context_menu.addAction(self.delete_action)
         self.context_menu.exec_(self.mapToGlobal(pos))
 
     @Slot()
@@ -1182,6 +1232,26 @@ class FileTreeView(QtWidgets.QTreeView):
         column_width = self.columnWidth(1)
         self.setColumnWidth(1, column_width + 1)
         self.setColumnWidth(1, column_width - 1)
+
+    @Slot(str)
+    def on_add_tag_action(self, new_tag: str) -> None:
+        if new_tag not in self.tag_actions:
+            self.tag_actions[new_tag] = QtWidgets.QAction()
+
+    @Slot(str)
+    def on_delete_tag_action(self, deleted_tag: str) -> None:
+        if deleted_tag in self.tag_actions:
+            del self.tag_actions[deleted_tag]
+
+    @Slot(QtWidgets.QAction)
+    def on_context_action_triggered(self, action: QtWidgets.QAction) -> None:
+        tag = action.text()
+        if tag[0:3] == 'un-':
+            tag = tag[3:]
+        if tag != 'Star' and tag != 'Trash':
+            item_proxy_index = self.currentIndex()
+            item_index = self.proxy_model.mapToSource(item_proxy_index)
+            self.model_.tag_action_triggered(item_index, tag)
 
     def currentChanged(self, current: QtCore.QModelIndex, previous: QtCore.QModelIndex) -> None:
         """
