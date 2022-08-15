@@ -182,6 +182,9 @@ class Item(QtGui.QStandardItem):
         self.files[path] = file_type
 
         if file_type == ContentType.tag:
+            model = self.model()
+            assert isinstance(model, FileModel)
+
             if path.name == '__star__.tag':
                 # Check if the item is not already trash.
                 trash_path = path.parent.joinpath('__trash__.tag')
@@ -213,9 +216,8 @@ class Item(QtGui.QStandardItem):
             else:
                 self.tags.append(path.stem)
                 self.tags_widget.add_tag(path.stem)
+                model.tag_added(path.stem)
 
-            model = self.model()
-            assert isinstance(model, FileModel)
             model.tags_changed(self)
 
     def delete_file(self, path: Path) -> None:
@@ -228,9 +230,13 @@ class Item(QtGui.QStandardItem):
         file_type = ContentType.sort(path)
         self.files.pop(path)
         if file_type == ContentType.tag:
+            model = self.model()
+            assert isinstance(model, FileModel)
+
             if path.stem in self.tags:
                 self.tags.remove(path.stem)
                 self.tags_widget.delete_tag(path.stem)
+                model.tag_deleted(path.stem)
 
             if path.name == '__star__.tag':
                 self.star = False
@@ -367,11 +373,15 @@ class FileModel(QtGui.QStandardItemModel):
     # Signal() -- Emitted when the model gets refreshed.
     model_refreshed = Signal()
 
-    # Signal() -- Emitted when data should be updated.
+    # Signal(Path) -- Emitted when data should be updated.
     #: Arguments:
     #:   - The path of the data file that should be updated.
     update_data = Signal(Path)
 
+    # Signal(List[str]) -- Emitted when the user changes the currently selected tags.
+    #: Arguments:
+    #:   - A list of the currently selected tags.
+    selected_tags_changed = Signal(list)
 
     def __init__(self, monitor_path: str, rows: int, columns: int, parent: Optional[Any] = None):
         super().__init__(rows, columns, parent=parent)
@@ -381,6 +391,12 @@ class FileModel(QtGui.QStandardItemModel):
 
         # The main dictionary has all the datasets (folders) Path as keys, with the actual item as its value.
         self.main_dictionary: Dict[Path, Item] = {}
+        self.tags_dict: Dict[str, int] = {}
+        self.tags_model = QtGui.QStandardItemModel()
+        self.tags_model.dataChanged.connect(self.on_checked_tag_change)
+        first_tag_item = QtGui.QStandardItem('Tag Filter')
+        first_tag_item.setSelectable(False)
+        self.tags_model.insertRow(0, first_tag_item)
         self.load_data()
 
         self.modified_exceptions: List[Path] = []
@@ -487,7 +503,17 @@ class FileModel(QtGui.QStandardItemModel):
         if files_dict is None:
             files_dict = {}
         item = Item(folder_path, files_dict)
-        tags_item = QtGui.QStandardItem()
+        tags_item = QtGui.QStandardItem()  # item to hold the widget
+        if len(item.tags) > 0:
+            for tag in item.tags:
+                if tag in self.tags_dict:
+                    self.tags_dict[tag] += 1
+                else:
+                    self.tags_dict[tag] = 1
+                    new_tag_item = QtGui.QStandardItem(tag)  # Item for the combox model
+                    new_tag_item.setFlags(QtCore.Qt.ItemIsUserCheckable | QtCore.Qt.ItemIsEnabled)
+                    new_tag_item.setData(QtCore.Qt.Unchecked, QtCore.Qt.CheckStateRole)
+                    self.tags_model.setItem(self.tags_model.rowCount(), 0, new_tag_item)
 
         if item.star:
             item.setIcon(get_star_icon())
@@ -867,6 +893,44 @@ class FileModel(QtGui.QStandardItemModel):
 
         self.adjust_width.emit()
 
+    def tag_added(self, tag: str) -> None:
+        """
+        Gets called when a tag is added to update the tag model. If it is an existing tag, adds a count to it.
+        If it is a new tag, creates the new item and adds it to the tag model.
+
+        :param tag: The new tag.
+        """
+        if tag in self.tags_dict:
+            self.tags_dict[tag] += 1
+            return
+
+        self.tags_dict[tag] = 1
+        new_tag_item = QtGui.QStandardItem(tag)
+        new_tag_item.setFlags(QtCore.Qt.ItemIsUserCheckable | QtCore.Qt.ItemIsEnabled)
+        new_tag_item.setData(QtCore.Qt.Unchecked, QtCore.Qt.CheckStateRole)
+        self.tags_model.setItem(self.tags_model.rowCount(), 0, new_tag_item)
+
+    def tag_deleted(self, tag: str) -> None:
+        """
+        Gets called when a tag is deleted to update the tag model. If it is an existing tag, substracts a count to it.
+        If the count is 0, removes the tag from the tag model.
+
+        :param tag: The new tag.
+        """
+        if tag in self.tags_dict:
+            self.tags_dict[tag] -= 1
+            if self.tags_dict[tag] == 0:
+                self.tags_dict.pop(tag)
+                tag_item = self.tags_model.findItems(tag, QtCore.Qt.MatchExactly)
+                if len(tag_item) > 0:
+                    self.tags_model.removeRow(tag_item[0].row())
+
+    @Slot()
+    def on_checked_tag_change(self) -> None:
+        selected = [self.tags_model.item(i, 0).text() for i in range(self.tags_model.rowCount()) if
+                    self.tags_model.item(i, 0).checkState()]
+        self.selected_tags_changed.emit(selected)
+
 
 class SortFilterProxyModel(QtCore.QSortFilterProxyModel):
 
@@ -1178,13 +1242,13 @@ class FilterWorker(QtCore.QObject):
     #:   - Dict[Path, Item]. Only the items inside of that dictionary have passed the filtering.
     finished = Signal(dict)
 
-    def run(self, model: FileModel, star_status: bool, trash_status: bool, filter: str) -> None:
-        filter_dict = self.filter_items(model, star_status, trash_status, filter)
+    def run(self, model: FileModel, star_status: bool, trash_status: bool, filter: str, tag_filter: List[str] = []) -> None:
+        filter_dict = self.filter_items(model, star_status, trash_status, filter, tag_filter)
         if filter_dict is not None:
             self.finished.emit(filter_dict)
 
-    def filter_items(self, model: FileModel, star_status: bool, trash_status: bool, filter: str) -> \
-            Optional[Dict[Path, Item]]:
+    def filter_items(self, model: FileModel, star_status: bool, trash_status: bool, filter: str,
+                     tag_filter: List[str] = []) -> Optional[Dict[Path, Item]]:
         """
         Process the text in filter, separtes them into the different queries and filters the items.
 
@@ -1216,7 +1280,7 @@ class FilterWorker(QtCore.QObject):
         queries = [item for item in queries_with_empty_spaces if item != '' and item != ' ']
 
         queries_dict = {}
-        if len(queries) > 0:
+        if len(queries) > 0 or len(tag_filter) > 0:
             tag_queries = []
             md_queries = []
             image_queries = []
@@ -1245,11 +1309,12 @@ class FilterWorker(QtCore.QObject):
                     else:
                         name_queries.append(query)
 
-                queries_dict = {'tag': tag_queries,
-                                'md': md_queries,
-                                'image': image_queries,
-                                'json': json_queries,
-                                'name': name_queries, }
+            tag_queries = list(set(tag_queries + tag_filter))
+            queries_dict = {'tag': tag_queries,
+                            'md': md_queries,
+                            'image': image_queries,
+                            'json': json_queries,
+                            'name': name_queries, }
 
         current_dict = {key: value for key, value in model.main_dictionary.items()}
 
@@ -1275,7 +1340,7 @@ class FilterWorker(QtCore.QObject):
                     if item.trash:
                         del current_dict[path]
 
-        if len(queries) > 0:
+        if len(queries) > 0 or len(tag_filter) > 0:
             for query_type, queries in queries_dict.items():
                 if self.thread().isInterruptionRequested():
                     return None
@@ -1394,6 +1459,9 @@ class FileExplorer(QtWidgets.QWidget):
         self.refresh_button = QtWidgets.QPushButton('Refresh')
         self.expand_button = QtWidgets.QPushButton('Expand')
         self.collapse_button = QtWidgets.QPushButton('Collapse')
+        self.tag_filter_combobox = QtWidgets.QComboBox()
+        self.tag_filter_combobox.setModel(self.model.tags_model)
+        self.selected_tags: List[str] = []
 
         self.star_button.setCheckable(True)
         self.trash_button.setCheckable(True)
@@ -1407,6 +1475,7 @@ class FileExplorer(QtWidgets.QWidget):
         self.filter_and_buttons_layout.addWidget(self.filter_line_edit)
         self.filter_and_buttons_layout.addWidget(self.star_button)
         self.filter_and_buttons_layout.addWidget(self.trash_button)
+        self.filter_and_buttons_layout.addWidget(self.tag_filter_combobox)
         self.bottom_buttons_layout.addWidget(self.refresh_button)
         self.bottom_buttons_layout.addWidget(self.expand_button)
         self.bottom_buttons_layout.addWidget(self.collapse_button)
@@ -1414,16 +1483,21 @@ class FileExplorer(QtWidgets.QWidget):
         self.main_layout.addWidget(self.file_tree)
         self.main_layout.addLayout(self.bottom_buttons_layout)
 
-        self.star_button.clicked.connect(self.star_trash_clicked)
-        self.trash_button.clicked.connect(self.star_trash_clicked)
+        self.star_button.clicked.connect(self.on_star_trash_clicked)
+        self.trash_button.clicked.connect(self.on_star_trash_clicked)
         self.expand_button.clicked.connect(self.file_tree.expandAll)
         self.collapse_button.clicked.connect(self.file_tree.collapseAll)
 
         self.filter_line_edit.textChanged.connect(self.on_filter_triggered)
+        self.model.selected_tags_changed.connect(self.on_selected_tag_changed)
 
+    @Slot(list)
+    def on_selected_tag_changed(self, tags_filter: List[str]) -> None:
+        self.selected_tags = tags_filter
+        self.on_filter_triggered(self.filter_line_edit.text())
 
     @Slot()
-    def star_trash_clicked(self) -> None:
+    def on_star_trash_clicked(self) -> None:
         """
         Updates the status of the buttons to the FileTree.
         """
@@ -1455,7 +1529,7 @@ class FileExplorer(QtWidgets.QWidget):
         self.filter_worker = FilterWorker()
         self.filter_worker.moveToThread(self.filter_thread)
         run_fun = partial(self.filter_worker.run, self.model, self.star_button.isChecked(),
-                          self.trash_button.isChecked(), filter)
+                          self.trash_button.isChecked(), filter, self.selected_tags)
         self.filter_thread.started.connect(run_fun)
         self.filter_worker.finished.connect(self.on_finished_filtering)
         self.filter_thread.start()
@@ -2493,7 +2567,6 @@ class Monitr(QtWidgets.QMainWindow):
         """
         print(f'NOTHING HAPPENS HERE IS EMPTY SPACE')
         print(f'\n \n \n \n \n \n \n \n \n \n \n \n .')
-
 
     @Slot(QtCore.QModelIndex, QtCore.QModelIndex)
     def on_current_item_selection_changed(self, current: QtCore.QModelIndex, previous: QtCore.QModelIndex) -> None:
