@@ -2561,17 +2561,17 @@ class Monitr(QtWidgets.QMainWindow):
         self.loading_movie = QtGui.QMovie(os.path.join(plottrPath, 'resource', 'gfx', "loading_gif.gif"))
 
         # Debug items
-        self.debug_layout = QtWidgets.QHBoxLayout()
-        self.model_button = QtWidgets.QPushButton(f'Print model data')
-        self.model_main_dictionary_button = QtWidgets.QPushButton('Print model main dictionary')
-        self.extra_action_button = QtWidgets.QPushButton('Extra action')  # For when you want to trigger a specific thing.
-        self.debug_layout.addWidget(self.model_button)
-        self.debug_layout.addWidget(self.model_main_dictionary_button)
-        self.debug_layout.addWidget(self.extra_action_button)
-        self.model_button.clicked.connect(self.print_model_data)
-        self.model_main_dictionary_button.clicked.connect(self.print_model_main_dictionary)
-        self.extra_action_button.clicked.connect(self.extra_action)
-        self.left_side_layout.addLayout(self.debug_layout)
+        # self.debug_layout = QtWidgets.QHBoxLayout()
+        # self.model_button = QtWidgets.QPushButton(f'Print model data')
+        # self.model_main_dictionary_button = QtWidgets.QPushButton('Print model main dictionary')
+        # self.extra_action_button = QtWidgets.QPushButton('Extra action')  # For when you want to trigger a specific thing.
+        # self.debug_layout.addWidget(self.model_button)
+        # self.debug_layout.addWidget(self.model_main_dictionary_button)
+        # self.debug_layout.addWidget(self.extra_action_button)
+        # self.model_button.clicked.connect(self.print_model_data)
+        # self.model_main_dictionary_button.clicked.connect(self.print_model_main_dictionary)
+        # self.extra_action_button.clicked.connect(self.extra_action)
+        # self.left_side_layout.addLayout(self.debug_layout)
 
 
         self.main_partition_splitter.addWidget(self.left_side_dummy_widget)
