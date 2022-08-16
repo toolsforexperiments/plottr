@@ -455,6 +455,7 @@ class FileModel(QtGui.QStandardItemModel):
                 error_message.setText(f"{e}")
                 error_message.exec_()
 
+    @Slot()
     def refresh_model(self) -> None:
         """
         Deletes all the data from the model and loads it again.
@@ -1009,6 +1010,7 @@ class SortFilterProxyModel(QtCore.QSortFilterProxyModel):
 
         return False
 
+    @Slot()
     def trigger_filter(self) -> None:
         """
         Convenience function for invalidating the filter and triggering the filter_triggered signal.
@@ -1049,7 +1051,7 @@ class FileTreeView(QtWidgets.QTreeView):
         model = proxy_model.sourceModel()
         assert isinstance(model, FileModel)
         self.model_ = model
-        self.collapsed_state: Dict[QtCore.QModelIndex, bool] = {}
+        self.collapsed_state: Dict[QtCore.QPersistentModelIndex, bool] = {}
         self.star_text = 'star'
         self.un_star_text = 'un-star'
         self.trash_text = 'trash'
@@ -1068,6 +1070,8 @@ class FileTreeView(QtWidgets.QTreeView):
         self.proxy_model.filter_finished.connect(self.on_filter_ended_event)
         self.model_.new_tag.connect(self.on_add_tag_action)
         self.model_.tag_deleted_signal.connect(self.on_delete_tag_action)
+        self.model_.adjust_width.connect(self.on_adjust_column_width)
+        # self.model_.model_refreshed.connect(self.set_all_tags)
 
         self.setContextMenuPolicy(QtCore.Qt.CustomContextMenu)
         self.customContextMenuRequested.connect(self.on_context_menu_requested)
@@ -1222,7 +1226,7 @@ class FileTreeView(QtWidgets.QTreeView):
                 if item.show:
                     source_index = self.model_.index(i, 0, QtCore.QModelIndex())
                     index = self.proxy_model.mapFromSource(source_index)
-                    self.collapsed_state[source_index] = self.isExpanded(index)
+                    self.collapsed_state[QtCore.QPersistentModelIndex(source_index)] = self.isExpanded(index)
                     if item.hasChildren():
                         self.create_collapsed_state(incoming_item=item)
 
@@ -1234,7 +1238,7 @@ class FileTreeView(QtWidgets.QTreeView):
                 if child.show:
                     source_index = self.model_.indexFromItem(child)
                     child_index = self.proxy_model.mapFromSource(source_index)
-                    self.collapsed_state[source_index] = self.isExpanded(child_index)
+                    self.collapsed_state[QtCore.QPersistentModelIndex(source_index)] = self.isExpanded(child_index)
                     if child.hasChildren():
                         self.create_collapsed_state(incoming_item=child)
 
@@ -1242,8 +1246,9 @@ class FileTreeView(QtWidgets.QTreeView):
         """
         Sets every item in the collapsed_state dictionary the correct collapsed setting.
         """
-        for source_index, state in self.collapsed_state.items():
-            proxy_index = self.proxy_model.mapFromSource(source_index)
+        for persistent_index, state in self.collapsed_state.items():
+            proxy_index = self.proxy_model.mapFromSource(
+                self.model_.index(persistent_index.row(), persistent_index.column(), persistent_index.parent()))
             self.setExpanded(proxy_index, state)
 
 
@@ -1423,7 +1428,6 @@ class FilterWorker(QtCore.QObject):
                 return adding_dict
         return None
 
-
     def _add_children(self, item: Item, adding_dict: Optional[Dict[Path, Item]]) -> Optional[Dict[Path, Item]]:
         """
         Adds all the children of item to adding_dict.
@@ -1462,8 +1466,6 @@ class FileExplorer(QtWidgets.QWidget):
         assert isinstance(self.model, FileModel)
         self.file_tree = FileTreeView(proxy_model=proxy_model, parent=self)
         self.file_tree.set_all_tags()
-        self.model.adjust_width.connect(self.file_tree.on_adjust_column_width)
-        self.model.model_refreshed.connect(self.file_tree.set_all_tags)
 
         self.main_layout = QtWidgets.QVBoxLayout(self)
         self.filter_and_buttons_layout = QtWidgets.QHBoxLayout()
@@ -1502,14 +1504,17 @@ class FileExplorer(QtWidgets.QWidget):
         self.main_layout.addWidget(self.file_tree)
         self.main_layout.addLayout(self.bottom_buttons_layout)
 
-        self.star_button.clicked.connect(self.on_star_trash_clicked)
-        self.trash_button.clicked.connect(self.on_star_trash_clicked)
+        self.star_button.clicked.connect(self.on_star_trash_refresh_clicked)
+        self.trash_button.clicked.connect(self.on_star_trash_refresh_clicked)
         self.expand_button.clicked.connect(self.file_tree.expandAll)
         self.collapse_button.clicked.connect(self.file_tree.collapseAll)
 
         self.filter_line_edit.textChanged.connect(self.on_filter_triggered)
         self.model.selected_tags_changed.connect(self.on_selected_tag_changed)
         self.model.new_item.connect(self.on_new_item_created)
+        self.model.model_refreshed.connect(self.on_star_trash_refresh_clicked)
+        # When the refresh button of the file explorer is pressed, refresh the model
+        self.refresh_button.clicked.connect(self.model.refresh_model)
 
     @Slot(list)
     def on_selected_tag_changed(self, tags_filter: List[str]) -> None:
@@ -1517,9 +1522,9 @@ class FileExplorer(QtWidgets.QWidget):
         self.on_filter_triggered(self.filter_line_edit.text())
 
     @Slot()
-    def on_star_trash_clicked(self) -> None:
+    def on_star_trash_refresh_clicked(self) -> None:
         """
-        Updates the status of the buttons to the FileTree.
+        Updates the status of the buttons to the FileTree and triggers a filtering update after refreshing.
         """
         filter_str = self.filter_line_edit.text()
         self.on_filter_triggered(filter_str)
@@ -2170,6 +2175,7 @@ class VerticalScrollArea(QtWidgets.QScrollArea):
         ret = super().viewportEvent(a0)
         return ret
 
+
 class TagLabel(QtWidgets.QWidget):
     """
     Widget that displays the tags passed in the argument. The tags will each be displayed in a different color.
@@ -2536,8 +2542,6 @@ class Monitr(QtWidgets.QMainWindow):
         self.file_explorer = FileExplorer(proxy_model=self.proxy_model, parent=self.left_side_dummy_widget)
         self.left_side_layout.addWidget(self.file_explorer)
 
-        # When the refresh button of the file explorer is pressed, refresh the model
-        self.file_explorer.refresh_button.clicked.connect(self.model.refresh_model)
         self.file_explorer.file_tree.selection_changed.connect(self.on_current_item_selection_changed)
 
         # Right side items
@@ -2557,17 +2561,17 @@ class Monitr(QtWidgets.QMainWindow):
         self.loading_movie = QtGui.QMovie(os.path.join(plottrPath, 'resource', 'gfx', "loading_gif.gif"))
 
         # Debug items
-        # self.debug_layout = QtWidgets.QHBoxLayout()
-        # self.model_button = QtWidgets.QPushButton(f'Print model data')
-        # self.model_main_dictionary_button = QtWidgets.QPushButton('Print model main dictionary')
-        # self.extra_action_button = QtWidgets.QPushButton('Extra action')  # For when you want to trigger a specific thing.
-        # self.debug_layout.addWidget(self.model_button)
-        # self.debug_layout.addWidget(self.model_main_dictionary_button)
-        # self.debug_layout.addWidget(self.extra_action_button)
-        # self.model_button.clicked.connect(self.print_model_data)
-        # self.model_main_dictionary_button.clicked.connect(self.print_model_main_dictionary)
-        # self.extra_action_button.clicked.connect(self.extra_action)
-        # self.left_side_layout.addLayout(self.debug_layout)
+        self.debug_layout = QtWidgets.QHBoxLayout()
+        self.model_button = QtWidgets.QPushButton(f'Print model data')
+        self.model_main_dictionary_button = QtWidgets.QPushButton('Print model main dictionary')
+        self.extra_action_button = QtWidgets.QPushButton('Extra action')  # For when you want to trigger a specific thing.
+        self.debug_layout.addWidget(self.model_button)
+        self.debug_layout.addWidget(self.model_main_dictionary_button)
+        self.debug_layout.addWidget(self.extra_action_button)
+        self.model_button.clicked.connect(self.print_model_data)
+        self.model_main_dictionary_button.clicked.connect(self.print_model_main_dictionary)
+        self.extra_action_button.clicked.connect(self.extra_action)
+        self.left_side_layout.addLayout(self.debug_layout)
 
 
         self.main_partition_splitter.addWidget(self.left_side_dummy_widget)
@@ -2711,6 +2715,9 @@ class Monitr(QtWidgets.QMainWindow):
                                          'data': [DataDict]},
                           'extra_files': [(Path, str, ContentType)]}
         """
+        # Clearing the right layout before populating it prevents old items to remain there.
+        self.clear_right_layout()
+
         if self.loading_label is not None:
             self.loading_label.stop_animation()
             self.right_side_layout.removeWidget(self.loading_label)
@@ -2737,8 +2744,6 @@ class Monitr(QtWidgets.QMainWindow):
         assert self.scroll_area is not None
         self.scroll_area.scroll_height = current_item.scroll_height
         self.scroll_area.first_scroll = True
-
-
 
     def clear_right_layout(self) -> None:
         """
