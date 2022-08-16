@@ -376,6 +376,11 @@ class FileModel(QtGui.QStandardItemModel):
     #:   - The path of the data file that should be updated.
     update_data = Signal(Path)
 
+    # Signal(Item) -- Emitted when a new item has been created but before it gets added to the model.
+    #: Arguments:
+    #:  - The new item.
+    new_item = Signal(Item)
+
     # Signal(List[str]) -- Emitted when the user changes the currently selected tags.
     #: Arguments:
     #:   - A list of the currently selected tags.
@@ -530,6 +535,7 @@ class FileModel(QtGui.QStandardItemModel):
         else:
             item.setIcon(QtGui.QIcon())
 
+        self.new_item.emit(item)
         self.main_dictionary[folder_path] = item
         if parent_path is None:
             row = self.rowCount()
@@ -565,11 +571,11 @@ class FileModel(QtGui.QStandardItemModel):
                 new_files_dict = {file: ContentType.sort(file) for file in path.parent.iterdir() if
                                   str(file.suffix) != ''}
                 self.sort_and_add_item(path.parent, new_files_dict)
-                parent = self.main_dictionary[path.parent]
+                item = self.main_dictionary[path.parent]
                 # Send signal indicating that current folder requires update
-                if self.currently_selected_folder is not None and parent.path.is_relative_to(
+                if self.currently_selected_folder is not None and item.path.is_relative_to(
                         self.currently_selected_folder):
-                    self.update_me.emit(parent.path)
+                    self.update_me.emit(item.path)
 
     @Slot(FileSystemEvent)
     def on_file_deleted(self, event: FileSystemEvent) -> None:
@@ -951,8 +957,8 @@ class SortFilterProxyModel(QtCore.QSortFilterProxyModel):
         """
         super().__init__(parent=parent)
 
-        self.only_star = False
-        self.hide_trash = False
+        self.star_status = False
+        self.trash_status = False
         self.allowed_items: List[QtGui.QStandardItem] = []
 
     def setSourceModel(self, sourceModel: QtCore.QAbstractItemModel) -> None:
@@ -964,8 +970,8 @@ class SortFilterProxyModel(QtCore.QSortFilterProxyModel):
         super().setSourceModel(sourceModel)
 
     def filter_requested(self, allowed_items: List[QtGui.QStandardItem], star_status: bool, trash_status: bool) -> None:
-        self.only_star = star_status
-        self.hide_trash = trash_status
+        self.star_status = star_status
+        self.trash_status = trash_status
         self.allowed_items = allowed_items
         self.trigger_filter()
 
@@ -987,12 +993,12 @@ class SortFilterProxyModel(QtCore.QSortFilterProxyModel):
         else:
             item = parent_item.child(source_row, 0)
 
-        if self.allowed_items is None and self.only_star == False and self.hide_trash == False:
+        if self.allowed_items is None and self.star_status == False and self.trash_status == False:
             if item is not None:
                 item.show = True
             return True
 
-        if not item is None:
+        if item is not None:
             assert isinstance(item, Item)
             if item in self.allowed_items:
                 item.show = True
@@ -1043,7 +1049,7 @@ class FileTreeView(QtWidgets.QTreeView):
         model = proxy_model.sourceModel()
         assert isinstance(model, FileModel)
         self.model_ = model
-        self.collapsed_state: Dict[Path, bool] = {}
+        self.collapsed_state: Dict[QtCore.QModelIndex, bool] = {}
         self.star_text = 'star'
         self.un_star_text = 'un-star'
         self.trash_text = 'trash'
@@ -1240,6 +1246,7 @@ class FileTreeView(QtWidgets.QTreeView):
             proxy_index = self.proxy_model.mapFromSource(source_index)
             self.setExpanded(proxy_index, state)
 
+
 class FilterWorker(QtCore.QObject):
     """
     Worker object to perform the filtering of items in a separate thread.
@@ -1247,8 +1254,9 @@ class FilterWorker(QtCore.QObject):
 
     # Signal(dict) -- Emitted when the worker has finished filtering the items.
     #: Arguments:
-    #:   - Dict[Path, Item]. Only the items inside of that dictionary have passed the filtering.
-    finished = Signal(dict)
+    #:   - Tuple[Dict[Path, Item], Dict[str, List[str]]. First item is the dictionary where items inside that
+    #       dictionary have passed the filtering. Second item is the queries dictionary.
+    finished = Signal(tuple)
 
     def run(self, model: FileModel, star_status: bool, trash_status: bool, filter: str, tag_filter: List[str] = []) -> None:
         filter_dict = self.filter_items(model, star_status, trash_status, filter, tag_filter)
@@ -1256,7 +1264,7 @@ class FilterWorker(QtCore.QObject):
             self.finished.emit(filter_dict)
 
     def filter_items(self, model: FileModel, star_status: bool, trash_status: bool, filter: str,
-                     tag_filter: List[str] = []) -> Optional[Dict[Path, Item]]:
+                     tag_filter: List[str] = []) -> Optional[Tuple[Dict[Path, Item], Dict[str, List[str]]]]:
         """
         Process the text in filter, separtes them into the different queries and filters the items.
 
@@ -1278,10 +1286,12 @@ class FilterWorker(QtCore.QObject):
         pass the filter. Parents of items that have passed are added in the end. Children of starred items are also
         added after the item passed the check.
 
-        :param mode: The model to perform the filtering.
+        :param model: The model to perform the filtering.
         :param star_status: The status of the star button in the FileExplorer.
         :param trash_status: The status of the trash button in the FileExplorer.
-        :param filter: The raw stirng that is located in the
+        :param filter: The raw stirng that is located in the.
+        :param tag_filter: List of extra tags to be added to the filtering.
+        :return: A tuple where the first item is a dictionary with the allowed items and second item the queries dict.
         """
         raw_queries = filter.split(',')
         queries_with_empty_spaces = [item[1:] if len(item) >= 1 and item[0] == " " else item for item in raw_queries]
@@ -1384,7 +1394,7 @@ class FilterWorker(QtCore.QObject):
         current_dict = current_dict | child_dict
         current_dict = current_dict | parent_dict
 
-        return current_dict
+        return current_dict, queries_dict
 
     def _add_parent(self, item: Item, adding_dict: Optional[Dict[Path, Item]]) -> Optional[Dict[Path, Item]]:
         """
@@ -1470,6 +1480,7 @@ class FileExplorer(QtWidgets.QWidget):
         self.tag_filter_combobox = QtWidgets.QComboBox()
         self.tag_filter_combobox.setModel(self.model.tags_model)
         self.selected_tags: List[str] = []
+        self.queries_dict: Dict[str, List[str]] = {}
 
         self.star_button.setCheckable(True)
         self.trash_button.setCheckable(True)
@@ -1498,6 +1509,7 @@ class FileExplorer(QtWidgets.QWidget):
 
         self.filter_line_edit.textChanged.connect(self.on_filter_triggered)
         self.model.selected_tags_changed.connect(self.on_selected_tag_changed)
+        self.model.new_item.connect(self.on_new_item_created)
 
     @Slot(list)
     def on_selected_tag_changed(self, tags_filter: List[str]) -> None:
@@ -1542,8 +1554,8 @@ class FileExplorer(QtWidgets.QWidget):
         self.filter_worker.finished.connect(self.on_finished_filtering)
         self.filter_thread.start()
 
-    @Slot(dict)
-    def on_finished_filtering(self, results_dict: Dict[Path, Item]) -> None:
+    @Slot(tuple)
+    def on_finished_filtering(self, filtering_results: Tuple[Dict[Path, Item], Dict[str, List[str]]]) -> None:
         """
         Gets called when the FilterWorker is done filtering. Ends the loading animation and the thread and triggers the
         filtering in the porxy model.
@@ -1558,9 +1570,47 @@ class FileExplorer(QtWidgets.QWidget):
             self.filter_thread.quit()
             self.filter_thread.wait()
             self.filter_thread = None
+        results_dict, queries_dict = filtering_results
+
+        self.queries_dict = queries_dict
 
         items_list = [item for item in results_dict.values()]
         self.proxy_model.filter_requested(list(items_list), self.star_button.isChecked(), self.trash_button.isChecked())
+
+    @Slot(Item)
+    def on_new_item_created(self, item: Item) -> None:
+        """
+        Gets called when the model adds a new item. Checks if the new item passes the current filtering queries and adds
+        it to the proxy allowed items list.
+
+        :param item: The new item.
+        """
+        if self.star_button.isChecked():
+            if not item.star:
+                return
+
+        if self.trash_button.isChecked():
+            if item.trash:
+                return
+
+        for query_type, queries in self.queries_dict.items():
+            if query_type == 'name':
+                for query in queries:
+                    match_pattern = re.compile(query, flags=re.IGNORECASE)
+                    if not match_pattern.search(str(item.path)):
+                        return
+            else:
+                for query in queries:
+                    delete_me = True
+                    match_pattern = re.compile(query, flags=re.IGNORECASE)
+                    for file_path, file_type in item.files.items():
+                        if file_type == ContentType.sort(query_type):
+                            if match_pattern.search(str(file_path.name)):
+                                delete_me = False
+                    if delete_me:
+                        return
+
+        self.proxy_model.allowed_items.append(item)
 
 
 class DataTreeWidgetItem(QtWidgets.QTreeWidgetItem):
@@ -1572,6 +1622,7 @@ class DataTreeWidgetItem(QtWidgets.QTreeWidgetItem):
     def __init__(self, path: Path, *args: Any, **kwargs: Any):
         super(DataTreeWidgetItem, self).__init__(*args, **kwargs)
         self.path = path
+
 
 # TODO: Right now the data display only updates when you click on the parent folder. What happens if data is created
 #   while the folder display is open. It should absolutely update.
