@@ -430,7 +430,7 @@ class FileModel(QtGui.QStandardItemModel):
 
         self.itemChanged.connect(self.on_renaming_file)
 
-    @Slot(QtGui.QStandardItem)
+    @Slot()
     def on_renaming_file(self, item: Item) -> None:
         """
         Triggered every time an item changes.
@@ -1480,6 +1480,7 @@ class FileExplorer(QtWidgets.QWidget):
         self.expand_button = QtWidgets.QPushButton('Expand')
         self.collapse_button = QtWidgets.QPushButton('Collapse')
         self.tag_filter_combobox = QtWidgets.QComboBox()
+        self.tag_filter_combobox.setSizePolicy(QtWidgets.QSizePolicy.Expanding, QtWidgets.QSizePolicy.Minimum)
         self.tag_filter_combobox.setModel(self.model.tags_model)
         self.selected_tags: List[str] = []
         self.queries_dict: Dict[str, List[str]] = {}
