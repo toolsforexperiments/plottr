@@ -33,10 +33,16 @@ from ..apps.watchdog_classes import WatcherClient
 from ..gui.widgets import Collapsible
 from .json_veiwer import JsonModel, JsonTreeView
 from ..icons import get_starIcon as get_star_icon, get_trashIcon as get_trash_icon
+from .appmanager import AppManager
 
 from .ui.Monitr_UI import Ui_MainWindow
 
 TIMESTRFORMAT = "%Y-%m-%dT%H%M%S"
+
+AUTOPLOTMODULE = 'plottr.apps.autoplot'
+
+AUTOPLOTFUNC = 'autoplotDDH5App'
+
 
 def logger() -> logging.Logger:
     logger = plottrlog.getLogger('plottr.apps.monitr')
@@ -2518,6 +2524,9 @@ class Monitr(QtWidgets.QMainWindow):
         self.collapsed_state_dictionary: Dict[Path, bool] = {}
         self.setWindowTitle('Monitr')
 
+        self.app_manager = AppManager()  # Currently Ids only increase with every new app.
+        self.current_app_id = 0
+
         self.model = FileModel(self.monitor_path, 0, 2)
         self.model.update_me.connect(self.on_update_right_side_window)
         self.model.update_data.connect(self.on_update_data_widget)
@@ -2958,14 +2967,14 @@ class Monitr(QtWidgets.QMainWindow):
     @Slot(Path)
     def on_plot_data(self, path: Path) -> None:
         """
-        Gets called when the user clicks plot on the context menu of the data viewer. Opens an autoplot app for the
-        selected ddh5 file.
+        Gets called when the user clicks plot on the context menu of the data viewer. Orders the app manager to open
+        a new autoplot window.
 
         :param path: The path of the ddh5 file that should be displayed.
         :return:
         """
-        plot_app = 'plottr.apps.autoplot.autoplotDDH5'
-        process = launchApp(plot_app, str(path), 'data')
+        self.app_manager.launchApp(self.current_app_id, AUTOPLOTMODULE, AUTOPLOTFUNC, str(path), 'data')
+        self.current_app_id += 1
 
     def add_text_input(self, path: Path) -> None:
         """
@@ -3093,27 +3102,5 @@ def script() -> int:
 
     app = QtWidgets.QApplication([])
     win = Monitr(path)
-    win.show()
-    return app.exec_()
-
-
-def launchApp(appPath: str, filepath: str, group: str, **kwargs: Any) -> Process:
-    p = Process(target=_runAppStandalone,
-                args=(appPath, filepath, group),
-                kwargs=kwargs)
-    p.start()
-    p.join(timeout=0)
-    return p
-
-
-def _runAppStandalone(appPath: str, filepath: str, group: str, **kwargs: Any) -> Any:
-    sep = appPath.split('.')
-    modName = '.'.join(sep[:-1])
-    funName = sep[-1]
-    mod = importlib.import_module(modName)
-    fun = getattr(mod, funName)
-
-    app = QtWidgets.QApplication([])
-    fc, win = fun(filepath, group, **kwargs)
     win.show()
     return app.exec_()
