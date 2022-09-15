@@ -421,7 +421,7 @@ class FileModel(QtGui.QStandardItemModel):
         self.modified_exceptions: List[Path] = []
 
         # Watcher setup with connected signals.
-        self.watcher_thread = QtCore.QThread(parent=self)
+        self.watcher_thread: Optional[QtCore.QThread] = QtCore.QThread(parent=self)
         self.watcher = WatcherClient(self.monitor_path)
         self.watcher.moveToThread(self.watcher_thread)
         self.watcher_thread.started.connect(self.watcher.run)
@@ -948,6 +948,16 @@ class FileModel(QtGui.QStandardItemModel):
         selected = [self.tags_model.item(i, 0).text() for i in range(self.tags_model.rowCount()) if
                     self.tags_model.item(i, 0).checkState()]
         self.selected_tags_changed.emit(selected)
+
+    def quit(self) -> None:
+        """
+        Stops the watcher and the watcher thread.
+        """
+        self.watcher.observer.stop()
+        assert self.watcher_thread is not None
+        self.watcher_thread.quit()
+        self.watcher_thread.wait()
+        self.watcher_thread = None
 
 
 class SortFilterProxyModel(QtCore.QSortFilterProxyModel):
@@ -2304,7 +2314,6 @@ class ItemTagLabel(QtWidgets.QLabel):
         self.generate_tag_string()
         self.setText(self.tags_str)
 
-
     def generate_tag_string(self) -> None:
         """
         Converts the list of tags into the html formated string.
@@ -2360,6 +2369,7 @@ class TagCreator(QtWidgets.QLineEdit):
                 f = open(tag_path, 'x')
 
         self.setText('')
+
 
 class IconLabel(QtWidgets.QLabel):
 
@@ -3082,8 +3092,8 @@ class Monitr(QtWidgets.QMainWindow):
         """
         Gets called when the program closes. Mkaes sure the watcher thread gets properly stopped.
         """
-        self.model.watcher.observer.stop()
-        self.model.watcher_thread.quit()
+        self.model.quit()
+        self.app_manager.close()
         super().closeEvent(a0)
 
 
