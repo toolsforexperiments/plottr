@@ -3,244 +3,382 @@ running apps.
 
 An `app` as used in plottr is defined as a function that returns a
 :class:`plottr.node.node.Flowchart` and :class:`plottr.gui.widgets.PlotWindow`.
-
-An app can be launched in a separate process using :func:`.runApp`. This way
-of running the app also provides a way to communicate with the newly launched
-process by wrapping it with the :class:`.App` class.
+This function will receive a tuple with the arguments it needs and it is the job of the function to unpack them.
 
 The role of the :class:`.AppManager` is to launch, manage, and communicate with
-app processes.
+app processes. An app can be launched using the launchApp function.
+
+.. note::
+    Make sure all the arguments your app needs are being passed and are correct. Any error while trying to open the app
+    will result in the app not opening without an error warning.
 """
 
-from typing import List, Tuple, Callable, Optional, Any, Union, Dict
-from multiprocessing import Process, Pipe
-from multiprocessing.connection import Connection
+import zmq
+from pathlib import Path
+from typing import Dict, Union, Any, Callable, Tuple, Optional
+
 from traceback import print_exception
-
-import psutil
-
-from plottr import QtCore, QtWidgets, Flowchart, Signal, Slot, log, qtapp, qtsleep
+from plottr import QtCore, QtWidgets, QtGui, Flowchart, Signal, Slot, log, qtapp, qtsleep, plottrPath
 from plottr.gui.widgets import PlotWindow
 
 
 #: The type of a plottr app
-AppType = Callable[[], Tuple[Flowchart, PlotWindow]]
+AppType = Callable[[Any], Tuple[Flowchart, PlotWindow]]
+
+#: The type of the ids.
+IdType = Union[int, str]
 
 
 logger = log.getLogger(__name__)
 
 
-class Listener(QtCore.QObject):
+# TODO: Check that when the automatic rst is generated, the formatting of the docstrings are correct.
+class AppServer(QtCore.QObject):
     """Simple helper object that we can run in a separate thread to listen
-    to commands from the manager."""
+    to commands from the manager.
 
-    #: Signal(str, str, object) -- emitted when a message is received.
-    #: Arguments:
-    #:  * the target (node name, or '', 'fc', or 'flowchart' for the flowchart)
-    #:  * target property (node property name, or 'setInput' or 'getOutput' for the flowchart)
-    #:  * property value to set
-    messageReceived = Signal(str, str, object)
+    When the server gets a message, the messageReceived signal gets emitted. Once that happens it will wait until the
+    reply variable gets filled with a reply (this is done by triggering the slot loadReply()). After that, sends the
+    reply back and resets the reply variable.
 
-    #: Signal() -- emitted when listener is stopped.
-    listeningStopped = Signal()
+    To see the rules of what can be received please see the :obj:App.onMessageReceived. Only exception is if the server
+    receives the string "ping", it will immediately reply with the string "pong" without bothering the App.
 
-    def __init__(self, conn: Connection) -> None:
-        """Constructor for :class:`.Listener`.
-
-        :param conn: connection on which messages are received (we're using the
-            Pipe communication model from python's multiprocessing)
-        """
-        super().__init__()
-        self.conn = conn
-        self.listening = True
-
-    @Slot()
-    def startListening(self) -> None:
-        """start listening on the connection provided."""
-        while self.listening:
-            if self.conn.poll():
-                message: Tuple[str, str, Any] = self.conn.recv()
-                targetName, targetProperty, value = message
-                self.messageReceived.emit(targetName, targetProperty, value)
-            qtsleep(0.05)
-
-    @Slot()
-    def stopListening(self) -> None:
-        self.listening = False
-        self.listeningStopped.emit()
-
-
-class App(QtCore.QObject):
-    """Object that effectively wraps a plottr app.
-    Runs a :class:`.Listener` in a separate thread, which allows sending messages
-    from the parent :class:`.AppManager` to the app.
+    There are 2 ways of stopping the server:
+        * You can request an interruption of the thread the server is running on.
+        * Trigger the quit() slot with a signal.
+    Both ways will make the running variable ``False``, and stop the listening loop.
     """
 
-    def __init__(self, func: AppType, conn: Connection) -> None:
-        """Constructor for :class:`.App`.
+    messageReceived = Signal(object)
 
-        :param func: function that creates the app.
-        :param conn: connection (Pipe end) that the app will receive messages
-            with.
+    def __init__(self, context: zmq.Context, port: str, parent: Optional[QtCore.QObject] = None):
         """
-        super().__init__()
+        Constructor for :class: `.AppServer`
 
-        self.fc: Optional[Flowchart] = None
-        self.win: Optional[PlotWindow] = None
-        self.setup: AppType = func
-        self.conn = conn
+        :param context: The zmq context generated by the app.
+        :param port: The port number, in string format, to which to listen to commands.
+        :param parent: The parent of the server.
+        """
+        super().__init__(parent=parent)
+        self.port = port
+        self.address = '127.0.0.1'
+        self.context = context
+        self.t_blocking = 1000  # in ms
+        self.reply = None
+        self.running = True
 
-        self.listenThread = QtCore.QThread(parent=self)
-        self.listener = Listener(conn)
-        self.listener.moveToThread(self.listenThread)
-        self.listener.messageReceived.connect(self.onMessageReceived)
-        self.listenThread.started.connect(self.listener.startListening)
-        self.listener.listeningStopped.connect(self.listenThread.quit)
+        self.socket = self.context.socket(zmq.REP)
+        self.poller = zmq.Poller()
+        self.poller.register(self.socket, zmq.POLLIN)
 
-    def launch(self) -> None:
-        """Launch the app and the thread that receives messages for the app."""
-        self.fc, self.win = self.setup()
-        assert isinstance(self.fc, Flowchart)
-        assert isinstance(self.win, PlotWindow)
+    def run(self) -> None:
+        """
+        Connects the socket and starts listening for commands.
+        """
+        self.socket.bind(f'tcp://{self.address}:{self.port}')
 
-        self.win.windowClosed.connect(self.quit)
-        self.listenThread.start()
+        while self.running:
+            # Check if there are any messages.
+            evts = self.poller.poll(self.t_blocking)
+            if len(evts) > 0:
+                message = self.socket.recv_pyobj()
+                if message == 'ping':
+                    self.socket.send_pyobj('pong')
+                else:
+                    self.messageReceived.emit(message)
+                    # Wait until the reply is generated.
+                    while self.reply is None:
+                        qtsleep(0.01)
+                    self.socket.send_pyobj(self.reply)
+                    self.reply = None
+
+            if self.thread().isInterruptionRequested():
+                self.running = False
+            qtsleep(0.5)
+
+        # When the server is done, close the socket.
+        self.socket.close(1)
+        self.socket = None
 
     @Slot()
     def quit(self) -> None:
-        """Terminates the messaging thread and initiates deleting this object."""
-        self.listener.stopListening()
-        if not self.listenThread.wait(1000):
-            self.listenThread.terminate()
-            self.listenThread.wait()
-        self.deleteLater()
-
-    @Slot(str, str, object)
-    def onMessageReceived(self,
-                          targetName: str,
-                          targetProperty: str,
-                          value: Any) -> None:
-        """Handles message reception and forwarding to the app.
-
-        :param targetName: name of the target object in the app.
-            This may be the app :class:`plottr.node.node.Flowchart`
-            (on names ```` (empty string), ``fc``, or ``flowchart``;
-            or any :class:`plottr.node.node.Node` in the flowchart
-            (on name of the node in the app flowchart).
-
-        :param targetProperty:
-
-            * if the target is a node, then this should be the name of a property
-              of the node.
-
-            * if the target is the flowchart, then ``setInput`` or ``getInput`` are
-              supported as target properties.
-
-        :param value: a valid value that the target property can be set to.
-            for the ``setInput`` option of the flowchart, this should be data, i.e.,
-            a dictionary with ``str`` keys and  :class:`plottr.data.datadict.DataDictBase`
-            values. Commonly ``{'dataIn': someData}`` for most flowcharts.
-            for the ``setInput`` option of the flowchart, this may be any object
-            and will be ignored.
         """
+        Stops the server.
+        """
+        self.running = False
+
+    @Slot(object)
+    def loadReply(self, reply: Any) -> None:
+        """
+        Slot used to load the reply of a command. Should be connected to a signal that emits the reply.
+        """
+        self.reply = reply
+
+
+class App(QtCore.QObject):
+    """
+    Object that effectively wraps a plottr app.
+    Runs an :class:`.AppServer` in a separate thread, which allows to receive and send messages
+    from the parent :class:`.AppManager` to the app.
+    """
+    #: Signal() --  emitted when the app is going to close. Used to close the AppServer
+    endProcess = Signal()
+
+    #: Signal(Any) -- emitted when the App has the reply for a message. The AppServer gets the signal and replies.
+    #: Arguments:
+    #:  Any python object that can be pickled.
+    replyReady = Signal(object)
+
+    def __init__(self, setupFunc: AppType, port: int, parent: Optional[QtCore.QObject] = None, *args: Any):
+        super().__init__(parent=parent)
+
+        self.fc, self.win = setupFunc(args[0])
+        assert isinstance(self.fc, Flowchart)
+        assert isinstance(self.win, PlotWindow)
+        self.win.show()
+        self.win.windowClosed.connect(self.onQuit)
+
+        self.context = zmq.Context()
+        self.port = port
+        self.server: Optional[AppServer] = AppServer(self.context, str(port))
+        self.serverThread: Optional[QtCore.QThread] = QtCore.QThread()
+
+        self.endProcess.connect(self.server.quit)
+        self.replyReady.connect(self.server.loadReply)
+        self.server.messageReceived.connect(self.onMessageReceived)
+        self.server.moveToThread(self.serverThread)
+        self.serverThread.started.connect(self.server.run)
+        self.serverThread.start()
+
+    @Slot(object)
+    def onMessageReceived(self, message: Tuple[str, str, Any]) -> None:
+        """
+        Handles message reception and reply to the app. Emits the signal replyReady with the reply. The signal is
+        connected to the AppServer and the server sends the reply back.
+
+        :param message: Tuple containing 2 strings and an Object.
+
+            * First item, targetName: name of the target object in the app.
+                This may be the app :class:`plottr.node.node.Flowchart`
+                (on names ```` (empty string), ``fc``, or ``flowchart``;
+                or any :class:`plottr.node.node.Node` in the flowchart
+                (on name of the node in the app flowchart).
+
+            * Second Item, targetProperty:
+
+                * if the target is a node, then this should be the name of a property
+                    of the node.
+
+                * if the target is the flowchart, then ``setInput`` or ``getInput`` are
+                    supported as target properties.
+
+            * Thirs Item ,value: a valid value that the target property can be set to.
+                for the ``setInput`` option of the flowchart, this should be data, i.e.,
+                a dictionary with ``str`` keys and  :class:`plottr.data.datadict.DataDictBase`
+                values. Commonly ``{'dataIn': someData}`` for most flowcharts.
+                for the ``setInput`` option of the flowchart, this may be any object
+                and will be ignored.
+        """
+
         assert self.fc is not None and self.win is not None
+        targetName = message[0]
+        targetProperty = message[1]
+        value = message[2]
 
         if targetName in ['', 'fc', 'flowchart']:
             if targetProperty == 'setInput':
-                self.conn.send(self.fc.setInput(**value))
+                reply = self.fc.setInput(**value)
             elif targetProperty == 'getOutput':
-                self.conn.send(self.fc.outputValues())
+                reply = self.fc.outputValues()
             else:
-                self.conn.send(ValueError(f"Flowchart supports only setting input values ('setInput') "
+                reply = ValueError(f"Flowchart supports only setting input values ('setInput') "
                                           f"or getting output values ('getOutput'). "
-                                          f"'{targetProperty}' is not known."))
+                                          f"'{targetProperty}' is not known.")
         else:
             ret: Union[bool, Exception]
             try:
                 node = self.fc.nodes()[targetName]
                 setattr(node, targetProperty, value)
-                ret = True
+                reply = True
             except Exception as e:
-                ret = e
-            self.conn.send(ret)
+                reply = e
+
+        self.replyReady.emit(reply)
+
+    @Slot()
+    def onQuit(self) -> None:
+        """
+        Gets called when win is about to close. Emits endProcess to stop the server. Destroys the zmq context and stops
+        the server thread.
+        """
+        self.endProcess.emit()
+        self.context.destroy(1)
+
+        if self.server is not None and self.serverThread is not None:
+            self.serverThread.requestInterruption()
+            self.serverThread.quit()
+            self.serverThread.wait()
+            self.server.deleteLater()
+            self.serverThread.deleteLater()
+            self.serverThread = None
+            self.server = None
 
 
-# this is the function we use as target for Process
-def runApp(func: AppType, conn: Connection) -> int:
-    """Run an app in a separate process."""
-    application = qtapp()
-    app = App(func, conn)
-    app.launch()
-    assert app.win is not None
-    app.win.show()
-    return application.exec_()
+class ProcessMonitor(QtCore.QObject):
+    """
+    Helper class that runs in a separate thread. Its only job is to constantly check if a process is still running and
+    alert the AppManager when a process has been closed.
+    """
+
+    #: Signal(IdType) -- emitted when it detects that a process is closed.
+    #: Arguments:
+    #:  * The Id of the newly closed process.
+    processTerminated = Signal(object)
+
+    def __init__(self, parent: Optional[QtCore.QObject] = None):
+        super().__init__(parent=parent)
+        self.processes: Dict[IdType, QtCore.QProcess] = {}
+        self.checking = True
+
+    @Slot(object, object)
+    def onNewProcess(self, Id: IdType, process: QtCore.QProcess) -> None:
+        """
+        Slot used to add a new process to the ProcessMonitor.
+
+        :param Id: The Id of the process.
+        :param process: The QProcess to keep track of.
+        """
+        self.processes[Id] = process
+
+    def quit(self) -> None:
+        """
+        Stops the monitor.
+        """
+        self.checking = False
+
+    def run(self) -> None:
+        """
+        Starts the monitor, periodically checks if all the processes are still running. Emits processTerminated with the
+        Id of the process that has finished.
+        """
+        while self.checking:
+            processesCopy = self.processes.copy()
+            for Id, p in processesCopy.items():
+                state = p.state()
+                if state == 0:
+                    del self.processes[Id]
+                    self.processTerminated.emit(Id)
+            qtsleep(0.01)
 
 
 class AppManager(QtWidgets.QWidget):
     """A widget that launches, manages, and communicates with app instances
-    that run in separate processes."""
+    that run in separate processes.
 
-    #: Signal(object, str) -- emitted when an app was launched.
+    Each app will get assigned a tcp port to use for communication purposes. The first port to be assigned is 12345 by
+    default. Every app after the first one will use the next available integer. The manager will reuse a port if an app
+    gets closed and frees the port with it.
+    """
+
+    #: Signal(IdType, QtCore.QProcess) -- emitted when a new app is created.
     #: Arguments:
-    #:  * the app instance id
-    #:  * name of the app
-    appLaunched = Signal(object, str)
+    #:  * The app instance id.
+    #:  * The QProcess running that app.
+    newProcess = Signal(object, object)
 
-    #: Signal(object) -- emitted when an app has been detected as closed
-    #: Arguments:
-    #:  * the app instance id
-    appClosed = Signal(object)
+    closeProcmon = Signal()
 
-    def __init__(self,
-                 apps: List[Tuple[str, AppType]],
-                 parent: Optional[QtWidgets.QWidget] = None) -> None:
-        """Constructor.
-
-        :param apps: available apps that can be launched; a list of tuples
-            of app titles (names) and app-returning functions
-        :param parent: parent widget.
+    def __init__(self, initialPort: int = 12345, parent: Optional[QtWidgets.QWidget] = None):
         """
+        Constructor of AppManager.
 
-        super().__init__(parent)
-
-        self.availableApps = {title: func for title, func in apps}
-        self.activeApps: Dict[Any, Dict[str, Any]] = {}
-        self.appClosed.connect(self._onAppClosed)
-
-    def launchApp(self, id: Any, appTitle: str) -> None:
-        """Lauch a new app instance.
-
-        :param id: unique ID for the instance.
-        :param appTitle: which app to run (title must mach one of the available
-            apps with which the instance was created).
+        :param initialPort: The first port to be assigned to the first App.
         """
-        conn1, conn2 = Pipe()
-        process = Process(
-            target=runApp,
-            args=(self.availableApps[appTitle], conn2),
-        )
-        process.start()
-        while not process.is_alive():
-            qtsleep(0.001)
+        super().__init__(parent=parent)
+        self.processes: Dict[IdType, Dict[str, Union[QtCore.QProcess, zmq.sugar.socket.Socket, int]]] = {}
 
-        monitor = QtCore.QTimer(self)
-        monitor.timeout.connect(lambda: self.checkIfAppIsAlive(id))
-        monitor.start(1000)
+        self.context = zmq.Context()
+        self.poller = zmq.Poller()
+        self.address = '127.0.0.1'
+        self.initialPort = initialPort  # This is the port that will be automatically assigned to the next app
 
-        self.activeApps[id] = {
-            'appTitle': appTitle,
-            'process': process,
-            'conn': conn1,
-            'monitor': monitor,
-        }
-        self.appLaunched.emit(id, appTitle)
+        self.procmon: Optional[ProcessMonitor] = ProcessMonitor()
+        self.procmonThread: Optional[QtCore.QThread] = QtCore.QThread(parent=self)
+        self.procmon.moveToThread(self.procmonThread)
+        self.newProcess.connect(self.procmon.onNewProcess)
+        self.procmon.processTerminated.connect(self.onProcessEneded)
+        self.procmonThread.started.connect(self.procmon.run)
+        self.procmonThread.start()
 
-    def message(self, id: Any, targetName: str, targetProperty: str, value: Any) -> Any:
+    def launchApp(self, Id: IdType, module: str, func: str, *args: Any) -> bool:
+        """
+        Launches a new app. If this function does not contain correct arguments (both for this specific function and the
+        app launching function, func, the manager will not open anything but will not complain either.
+        The rules for what an App is are specified in the docstring of this module.
+
+        :param Id: The Id of an app, this can be an int or a string.
+        :param module: The module where the app function lives.
+        :param func: The function that opens the app.
+        :returns: True if the process has launched successfully, False if not.
+        """
+        if Id not in self.processes:
+            # Find the first available port
+            usedPorts = [data['port'] for data in self.processes.values()]
+            port = self.initialPort
+            while port in usedPorts:
+                port += 1
+
+            fullArgs = [str(Path(plottrPath).joinpath('apps', 'apprunner.py')), str(port), module, func] + list(args)
+            process = QtCore.QProcess()
+            process.start('python', fullArgs)
+            process.waitForStarted(100)
+            socket = self.context.socket(zmq.REQ)
+            socket.connect(f'tcp://{self.address}:{str(port)}')
+            self.poller.register(socket, zmq.POLLIN)
+            self.processes[Id] = {'process': process,
+                                  'port': port,
+                                  'socket': socket}
+            self.newProcess.emit(Id, process)
+            return True
+
+        logger.warning(f'Id {Id} already exists')
+        return False
+
+    @Slot(object)
+    def onProcessEneded(self, Id: IdType) -> None:
+        """
+        Gets triggered when the ProcessMonitor detects a process has been closed. Deletes the process from the internal
+        dictionary.
+
+        :param Id: The id of the parameter to delete.
+        """
+        del self.processes[Id]
+
+    def pingApp(self, Id: IdType) -> bool:
+        """
+        Pings the specified app. If a response is received returns true, False otherwise.
+
+        :param Id: The Id of the app to be pinged.
+        :return: True if the ping was successful, False if not.
+        """
+        if Id not in self.processes:
+            logger.warning(f'{Id} not present in the processes.')
+            return False
+        socket = self.processes[Id]['socket']
+        assert isinstance(socket, zmq.sugar.socket.Socket)
+        socket.send_pyobj('ping')
+        reply = socket.recv_pyobj()
+        if reply == 'pong':
+            return True
+        return False
+
+    def message(self, Id: IdType, targetName: str, targetProperty: str, value: Any) -> Any:
         """Send a message to an app instance.
 
-        :param id: ID of the app instance.
+        :param Id: ID of the app instance.
 
-        :param targetName: name of the target object in the app.
+        :param targetName: Name of the target object in the app.
             This may be the app :class:`plottr.node.node.Flowchart`
             (on names ```` (empty string), ``fc``, or ``flowchart``;
             or any :class:`plottr.node.node.Node` in the flowchart
@@ -248,56 +386,67 @@ class AppManager(QtWidgets.QWidget):
 
         :param targetProperty:
 
-            * if the target is a node, then this should be the name of a property
+            * If the target is a node, then this should be the name of a property
               of the node.
 
-            * if the target is the flowchart, then ``setInput`` or ``getInput`` are
+            * If the target is the flowchart, then ``setInput`` or ``getInput`` are
               supported as target properties.
 
-        :param value: a valid value that the target property can be set to.
-            for the ``setInput`` option of the flowchart, this should be data, i.e.,
+        :param value: A valid value that the target property can be set to.
+            For the ``setInput`` option of the flowchart, this should be data, i.e.,
             a dictionary with ``str`` keys and  :class:`plottr.data.datadict.DataDictBase`
             values. Commonly ``{'dataIn': someData}`` for most flowcharts.
-            for the ``setInput`` option of the flowchart, this may be any object
+            For the ``setInput`` option of the flowchart, this may be any object
             and will be ignored.
 
         :returns: the response to the message. Can be:
 
-            *  an exception if the message resulted in an exception being raised.
+            *  An exception if the message resulted in an exception being raised.
 
             * ``True`` if a property was set successfully
 
-            * data, if flowchart data was requested.
+            * Data, if flowchart data was requested.
 
             * ``None``, otherwise.
         """
-        if id not in self.activeApps:
-            raise ValueError(f"no app with ID <{id}> running.")
+        if Id not in self.processes:
+            raise ValueError(f"no app with ID <{Id}> running.")
         else:
-            app = self.activeApps[id]
-            app['conn'].send((targetName, targetProperty, value))
-            response = app['conn'].recv()
+            socket = self.processes[Id]['socket']
+            assert isinstance(socket, zmq.sugar.socket.Socket)
+            socket.send_pyobj((targetName, targetProperty, value))
+            response = socket.recv_pyobj()
 
         if isinstance(response, Exception):
-            logger.warning(f'Exception occurred in app <{id}>:')
+            logger.warning(f'Exception occurred in app <{Id}>:')
             print_exception(type(response), response, response.__traceback__)
 
         return response
 
-    def checkIfAppIsAlive(self, id: Any) -> bool:
-        """Check if the process of the app instance with ID ``id`` is still alive."""
+    def closeEvent(self, a0: QtGui.QCloseEvent) -> None:
+        """
+        Overwrite of the closeEvent. Makes sure everything closes up properly.
+        """
+        if self.procmon is not None:
+            self.procmon.quit()
+            self.procmon.deleteLater()
+            self.procmon = None
 
-        pid = self.activeApps[id]['process'].pid
-        if not psutil.pid_exists(pid):
-            running = False
-        else:
-            proc = psutil.Process(pid)
-            running = proc.status() not in [psutil.STATUS_DEAD, psutil.STATUS_STOPPED, psutil.STATUS_ZOMBIE]
-        if not running:
-            self.appClosed.emit(id)
-        return running
+        if self.procmonThread is not None:
+            self.procmonThread.quit()
+            self.procmonThread.wait()
+            self.procmonThread.deleteLater()
+            self.procmonThread = None
 
-    def _onAppClosed(self, id: Any) -> None:
-        if id in self.activeApps:
-            self.activeApps[id]['monitor'].stop()
-            del self.activeApps[id]
+        for Id, data in self.processes.items():
+            process = data['process']
+            assert isinstance(process, QtCore.QProcess)
+            process.close()
+
+            socket = data['socket']
+            assert isinstance(socket, zmq.sugar.socket.Socket)
+            socket.close(1)
+
+        self.context.destroy(1)
+
+        return super().closeEvent(a0)
