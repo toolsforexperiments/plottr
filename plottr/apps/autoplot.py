@@ -372,6 +372,11 @@ def autoplotDDH5(filepath: str = '', groupname: str = 'data') \
 
     return fc, win
 
+def autoplotDDH5App(*args):
+    filepath = args[0][0]
+    groupname = args[0][1]
+
+    return autoplotDDH5(filepath, groupname)
 
 def main(f: str, g: str) -> int:
     app = QtWidgets.QApplication([])
