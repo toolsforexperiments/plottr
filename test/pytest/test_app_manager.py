@@ -52,7 +52,7 @@ def test_open_new_process(qtbot, tmp_path):
     assert 0 in appManager.processes
 
     newProcess = appManager.processes[0]['process']
-    pid = newProcess.pid()
+    pid = newProcess.processId()
     assert psutil.pid_exists(pid)
 
     assert not appManager.launchApp(0, MODULE, FUNC, str(tmp_path), 'data')
@@ -75,7 +75,7 @@ def test_closing_process(qtbot, tmp_path):
     assert 0 in appManager.processes
 
     newProcess = appManager.processes[0]['process']
-    pid = newProcess.pid()
+    pid = newProcess.processId()
     assert psutil.pid_exists(pid)
     psutilProcess = psutil.Process(pid)
     psutilProcess.terminate()
@@ -107,19 +107,19 @@ def test_closing_multiple_open_apps(qtbot, tmp_path):
     assert 3 in appManager.processes
 
     process_0 = appManager.processes[0]['process']
-    pid_0 = process_0.pid()
+    pid_0 = process_0.processId()
     assert psutil.pid_exists(pid_0)
 
     process_1 = appManager.processes[1]['process']
-    pid_1 = process_1.pid()
+    pid_1 = process_1.processId()
     assert psutil.pid_exists(pid_1)
 
     process_2 = appManager.processes[2]['process']
-    pid_2 = process_2.pid()
+    pid_2 = process_2.processId()
     assert psutil.pid_exists(pid_2)
 
     process_3 = appManager.processes[3]['process']
-    pid_3 = process_3.pid()
+    pid_3 = process_3.processId()
     assert psutil.pid_exists(pid_3)
 
     ret = appManager.close()
@@ -151,7 +151,7 @@ def test_correct_port_assignment(qtbot, tmp_path):
     assert sorted(correctPorts) == sorted(ports)
 
     process_2 = appManager.processes[2]['process']
-    pid = process_2.pid()
+    pid = process_2.processId()
     psutilProcess = psutil.Process(pid)
     psutilProcess.terminate()
     # If you don't give time for the process to properly close and the signals to propagate the test will fail.
