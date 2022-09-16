@@ -35,12 +35,12 @@ from .json_veiwer import JsonModel, JsonTreeView
 from ..icons import get_starIcon as get_star_icon, get_trashIcon as get_trash_icon
 from .appmanager import AppManager
 
-from .ui.Monitr_UI import Ui_MainWindow
-
 TIMESTRFORMAT = "%Y-%m-%dT%H%M%S"
 
+# Change this variable to change the module of the app that monitr should open.
 AUTOPLOTMODULE = 'plottr.apps.autoplot'
 
+# Function that the app manager should run to open a new app.
 AUTOPLOTFUNC = 'autoplotDDH5App'
 
 
@@ -437,7 +437,7 @@ class FileModel(QtGui.QStandardItemModel):
         self.itemChanged.connect(self.on_renaming_file)
 
     @Slot()
-    def on_renaming_file(self, item: Item) -> None:
+    def on_renaming_file(self, item: Optional[Item] = None) -> None:
         """
         Triggered every time an item changes.
 
@@ -446,6 +446,9 @@ class FileModel(QtGui.QStandardItemModel):
 
         :param item: QStandardItem, to be renamed
         """
+        if item is None:
+            return
+
         if item.column() == 1:
             return
 
@@ -791,6 +794,11 @@ class FileModel(QtGui.QStandardItemModel):
                 if path in self.modified_exceptions:
                     self.modified_exceptions.remove(path)
                     return
+
+                # TODO: Test if this an appropriate solution.
+                # The file monitoring for network drives in linux seems to miss the creation event,
+                # but it does not miss the file modified event.
+                self.on_file_created(event)
 
                 if ContentType.sort(path) == ContentType.data:
                     self.update_data.emit(path)

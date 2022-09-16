@@ -1,6 +1,5 @@
 from logging import getLogger
 from pathlib import Path
-from typing import Union
 
 from watchdog.observers import Observer
 from watchdog.events import FileSystemEventHandler, FileSystemEvent
