@@ -113,7 +113,7 @@ class ScaleUnits(Node):
     def scale_unit_option(self) -> ScaleUnitsOption:
         return self._scale_unit_option
 
-    @scale_unit_option.setter  # type: ignore[misc]
+    @scale_unit_option.setter
     @updateOption('scale_unit_option')
     def scale_unit_option(self, value: ScaleUnitsOption) -> None:
         self._scale_unit_option = value
