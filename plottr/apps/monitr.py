@@ -3099,7 +3099,7 @@ class Monitr(QtWidgets.QMainWindow):
 
     def closeEvent(self, a0: QtGui.QCloseEvent) -> None:
         """
-        Gets called when the program closes. Mkaes sure the watcher thread gets properly stopped.
+        Gets called when the program closes. Makes sure the watcher thread gets properly stopped.
         """
         self.model.quit()
         self.app_manager.close()
