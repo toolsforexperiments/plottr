@@ -33,7 +33,7 @@ def _make_testdata() -> DataDictBase:
 def test_closing_appManager(qtbot):
     appManager = AppManager()
     appManager.show()
-    qtbot.waitForWindowShown(appManager)
+    qtbot.waitExposed(appManager)
     qtbot.addWidget(appManager)
     ret = appManager.close()
     assert ret
@@ -44,7 +44,7 @@ def test_open_new_process(qtbot, tmp_path):
 
     appManager = AppManager()
     appManager.show()
-    qtbot.waitForWindowShown(appManager)
+    qtbot.waitExposed(appManager)
     qtbot.addWidget(appManager)
 
     assert appManager.launchApp(0, MODULE, FUNC, str(tmp_path), 'data')
@@ -67,7 +67,7 @@ def test_closing_process(qtbot, tmp_path):
 
     appManager = AppManager()
     appManager.show()
-    qtbot.waitForWindowShown(appManager)
+    qtbot.waitExposed(appManager)
     qtbot.addWidget(appManager)
 
     assert appManager.launchApp(0, MODULE, FUNC, str(tmp_path), 'data')
@@ -93,7 +93,7 @@ def test_closing_multiple_open_apps(qtbot, tmp_path):
 
     appManager = AppManager()
     appManager.show()
-    qtbot.waitForWindowShown(appManager)
+    qtbot.waitExposed(appManager)
     qtbot.addWidget(appManager)
 
     assert appManager.launchApp(0, MODULE, FUNC, str(tmp_path), 'data')
@@ -137,7 +137,7 @@ def test_correct_port_assignment(qtbot, tmp_path):
 
     appManager = AppManager()
     appManager.show()
-    qtbot.waitForWindowShown(appManager)
+    qtbot.waitExposed(appManager)
     qtbot.addWidget(appManager)
 
     appManager.launchApp(0, MODULE, FUNC, str(tmp_path), 'data')
@@ -177,7 +177,7 @@ def test_ping_process(qtbot, tmp_path):
 
     appManager = AppManager()
     appManager.show()
-    qtbot.waitForWindowShown(appManager)
+    qtbot.waitExposed(appManager)
     qtbot.addWidget(appManager)
 
     assert appManager.launchApp(0, MODULE, FUNC, str(tmp_path), 'data')
@@ -195,7 +195,7 @@ def test_pinging_app_from_outside_manager(qtbot, tmp_path):
 
     appManager = AppManager()
     appManager.show()
-    qtbot.waitForWindowShown(appManager)
+    qtbot.waitExposed(appManager)
     qtbot.addWidget(appManager)
 
     assert appManager.launchApp(0, MODULE, FUNC, str(tmp_path), 'data')
@@ -218,7 +218,7 @@ def test_getting_values(qtbot, tmp_path):
 
     appManager = AppManager()
     appManager.show()
-    qtbot.waitForWindowShown(appManager)
+    qtbot.waitExposed(appManager)
     qtbot.addWidget(appManager)
 
     assert appManager.launchApp(0, MODULE, FUNC, str(tmp_path), 'data')
