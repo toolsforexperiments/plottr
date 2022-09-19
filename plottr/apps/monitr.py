@@ -2425,8 +2425,9 @@ class LoaderWorker(QtCore.QObject):
             Optional[dict]:
         """
         Method used to create a dictionary with all the necessary information (file names, paths, etc.)
-         of an item of the model to create the right side window. This function will also go through all the children the item might have, and add the
-         names of each nested folders in front of the windows titles. Utilizes 2 helper functions to do this.
+         of an item of the model to create the right side window. This function will also go through all the children
+        the item might have, and add the names of each nested folders in front of the windows titles.
+        Utilizes 2 helper functions to do this.
 
         :param item: Item of the model to generate the dictionary.
         :return: A dictionary with the following structure:
@@ -2465,7 +2466,7 @@ class LoaderWorker(QtCore.QObject):
     def _fill_dict(self, data_in: Optional[dict], files_dict: Dict[Path, ContentType], prefix_text: str,
                    only_data_files: bool = False) -> Optional[dict]:
         """
-        Helper method for gather_all_right_sice_window_data. Fills in the data dictionary with the files inside of
+        Helper method for gather_all_right_side_window_data. Fills in the data dictionary with the files inside of
         files_dict and adds prefix text to all tittles.
 
         :param data_in: Dictionary with the same structure as the data dictionary of gather_all_right_sice_window_data.
@@ -2474,8 +2475,8 @@ class LoaderWorker(QtCore.QObject):
             specific nested folder this file is coming from.
         :return: data_in with the files of files_dict in it.
         """
-
-        for file, file_type in files_dict.items():
+        files_dict_copy = files_dict.copy()
+        for file, file_type in files_dict_copy.items():
             if self.thread().isInterruptionRequested() or data_in is None:
                 return None
             if file_type == ContentType.data:
