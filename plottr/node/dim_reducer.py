@@ -498,7 +498,7 @@ class DimensionReducer(Node):
     def reductions(self) -> Dict[str, Optional[ReductionType]]:
         return self._reductions
 
-    @reductions.setter  # type: ignore[misc]
+    @reductions.setter
     @updateOption('reductions')
     def reductions(self, val: Dict[str, Optional[ReductionType]]) -> None:
         self._reductions = val
@@ -507,7 +507,7 @@ class DimensionReducer(Node):
     def targetNames(self) -> Optional[List[str]]:
         return self._targetNames
 
-    @targetNames.setter  # type: ignore[misc]
+    @targetNames.setter
     @updateOption()
     def targetNames(self, val: Optional[List[str]]) -> None:
         self._targetNames = val
@@ -516,7 +516,7 @@ class DimensionReducer(Node):
     def reductionValues(self) -> Dict[str, float]:
         return self._reductionValues
 
-    @reductionValues.setter # type: ignore[misc]
+    @reductionValues.setter
     @updateOption('reductionValues')
     def reductionValues(self, val: Dict[str, float]) -> None:
         self._reductionValues = val
@@ -595,8 +595,7 @@ class DimensionReducer(Node):
         data = data.sanitize()
         data.validate()
         if self.reductionValues != reductionValues:
-            self.reductionValues = reductionValues  # type: ignore[misc]
-            # Open bug: https://github.com/python/mypy/issues/1465
+            self.reductionValues = reductionValues
         return data
 
     def validateOptions(self, data: DataDictBase) -> bool:
@@ -779,7 +778,7 @@ class XYSelector(DimensionReducer):
     def xyAxes(self) -> Tuple[Optional[str], Optional[str]]:
         return self._xyAxes
 
-    @xyAxes.setter  # type: ignore[misc]
+    @xyAxes.setter
     @updateOption('xyAxes')
     def xyAxes(self, val: Tuple[Optional[str], Optional[str]]) -> None:
         self._xyAxes = val
@@ -795,7 +794,7 @@ class XYSelector(DimensionReducer):
             dr[dim] = red
         return dr
 
-    @dimensionRoles.setter  # type: ignore[misc]
+    @dimensionRoles.setter
     @updateOption('dimensionRoles')
     def dimensionRoles(self, val: Dict[str, str]) -> None:
         x = None

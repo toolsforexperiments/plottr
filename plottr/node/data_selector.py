@@ -88,7 +88,7 @@ class DataSelector(Node):
         super().__init__(name)
 
         self._dataStructure = None
-        self.selectedData = []  # type: ignore[misc]
+        self.selectedData = []
 
     # Properties
 
@@ -96,7 +96,7 @@ class DataSelector(Node):
     def selectedData(self) -> List[str]:
         return self._selectedData
 
-    @selectedData.setter  # type: ignore[misc]
+    @selectedData.setter
     @updateOption('selectedData')
     def selectedData(self, val: List[str]) -> None:
         if isinstance(val, str):
