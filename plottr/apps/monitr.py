@@ -637,7 +637,6 @@ class FileModel(QtGui.QStandardItemModel):
                     # Checks if the folder still exists. If the user has the folder that is getting deleted at that
                     # moment, no update should happen.
                     if self.currently_selected_folder.is_dir():
-                        print(f'emitting the signal')
                         self.update_me.emit(parent.path)
 
     def _delete_all_children_from_main_dictionary(self, item: Item) -> None:
