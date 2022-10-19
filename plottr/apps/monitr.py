@@ -596,18 +596,18 @@ class FileModel(QtGui.QStandardItemModel):
         # logger().info(f'file deleted: {event}')
 
         path = Path(event.src_path)
-        if path.suffix == "":
-            if path in self.main_dictionary:
-                item = self.main_dictionary[path]
+        # If the path deleted it's a folder, then it should be in the mian dictionary, or we don't care about it.
+        if path in self.main_dictionary:
+            item = self.main_dictionary[path]
 
-                self._delete_all_children_from_main_dictionary(item)
-                del self.main_dictionary[path]
+            self._delete_all_children_from_main_dictionary(item)
+            del self.main_dictionary[path]
 
-                # Checks if we need to remove a row from a parent item or the root model itself.
-                if item.parent() is None:
-                    self.removeRow(item.row())
-                else:
-                    item.parent().removeRow(item.row())
+            # Checks if we need to remove a row from a parent item or the root model itself.
+            if item.parent() is None:
+                self.removeRow(item.row())
+            else:
+                item.parent().removeRow(item.row())
 
         else:
             if path.parent in self.main_dictionary:
@@ -634,7 +634,11 @@ class FileModel(QtGui.QStandardItemModel):
                 # Send signal indicating that current folder requires update.
                 if self.currently_selected_folder is not None and parent.path.is_relative_to(
                         self.currently_selected_folder):
-                    self.update_me.emit(parent.path)
+                    # Checks if the folder still exists. If the user has the folder that is getting deleted at that
+                    # moment, no update should happen.
+                    if self.currently_selected_folder.is_dir():
+                        print(f'emitting the signal')
+                        self.update_me.emit(parent.path)
 
     def _delete_all_children_from_main_dictionary(self, item: Item) -> None:
         """
@@ -2780,10 +2784,13 @@ class Monitr(QtWidgets.QMainWindow):
         Then clears every item on the right side of the screen.
         """
         if self.previous_selected_folder != Path() and self.scroll_area is not None:
-            bar = self.scroll_area.verticalScrollBar()
-            if bar is not None:
-                previous_item = self.model.main_dictionary[self.previous_selected_folder]
-                previous_item.scroll_height = bar.value()
+            # If the item being deleted is the currently selected item, there is no need to update the items height
+            # since it doesn't exist anymore .
+            if self.previous_selected_folder in self.model.main_dictionary:
+                bar = self.scroll_area.verticalScrollBar()
+                if bar is not None:
+                    previous_item = self.model.main_dictionary[self.previous_selected_folder]
+                    previous_item.scroll_height = bar.value()
 
         if self.header_label is not None:
             self.right_side_layout.removeWidget(self.header_label)
