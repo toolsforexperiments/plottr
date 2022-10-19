@@ -271,8 +271,7 @@ class QCodesDSLoader(Node):
     def pathAndId(self) -> Tuple[Optional[str], Optional[int]]:
         return self._pathAndId
 
-    # see https://github.com/python/mypy/issues/1362
-    @pathAndId.setter  # type: ignore[misc]
+    @pathAndId.setter
     @updateOption('pathAndId')
     def pathAndId(self, val: Tuple[Optional[str], Optional[int]]) -> None:
         if val != self.pathAndId:

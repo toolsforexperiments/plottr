@@ -587,7 +587,7 @@ class FittingNode(Node):
     def fitting_options(self) -> Optional[FittingOptions]:
         return self._fitting_options
 
-    @fitting_options.setter  # type: ignore[misc] # https://github.com/python/mypy/issues/1362
+    @fitting_options.setter
     @updateOption('fitting_options')
     def fitting_options(self, opt: Optional[FittingOptions]) -> None:
         if isinstance(opt, FittingOptions) or opt is None:

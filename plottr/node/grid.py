@@ -421,7 +421,7 @@ class DataGridder(Node[DataGridderNodeWidget]):
         """
         return self._grid
 
-    @grid.setter  # type: ignore[misc]
+    @grid.setter
     @updateOption('grid')
     def grid(self, val: Tuple[GridOption, Dict[str, Any]]) -> None:
         """set the grid option. does some elementary type checking, but should
