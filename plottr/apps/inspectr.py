@@ -17,7 +17,7 @@ import time
 import sys
 import argparse
 import logging
-from typing import Optional, Sequence, List, Dict, Iterable, Union, cast, Tuple
+from typing import Optional, Sequence, List, Dict, Iterable, Union, cast, Tuple, Mapping
 
 from typing_extensions import TypedDict
 
@@ -190,7 +190,7 @@ class RunList(QtWidgets.QTreeWidget):
         item = SortableTreeWidgetItem(lst)
         self.addTopLevelItem(item)
 
-    def setRuns(self, selection: Dict[int, Dict[str, str]], show_only_star: bool, show_also_cross: bool) -> None:
+    def setRuns(self, selection: Mapping[int, Mapping[str, str]], show_only_star: bool, show_also_cross: bool) -> None:
         self.clear()
 
         # disable sorting before inserting values to avoid performance hit
@@ -208,7 +208,7 @@ class RunList(QtWidgets.QTreeWidget):
         for i in range(len(self.cols)):
             self.resizeColumnToContents(i)
 
-    def updateRuns(self, selection: Dict[int, Dict[str, str]]) -> None:
+    def updateRuns(self, selection: Mapping[int, Mapping[str, str]]) -> None:
 
         run_added = False
         for runId, record in selection.items():
@@ -494,7 +494,7 @@ class QCodesDBInspector(QtWidgets.QMainWindow):
                 self.loadDBProcess.setPath(self.filepath)
 
     def DBLoaded(self, dbdf: pandas.DataFrame) -> None:
-        if dbdf.equals(self.dbdf):
+        if self.dbdf is not None and dbdf.equals(self.dbdf):
             logger().debug('DB reloaded with no changes. Skipping update')
             return None
         self.dbdf = dbdf
@@ -553,7 +553,10 @@ class QCodesDBInspector(QtWidgets.QMainWindow):
         selection = self.dbdf.loc[self.dbdf['started_date'].isin(self._selected_dates)].sort_index(ascending=False)
         show_only_star = self.showOnlyStarAction.isChecked()
         show_also_cross = self.showAlsoCrossAction.isChecked()
-        self.runList.setRuns(selection.to_dict(orient='index'), show_only_star, show_also_cross)
+        # Pandas types cannot infer that this dataframe will be
+        # using int as index and Dict[str, str] as keys
+        selection_dict = cast(Dict[int, Dict[str,str]], selection.to_dict(orient='index'))
+        self.runList.setRuns(selection_dict, show_only_star, show_also_cross)
 
     ### handling user selections
     @Slot(list)
@@ -562,12 +565,15 @@ class QCodesDBInspector(QtWidgets.QMainWindow):
             assert self.dbdf is not None
             selection = self.dbdf.loc[self.dbdf['started_date'].isin(dates)].sort_index(ascending=False)
             old_dates = self._selected_dates
+            # Pandas types cannot infer that this dataframe will be
+            # using int as index and Dict[str, str] as keys
+            selection_dict = cast(Dict[int, Dict[str,str]], selection.to_dict(orient='index'))
             if not all(date in old_dates for date in dates):
                 show_only_star = self.showOnlyStarAction.isChecked()
                 show_also_cross = self.showAlsoCrossAction.isChecked()
-                self.runList.setRuns(selection.to_dict(orient='index'), show_only_star, show_also_cross)
+                self.runList.setRuns(selection_dict, show_only_star, show_also_cross)
             else:
-                self.runList.updateRuns(selection.to_dict(orient='index'))
+                self.runList.updateRuns(selection_dict)
             self._selected_dates = tuple(dates)
         else:
             self._selected_dates = ()
