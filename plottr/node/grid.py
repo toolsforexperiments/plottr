@@ -423,7 +423,7 @@ class DataGridder(Node[DataGridderNodeWidget]):
 
     @grid.setter
     @updateOption('grid')
-    def grid(self, val: Tuple[GridOption, Dict[str, Any]]) -> None:
+    def grid(self, val: Tuple[GridOption, Optional[Dict[str, Any]]]) -> None:
         """set the grid option. does some elementary type checking, but should
         probably be refined a bit."""
 
@@ -434,11 +434,13 @@ class DataGridder(Node[DataGridderNodeWidget]):
 
         if method not in GridOption:
             raise ValueError(f"Invalid grid method specification.")
+        if opts is None:
+            opts = {}
 
         if not isinstance(opts, dict):
-            raise ValueError(f"Invalid grid options specification.")
+            raise ValueError(f"Invalid grid options specification {opts}.")
 
-        self._grid = val
+        self._grid = method, opts
 
     # Processing
 
