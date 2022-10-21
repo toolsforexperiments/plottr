@@ -26,7 +26,6 @@ COLORS = {
     logging.DEBUG : QtGui.QColor('gray'),
     }
 
-LEVEL = logging.INFO
 
 class QLogHandler(logging.Handler):
 
@@ -121,7 +120,6 @@ def getLogger(module: str = '') -> logging.Logger:
             mod += f'.{module}'
 
     logger = logging.getLogger(mod)
-    logger.setLevel(LEVEL)
     return logger
 
 
