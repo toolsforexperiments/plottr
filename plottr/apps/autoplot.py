@@ -34,11 +34,7 @@ __license__ = 'MIT'
 
 # TODO: * separate logging window
 
-
-def logger() -> logging.Logger:
-    logger = logging.getLogger('plottr.apps.autoplot')
-    logger.setLevel(plottrlog.LEVEL)
-    return logger
+LOGGER = logging.getLogger('plottr.apps.autoplot')
 
 
 def autoplot(inputData: Union[None, DataDictBase] = None,
@@ -103,7 +99,7 @@ class UpdateToolBar(QtWidgets.QToolBar):
         Is called whenever the monitor timer triggers, and emit the
         :attr:`trigger` Signal.
         """
-        logger().debug('Emit trigger')
+        LOGGER.debug('Emit trigger')
         self.trigger.emit()
 
     @Slot(float)
@@ -227,7 +223,7 @@ class AutoPlotMainWindow(PlotWindow):
         defined.
         """
         if self.loaderNode is not None:
-            logger().warning("A loader node is defined. Use that for inserting data.")
+            LOGGER.warning("A loader node is defined. Use that for inserting data.")
         else:
             self.fc.setInput(dataIn=data)
             if resetDefaults or not self._initialized:

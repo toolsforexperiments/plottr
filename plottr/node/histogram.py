@@ -125,7 +125,7 @@ class Histogrammer(Node):
         if self.histogramAxis is None:
             return True
         elif self.histogramAxis not in data.axes():
-            self.logger().error(f"'{self.histogramAxis}' is not a valid axis.")
+            self.node_logger.error(f"'{self.histogramAxis}' is not a valid axis.")
             return False
         return True
 
