@@ -261,6 +261,7 @@ class Node(NodeBase, Generic[NodeWidgetType]):
     # TODO: should think about nodes with multiple inputs -- how would this look then?
     # FIXME: return should only be Optional[Dict[str, DataDictBase]]
     def process(self, dataIn: Optional[DataDictBase]=None) -> Optional[Dict[str, Optional[DataDictBase]]]:
+        self.node_logger.debug(f"Processing data with node: {self.nodeName}")
         if dataIn is None:
             return None
 
