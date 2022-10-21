@@ -124,7 +124,7 @@ def getLogger(module: str = '') -> logging.Logger:
     return logger
 
 
-def enableStreamHandler(enable: bool = False, level: int = logging.WARNING) -> None:
+def enableStreamHandler(enable: bool = False, level: Union[int,str] = logging.WARNING) -> None:
     """
     enable/disable output to stderr. Enabling is useful when not
     using the UI logging window.
