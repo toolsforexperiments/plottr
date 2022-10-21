@@ -36,6 +36,9 @@ class SubtractAverageWidget(NodeWidget):
 
 
 class SubtractAverage(Node):
+
+    nodeName = "SubtractAverage"
+
     useUi = True
     uiClass = SubtractAverageWidget
 
