@@ -649,7 +649,7 @@ def inspectr(dbPath: Optional[str] = None) -> QCodesDBInspector:
     return win
 
 
-def main(dbPath: Optional[str], log_level = logging.WARNING) -> None:
+def main(dbPath: Optional[str], log_level: int = logging.WARNING) -> None:
     app = QtWidgets.QApplication([])
     plottrlog.enableStreamHandler(True, log_level)
 

@@ -245,7 +245,7 @@ class Node(NodeBase, Generic[NodeWidgetType]):
         return logger
 
     def logger(self) -> Logger:
-        warning.warn("Calling logger on a node is deprecated. Use `node.node_logger` instead.")
+        warnings.warn("Calling logger on a node is deprecated. Use `node.node_logger` instead.")
         return self._logger()
 
     def validateOptions(self, data: DataDictBase) -> bool:
