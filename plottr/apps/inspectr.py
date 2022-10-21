@@ -649,9 +649,9 @@ def inspectr(dbPath: Optional[str] = None) -> QCodesDBInspector:
     return win
 
 
-def main(dbPath: Optional[str]) -> None:
+def main(dbPath: Optional[str], log_level = logging.WARNING) -> None:
     app = QtWidgets.QApplication([])
-    plottrlog.enableStreamHandler(True)
+    plottrlog.enableStreamHandler(True, log_level)
 
     win = inspectr(dbPath=dbPath)
     win.show()
@@ -666,5 +666,8 @@ def script() -> None:
     parser = argparse.ArgumentParser(description='inspectr -- sifting through qcodes data.')
     parser.add_argument('--dbpath', help='path to qcodes .db file',
                         default=None)
+    parser.add_argument("--console-log-level",
+                        choices=("ERROR", "WARNING", "INFO", "DEBUG"),
+                        default="WARNING")
     args = parser.parse_args()
-    main(args.dbpath)
+    main(args.dbpath, args.console_log_level)
