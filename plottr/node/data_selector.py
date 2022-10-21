@@ -115,7 +115,7 @@ class DataSelector(Node):
 
         for elt in self.selectedData:
             if elt not in data:
-                self.logger().warning(
+                self.node_logger.warning(
                     f'Did not find selected data {elt} in data. '
                     f'Clearing the selection.'
                 )
@@ -125,7 +125,7 @@ class DataSelector(Node):
             allowed_axes = data.axes(self.selectedData[0])
             for d in self.selectedData:
                 if data.axes(d) != allowed_axes:
-                    self.logger().error(
+                    self.node_logger.error(
                         f'Datasets {self.selectedData[0]} '
                         f'(with axes {allowed_axes}) '
                         f'and {d}(with axes {data.axes(d)}) are not compatible '

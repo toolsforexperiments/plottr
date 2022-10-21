@@ -49,7 +49,6 @@ from .widgets import MPLPlot, MPLPlotWidget
 
 
 logger = logging.getLogger(__name__)
-logger.setLevel(logging.INFO)
 
 # matplotlib tools and settings
 symmetric_cmap = cm.get_cmap('bwr')

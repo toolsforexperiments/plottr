@@ -37,10 +37,7 @@ from .autoplot import autoplotQcodesDataset, QCAutoPlotMainWindow
 __author__ = 'Wolfgang Pfaff'
 __license__ = 'MIT'
 
-
-def logger() -> logging.Logger:
-    logger = plottrlog.getLogger('plottr.apps.inspectr')
-    return logger
+LOGGER = plottrlog.getLogger('plottr.apps.inspectr')
 
 
 ### Database inspector tool
@@ -478,7 +475,7 @@ class QCodesDBInspector(QtWidgets.QMainWindow):
             )
 
         if path:
-            logger().info(f"Opening: {path}")
+            LOGGER.info(f"Opening: {path}")
             self.loadFullDB(path=path)
 
     def loadFullDB(self, path: Optional[str] = None) -> None:
@@ -495,12 +492,12 @@ class QCodesDBInspector(QtWidgets.QMainWindow):
 
     def DBLoaded(self, dbdf: pandas.DataFrame) -> None:
         if self.dbdf is not None and dbdf.equals(self.dbdf):
-            logger().debug('DB reloaded with no changes. Skipping update')
+            LOGGER.debug('DB reloaded with no changes. Skipping update')
             return None
         self.dbdf = dbdf
         self.dbdfUpdated.emit()
         self.dateList.sendSelectedDates()
-        logger().debug('DB reloaded')
+        LOGGER.debug('DB reloaded')
 
         if self.latestRunId is not None:
             idxs = self.dbdf.index.values
@@ -543,7 +540,7 @@ class QCodesDBInspector(QtWidgets.QMainWindow):
 
     @Slot()
     def monitorTriggered(self) -> None:
-        logger().debug('Refreshing DB')
+        LOGGER.debug('Refreshing DB')
         self.refreshDB()
 
     @Slot()
