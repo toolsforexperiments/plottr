@@ -26,7 +26,7 @@ from ..base import AutoFigureMaker as BaseFM, PlotDataType, \
     PlotWidgetContainer, PlotWidget
 
 logger = logging.getLogger(__name__)
-logger.setLevel(logging.INFO)
+
 TIMESTRFORMAT = "%Y-%m-%dT%H%M%S"
 
 

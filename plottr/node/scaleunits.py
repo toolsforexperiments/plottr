@@ -103,6 +103,7 @@ class ScaleUnits(Node):
     e.g (1*10**3 complexunit)
     """
     useUi = True
+    nodeName = "ScaleUnits"
     uiClass = ScaleUnitsWidget
 
     def __init__(self, name: str):

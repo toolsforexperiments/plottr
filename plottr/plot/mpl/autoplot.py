@@ -24,8 +24,6 @@ from ..base import AutoFigureMaker as BaseFM, PlotDataType, \
     PlotItem, ComplexRepresentation, determinePlotDataType, PlotWidgetContainer
 
 logger = logging.getLogger(__name__)
-logger.setLevel(logging.INFO)
-
 
 class FigureMaker(BaseFM):
     """Matplotlib implementation for :class:`.AutoFigureMaker`.

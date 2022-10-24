@@ -93,12 +93,9 @@ def test_set_grid_with_order(qtbot):
     assert fc.outputValues()['dataOut']['vals']['axes'] == ['y', 'z', 'x']
 
     # finally, specify manually. omitting inner shape doesn't work
+    # but will be caught by validation (and no data returned)
     node.grid = GridOption.specifyShape, dict(shape=(5, 2, 5))
-    assert fc.outputValues()['dataOut'].data_vals('vals').shape == (5,2,5)
-    assert not num.arrays_equal(
-        fc.outputValues()['dataOut'].data_vals('vals'),
-        vv.transpose((1,2,0)),
-    )
+    assert fc.outputValues()['dataOut'] is None
 
     # but using the right inner axis order should do it
     node.grid = GridOption.specifyShape, dict(order=['x', 'y', 'z'],
