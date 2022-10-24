@@ -33,10 +33,16 @@ from ..apps.watchdog_classes import WatcherClient
 from ..gui.widgets import Collapsible
 from .json_veiwer import JsonModel, JsonTreeView
 from ..icons import get_starIcon as get_star_icon, get_trashIcon as get_trash_icon
-
-from .ui.Monitr_UI import Ui_MainWindow
+from .appmanager import AppManager
 
 TIMESTRFORMAT = "%Y-%m-%dT%H%M%S"
+
+# Change this variable to change the module of the app that monitr should open.
+AUTOPLOTMODULE = 'plottr.apps.autoplot'
+
+# Function that the app manager should run to open a new app.
+AUTOPLOTFUNC = 'autoplotDDH5App'
+
 
 def logger() -> logging.Logger:
     logger = plottrlog.getLogger('plottr.apps.monitr')
@@ -415,7 +421,7 @@ class FileModel(QtGui.QStandardItemModel):
         self.modified_exceptions: List[Path] = []
 
         # Watcher setup with connected signals.
-        self.watcher_thread = QtCore.QThread(parent=self)
+        self.watcher_thread: Optional[QtCore.QThread] = QtCore.QThread(parent=self)
         self.watcher = WatcherClient(self.monitor_path)
         self.watcher.moveToThread(self.watcher_thread)
         self.watcher_thread.started.connect(self.watcher.run)
@@ -431,7 +437,7 @@ class FileModel(QtGui.QStandardItemModel):
         self.itemChanged.connect(self.on_renaming_file)
 
     @Slot()
-    def on_renaming_file(self, item: Item) -> None:
+    def on_renaming_file(self, item: Optional[Item] = None) -> None:
         """
         Triggered every time an item changes.
 
@@ -440,6 +446,9 @@ class FileModel(QtGui.QStandardItemModel):
 
         :param item: QStandardItem, to be renamed
         """
+        if item is None:
+            return
+
         if item.column() == 1:
             return
 
@@ -587,18 +596,18 @@ class FileModel(QtGui.QStandardItemModel):
         # logger().info(f'file deleted: {event}')
 
         path = Path(event.src_path)
-        if path.suffix == "":
-            if path in self.main_dictionary:
-                item = self.main_dictionary[path]
+        # If the path deleted it's a folder, then it should be in the mian dictionary, or we don't care about it.
+        if path in self.main_dictionary:
+            item = self.main_dictionary[path]
 
-                self._delete_all_children_from_main_dictionary(item)
-                del self.main_dictionary[path]
+            self._delete_all_children_from_main_dictionary(item)
+            del self.main_dictionary[path]
 
-                # Checks if we need to remove a row from a parent item or the root model itself.
-                if item.parent() is None:
-                    self.removeRow(item.row())
-                else:
-                    item.parent().removeRow(item.row())
+            # Checks if we need to remove a row from a parent item or the root model itself.
+            if item.parent() is None:
+                self.removeRow(item.row())
+            else:
+                item.parent().removeRow(item.row())
 
         else:
             if path.parent in self.main_dictionary:
@@ -625,7 +634,10 @@ class FileModel(QtGui.QStandardItemModel):
                 # Send signal indicating that current folder requires update.
                 if self.currently_selected_folder is not None and parent.path.is_relative_to(
                         self.currently_selected_folder):
-                    self.update_me.emit(parent.path)
+                    # Checks if the folder still exists. If the user has the folder that is getting deleted at that
+                    # moment, no update should happen.
+                    if self.currently_selected_folder.is_dir():
+                        self.update_me.emit(parent.path)
 
     def _delete_all_children_from_main_dictionary(self, item: Item) -> None:
         """
@@ -786,6 +798,11 @@ class FileModel(QtGui.QStandardItemModel):
                     self.modified_exceptions.remove(path)
                     return
 
+                # TODO: Test if this an appropriate solution.
+                # The file monitoring for network drives in linux seems to miss the creation event,
+                # but it does not miss the file modified event.
+                self.on_file_created(event)
+
                 if ContentType.sort(path) == ContentType.data:
                     self.update_data.emit(path)
 
@@ -942,6 +959,16 @@ class FileModel(QtGui.QStandardItemModel):
         selected = [self.tags_model.item(i, 0).text() for i in range(self.tags_model.rowCount()) if
                     self.tags_model.item(i, 0).checkState()]
         self.selected_tags_changed.emit(selected)
+
+    def quit(self) -> None:
+        """
+        Stops the watcher and the watcher thread.
+        """
+        self.watcher.observer.stop()
+        assert self.watcher_thread is not None
+        self.watcher_thread.quit()
+        self.watcher_thread.wait()
+        self.watcher_thread = None
 
 
 class SortFilterProxyModel(QtCore.QSortFilterProxyModel):
@@ -2298,7 +2325,6 @@ class ItemTagLabel(QtWidgets.QLabel):
         self.generate_tag_string()
         self.setText(self.tags_str)
 
-
     def generate_tag_string(self) -> None:
         """
         Converts the list of tags into the html formated string.
@@ -2355,6 +2381,7 @@ class TagCreator(QtWidgets.QLineEdit):
 
         self.setText('')
 
+
 class IconLabel(QtWidgets.QLabel):
 
     def __init__(self, movie: QtGui.QMovie, size: Optional[int] = None, *args: Any, **kwargs: Any):
@@ -2401,8 +2428,9 @@ class LoaderWorker(QtCore.QObject):
             Optional[dict]:
         """
         Method used to create a dictionary with all the necessary information (file names, paths, etc.)
-         of an item of the model to create the right side window. This function will also go through all the children the item might have, and add the
-         names of each nested folders in front of the windows titles. Utilizes 2 helper functions to do this.
+         of an item of the model to create the right side window. This function will also go through all the children
+        the item might have, and add the names of each nested folders in front of the windows titles.
+        Utilizes 2 helper functions to do this.
 
         :param item: Item of the model to generate the dictionary.
         :return: A dictionary with the following structure:
@@ -2441,7 +2469,7 @@ class LoaderWorker(QtCore.QObject):
     def _fill_dict(self, data_in: Optional[dict], files_dict: Dict[Path, ContentType], prefix_text: str,
                    only_data_files: bool = False) -> Optional[dict]:
         """
-        Helper method for gather_all_right_sice_window_data. Fills in the data dictionary with the files inside of
+        Helper method for gather_all_right_side_window_data. Fills in the data dictionary with the files inside of
         files_dict and adds prefix text to all tittles.
 
         :param data_in: Dictionary with the same structure as the data dictionary of gather_all_right_sice_window_data.
@@ -2450,8 +2478,8 @@ class LoaderWorker(QtCore.QObject):
             specific nested folder this file is coming from.
         :return: data_in with the files of files_dict in it.
         """
-
-        for file, file_type in files_dict.items():
+        files_dict_copy = files_dict.copy()
+        for file, file_type in files_dict_copy.items():
             if self.thread().isInterruptionRequested() or data_in is None:
                 return None
             if file_type == ContentType.data:
@@ -2517,6 +2545,9 @@ class Monitr(QtWidgets.QMainWindow):
         self.previous_selected_folder = Path()
         self.collapsed_state_dictionary: Dict[Path, bool] = {}
         self.setWindowTitle('Monitr')
+
+        self.app_manager = AppManager()  # Currently Ids only increase with every new app.
+        self.current_app_id = 0
 
         self.model = FileModel(self.monitor_path, 0, 2)
         self.model.update_me.connect(self.on_update_right_side_window)
@@ -2752,10 +2783,13 @@ class Monitr(QtWidgets.QMainWindow):
         Then clears every item on the right side of the screen.
         """
         if self.previous_selected_folder != Path() and self.scroll_area is not None:
-            bar = self.scroll_area.verticalScrollBar()
-            if bar is not None:
-                previous_item = self.model.main_dictionary[self.previous_selected_folder]
-                previous_item.scroll_height = bar.value()
+            # If the item being deleted is the currently selected item, there is no need to update the items height
+            # since it doesn't exist anymore .
+            if self.previous_selected_folder in self.model.main_dictionary:
+                bar = self.scroll_area.verticalScrollBar()
+                if bar is not None:
+                    previous_item = self.model.main_dictionary[self.previous_selected_folder]
+                    previous_item.scroll_height = bar.value()
 
         if self.header_label is not None:
             self.right_side_layout.removeWidget(self.header_label)
@@ -2958,14 +2992,14 @@ class Monitr(QtWidgets.QMainWindow):
     @Slot(Path)
     def on_plot_data(self, path: Path) -> None:
         """
-        Gets called when the user clicks plot on the context menu of the data viewer. Opens an autoplot app for the
-        selected ddh5 file.
+        Gets called when the user clicks plot on the context menu of the data viewer. Orders the app manager to open
+        a new autoplot window.
 
         :param path: The path of the ddh5 file that should be displayed.
         :return:
         """
-        plot_app = 'plottr.apps.autoplot.autoplotDDH5'
-        process = launchApp(plot_app, str(path), 'data')
+        self.app_manager.launchApp(self.current_app_id, AUTOPLOTMODULE, AUTOPLOTFUNC, str(path), 'data')
+        self.current_app_id += 1
 
     def add_text_input(self, path: Path) -> None:
         """
@@ -3071,10 +3105,10 @@ class Monitr(QtWidgets.QMainWindow):
 
     def closeEvent(self, a0: QtGui.QCloseEvent) -> None:
         """
-        Gets called when the program closes. Mkaes sure the watcher thread gets properly stopped.
+        Gets called when the program closes. Makes sure the watcher thread gets properly stopped.
         """
-        self.model.watcher.observer.stop()
-        self.model.watcher_thread.quit()
+        self.model.quit()
+        self.app_manager.close()
         super().closeEvent(a0)
 
 
@@ -3093,27 +3127,5 @@ def script() -> int:
 
     app = QtWidgets.QApplication([])
     win = Monitr(path)
-    win.show()
-    return app.exec_()
-
-
-def launchApp(appPath: str, filepath: str, group: str, **kwargs: Any) -> Process:
-    p = Process(target=_runAppStandalone,
-                args=(appPath, filepath, group),
-                kwargs=kwargs)
-    p.start()
-    p.join(timeout=0)
-    return p
-
-
-def _runAppStandalone(appPath: str, filepath: str, group: str, **kwargs: Any) -> Any:
-    sep = appPath.split('.')
-    modName = '.'.join(sep[:-1])
-    funName = sep[-1]
-    mod = importlib.import_module(modName)
-    fun = getattr(mod, funName)
-
-    app = QtWidgets.QApplication([])
-    fc, win = fun(filepath, group, **kwargs)
     win.show()
     return app.exec_()
