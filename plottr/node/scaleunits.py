@@ -103,6 +103,7 @@ class ScaleUnits(Node):
     e.g (1*10**3 complexunit)
     """
     useUi = True
+    nodeName = "ScaleUnits"
     uiClass = ScaleUnitsWidget
 
     def __init__(self, name: str):
@@ -113,7 +114,7 @@ class ScaleUnits(Node):
     def scale_unit_option(self) -> ScaleUnitsOption:
         return self._scale_unit_option
 
-    @scale_unit_option.setter  # type: ignore[misc]
+    @scale_unit_option.setter
     @updateOption('scale_unit_option')
     def scale_unit_option(self, value: ScaleUnitsOption) -> None:
         self._scale_unit_option = value

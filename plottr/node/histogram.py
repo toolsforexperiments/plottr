@@ -105,7 +105,7 @@ class Histogrammer(Node):
     def nbins(self) -> int:
         return self._nbins
 
-    @nbins.setter  # type: ignore[misc]
+    @nbins.setter
     @updateOption('nbins')
     def nbins(self, value: int) -> None:
         self._nbins = value
@@ -114,7 +114,7 @@ class Histogrammer(Node):
     def histogramAxis(self) -> Optional[str]:
         return self._histogramAxis
 
-    @histogramAxis.setter  # type: ignore[misc]
+    @histogramAxis.setter
     @updateOption('histogramAxis')
     def histogramAxis(self, value: Optional[str]) -> None:
         self._histogramAxis = value
@@ -125,7 +125,7 @@ class Histogrammer(Node):
         if self.histogramAxis is None:
             return True
         elif self.histogramAxis not in data.axes():
-            self.logger().error(f"'{self.histogramAxis}' is not a valid axis.")
+            self.node_logger.error(f"'{self.histogramAxis}' is not a valid axis.")
             return False
         return True
 

@@ -9,3 +9,5 @@ qtpy>=1.9.0
 typing-extensions>=3.7.4.3
 packaging>=20.0
 xhistogram>=0.3.0
+psutil
+pyzmq

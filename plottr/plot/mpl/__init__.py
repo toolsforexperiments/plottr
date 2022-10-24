@@ -41,7 +41,7 @@ directories and applies it to matplotlib plots using `pyplot.style.use`.
 """
 import logging
 
-from matplotlib import rcParams, cm, pyplot as plt
+from matplotlib import rcParams, colormaps, pyplot as plt
 
 from plottr import configFiles
 from .autoplot import AutoPlot, FigureMaker
@@ -49,7 +49,6 @@ from .widgets import MPLPlot, MPLPlotWidget
 
 
 logger = logging.getLogger(__name__)
-logger.setLevel(logging.INFO)
 
 # matplotlib tools and settings
-symmetric_cmap = cm.get_cmap('bwr')
+symmetric_cmap = colormaps.get_cmap('bwr')
