@@ -5,6 +5,7 @@ Contains the base class for Nodes.
 """
 import traceback
 from logging import Logger
+import warnings
 
 from functools import wraps
 from typing import Any, Union, Tuple, Dict, Optional, Type, List, Callable, TypeVar, Generic
@@ -182,6 +183,8 @@ class Node(NodeBase, Generic[NodeWidgetType]):
         else:
             self.ui = None
 
+        self.node_logger = self._logger()
+
     def setupUi(self) -> None:
         """ setting up the UI widget.
 
@@ -230,17 +233,20 @@ class Node(NodeBase, Generic[NodeWidgetType]):
             err = f'EXCEPTION RAISED: {e[0]}: {e[1]}\n'
             for t in traceback.format_tb(e[2]):
                 err += f' -> {t}\n'
-            self.logger().error(err)
+            self.node_logger.error(err)
 
-    def logger(self) -> Logger:
+    def _logger(self) -> Logger:
         """Get a logger for this node
 
         :return: logger with a name that can be traced back easily to this node.
         """
         name = f"{self.__module__}.{self.__class__.__name__}.{self.name()}"
         logger = log.getLogger(name)
-        logger.setLevel(log.LEVEL)
         return logger
+
+    def logger(self) -> Logger:
+        warnings.warn("Calling logger on a node is deprecated. Use `node.node_logger` instead.")
+        return self._logger()
 
     def validateOptions(self, data: DataDictBase) -> bool:
         """Validate the user options
@@ -255,6 +261,7 @@ class Node(NodeBase, Generic[NodeWidgetType]):
     # TODO: should think about nodes with multiple inputs -- how would this look then?
     # FIXME: return should only be Optional[Dict[str, DataDictBase]]
     def process(self, dataIn: Optional[DataDictBase]=None) -> Optional[Dict[str, Optional[DataDictBase]]]:
+        self.node_logger.debug(f"Processing data with node: {self.nodeName}")
         if dataIn is None:
             return None
 
@@ -327,7 +334,7 @@ class Node(NodeBase, Generic[NodeWidgetType]):
             self.dataShapesChanged.emit(dshapes)
 
         if not self.validateOptions(dataIn):
-            self.logger().debug("Option validation not passed")
+            self.node_logger.debug("Option validation not passed")
             return None
 
         return dict(dataOut=dataIn)

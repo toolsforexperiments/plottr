@@ -434,7 +434,7 @@ class DDH5Loader(Node):
     def filepath(self) -> Optional[str]:
         return self._filepath
 
-    @filepath.setter  # type: ignore[misc]
+    @filepath.setter
     @updateOption('filepath')
     def filepath(self, val: str) -> None:
         self._filepath = val
@@ -443,7 +443,7 @@ class DDH5Loader(Node):
     def groupname(self) -> str:
         return self._groupname
 
-    @groupname.setter  # type: ignore[misc]
+    @groupname.setter
     @updateOption('groupname')
     def groupname(self, val: str) -> None:
         self._groupname = val

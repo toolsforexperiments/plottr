@@ -3,7 +3,6 @@ grid.py
 
 A node and widget for placing data onto a grid (or not).
 """
-
 from enum import Enum, unique
 
 from typing import Tuple, Dict, Any, List, Optional, Sequence, cast
@@ -421,9 +420,9 @@ class DataGridder(Node[DataGridderNodeWidget]):
         """
         return self._grid
 
-    @grid.setter  # type: ignore[misc]
+    @grid.setter
     @updateOption('grid')
-    def grid(self, val: Tuple[GridOption, Dict[str, Any]]) -> None:
+    def grid(self, val: Tuple[GridOption, Optional[Dict[str, Any]]]) -> None:
         """set the grid option. does some elementary type checking, but should
         probably be refined a bit."""
 
@@ -434,11 +433,13 @@ class DataGridder(Node[DataGridderNodeWidget]):
 
         if method not in GridOption:
             raise ValueError(f"Invalid grid method specification.")
+        if opts is None:
+            opts = {}
 
         if not isinstance(opts, dict):
-            raise ValueError(f"Invalid grid options specification.")
+            raise ValueError(f"Invalid grid options specification {opts}.")
 
-        self._grid = val
+        self._grid = method, opts
 
     # Processing
 
@@ -488,12 +489,22 @@ class DataGridder(Node[DataGridderNodeWidget]):
                         inner_axis_order=order,
                     )
                 elif method is GridOption.metadataShape:
-                    dout = dd.datadict_to_meshgrid(
-                        data, use_existing_shape=True
-                    )
+                    try:
+                        dout = dd.datadict_to_meshgrid(
+                            data, use_existing_shape=True
+                        )
+                    except ValueError as err:
+                        if "Malformed data" in str(err):
+                            self.node_logger.warning(
+                                "Shape/Setpoint order does"
+                                " not match data. Falling back to guessing shape"
+                                )
+                            dout = dd.datadict_to_meshgrid(data)
+                        else:
+                            raise err
             except GriddingError:
                 dout = data.expand()
-                self.logger().info("data could not be gridded. Falling back "
+                self.node_logger.info("data could not be gridded. Falling back "
                                    "to no grid")
                 if self.ui is not None:
                     self.ui.setGrid((GridOption.noGrid, {}))
@@ -503,16 +514,16 @@ class DataGridder(Node[DataGridderNodeWidget]):
             elif method is GridOption.guessShape:
                 dout = data
             elif method is GridOption.specifyShape:
-                self.logger().warning(
+                self.node_logger.warning(
                     f"Data is already on grid. Ignore shape.")
                 dout = data
             elif method is GridOption.metadataShape:
-                self.logger().warning(
+                self.node_logger.warning(
                     f"Data is already on grid. Ignore shape.")
                 dout = data
 
         else:
-            self.logger().error(
+            self.node_logger.error(
                 f"Unknown data type {type(data)}.")
             return None
 

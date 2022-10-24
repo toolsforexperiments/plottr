@@ -36,6 +36,9 @@ class SubtractAverageWidget(NodeWidget):
 
 
 class SubtractAverage(Node):
+
+    nodeName = "SubtractAverage"
+
     useUi = True
     uiClass = SubtractAverageWidget
 
@@ -47,7 +50,7 @@ class SubtractAverage(Node):
     def averagingAxis(self) -> Optional[str]:
         return self._averagingAxis
 
-    @averagingAxis.setter  # type: ignore[misc]
+    @averagingAxis.setter
     @updateOption('averagingAxis')
     def averagingAxis(self, value: str) -> None:
         self._averagingAxis = value
