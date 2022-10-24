@@ -26,7 +26,6 @@ COLORS = {
     logging.DEBUG : QtGui.QColor('gray'),
     }
 
-LEVEL = logging.INFO
 
 class QLogHandler(logging.Handler):
 
@@ -62,6 +61,7 @@ class LogWidget(QtWidgets.QWidget):
             )
         logTextBox = QLogHandler(self)
         logTextBox.setFormatter(fmt)
+        logTextBox.setLevel(level)
 
         # make the widget
         layout = QtWidgets.QVBoxLayout()
@@ -121,11 +121,10 @@ def getLogger(module: str = '') -> logging.Logger:
             mod += f'.{module}'
 
     logger = logging.getLogger(mod)
-    logger.setLevel(LEVEL)
     return logger
 
 
-def enableStreamHandler(enable: bool = False) -> None:
+def enableStreamHandler(enable: bool = False, level: Union[int,str] = logging.WARNING) -> None:
     """
     enable/disable output to stderr. Enabling is useful when not
     using the UI logging window.
@@ -147,4 +146,13 @@ def enableStreamHandler(enable: bool = False) -> None:
             datefmt='%Y-%m-%d %H:%M:%S',
             )
         streamHandler.setFormatter(fmt)
+        streamHandler.setLevel(level)
         logger.addHandler(streamHandler)
+        # when we attach to a non root logger
+        # we need to explicitly set the logger to
+        # the same level as the handlers level
+        # otherwise getEffectiveLevel will look at the
+        # root_loggers level which will mostlikely be
+        # set to WARNING since basic_config has already
+        # been set.
+        logger.setLevel(level)

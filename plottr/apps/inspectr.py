@@ -37,10 +37,7 @@ from .autoplot import autoplotQcodesDataset, QCAutoPlotMainWindow
 __author__ = 'Wolfgang Pfaff'
 __license__ = 'MIT'
 
-
-def logger() -> logging.Logger:
-    logger = plottrlog.getLogger('plottr.apps.inspectr')
-    return logger
+LOGGER = plottrlog.getLogger('plottr.apps.inspectr')
 
 
 ### Database inspector tool
@@ -478,7 +475,7 @@ class QCodesDBInspector(QtWidgets.QMainWindow):
             )
 
         if path:
-            logger().info(f"Opening: {path}")
+            LOGGER.info(f"Opening: {path}")
             self.loadFullDB(path=path)
 
     def loadFullDB(self, path: Optional[str] = None) -> None:
@@ -495,12 +492,12 @@ class QCodesDBInspector(QtWidgets.QMainWindow):
 
     def DBLoaded(self, dbdf: pandas.DataFrame) -> None:
         if self.dbdf is not None and dbdf.equals(self.dbdf):
-            logger().debug('DB reloaded with no changes. Skipping update')
+            LOGGER.debug('DB reloaded with no changes. Skipping update')
             return None
         self.dbdf = dbdf
         self.dbdfUpdated.emit()
         self.dateList.sendSelectedDates()
-        logger().debug('DB reloaded')
+        LOGGER.debug('DB reloaded')
 
         if self.latestRunId is not None:
             idxs = self.dbdf.index.values
@@ -543,7 +540,7 @@ class QCodesDBInspector(QtWidgets.QMainWindow):
 
     @Slot()
     def monitorTriggered(self) -> None:
-        logger().debug('Refreshing DB')
+        LOGGER.debug('Refreshing DB')
         self.refreshDB()
 
     @Slot()
@@ -652,9 +649,9 @@ def inspectr(dbPath: Optional[str] = None) -> QCodesDBInspector:
     return win
 
 
-def main(dbPath: Optional[str]) -> None:
+def main(dbPath: Optional[str], log_level: Union[int, str] = logging.WARNING) -> None:
     app = QtWidgets.QApplication([])
-    plottrlog.enableStreamHandler(True)
+    plottrlog.enableStreamHandler(True, log_level)
 
     win = inspectr(dbPath=dbPath)
     win.show()
@@ -669,5 +666,8 @@ def script() -> None:
     parser = argparse.ArgumentParser(description='inspectr -- sifting through qcodes data.')
     parser.add_argument('--dbpath', help='path to qcodes .db file',
                         default=None)
+    parser.add_argument("--console-log-level",
+                        choices=("ERROR", "WARNING", "INFO", "DEBUG"),
+                        default="WARNING")
     args = parser.parse_args()
-    main(args.dbpath)
+    main(args.dbpath, args.console_log_level)
