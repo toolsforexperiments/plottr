@@ -285,8 +285,9 @@ class FileModel(QtGui.QStandardItemModel):
 
     :param monitor_path: The directory that we are monitoring as a string.
     :param rows: The number of initial rows.
-    :param columns: The number of initial columns
+    :param columns: The number of initial columns.
     :param Parent: The parent of the model.
+    :param watcher_on: If False, the model will not start the watcher.
     """
     # Signal(Path) -- Emitted when there has been an update to the currently selected folder.
     #: Arguments:
@@ -324,7 +325,8 @@ class FileModel(QtGui.QStandardItemModel):
     #:   - The deleted tag.
     tag_deleted_signal = Signal(str)
 
-    def __init__(self, monitor_path: str, rows: int, columns: int, parent: Optional[Any] = None):
+    def __init__(self, monitor_path: str, rows: int, columns: int, parent: Optional[Any] = None,
+                 watcher_on: bool = True):
         super().__init__(rows, columns, parent=parent)
         self.monitor_path = Path(monitor_path)
         self.header_labels = ['File path', 'Tags']
@@ -342,21 +344,22 @@ class FileModel(QtGui.QStandardItemModel):
 
         self.modified_exceptions: List[Path] = []
 
-        # Watcher setup with connected signals.
-        self.watcher_thread: Optional[QtCore.QThread] = QtCore.QThread(parent=self)
-        self.watcher = WatcherClient(self.monitor_path)
-        self.watcher.moveToThread(self.watcher_thread)
-        self.watcher_thread.started.connect(self.watcher.run)
-
-        self.watcher.moved.connect(self.on_file_moved)
-        self.watcher.created.connect(self.on_file_created)
-        self.watcher.deleted.connect(self.on_file_deleted)
-        self.watcher.modified.connect(self.on_file_modified)
-        self.watcher.closed.connect(self.on_file_closed)
-
-        self.watcher_thread.start()
-
         self.itemChanged.connect(self.on_renaming_file)
+
+        if watcher_on:
+            # Watcher setup with connected signals.
+            self.watcher_thread: Optional[QtCore.QThread] = QtCore.QThread(parent=self)
+            self.watcher = WatcherClient(self.monitor_path)
+            self.watcher.moveToThread(self.watcher_thread)
+            self.watcher_thread.started.connect(self.watcher.run)
+
+            self.watcher.moved.connect(self.on_file_moved)
+            self.watcher.created.connect(self.on_file_created)
+            self.watcher.deleted.connect(self.on_file_deleted)
+            self.watcher.modified.connect(self.on_file_modified)
+            self.watcher.closed.connect(self.on_file_closed)
+
+            self.watcher_thread.start()
 
     @Slot()
     def on_renaming_file(self, item: Optional[Item] = None) -> None:
@@ -419,7 +422,7 @@ class FileModel(QtGui.QStandardItemModel):
         for folder_path, files_dict in data_dictionary.items():
             self.sort_and_add_item(folder_path, files_dict)
 
-    def sort_and_add_item(self, folder_path: Path, files_dict: Optional[Dict] = None) -> None:
+    def sort_and_add_item(self, folder_path: Path, files_dict: Optional[Dict] = None) -> Optional[bool]:
         """
         Adds one or more items into the model. New parent items are created if required.
 
@@ -431,8 +434,11 @@ class FileModel(QtGui.QStandardItemModel):
         """
 
         if folder_path == self.monitor_path:
-            LOGGER.warning(f'The following files in the monitoring directory will not be displayed: '
-                           f'\n{[str(file) for file in files_dict]}\nplease move them to a specific folder')
+            if files_dict is not None:
+                LOGGER.warning(f'The following files in the monitoring directory will not be displayed: '
+                               f'\n{[str(file) for file in files_dict]}\nplease move them to a specific folder')
+            else:
+                LOGGER.warning(f'Files have been found in the monitoring folder, please remove them')
             return False
 
         # Check if the new item should have a parent item. If the new item should have a parent, but this does
@@ -481,6 +487,8 @@ class FileModel(QtGui.QStandardItemModel):
         else:
             assert isinstance(parent_item, Item)
             parent_item.appendRow([item, tags_item])
+
+        return None
 
     @Slot(FileSystemEvent)
     def on_file_created(self, event: FileSystemEvent) -> None:
@@ -850,6 +858,7 @@ class FileModel(QtGui.QStandardItemModel):
         else:
             item.setIcon(QtGui.QIcon())
 
+        # TODO: DONT FOPRGET ABOUT THIS GUY
         # HERE HERE PLEASE RENAME THIS IF ITS GOING TO END UP BEING USED FOR OTHER THINGS
         self.adjust_width.emit(item)
 
@@ -887,7 +896,7 @@ class FileModel(QtGui.QStandardItemModel):
                     self.tags_model.removeRow(tag_item[0].row())
                     self.tag_deleted_signal.emit(tag)
 
-    def currently_selected_tags(self):
+    def currently_selected_tags(self) -> List[str]:
         return [self.tags_model.item(i, 0).text() for i in range(self.tags_model.rowCount()) if
                 self.tags_model.item(i, 0).checkState()]
 
@@ -1256,6 +1265,9 @@ class FilterWorker(QtCore.QObject):
         pass the filter. Parents of items that have passed are added in the end. Children of starred items are also
         added after the item passed the check.
 
+        If at any point any helper function returns a None instead of an empty dictionary, it means that the thread
+        has been interrupted and the execution should stop.
+
         :param model: The model to perform the filtering.
         :param star_status: The status of the star button in the FileExplorer.
         :param trash_status: The status of the trash button in the FileExplorer.
@@ -1309,23 +1321,22 @@ class FilterWorker(QtCore.QObject):
         if self.thread().isInterruptionRequested():
             return None
 
-        child_dict: Optional[Dict[Path, Item]] = {}
+        trashed_dict: Optional[Dict[Path, Item]] = {}
         if star_status or trash_status:
             for path, item in model.main_dictionary.items():
                 if self.thread().isInterruptionRequested():
                     return None
+                if trash_status:
+                    assert trashed_dict is not None
+                    if item.path not in trashed_dict and item.trash:
+                        # When trashing an item, keep a record that it has been trashed and all of its children.
+                        trashed_dict, current_dict = self._trash_item(item, trashed_dict, current_dict)
+                        if trashed_dict is None:
+                            return None
+                        continue
+
                 if star_status:
-                    if item.star:
-
-                        if item.hasChildren():
-                            child_dict = self._add_children(item, child_dict)
-                            if child_dict is None:
-                                return None
-                    else:
-                        del current_dict[path]
-
-                elif trash_status:
-                    if item.trash:
+                    if not item.star and item.path in current_dict:
                         del current_dict[path]
 
         if len(queries) > 0 or len(tag_filter) > 0:
@@ -1350,28 +1361,36 @@ class FilterWorker(QtCore.QObject):
                                        if (file_type == ContentType.sort(query_type) and match_pattern.search(str(file_path.name)))}
                         current_dict = new_matches
 
-        # If the parents of all of the items that pass the search are not in the allowed list, the children will not be shown.
+        # Add all the children and parents (if these have not been trashed) of the passed items.
         parent_dict: Optional[Dict[Path, Item]] = {}
+        child_dict: Optional[Dict[Path, Item]] = {}
         for path, item in current_dict.items():
             if self.thread().isInterruptionRequested():
                 return None
-            parent_dict = self._add_parent(item, parent_dict)
-            if parent_dict is None:
+            parent = item.parent()
+            if parent is not None:
+                assert isinstance(parent, Item)
+                if parent.path not in current_dict:
+                    assert trashed_dict is not None
+                    parent_dict = self._add_parent(item, parent_dict, trashed_dict)
+            child_dict = self._add_children(item, child_dict, trashed_dict)
+            if parent_dict is None or child_dict is None:
                 return None
 
-        if child_dict is None or parent_dict is None:
-            return None
-        current_dict = current_dict | child_dict
-        current_dict = current_dict | parent_dict
+        assert parent_dict is not None
+        assert child_dict is not None
+        current_dict = {**current_dict, **child_dict, **parent_dict}
 
         return current_dict, queries_dict
 
-    def _add_parent(self, item: Item, adding_dict: Optional[Dict[Path, Item]]) -> Optional[Dict[Path, Item]]:
+    def _add_parent(self, item: Item, adding_dict: Optional[Dict[Path, Item]],
+                    trashed_dictionary: Dict[Path, Item]) -> Optional[Dict[Path, Item]]:
         """
-        Adds all the parents of item to adding_dict.
+        Adds all the parents (if these have not been trashed) of item to adding_dict.
 
         :param item: The item whose parents we want to add.
         :param adding_dict: The dictionary of which we want to add the parents.
+        :param trashed_dictionary: Dictionary with the path of a trashed item the item as value.
         """
 
         if self.thread().isInterruptionRequested() or adding_dict is None:
@@ -1380,42 +1399,71 @@ class FilterWorker(QtCore.QObject):
         parent_item = item.parent()
         if parent_item is None:
             return adding_dict
-
         assert isinstance(parent_item, Item)
         if parent_item.path in adding_dict:
             return adding_dict
 
+        adding_dict = self._add_parent(parent_item, adding_dict, trashed_dictionary)
+        if adding_dict is None:
+            return None
+        if adding_dict is not None and parent_item.path not in trashed_dictionary:
+            adding_dict[parent_item.path] = parent_item
+        return adding_dict
 
-        if adding_dict is not None:
-            adding_dict = self._add_parent(parent_item, adding_dict)
-            if adding_dict is not None:
-                adding_dict[parent_item.path] = parent_item
-                return adding_dict
-        return None
-
-    def _add_children(self, item: Item, adding_dict: Optional[Dict[Path, Item]]) -> Optional[Dict[Path, Item]]:
+    def _add_children(self, item: Item, adding_dict: Optional[Dict[Path, Item]],
+                      trashed_dictionary: Optional[Dict[Path, Item]]) -> Optional[Dict[Path, Item]]:
         """
-        Adds all the children of item to adding_dict.
+        Adds all the children of an item (if these haven not be trashed) to adding_dict.
 
         :param item: The item whose children we want to add.
         :param adding_dict: The dictionary of which we want to add the children.
+        :param trashed_dictionary: Dictionary with the path of a trashed item the item as value.
         """
         for i in range(item.rowCount()):
             if self.thread().isInterruptionRequested() or adding_dict is None:
                 return None
             child = item.child(i, 0)
+            assert trashed_dictionary is not None
             assert isinstance(child, Item)
             if child.path not in adding_dict:
+                if child.path in trashed_dictionary:
+                    continue
                 if child.hasChildren():
-                    adding_dict = self._add_children(child, adding_dict)
+                    adding_dict = self._add_children(child, adding_dict, trashed_dictionary)
                 if adding_dict is None:
                     return None
                 adding_dict[child.path] = child
 
         return adding_dict
 
+    def _trash_item(self, item: Item, trashed_dict: Optional[Dict[Path, Item]], current_dict: Dict[Path, Item]) -> Tuple[
+        Optional[Dict[Path, Item]], Dict[Path, Item]]:
+        """
+        Trashes an item and all of its children items. Removes the items trashed from current_dict.
+
+        :param Item: The item that should be trashed.
+        :param trashed_dict: Dictionary that keeps track of all past deleted items.
+        :param current_dict: The working dictionary which removes the items that should not be displayed.
+        """
+        if item.hasChildren():
+            for i in range(item.rowCount()):
+                if self.thread().isInterruptionRequested():
+                    return None, {}
+                child = item.child(i, 0)
+                assert isinstance(child, Item)
+                trashed_dict, current_dict = self._trash_item(child, trashed_dict, current_dict)
+
+        if trashed_dict is None:
+            return None, {}
+        trashed_dict[item.path] = item
+        if item.path in current_dict:
+            del current_dict[item.path]
+
+        return trashed_dict, current_dict
+
+    # TODO: Find a way of having a space after the colon when specifying a special type of query be ignored.
     @classmethod
-    def parse_queries(cls, filter: str, tag_filer: List[str] = []):
+    def parse_queries(cls, filter: str, tag_filter: List[str] = []) -> Dict[str, List[str]]:
         raw_queries = filter.split(',')
         queries_with_empty_spaces = [item[1:] if len(item) >= 1 and item[0] == " " else item for item in raw_queries]
         queries = [item for item in queries_with_empty_spaces if item != '' and item != ' ']
@@ -1521,7 +1569,7 @@ class FileExplorer(QtWidgets.QWidget):
         self.model.selected_tags_changed.connect(self.on_selected_tag_changed)
         self.model.new_item.connect(self.on_new_item_created)
         self.model.model_refreshed.connect(self.on_star_trash_refresh_clicked)
-        self.model.adjust_width.connect(self.on_tags_in_item_changed)
+
         # When the refresh button of the file explorer is pressed, refresh the model
         self.refresh_button.clicked.connect(self.model.refresh_model)
 
