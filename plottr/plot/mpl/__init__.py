@@ -45,10 +45,8 @@ from matplotlib import rcParams, colormaps, pyplot as plt
 
 from plottr import configFiles
 from .autoplot import AutoPlot, FigureMaker
-# from .widgets import MPLPlot, MPLPlotWidget
+from .widgets import MPLPlot, MPLPlotWidget
 
 
 logger = logging.getLogger(__name__)
 
-# matplotlib tools and settings
-# symmetric_cmap = colormaps.get_cmap('bwr')

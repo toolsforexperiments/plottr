@@ -33,17 +33,18 @@ from ..apps.watchdog_classes import WatcherClient
 from ..gui.widgets import Collapsible
 from .json_veiwer import JsonModel, JsonTreeView
 from ..icons import get_starIcon as get_star_icon, get_trashIcon as get_trash_icon
-
-from .ui.Monitr_UI import Ui_MainWindow
+from .appmanager import AppManager
 
 TIMESTRFORMAT = "%Y-%m-%dT%H%M%S"
 
-def logger() -> logging.Logger:
-    logger = plottrlog.getLogger('plottr.apps.monitr')
-    plottrlog.enableStreamHandler(True)
-    logger.setLevel(plottrlog.LEVEL)
-    return logger
+# Change this variable to change the module of the app that monitr should open.
+AUTOPLOTMODULE = 'plottr.apps.autoplot'
 
+# Function that the app manager should run to open a new app.
+AUTOPLOTFUNC = 'autoplotDDH5App'
+
+
+LOGGER = logging.getLogger('plottr.apps.monitr')
 
 def html_color_generator() -> Generator[str, None, None]:
     """
@@ -121,8 +122,8 @@ class SupportedDataTypes:
             name = item
             if isinstance(item, Path):
                 name = item.name
-            for tpe in cls.valid_types:
-                match_pattern = re.compile(tpe)
+            for type_ in cls.valid_types:
+                match_pattern = re.compile(type_)
                 assert isinstance(name, str)
                 if match_pattern.search(name):
                     return True
@@ -155,7 +156,7 @@ class Item(QtGui.QStandardItem):
                 star_path = self.path.joinpath('__star__.tag')
                 trash_path = self.path.joinpath('__trash__.tag')
                 if star_path.is_file() and trash_path.is_file():
-                    logger().error(
+                    LOGGER.error(
                         f'The folder: {self.path} contains both the star and trash tag. Both tags will be deleted.')
                     star_path.unlink()
                     trash_path.unlink()
@@ -274,79 +275,6 @@ class Item(QtGui.QStandardItem):
         self.tags_widget = None  # type: ignore[assignment] # This variable gets re populated immediately afterwards.
         self.tags_widget = ItemTagLabel(self.tags)
 
-    def match(self, queries_dict: Dict[str, List[str]]) -> bool:
-        """
-        Checks if this item matches the queries passed in the queries_dict. To determine the match a regex check is
-        performed either on the path of the items (for 'names' queries) or agaisnt all of the files inside the Item
-        (for every other type of query). If the Item contains any children, it will perform the same check for all of
-        its children recursively. If any of its children matches, this Item will match too.
-
-        :param queries_dict: Dictionary with the queries. The keys for the dictionary should be the different values
-            of ContentType in the form of strings, with the exception of the key 'names' (this is to match the path
-            of the item, not its files). E.g.:
-
-                queries_dict = {'tag': ["invalid data"],
-                                'md': [],
-                                'image': ["plot"],
-                                'json': [],
-                                'name': []}
-
-                The item will pass this check if it has a tag file whose name passes a regex check agaisnt
-                "invalid data" and an image file whose name passes a regex check agaisnt "plot".
-        """
-        # Check the children first.
-        children_matches = []
-        if self.hasChildren():
-            for i in range(self.rowCount()):
-                child = self.child(i, 0)
-                assert isinstance(child, Item)
-                children_matches.append(child.match(queries_dict))
-        # If any children passes, this item passes too.
-        if True in children_matches:
-            return True
-
-        # Start the check for this item
-
-        # Checks specifically for the path name.
-        if len(queries_dict['name']) > 0:
-            try:
-                name_matches = [re.compile(query, flags=re.IGNORECASE).search(str(self.path)) for query in
-                                queries_dict['name']]
-                if None in name_matches:
-                    return False
-            except re.error as e:
-                logger().error(f'Regex matching failed: {e}')
-
-        # Check the rest of the files.
-        if self.files:
-
-            for file_types, queries in queries_dict.items():
-                if file_types != 'name':
-                    try:
-                        if len(queries) > 0:
-                            sorted_type = ContentType.sort(file_types)
-                            # Get all the matches
-                            matches = [re.compile(query, flags=re.IGNORECASE).search(str(file.name)) for file, file_type
-                                       in self.files.items() for query in queries if file_type == sorted_type]
-
-                            # Convert the matches into booleans and count them
-                            n_matches = 0
-                            for match in matches:
-                                if match:
-                                    n_matches += 1
-
-                            # Multiple files can pass the same query, meaning that the true counts might be higher than the
-                            # length of queries.
-                            if n_matches < len(queries):
-                                return False
-                    except re.error as e:
-                        logger().error(f'Regex matching failed: {e}')
-            return True
-
-        # TODO: Make sure this is correct.
-        # If it has no files, it fails the check
-        return False
-
 
 class FileModel(QtGui.QStandardItemModel):
     """
@@ -357,8 +285,9 @@ class FileModel(QtGui.QStandardItemModel):
 
     :param monitor_path: The directory that we are monitoring as a string.
     :param rows: The number of initial rows.
-    :param columns: The number of initial columns
+    :param columns: The number of initial columns.
     :param Parent: The parent of the model.
+    :param watcher_on: If False, the model will not start the watcher.
     """
     # Signal(Path) -- Emitted when there has been an update to the currently selected folder.
     #: Arguments:
@@ -366,7 +295,7 @@ class FileModel(QtGui.QStandardItemModel):
     update_me = Signal(Path)
 
     # Signal() -- Emitted when an item has changed its icon.
-    adjust_width = Signal()
+    adjust_width = Signal(Item)
 
     # Signal() -- Emitted when the model gets refreshed.
     model_refreshed = Signal()
@@ -396,7 +325,8 @@ class FileModel(QtGui.QStandardItemModel):
     #:   - The deleted tag.
     tag_deleted_signal = Signal(str)
 
-    def __init__(self, monitor_path: str, rows: int, columns: int, parent: Optional[Any] = None):
+    def __init__(self, monitor_path: str, rows: int, columns: int, parent: Optional[Any] = None,
+                 watcher_on: bool = True):
         super().__init__(rows, columns, parent=parent)
         self.monitor_path = Path(monitor_path)
         self.header_labels = ['File path', 'Tags']
@@ -414,24 +344,25 @@ class FileModel(QtGui.QStandardItemModel):
 
         self.modified_exceptions: List[Path] = []
 
-        # Watcher setup with connected signals.
-        self.watcher_thread = QtCore.QThread(parent=self)
-        self.watcher = WatcherClient(self.monitor_path)
-        self.watcher.moveToThread(self.watcher_thread)
-        self.watcher_thread.started.connect(self.watcher.run)
-
-        self.watcher.moved.connect(self.on_file_moved)
-        self.watcher.created.connect(self.on_file_created)
-        self.watcher.deleted.connect(self.on_file_deleted)
-        self.watcher.modified.connect(self.on_file_modified)
-        self.watcher.closed.connect(self.on_file_closed)
-
-        self.watcher_thread.start()
-
         self.itemChanged.connect(self.on_renaming_file)
 
-    @Slot(QtGui.QStandardItem)
-    def on_renaming_file(self, item: Item) -> None:
+        if watcher_on:
+            # Watcher setup with connected signals.
+            self.watcher_thread: Optional[QtCore.QThread] = QtCore.QThread(parent=self)
+            self.watcher = WatcherClient(self.monitor_path)
+            self.watcher.moveToThread(self.watcher_thread)
+            self.watcher_thread.started.connect(self.watcher.run)
+
+            self.watcher.moved.connect(self.on_file_moved)
+            self.watcher.created.connect(self.on_file_created)
+            self.watcher.deleted.connect(self.on_file_deleted)
+            self.watcher.modified.connect(self.on_file_modified)
+            self.watcher.closed.connect(self.on_file_closed)
+
+            self.watcher_thread.start()
+
+    @Slot()
+    def on_renaming_file(self, item: Optional[Item] = None) -> None:
         """
         Triggered every time an item changes.
 
@@ -440,6 +371,9 @@ class FileModel(QtGui.QStandardItemModel):
 
         :param item: QStandardItem, to be renamed
         """
+        if item is None:
+            return
+
         if item.column() == 1:
             return
 
@@ -488,7 +422,7 @@ class FileModel(QtGui.QStandardItemModel):
         for folder_path, files_dict in data_dictionary.items():
             self.sort_and_add_item(folder_path, files_dict)
 
-    def sort_and_add_item(self, folder_path: Path, files_dict: Optional[Dict] = None) -> None:
+    def sort_and_add_item(self, folder_path: Path, files_dict: Optional[Dict] = None) -> Optional[bool]:
         """
         Adds one or more items into the model. New parent items are created if required.
 
@@ -498,6 +432,14 @@ class FileModel(QtGui.QStandardItemModel):
                 {path_of_file_1: ContentType.sort(path_of_file_1),
                 path_of_file_2: ContentType.sort(path_of_file_2)}
         """
+
+        if folder_path == self.monitor_path:
+            if files_dict is not None:
+                LOGGER.warning(f'The following files in the monitoring directory will not be displayed: '
+                               f'\n{[str(file) for file in files_dict]}\nplease move them to a specific folder')
+            else:
+                LOGGER.warning(f'Files have been found in the monitoring folder, please remove them')
+            return False
 
         # Check if the new item should have a parent item. If the new item should have a parent, but this does
         # not yet exist, create it.
@@ -546,13 +488,15 @@ class FileModel(QtGui.QStandardItemModel):
             assert isinstance(parent_item, Item)
             parent_item.appendRow([item, tags_item])
 
+        return None
+
     @Slot(FileSystemEvent)
     def on_file_created(self, event: FileSystemEvent) -> None:
         """
         Gets called everytime a new file or folder gets created. Checks what it is and if it should be added and adds
         data to the model.
         """
-        # logger().info(f'file created: {event}')
+        # LOGGER.info(f'file created: {event}')
 
         path = Path(event.src_path)
         # If a folder is created, it will be added when a data file will be created.
@@ -571,12 +515,16 @@ class FileModel(QtGui.QStandardItemModel):
             elif SupportedDataTypes.check_valid_data([path]):
                 new_files_dict = {file: ContentType.sort(file) for file in path.parent.iterdir() if
                                   str(file.suffix) != ''}
-                self.sort_and_add_item(path.parent, new_files_dict)
-                item = self.main_dictionary[path.parent]
-                # Send signal indicating that current folder requires update
-                if self.currently_selected_folder is not None and item.path.is_relative_to(
-                        self.currently_selected_folder):
-                    self.update_me.emit(item.path)
+
+                # If sort_and_add_item returns false, it means that it could not add an item because it was triggered
+                # for files in the monitoring directory.
+                added_status = self.sort_and_add_item(path.parent, new_files_dict)
+                if added_status is None:
+                    item = self.main_dictionary[path.parent]
+                    # Send signal indicating that current folder requires update
+                    if self.currently_selected_folder is not None and item.path.is_relative_to(
+                            self.currently_selected_folder):
+                        self.update_me.emit(item.path)
 
     @Slot(FileSystemEvent)
     def on_file_deleted(self, event: FileSystemEvent) -> None:
@@ -584,21 +532,21 @@ class FileModel(QtGui.QStandardItemModel):
         Triggered every time a file or directory is deleted. Identifies if the deleted file/folder is relevant and
         deletes it and any other non-relevant files.
         """
-        # logger().info(f'file deleted: {event}')
+        # LOGGER.info(f'file deleted: {event}')
 
         path = Path(event.src_path)
-        if path.suffix == "":
-            if path in self.main_dictionary:
-                item = self.main_dictionary[path]
+        # If the path deleted it's a folder, then it should be in the mian dictionary, or we don't care about it.
+        if path in self.main_dictionary:
+            item = self.main_dictionary[path]
 
-                self._delete_all_children_from_main_dictionary(item)
-                del self.main_dictionary[path]
+            self._delete_all_children_from_main_dictionary(item)
+            del self.main_dictionary[path]
 
-                # Checks if we need to remove a row from a parent item or the root model itself.
-                if item.parent() is None:
-                    self.removeRow(item.row())
-                else:
-                    item.parent().removeRow(item.row())
+            # Checks if we need to remove a row from a parent item or the root model itself.
+            if item.parent() is None:
+                self.removeRow(item.row())
+            else:
+                item.parent().removeRow(item.row())
 
         else:
             if path.parent in self.main_dictionary:
@@ -625,7 +573,10 @@ class FileModel(QtGui.QStandardItemModel):
                 # Send signal indicating that current folder requires update.
                 if self.currently_selected_folder is not None and parent.path.is_relative_to(
                         self.currently_selected_folder):
-                    self.update_me.emit(parent.path)
+                    # Checks if the folder still exists. If the user has the folder that is getting deleted at that
+                    # moment, no update should happen.
+                    if self.currently_selected_folder.is_dir():
+                        self.update_me.emit(parent.path)
 
     def _delete_all_children_from_main_dictionary(self, item: Item) -> None:
         """
@@ -636,17 +587,18 @@ class FileModel(QtGui.QStandardItemModel):
         path = item.path
         children_folders = [key for key in self.main_dictionary.keys() if key.is_relative_to(path) and key != path]
         for child in children_folders:
-            child_item = self.main_dictionary[child]
-            if child_item.hasChildren():
-                self._delete_all_children_from_main_dictionary(child_item)
-            del self.main_dictionary[child_item.path]
+            if child in self.main_dictionary:
+                child_item = self.main_dictionary[child]
+                if child_item.hasChildren():
+                    self._delete_all_children_from_main_dictionary(child_item)
+                del self.main_dictionary[child_item.path]
 
     @Slot(FileSystemEvent)
     def on_file_moved(self, event: FileSystemEvent) -> None:
         """
         Gets triggered everytime a file is moved or the name of a file (including type) changes.
         """
-        # logger().info(f'file moved: {event}')
+        # LOGGER.info(f'file moved: {event}')
 
         parent = None
 
@@ -771,7 +723,7 @@ class FileModel(QtGui.QStandardItemModel):
         Gets triggered everytime a file is modified. Checks if the modification is for a current data file and
         triggers the update_data signal if it is.
         """
-        # logger().info(f'file modified: {event}')
+        # LOGGER.info(f'file modified: {event}')
 
         path = Path(event.src_path)
 
@@ -786,6 +738,11 @@ class FileModel(QtGui.QStandardItemModel):
                     self.modified_exceptions.remove(path)
                     return
 
+                # TODO: Test if this an appropriate solution.
+                # The file monitoring for network drives in linux seems to miss the creation event,
+                # but it does not miss the file modified event.
+                self.on_file_created(event)
+
                 if ContentType.sort(path) == ContentType.data:
                     self.update_data.emit(path)
 
@@ -794,7 +751,7 @@ class FileModel(QtGui.QStandardItemModel):
         """
         Gets triggered everytime a file is closed
         """
-        # logger().info(f'file closed: {event}')
+        # LOGGER.info(f'file closed: {event}')
         pass
 
     def delete_root_item(self, row: int, path: Path) -> None:
@@ -901,7 +858,9 @@ class FileModel(QtGui.QStandardItemModel):
         else:
             item.setIcon(QtGui.QIcon())
 
-        self.adjust_width.emit()
+        # TODO: DONT FOPRGET ABOUT THIS GUY
+        # HERE HERE PLEASE RENAME THIS IF ITS GOING TO END UP BEING USED FOR OTHER THINGS
+        self.adjust_width.emit(item)
 
     def tag_added(self, tag: str) -> None:
         """
@@ -937,11 +896,24 @@ class FileModel(QtGui.QStandardItemModel):
                     self.tags_model.removeRow(tag_item[0].row())
                     self.tag_deleted_signal.emit(tag)
 
+    def currently_selected_tags(self) -> List[str]:
+        return [self.tags_model.item(i, 0).text() for i in range(self.tags_model.rowCount()) if
+                self.tags_model.item(i, 0).checkState()]
+
     @Slot()
     def on_checked_tag_change(self) -> None:
-        selected = [self.tags_model.item(i, 0).text() for i in range(self.tags_model.rowCount()) if
-                    self.tags_model.item(i, 0).checkState()]
+        selected = self.currently_selected_tags()
         self.selected_tags_changed.emit(selected)
+
+    def quit(self) -> None:
+        """
+        Stops the watcher and the watcher thread.
+        """
+        self.watcher.observer.stop()
+        assert self.watcher_thread is not None
+        self.watcher_thread.quit()
+        self.watcher_thread.wait()
+        self.watcher_thread = None
 
 
 class SortFilterProxyModel(QtCore.QSortFilterProxyModel):
@@ -1172,12 +1144,14 @@ class FileTreeView(QtWidgets.QTreeView):
         # self.context_menu.addAction(self.delete_action)
         self.context_menu.exec_(self.mapToGlobal(pos))
 
-    @Slot()
-    def on_adjust_column_width(self) -> None:
+    @Slot(object)
+    def on_adjust_column_width(self, item: Optional[Item] = None) -> None:
         """
         Gets called when the model changed the icon of an item. When changing an item icons that has the tag widget
         displaying tags, the icon would be superimposed with the widget, moving the column_width by 1 pixel and
         setting it back fixes it.
+
+        :param item: The signal emits the item that has been changed. This function does not need it.
         """
         column_width = self.columnWidth(1)
         self.setColumnWidth(1, column_width + 1)
@@ -1291,6 +1265,9 @@ class FilterWorker(QtCore.QObject):
         pass the filter. Parents of items that have passed are added in the end. Children of starred items are also
         added after the item passed the check.
 
+        If at any point any helper function returns a None instead of an empty dictionary, it means that the thread
+        has been interrupted and the execution should stop.
+
         :param model: The model to perform the filtering.
         :param star_status: The status of the star button in the FileExplorer.
         :param trash_status: The status of the trash button in the FileExplorer.
@@ -1339,28 +1316,27 @@ class FilterWorker(QtCore.QObject):
                             'json': json_queries,
                             'name': name_queries, }
 
-        current_dict = {key: value for key, value in model.main_dictionary.items()}
+        current_dict = model.main_dictionary.copy()
 
         if self.thread().isInterruptionRequested():
             return None
 
-        child_dict: Optional[Dict[Path, Item]] = {}
+        trashed_dict: Optional[Dict[Path, Item]] = {}
         if star_status or trash_status:
             for path, item in model.main_dictionary.items():
                 if self.thread().isInterruptionRequested():
                     return None
+                if trash_status:
+                    assert trashed_dict is not None
+                    if item.path not in trashed_dict and item.trash:
+                        # When trashing an item, keep a record that it has been trashed and all of its children.
+                        trashed_dict, current_dict = self._trash_item(item, trashed_dict, current_dict)
+                        if trashed_dict is None:
+                            return None
+                        continue
+
                 if star_status:
-                    if item.star:
-
-                        if item.hasChildren():
-                            child_dict = self._add_children(item, child_dict)
-                            if child_dict is None:
-                                return None
-                    else:
-                        del current_dict[path]
-
-                elif trash_status:
-                    if item.trash:
+                    if not item.star and item.path in current_dict:
                         del current_dict[path]
 
         if len(queries) > 0 or len(tag_filter) > 0:
@@ -1385,28 +1361,36 @@ class FilterWorker(QtCore.QObject):
                                        if (file_type == ContentType.sort(query_type) and match_pattern.search(str(file_path.name)))}
                         current_dict = new_matches
 
-        # If the parents of all of the items that pass the search are not in the allowed list, the children will not be shown.
+        # Add all the children and parents (if these have not been trashed) of the passed items.
         parent_dict: Optional[Dict[Path, Item]] = {}
+        child_dict: Optional[Dict[Path, Item]] = {}
         for path, item in current_dict.items():
             if self.thread().isInterruptionRequested():
                 return None
-            parent_dict = self._add_parent(item, parent_dict)
-            if parent_dict is None:
+            parent = item.parent()
+            if parent is not None:
+                assert isinstance(parent, Item)
+                if parent.path not in current_dict:
+                    assert trashed_dict is not None
+                    parent_dict = self._add_parent(item, parent_dict, trashed_dict)
+            child_dict = self._add_children(item, child_dict, trashed_dict)
+            if parent_dict is None or child_dict is None:
                 return None
 
-        if child_dict is None or parent_dict is None:
-            return None
-        current_dict = current_dict | child_dict
-        current_dict = current_dict | parent_dict
+        assert parent_dict is not None
+        assert child_dict is not None
+        current_dict = {**current_dict, **child_dict, **parent_dict}
 
         return current_dict, queries_dict
 
-    def _add_parent(self, item: Item, adding_dict: Optional[Dict[Path, Item]]) -> Optional[Dict[Path, Item]]:
+    def _add_parent(self, item: Item, adding_dict: Optional[Dict[Path, Item]],
+                    trashed_dictionary: Dict[Path, Item]) -> Optional[Dict[Path, Item]]:
         """
-        Adds all the parents of item to adding_dict.
+        Adds all the parents (if these have not been trashed) of item to adding_dict.
 
         :param item: The item whose parents we want to add.
         :param adding_dict: The dictionary of which we want to add the parents.
+        :param trashed_dictionary: Dictionary with the path of a trashed item the item as value.
         """
 
         if self.thread().isInterruptionRequested() or adding_dict is None:
@@ -1415,40 +1399,111 @@ class FilterWorker(QtCore.QObject):
         parent_item = item.parent()
         if parent_item is None:
             return adding_dict
-
         assert isinstance(parent_item, Item)
         if parent_item.path in adding_dict:
             return adding_dict
 
+        adding_dict = self._add_parent(parent_item, adding_dict, trashed_dictionary)
+        if adding_dict is None:
+            return None
+        if adding_dict is not None and parent_item.path not in trashed_dictionary:
+            adding_dict[parent_item.path] = parent_item
+        return adding_dict
 
-        if adding_dict is not None:
-            adding_dict = self._add_parent(parent_item, adding_dict)
-            if adding_dict is not None:
-                adding_dict[parent_item.path] = parent_item
-                return adding_dict
-        return None
-
-    def _add_children(self, item: Item, adding_dict: Optional[Dict[Path, Item]]) -> Optional[Dict[Path, Item]]:
+    def _add_children(self, item: Item, adding_dict: Optional[Dict[Path, Item]],
+                      trashed_dictionary: Optional[Dict[Path, Item]]) -> Optional[Dict[Path, Item]]:
         """
-        Adds all the children of item to adding_dict.
+        Adds all the children of an item (if these haven not be trashed) to adding_dict.
 
         :param item: The item whose children we want to add.
         :param adding_dict: The dictionary of which we want to add the children.
+        :param trashed_dictionary: Dictionary with the path of a trashed item the item as value.
         """
         for i in range(item.rowCount()):
             if self.thread().isInterruptionRequested() or adding_dict is None:
                 return None
             child = item.child(i, 0)
+            assert trashed_dictionary is not None
             assert isinstance(child, Item)
             if child.path not in adding_dict:
+                if child.path in trashed_dictionary:
+                    continue
                 if child.hasChildren():
-                    adding_dict = self._add_children(child, adding_dict)
+                    adding_dict = self._add_children(child, adding_dict, trashed_dictionary)
                 if adding_dict is None:
                     return None
                 adding_dict[child.path] = child
 
         return adding_dict
 
+    def _trash_item(self, item: Item, trashed_dict: Optional[Dict[Path, Item]], current_dict: Dict[Path, Item]) -> Tuple[
+        Optional[Dict[Path, Item]], Dict[Path, Item]]:
+        """
+        Trashes an item and all of its children items. Removes the items trashed from current_dict.
+
+        :param Item: The item that should be trashed.
+        :param trashed_dict: Dictionary that keeps track of all past deleted items.
+        :param current_dict: The working dictionary which removes the items that should not be displayed.
+        """
+        if item.hasChildren():
+            for i in range(item.rowCount()):
+                if self.thread().isInterruptionRequested():
+                    return None, {}
+                child = item.child(i, 0)
+                assert isinstance(child, Item)
+                trashed_dict, current_dict = self._trash_item(child, trashed_dict, current_dict)
+
+        if trashed_dict is None:
+            return None, {}
+        trashed_dict[item.path] = item
+        if item.path in current_dict:
+            del current_dict[item.path]
+
+        return trashed_dict, current_dict
+
+    # TODO: Find a way of having a space after the colon when specifying a special type of query be ignored.
+    @classmethod
+    def parse_queries(cls, filter: str, tag_filter: List[str] = []) -> Dict[str, List[str]]:
+        raw_queries = filter.split(',')
+        queries_with_empty_spaces = [item[1:] if len(item) >= 1 and item[0] == " " else item for item in raw_queries]
+        queries = [item for item in queries_with_empty_spaces if item != '' and item != ' ']
+
+        queries_dict = {}
+        if len(queries) > 0 or len(tag_filter) > 0:
+            tag_queries = []
+            md_queries = []
+            image_queries = []
+            json_queries = []
+            name_queries = []
+            for query in queries:
+                if query != '':
+                    if query[:4] == 'tag:':
+                        tag_queries.append(query[4:])
+                    elif query[:2] == 't:' or query[:2] == 'T:':
+                        tag_queries.append(query[2:])
+                    elif query[:3] == 'md:':
+                        md_queries.append(query[3:])
+                    elif query[:2] == 'm:' or query[:2] == 'M:':
+                        md_queries.append(query[2:])
+                    elif query[:6] == 'image:':
+                        image_queries.append(query[6:])
+                    elif query[:2] == 'i:' or query[:2] == 'I:':
+                        image_queries.append(query[2:])
+                    elif query[:5] == 'json:':
+                        json_queries.append(query[5:])
+                    elif query[:2] == 'j:' or query[:2] == 'J:':
+                        json_queries.append(query[2:])
+                    else:
+                        name_queries.append(query)
+
+            tag_queries = list(set(tag_queries + tag_filter))
+            queries_dict = {'tag': tag_queries,
+                            'md': md_queries,
+                            'image': image_queries,
+                            'json': json_queries,
+                            'name': name_queries, }
+
+        return queries_dict
 
 # TODO: Figure out the parent situation going on here.
 class FileExplorer(QtWidgets.QWidget):
@@ -1480,6 +1535,7 @@ class FileExplorer(QtWidgets.QWidget):
         self.expand_button = QtWidgets.QPushButton('Expand')
         self.collapse_button = QtWidgets.QPushButton('Collapse')
         self.tag_filter_combobox = QtWidgets.QComboBox()
+        self.tag_filter_combobox.setSizePolicy(QtWidgets.QSizePolicy.Expanding, QtWidgets.QSizePolicy.Minimum)
         self.tag_filter_combobox.setModel(self.model.tags_model)
         self.selected_tags: List[str] = []
         self.queries_dict: Dict[str, List[str]] = {}
@@ -1513,6 +1569,7 @@ class FileExplorer(QtWidgets.QWidget):
         self.model.selected_tags_changed.connect(self.on_selected_tag_changed)
         self.model.new_item.connect(self.on_new_item_created)
         self.model.model_refreshed.connect(self.on_star_trash_refresh_clicked)
+
         # When the refresh button of the file explorer is pressed, refresh the model
         self.refresh_button.clicked.connect(self.model.refresh_model)
 
@@ -1851,7 +1908,7 @@ class TextEditWidget(QtWidgets.QTextEdit):
             with open(path) as file:
                 self.file_text = file.read()
         except FileNotFoundError as e:
-            logger().error(e)
+            LOGGER.error(e)
             self.file_text = 'Comment file could not load. Do not edit as this could rewrite the original comment.'
         self.setReadOnly(True)
         self.setPlainText(self.file_text)
@@ -2099,7 +2156,7 @@ class ImageViewer(QtWidgets.QLabel):
         # except Exception as e:
         except FileNotFoundError as e:
             self.setText(f'Image could not be displayed')
-            logger().error(e)
+            LOGGER.error(e)
 
         self.installEventFilter(self)
         self.setMinimumWidth(1)
@@ -2297,7 +2354,6 @@ class ItemTagLabel(QtWidgets.QLabel):
         self.generate_tag_string()
         self.setText(self.tags_str)
 
-
     def generate_tag_string(self) -> None:
         """
         Converts the list of tags into the html formated string.
@@ -2354,6 +2410,7 @@ class TagCreator(QtWidgets.QLineEdit):
 
         self.setText('')
 
+
 class IconLabel(QtWidgets.QLabel):
 
     def __init__(self, movie: QtGui.QMovie, size: Optional[int] = None, *args: Any, **kwargs: Any):
@@ -2400,8 +2457,9 @@ class LoaderWorker(QtCore.QObject):
             Optional[dict]:
         """
         Method used to create a dictionary with all the necessary information (file names, paths, etc.)
-         of an item of the model to create the right side window. This function will also go through all the children the item might have, and add the
-         names of each nested folders in front of the windows titles. Utilizes 2 helper functions to do this.
+         of an item of the model to create the right side window. This function will also go through all the children
+        the item might have, and add the names of each nested folders in front of the windows titles.
+        Utilizes 2 helper functions to do this.
 
         :param item: Item of the model to generate the dictionary.
         :return: A dictionary with the following structure:
@@ -2440,7 +2498,7 @@ class LoaderWorker(QtCore.QObject):
     def _fill_dict(self, data_in: Optional[dict], files_dict: Dict[Path, ContentType], prefix_text: str,
                    only_data_files: bool = False) -> Optional[dict]:
         """
-        Helper method for gather_all_right_sice_window_data. Fills in the data dictionary with the files inside of
+        Helper method for gather_all_right_side_window_data. Fills in the data dictionary with the files inside of
         files_dict and adds prefix text to all tittles.
 
         :param data_in: Dictionary with the same structure as the data dictionary of gather_all_right_sice_window_data.
@@ -2449,8 +2507,8 @@ class LoaderWorker(QtCore.QObject):
             specific nested folder this file is coming from.
         :return: data_in with the files of files_dict in it.
         """
-
-        for file, file_type in files_dict.items():
+        files_dict_copy = files_dict.copy()
+        for file, file_type in files_dict_copy.items():
             if self.thread().isInterruptionRequested() or data_in is None:
                 return None
             if file_type == ContentType.data:
@@ -2461,7 +2519,7 @@ class LoaderWorker(QtCore.QObject):
                     data_dict = datadict_from_hdf5(str(file), structure_only=True)
                     data_in['data_files']['data'].append(data_dict)
                 except Exception as e:
-                    logger().error(f'Failed to load the data file: {file} \n {e}')
+                    LOGGER.error(f'Failed to load the data file: {file} \n {e}')
 
             if not only_data_files:
                 if file_type == ContentType.tag:
@@ -2516,6 +2574,9 @@ class Monitr(QtWidgets.QMainWindow):
         self.previous_selected_folder = Path()
         self.collapsed_state_dictionary: Dict[Path, bool] = {}
         self.setWindowTitle('Monitr')
+
+        self.app_manager = AppManager()  # Currently Ids only increase with every new app.
+        self.current_app_id = 0
 
         self.model = FileModel(self.monitor_path, 0, 2)
         self.model.update_me.connect(self.on_update_right_side_window)
@@ -2751,10 +2812,13 @@ class Monitr(QtWidgets.QMainWindow):
         Then clears every item on the right side of the screen.
         """
         if self.previous_selected_folder != Path() and self.scroll_area is not None:
-            bar = self.scroll_area.verticalScrollBar()
-            if bar is not None:
-                previous_item = self.model.main_dictionary[self.previous_selected_folder]
-                previous_item.scroll_height = bar.value()
+            # If the item being deleted is the currently selected item, there is no need to update the items height
+            # since it doesn't exist anymore .
+            if self.previous_selected_folder in self.model.main_dictionary:
+                bar = self.scroll_area.verticalScrollBar()
+                if bar is not None:
+                    previous_item = self.model.main_dictionary[self.previous_selected_folder]
+                    previous_item.scroll_height = bar.value()
 
         if self.header_label is not None:
             self.right_side_layout.removeWidget(self.header_label)
@@ -2855,7 +2919,7 @@ class Monitr(QtWidgets.QMainWindow):
                     data_dict = datadict_from_hdf5(str(file), structure_only=True)
                     data_in['data_files']['data'].append(data_dict)
                 except Exception as e:
-                    logger().error(f'Failed to load the data file: {file} \n {e}')
+                    LOGGER.error(f'Failed to load the data file: {file} \n {e}')
 
             if not only_data_files:
                 if file_type == ContentType.tag:
@@ -2957,14 +3021,14 @@ class Monitr(QtWidgets.QMainWindow):
     @Slot(Path)
     def on_plot_data(self, path: Path) -> None:
         """
-        Gets called when the user clicks plot on the context menu of the data viewer. Opens an autoplot app for the
-        selected ddh5 file.
+        Gets called when the user clicks plot on the context menu of the data viewer. Orders the app manager to open
+        a new autoplot window.
 
         :param path: The path of the ddh5 file that should be displayed.
         :return:
         """
-        plot_app = 'plottr.apps.autoplot.autoplotDDH5'
-        process = launchApp(plot_app, str(path), 'data')
+        self.app_manager.launchApp(self.current_app_id, AUTOPLOTMODULE, AUTOPLOTFUNC, str(path), 'data')
+        self.current_app_id += 1
 
     def add_text_input(self, path: Path) -> None:
         """
@@ -3070,10 +3134,10 @@ class Monitr(QtWidgets.QMainWindow):
 
     def closeEvent(self, a0: QtGui.QCloseEvent) -> None:
         """
-        Gets called when the program closes. Mkaes sure the watcher thread gets properly stopped.
+        Gets called when the program closes. Makes sure the watcher thread gets properly stopped.
         """
-        self.model.watcher.observer.stop()
-        self.model.watcher_thread.quit()
+        self.model.quit()
+        self.app_manager.close()
         super().closeEvent(a0)
 
 
@@ -3092,27 +3156,5 @@ def script() -> int:
 
     app = QtWidgets.QApplication([])
     win = Monitr(path)
-    win.show()
-    return app.exec_()
-
-
-def launchApp(appPath: str, filepath: str, group: str, **kwargs: Any) -> Process:
-    p = Process(target=_runAppStandalone,
-                args=(appPath, filepath, group),
-                kwargs=kwargs)
-    p.start()
-    p.join(timeout=0)
-    return p
-
-
-def _runAppStandalone(appPath: str, filepath: str, group: str, **kwargs: Any) -> Any:
-    sep = appPath.split('.')
-    modName = '.'.join(sep[:-1])
-    funName = sep[-1]
-    mod = importlib.import_module(modName)
-    fun = getattr(mod, funName)
-
-    app = QtWidgets.QApplication([])
-    fc, win = fun(filepath, group, **kwargs)
     win.show()
     return app.exec_()
