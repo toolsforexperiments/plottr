@@ -436,7 +436,7 @@ class FileModel(QtGui.QStandardItemModel):
         if folder_path == self.monitor_path:
             if files_dict is not None:
                 LOGGER.warning(f'The following files in the monitoring directory will not be displayed: '
-                               f'\n{[str(file) for file in files_dict]}\nplease move them to a specific folder')
+                               f'\n{[str(file) for file in files_dict if file.is_file()]}\nplease move them to a specific folder')
             else:
                 LOGGER.warning(f'Files have been found in the monitoring folder, please remove them')
             return False
