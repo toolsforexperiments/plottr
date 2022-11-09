@@ -120,10 +120,18 @@ def test_same_tag_in_2_datasets(tmp_path, qtbot):
     filter_worker = FilterWorker()
     queries = 't:favorite'
     tag_queries = []
-    filtered_list, queries_dict = filter_worker.filter_items(model, False, False, queries, tag_queries)
+    star_status, trash_status = False, False
+    filtered_list, queries_dict = filter_worker.filter_items(model, star_status, trash_status, queries, tag_queries)
 
     paths = [item for item in filtered_list]
     assert sorted(allowed_folders) == sorted(paths)
+
+    # Individual filtering part of the test.
+    for path, item in model.main_dictionary.items():
+        if path in allowed_folders:
+            assert FilterWorker.is_item_shown(item, queries, tag_queries, star_status, trash_status)
+        else:
+            assert not FilterWorker.is_item_shown(item, queries, tag_queries, star_status, trash_status)
 
 
 def test_2_different_children_tags(tmp_path, qtbot):
@@ -154,29 +162,62 @@ def test_2_different_children_tags(tmp_path, qtbot):
 
     queries = 't:'
     tag_queries = []
-    invalid_allowed_list, queries_dict = filter_worker.filter_items(model, False, False, queries, tag_queries)
+    star_status, trash_status = False, False
+    invalid_allowed_list, queries_dict = filter_worker.filter_items(model, star_status, trash_status, queries, tag_queries)
     paths = [item for item in invalid_allowed_list]
     assert sorted(combined_results) == sorted(paths)
 
+    # Individual filtering part of the test.
+    for path, item in model.main_dictionary.items():
+        if path in combined_results:
+            assert FilterWorker.is_item_shown(item, queries, tag_queries, star_status, trash_status)
+        else:
+            assert not FilterWorker.is_item_shown(item, queries, tag_queries, star_status, trash_status)
+
     queries = 't:favorite'
-    favorite_allowed_list, queries_dict = filter_worker.filter_items(model, False, False, queries, tag_queries)
+    favorite_allowed_list, queries_dict = filter_worker.filter_items(model, star_status, trash_status, queries, tag_queries)
     paths = [item for item in favorite_allowed_list]
     assert sorted(favorite_results) == sorted(paths)
 
+    # Individual filtering part of the test.
+    for path, item in model.main_dictionary.items():
+        if path in favorite_results:
+            assert FilterWorker.is_item_shown(item, queries, tag_queries, star_status, trash_status)
+        else:
+            assert not FilterWorker.is_item_shown(item, queries, tag_queries, star_status, trash_status)
+
     queries = 't:invalid'
-    invalid_allowed_list, queries_dict = filter_worker.filter_items(model, False, False, queries, tag_queries)
+    invalid_allowed_list, queries_dict = filter_worker.filter_items(model, star_status, trash_status, queries, tag_queries)
     paths = [item for item in invalid_allowed_list]
     assert sorted(invalid_results) == sorted(paths)
 
+    # Individual filtering part of the test.
+    for path, item in model.main_dictionary.items():
+        if path in invalid_results:
+            assert FilterWorker.is_item_shown(item, queries, tag_queries, star_status, trash_status)
+        else:
+            assert not FilterWorker.is_item_shown(item, queries, tag_queries, star_status, trash_status)
+
     queries = 't:favorite, t:invalid'
-    invalid_allowed_list, queries_dict = filter_worker.filter_items(model, False, False, queries, tag_queries)
+    invalid_allowed_list, queries_dict = filter_worker.filter_items(model, star_status, trash_status, queries, tag_queries)
     paths = [item for item in invalid_allowed_list]
     assert sorted(both_tags) == sorted(paths)
 
+    # Individual filtering part of the test.
+    for path, item in model.main_dictionary.items():
+        if path in both_tags:
+            assert FilterWorker.is_item_shown(item, queries, tag_queries, star_status, trash_status)
+        else:
+            assert not FilterWorker.is_item_shown(item, queries, tag_queries, star_status, trash_status)
+
     queries = 't:other tag'
-    invalid_allowed_list, queries_dict = filter_worker.filter_items(model, False, False, queries, tag_queries)
+    invalid_allowed_list, queries_dict = filter_worker.filter_items(model, star_status, trash_status, queries, tag_queries)
     paths = [item for item in invalid_allowed_list]
     assert [] == sorted(paths)
+
+    # Individual filtering part of the test.
+    for path, item in model.main_dictionary.items():
+        assert not FilterWorker.is_item_shown(item, queries, tag_queries, star_status, trash_status)
 
 
 def test_parent_folder_with_tags(qtbot, tmp_path):
@@ -193,9 +234,17 @@ def test_parent_folder_with_tags(qtbot, tmp_path):
 
     queries = 't:favorite'
     tag_queries = []
-    filtered_list, queries_dict = filter_worker.filter_items(model, False, False, queries, tag_queries)
+    star_status, trash_status = False, False
+    filtered_list, queries_dict = filter_worker.filter_items(model, star_status, trash_status, queries, tag_queries)
     paths = [item for item in filtered_list]
     assert sorted(allowed_folders) == sorted(paths)
+
+    # Individual filtering part of the test.
+    for path, item in model.main_dictionary.items():
+        if path in allowed_folders:
+            assert FilterWorker.is_item_shown(item, queries, tag_queries, star_status, trash_status)
+        else:
+            assert not FilterWorker.is_item_shown(item, queries, tag_queries, star_status, trash_status)
 
 
 def test_2_different_parent_tags(tmp_path, qtbot):
@@ -226,29 +275,63 @@ def test_2_different_parent_tags(tmp_path, qtbot):
 
     queries = 't:'
     tag_queries = []
-    invalid_allowed_list, queries_dict = filter_worker.filter_items(model, False, False, queries, tag_queries)
+    star_status, trash_status = False, False
+    invalid_allowed_list, queries_dict = filter_worker.filter_items(model, star_status, trash_status, queries, tag_queries)
     paths = [item for item in invalid_allowed_list]
     assert sorted(combined_results) == sorted(paths)
 
+    # Individual filtering part of the test.
+    for path, item in model.main_dictionary.items():
+        if path in combined_results:
+            assert FilterWorker.is_item_shown(item, queries, tag_queries, star_status, trash_status)
+        else:
+            assert not FilterWorker.is_item_shown(item, queries, tag_queries, star_status, trash_status)
+
     queries = 't:favorite'
-    favorite_allowed_list, queries_dict = filter_worker.filter_items(model, False, False, queries, tag_queries)
+    favorite_allowed_list, queries_dict = filter_worker.filter_items(model, star_status, trash_status, queries, tag_queries)
     paths = [item for item in favorite_allowed_list]
     assert sorted(favorite_results) == sorted(paths)
 
+    # Individual filtering part of the test.
+    for path, item in model.main_dictionary.items():
+        if path in favorite_results:
+            assert FilterWorker.is_item_shown(item, queries, tag_queries, star_status, trash_status)
+        else:
+            assert not FilterWorker.is_item_shown(item, queries, tag_queries, star_status, trash_status)
+
     queries = 't:invalid'
-    invalid_allowed_list, queries_dict = filter_worker.filter_items(model, False, False, queries, tag_queries)
+    invalid_allowed_list, queries_dict = filter_worker.filter_items(model, star_status, trash_status, queries, tag_queries)
     paths = [item for item in invalid_allowed_list]
     assert sorted(invalid_results) == sorted(paths)
 
+    # Individual filtering part of the test.
+    for path, item in model.main_dictionary.items():
+        if path in invalid_results:
+            assert FilterWorker.is_item_shown(item, queries, tag_queries, star_status, trash_status)
+        else:
+            assert not FilterWorker.is_item_shown(item, queries, tag_queries, star_status, trash_status)
+
     queries = 't:favorite, t:invalid'
-    invalid_allowed_list, queries_dict = filter_worker.filter_items(model, False, False, queries, tag_queries)
+    invalid_allowed_list, queries_dict = filter_worker.filter_items(model, star_status, trash_status, queries, tag_queries)
     paths = [item for item in invalid_allowed_list]
     assert sorted(both_tags) == sorted(paths)
 
+    # Individual filtering part of the test.
+    for path, item in model.main_dictionary.items():
+        if path in both_tags:
+            assert FilterWorker.is_item_shown(item, queries, tag_queries, star_status, trash_status)
+        else:
+            assert not FilterWorker.is_item_shown(item, queries, tag_queries, star_status, trash_status)
+
+
     queries = 't:other tag'
-    invalid_allowed_list, queries_dict = filter_worker.filter_items(model, False, False, queries, tag_queries)
+    invalid_allowed_list, queries_dict = filter_worker.filter_items(model, star_status, trash_status, queries, tag_queries)
     paths = [item for item in invalid_allowed_list]
     assert [] == sorted(paths)
+
+    # Individual filtering part of the test.
+    for path, item in model.main_dictionary.items():
+        assert not FilterWorker.is_item_shown(item, queries, tag_queries, star_status, trash_status)
 
 
 def test_staring_child_items(qtbot, tmp_path):
@@ -266,10 +349,17 @@ def test_staring_child_items(qtbot, tmp_path):
 
     queries = ''
     tag_queries = []
-    filtered_list, queries_dict = filter_worker.filter_items(model, True, False, queries, tag_queries)
+    star_status, trash_status = True, False
+    filtered_list, queries_dict = filter_worker.filter_items(model, star_status, trash_status, queries, tag_queries)
     paths = [item for item in filtered_list]
     assert sorted(allowed_folders) == sorted(paths)
 
+    # Individual filtering part of the test.
+    for path, item in model.main_dictionary.items():
+        if path in allowed_folders:
+            assert FilterWorker.is_item_shown(item, queries, tag_queries, star_status, trash_status)
+        else:
+            assert not FilterWorker.is_item_shown(item, queries, tag_queries, star_status, trash_status)
 
 def test_2_starred_children_1_tagged(qtbot, tmp_path):
     folder_path, days_paths, folder_paths = generate_file_structure(tmp_path)
@@ -289,16 +379,31 @@ def test_2_starred_children_1_tagged(qtbot, tmp_path):
 
     queries = ''
     tag_queries = []
-    filtered_list, queries_dict = filter_worker.filter_items(model, True, False, queries, tag_queries)
+    star_status, trash_status = True, False
+    filtered_list, queries_dict = filter_worker.filter_items(model, star_status, trash_status, queries, tag_queries)
     paths = [item for item in filtered_list]
     assert sorted(allowed_folders + [folder_paths[5]]) == sorted(paths)
 
+    # Individual filtering part of the test.
+    for path, item in model.main_dictionary.items():
+        if path in allowed_folders + [folder_paths[5]]:
+            assert FilterWorker.is_item_shown(item, queries, tag_queries, star_status, trash_status)
+        else:
+            assert not FilterWorker.is_item_shown(item, queries, tag_queries, star_status, trash_status)
+
     queries = 't:favorite'
     tag_queries = []
-    filtered_list, queries_dict = filter_worker.filter_items(model, True, False, queries, tag_queries)
+    star_status, trash_status = True, False
+    filtered_list, queries_dict = filter_worker.filter_items(model, star_status, trash_status, queries, tag_queries)
     paths = [item for item in filtered_list]
     assert sorted(allowed_folders) == sorted(paths)
 
+    # Individual filtering part of the test.
+    for path, item in model.main_dictionary.items():
+        if path in allowed_folders:
+            assert FilterWorker.is_item_shown(item, queries, tag_queries, star_status, trash_status)
+        else:
+            assert not FilterWorker.is_item_shown(item, queries, tag_queries, star_status, trash_status)
 
 
 def test_starring_parent_items(qtbot, tmp_path):
@@ -316,16 +421,32 @@ def test_starring_parent_items(qtbot, tmp_path):
 
     queries = ''
     tag_queries = []
-    filtered_list, queries_dict = filter_worker.filter_items(model, True, False, queries, tag_queries)
+    star_status, trash_status = True, False
+    filtered_list, queries_dict = filter_worker.filter_items(model, star_status, trash_status, queries, tag_queries)
     paths = [item for item in filtered_list]
     assert sorted(allowed_folders) == sorted(paths)
+
+    # Individual filtering part of the test.
+    for path, item in model.main_dictionary.items():
+        if path in allowed_folders:
+            assert FilterWorker.is_item_shown(item, queries, tag_queries, star_status, trash_status)
+        else:
+            assert not FilterWorker.is_item_shown(item, queries, tag_queries, star_status, trash_status)
 
     # Testing star filter through tags:
     queries = 't:__star__'
     tag_queries = []
-    filtered_list, queries_dict = filter_worker.filter_items(model, False, False, queries, tag_queries)
+    star_status, trash_status = False, False
+    filtered_list, queries_dict = filter_worker.filter_items(model, star_status, trash_status, queries, tag_queries)
     paths = [item for item in filtered_list]
     assert sorted(allowed_folders) == sorted(paths)
+
+    # Individual filtering part of the test.
+    for path, item in model.main_dictionary.items():
+        if path in allowed_folders:
+            assert FilterWorker.is_item_shown(item, queries, tag_queries, star_status, trash_status)
+        else:
+            assert not FilterWorker.is_item_shown(item, queries, tag_queries, star_status, trash_status)
 
 
 def test_parent_starring_and_child_tags(qtbot, tmp_path):
@@ -344,21 +465,33 @@ def test_parent_starring_and_child_tags(qtbot, tmp_path):
 
     model = FileModel(str(folder_path), 0, 2, watcher_on=False)
     filter_worker = FilterWorker()
+    print(f'the folder path is: {folder_path}')
 
     queries = ''
     tag_queries = ['favorite']
-    filtered_list, queries_dict = filter_worker.filter_items(model, True, False, queries, tag_queries)
+    star_status, trash_status = True, False
+    filtered_list, queries_dict = filter_worker.filter_items(model, star_status, trash_status, queries, tag_queries)
     paths = [item for item in filtered_list]
     assert [] == sorted(paths)
+
+    # Individual filtering part of the test.
+    for path, item in model.main_dictionary.items():
+        assert not FilterWorker.is_item_shown(item, queries, tag_queries, star_status, trash_status)
 
     with open(tagged_folder.joinpath('__star__.tag'), 'w') as f:
         f.write(f'this is a fav')
 
     model = FileModel(str(folder_path), 0, 2, watcher_on=False)
-    filtered_list, queries_dict = filter_worker.filter_items(model, True, False, queries, tag_queries)
+    filtered_list, queries_dict = filter_worker.filter_items(model, star_status, trash_status, queries, tag_queries)
     paths = [item for item in filtered_list]
     assert sorted(allowed_folders) == sorted(paths)
 
+    # Individual filtering part of the test.
+    for path, item in model.main_dictionary.items():
+        if path in allowed_folders:
+            assert FilterWorker.is_item_shown(item, queries, tag_queries, star_status, trash_status)
+        else:
+            assert not FilterWorker.is_item_shown(item, queries, tag_queries, star_status, trash_status)
 
 def test_2_starred_parent_one_tagged(qtbot, tmp_path):
     folder_path, days_paths, folder_paths = generate_file_structure(tmp_path)
@@ -378,18 +511,33 @@ def test_2_starred_parent_one_tagged(qtbot, tmp_path):
 
     queries = 't:favorite'
     tag_queries = []
-    filtered_list, queries_dict = filter_worker.filter_items(model, True, False, queries, tag_queries)
+    star_status, trash_status = True, False
+    filtered_list, queries_dict = filter_worker.filter_items(model, star_status, trash_status, queries, tag_queries)
     paths = [item for item in filtered_list]
     assert sorted(allowed_folders) == sorted(paths)
+
+    # Individual filtering part of the test.
+    for path, item in model.main_dictionary.items():
+        if path in allowed_folders:
+            assert FilterWorker.is_item_shown(item, queries, tag_queries, star_status, trash_status)
+        else:
+            assert not FilterWorker.is_item_shown(item, queries, tag_queries, star_status, trash_status)
 
     queries = ''
     tag_queries = ['favorite']
-    filtered_list, queries_dict = filter_worker.filter_items(model, True, False, queries, tag_queries)
+    filtered_list, queries_dict = filter_worker.filter_items(model, star_status, trash_status, queries, tag_queries)
     paths = [item for item in filtered_list]
     assert sorted(allowed_folders) == sorted(paths)
 
+    # Individual filtering part of the test.
+    for path, item in model.main_dictionary.items():
+        if path in allowed_folders:
+            assert FilterWorker.is_item_shown(item, queries, tag_queries, star_status, trash_status)
+        else:
+            assert not FilterWorker.is_item_shown(item, queries, tag_queries, star_status, trash_status)
+
 def test_trash_child_items(qtbot, tmp_path):
-    folder_path, days_paths, folder_paths = generate_file_structure(tmp_path)
+    folder_path, days_paths, folder_paths = generate_file_structure(FOLDER_PATH)
 
     trashed_folders = folder_paths[12:]
     allowed_folders = days_paths + folder_paths[:12]
@@ -403,9 +551,18 @@ def test_trash_child_items(qtbot, tmp_path):
 
     queries = ''
     tag_queries = []
-    filtered_list, queries_dict = filter_worker.filter_items(model, False, True, queries, tag_queries)
+    star_status, trash_status = False, True
+    filtered_list, queries_dict = filter_worker.filter_items(model, star_status, trash_status, queries, tag_queries)
     paths = [item for item in filtered_list]
     assert sorted(allowed_folders) == sorted(paths)
+
+    # Individual filtering part of the test.
+    for path, item in model.main_dictionary.items():
+        if path in allowed_folders:
+            assert FilterWorker.is_item_shown(item, queries, tag_queries, star_status, trash_status)
+        else:
+            assert not FilterWorker.is_item_shown(item, queries, tag_queries, star_status, trash_status)
+
 
 def test_trash_parent_items(qtbot, tmp_path):
     folder_path, days_paths, folder_paths = generate_file_structure(tmp_path)
@@ -422,10 +579,17 @@ def test_trash_parent_items(qtbot, tmp_path):
 
     queries = ''
     tag_queries = []
-    filtered_list, queries_dict = filter_worker.filter_items(model, False, True, queries, tag_queries)
+    star_status, trash_status = False, True
+    filtered_list, queries_dict = filter_worker.filter_items(model, star_status, trash_status, queries, tag_queries)
     paths = [item for item in filtered_list]
     assert sorted(allowed_folders) == sorted(paths)
 
+    # Individual filtering part of the test.
+    for path, item in model.main_dictionary.items():
+        if path in allowed_folders:
+            assert FilterWorker.is_item_shown(item, queries, tag_queries, star_status, trash_status)
+        else:
+            assert not FilterWorker.is_item_shown(item, queries, tag_queries, star_status, trash_status)
 
 def test_trash_parent_with_star_children(qtbot, tmp_path):
     folder_path, days_paths, folder_paths = generate_file_structure(tmp_path)
@@ -446,14 +610,30 @@ def test_trash_parent_with_star_children(qtbot, tmp_path):
 
     queries = ''
     tag_queries = []
-    filtered_list, queries_dict = filter_worker.filter_items(model, True, True, queries, tag_queries)
+    star_status, trash_status = True, True
+    filtered_list, queries_dict = filter_worker.filter_items(model, star_status, trash_status, queries, tag_queries)
     paths = [item for item in filtered_list]
     assert sorted(allowed_folders) == sorted(paths)
 
+    # Individual filtering part of the test.
+    for path, item in model.main_dictionary.items():
+        if path in allowed_folders:
+            assert FilterWorker.is_item_shown(item, queries, tag_queries, star_status, trash_status)
+        else:
+            assert not FilterWorker.is_item_shown(item, queries, tag_queries, star_status, trash_status)
+
     queries = 't:__star__'
-    filtered_list, queries_dict = filter_worker.filter_items(model, False, True, queries, tag_queries)
+    star_status, trash_status = False, True
+    filtered_list, queries_dict = filter_worker.filter_items(model, star_status, trash_status, queries, tag_queries)
     paths = [item for item in filtered_list]
     assert sorted(allowed_folders) == sorted(paths)
+
+    # Individual filtering part of the test.
+    for path, item in model.main_dictionary.items():
+        if path in allowed_folders:
+            assert FilterWorker.is_item_shown(item, queries, tag_queries, star_status, trash_status)
+        else:
+            assert not FilterWorker.is_item_shown(item, queries, tag_queries, star_status, trash_status)
 
 
 def test_star_parent_with_trash_child(qtbot, tmp_path):
@@ -475,14 +655,31 @@ def test_star_parent_with_trash_child(qtbot, tmp_path):
 
     queries = ''
     tag_queries = []
-    filtered_list, queries_dict = filter_worker.filter_items(model, True, True, queries, tag_queries)
+    star_status, trash_status = True, True
+    filtered_list, queries_dict = filter_worker.filter_items(model, star_status, trash_status, queries, tag_queries)
     paths = [item for item in filtered_list]
     assert sorted(allowed_folders) == sorted(paths)
 
+    # Individual filtering part of the test.
+    for path, item in model.main_dictionary.items():
+        if path in allowed_folders:
+            assert FilterWorker.is_item_shown(item, queries, tag_queries, star_status, trash_status)
+        else:
+            assert not FilterWorker.is_item_shown(item, queries, tag_queries, star_status, trash_status)
+
+
     queries = 't:__star__'
-    filtered_list, queries_dict = filter_worker.filter_items(model, False, True, queries, tag_queries)
+    star_status, trash_status = False, True
+    filtered_list, queries_dict = filter_worker.filter_items(model, star_status, trash_status, queries, tag_queries)
     paths = [item for item in filtered_list]
     assert sorted(allowed_folders) == sorted(paths)
+
+    # Individual filtering part of the test.
+    for path, item in model.main_dictionary.items():
+        if path in allowed_folders:
+            assert FilterWorker.is_item_shown(item, queries, tag_queries, star_status, trash_status)
+        else:
+            assert not FilterWorker.is_item_shown(item, queries, tag_queries, star_status, trash_status)
 
 
 def test_2_children_with_tags_1_is_trashed(qtbot, tmp_path):
@@ -505,47 +702,30 @@ def test_2_children_with_tags_1_is_trashed(qtbot, tmp_path):
 
     queries = 't:favorite'
     tag_queries = []
-    filtered_list, queries_dict = filter_worker.filter_items(model, False, True, queries, tag_queries)
+    star_status, trash_status = False, True
+    filtered_list, queries_dict = filter_worker.filter_items(model, star_status, trash_status, queries, tag_queries)
     paths = [item for item in filtered_list]
     assert sorted(allowed_folders) == sorted(paths)
+
+    # Individual filtering part of the test.
+    for path, item in model.main_dictionary.items():
+        if path in allowed_folders:
+            assert FilterWorker.is_item_shown(item, queries, tag_queries, star_status, trash_status)
+        else:
+            assert not FilterWorker.is_item_shown(item, queries, tag_queries, star_status, trash_status)
 
     queries = ''
     tag_queries = ['favorite']
-    filtered_list, queries_dict = filter_worker.filter_items(model, False, True, queries, tag_queries)
+    filtered_list, queries_dict = filter_worker.filter_items(model, star_status, trash_status, queries, tag_queries)
     paths = [item for item in filtered_list]
     assert sorted(allowed_folders) == sorted(paths)
 
-
-def test_2_children_with_tags_1_is_trashed(qtbot, tmp_path):
-    folder_path, days_paths, folder_paths = generate_file_structure(tmp_path)
-
-    tagged_folders = days_paths[0:2]
-    trashed_folder = days_paths[1]
-
-    allowed_folders = [days_paths[0]] + folder_paths[:3]
-
-    for path in tagged_folders:
-        with open(path.joinpath('favorite.tag'), 'w') as f:
-            f.write(f'this is a fave')
-
-    with open(trashed_folder.joinpath('__trash__.tag'), 'w') as f:
-        f.write(f'this is a star')
-
-    model = FileModel(str(folder_path), 0, 2, watcher_on=False)
-    filter_worker = FilterWorker()
-
-    queries = 't:favorite'
-    tag_queries = []
-    filtered_list, queries_dict = filter_worker.filter_items(model, False, True, queries, tag_queries)
-    paths = [item for item in filtered_list]
-    assert sorted(allowed_folders) == sorted(paths)
-
-    queries = ''
-    tag_queries = ['favorite']
-    filtered_list, queries_dict = filter_worker.filter_items(model, False, True, queries, tag_queries)
-    paths = [item for item in filtered_list]
-    assert sorted(allowed_folders) == sorted(paths)
-
+    # Individual filtering part of the test.
+    for path, item in model.main_dictionary.items():
+        if path in allowed_folders:
+            assert FilterWorker.is_item_shown(item, queries, tag_queries, star_status, trash_status)
+        else:
+            assert not FilterWorker.is_item_shown(item, queries, tag_queries, star_status, trash_status)
 
 def test_name_of_child(qtbot, tmp_path):
     folder_path, days_paths, folder_paths = generate_file_structure(tmp_path)
@@ -561,9 +741,17 @@ def test_name_of_child(qtbot, tmp_path):
 
     queries = 'pretty'
     tag_queries = []
-    filtered_list, queries_dict = filter_worker.filter_items(model, False, False, queries, tag_queries)
+    star_status, trash_status = False, False
+    filtered_list, queries_dict = filter_worker.filter_items(model, star_status, trash_status, queries, tag_queries)
     paths = [item for item in filtered_list]
     assert sorted(allowed_folders) == sorted(paths)
+
+    # Individual filtering part of the test.
+    for path, item in model.main_dictionary.items():
+        if path in allowed_folders:
+            assert FilterWorker.is_item_shown(item, queries, tag_queries, star_status, trash_status)
+        else:
+            assert not FilterWorker.is_item_shown(item, queries, tag_queries, star_status, trash_status)
 
 
 def test_name_of_parent_and_name_of_nested_child(qtbot, tmp_path):
@@ -583,15 +771,31 @@ def test_name_of_parent_and_name_of_nested_child(qtbot, tmp_path):
 
     queries = 'pretty'
     tag_queries = []
-    filtered_list, queries_dict = filter_worker.filter_items(model, False, False, queries, tag_queries)
+    star_status, trash_status = False, False
+    filtered_list, queries_dict = filter_worker.filter_items(model, star_status, trash_status, queries, tag_queries)
     paths = [item for item in filtered_list]
     assert sorted(allowed_folders) == sorted(paths)
 
+    # Individual filtering part of the test.
+    for path, item in model.main_dictionary.items():
+        if path in allowed_folders:
+            assert FilterWorker.is_item_shown(item, queries, tag_queries, star_status, trash_status)
+        else:
+            assert not FilterWorker.is_item_shown(item, queries, tag_queries, star_status, trash_status)
+
     queries = 'lonely'
     tag_queries = []
-    filtered_list, queries_dict = filter_worker.filter_items(model, False, False, queries, tag_queries)
+    star_status, trash_status = False, False
+    filtered_list, queries_dict = filter_worker.filter_items(model, star_status, trash_status, queries, tag_queries)
     paths = [item for item in filtered_list]
     assert sorted(allowed_folders) == sorted(paths)
+
+    # Individual filtering part of the test.
+    for path, item in model.main_dictionary.items():
+        if path in allowed_folders:
+            assert FilterWorker.is_item_shown(item, queries, tag_queries, star_status, trash_status)
+        else:
+            assert not FilterWorker.is_item_shown(item, queries, tag_queries, star_status, trash_status)
 
 
 def test_combination_of_star_trash_tags(qtbot, tmp_path):
@@ -720,3 +924,64 @@ def test_combination_of_star_trash_tags(qtbot, tmp_path):
     filtered_list, queries_dict = filter_worker.filter_items(model, True, True, queries, tag_queries)
     paths = [item for item in filtered_list]
     assert sorted(star_trash_coffee_favorite_allowed) == sorted(paths)
+
+
+def test_are_parents_trash_function(qtbot, tmp_path):
+    folder_path, days_paths, folder_paths = generate_file_structure(tmp_path)
+
+    unique_named_path = days_paths[0].joinpath('pretty_folder')
+    child_inside = unique_named_path.joinpath('a_lonely_child')
+
+    unique_named_path.mkdir()
+    child_inside.mkdir()
+    generate_data(0.001, child_inside)
+
+    model = FileModel(str(folder_path), 0, 2, watcher_on=False)
+
+    item = model.main_dictionary[child_inside]
+    assert not FilterWorker._are_parents_trash(item)
+
+    with open(days_paths[0].joinpath('__trash__.tag'), 'w') as f:
+        f.write(f'this is a trash')
+
+    model = FileModel(str(folder_path), 0, 2, watcher_on=False)
+    item = model.main_dictionary[child_inside]
+    assert FilterWorker._are_parents_trash(item)
+
+
+def test_item_query_check(qtbot, tmp_path):
+    folder_path, days_paths, folder_paths = generate_file_structure(tmp_path)
+
+    unique_named_path = days_paths[0].joinpath('pretty_folder')
+    unique_named_path.mkdir()
+    generate_data(0.001, unique_named_path)
+
+    with open(unique_named_path.joinpath('markdown_file.md'), 'w') as f:
+        f.write(f'this is a markdown file')
+
+    with open(unique_named_path.joinpath('image_file.jpg'), 'w') as f:
+        f.write(f'this is an image')
+
+    with open(unique_named_path.joinpath('json_file.json'), 'w') as f:
+        f.write(f'this is a json file')
+
+    model = FileModel(str(folder_path), 0, 2, watcher_on=False)
+    item = model.main_dictionary[unique_named_path]
+
+    filter = 'pretty_folder'
+    tag_filter = []
+    queries_dict = FilterWorker.parse_queries(filter, tag_filter)
+    assert FilterWorker._item_check(item, False, queries_dict, )
+
+    filter = 'pretty_folder, m:markdown'
+    tag_filter = []
+    queries_dict = FilterWorker.parse_queries(filter, tag_filter)
+    assert FilterWorker._item_check(item, False, queries_dict, )
+
+    filter = 'random_name_please_fail, m:markdown'
+    tag_filter = []
+    queries_dict = FilterWorker.parse_queries(filter, tag_filter)
+    assert not FilterWorker._item_check(item, False, queries_dict, )
+
+
+

@@ -1520,37 +1520,36 @@ class FilterWorker(QtCore.QObject):
         :param trash_status: True if the hide trash is activated, False otherwise.
         :returns: True if the item should be shown, False otherwise.
         """
-        queries_dict = FilterWorker.parse_queries(filter, tag_filter)
-
         if trash_status:
             if item.trash:
                 return False
             if cls._are_parents_trash(item):
                 return False
 
-        if star_status:
-            if not item.star:
-                if not cls._are_parents_star(item):
-                    if not cls._are_children_star(item):
-                        return False
+        queries_dict = FilterWorker.parse_queries(filter, tag_filter)
 
-        if len(queries_dict) > 0:
-            if not cls._item_query_check(item, queries_dict):
-                if not cls._parents_query_check(item, queries_dict):
-                    if not cls._children_query_check(item, queries_dict):
-                        return False
+        if not cls._item_check(item, star_status, queries_dict):
+            if not cls._parents_query_check(item, star_status, queries_dict):
+                if not cls._children_query_check(item, star_status, queries_dict):
+                    return False
 
         return True
 
     @classmethod
-    def _item_query_check(cls, item: Item, queries_dict: Dict[str, List[str]]) -> bool:
+    def _item_check(cls, item: Item, star_status: bool, queries_dict: Dict[str, List[str]]) -> bool:
         """
-        Checks if the item passes the queries in the queries dict.
+        Checks if the item passes the queries in the queries dict, Including if the item is a star when the star status
+        is activated.
 
         :param item: The item we want to check.
+        :param star_status: True if the show only star button is activated, False otherwise.
         :param queries_dict: The dictionary with the queries in the same format of FilterWorker.parse_queries.
         :return: True if it passes, False otherwise
         """
+        if star_status:
+            if not item.star:
+                return False
+
         for query_type, queries in queries_dict.items():
             if query_type == 'name':
                 for query in queries:
@@ -1575,6 +1574,44 @@ class FilterWorker(QtCore.QObject):
         return True
 
     @classmethod
+    def _parents_query_check(cls, item: Item, star_status: bool, queries_dict: Dict[str, List[str]]) -> bool:
+        """
+        Checks recursively if any parent of the item passes the query check.
+
+        :param item: The item we want to check.
+        :return: True if any parent passes the query check, False otherwise.
+        """
+        parent = item.parent()
+        if parent is None:
+            return False
+
+        if cls._item_check(item, star_status, queries_dict):
+            return True
+
+        return cls._item_check(parent, star_status, queries_dict, )
+
+    @classmethod
+    def _children_query_check(cls, item: Item, star_status: bool, queries_dict: Dict[str, List[str]]) -> bool:
+        """
+        Checks recursively if any child of the item passes the query check.
+
+        :param item: The item we want to check.
+        :param star_status: True if the show only star button is activated, False otherwise.
+        :return: True if any parent passes the query check, False otherwise.
+        """
+        if not item.hasChildren():
+            return False
+
+        for i in range(item.rowCount()):
+            child = item.child(i, 0)
+            if cls._item_check(child, star_status, queries_dict):
+                return True
+            if cls._children_query_check(child, star_status, queries_dict):
+                return True
+
+        return False
+
+    @classmethod
     def _are_parents_trash(cls, item: Item) -> bool:
         """
         Checks recursively if any parent of the item is trash.
@@ -1590,81 +1627,6 @@ class FilterWorker(QtCore.QObject):
             return True
 
         return cls._are_parents_trash(parent)
-
-    @classmethod
-    def _are_parents_star(cls, item: Item) -> bool:
-        """
-        Checks recursively if any parent of the item is star.
-
-        :param item: The item we want to check.
-        :return: True if any parent is star, False otherwise.
-        """
-        parent = item.parent()
-        if parent is None:
-            return False
-
-        if parent.star:
-            return True
-
-        return cls._are_parents_trash(parent)
-
-    @classmethod
-    def _are_children_star(cls, item) -> bool:
-        """
-        Checks recursively if any children of the item is star.
-
-        :param item: The item we want to check.
-        :return: True if any child is star, False otherwise.
-        """
-
-        if not item.hasChildren():
-            return False
-        for i in range(item.rowCount()):
-            child = item.child(i, 0)
-            assert isinstance(child, Item)
-            if child.star:
-                return True
-            if cls._are_children_star(child):
-                return True
-
-        return False
-
-    @classmethod
-    def _parents_query_check(cls, item: Item, queries_dict: Dict[str, List[str]]) -> bool:
-        """
-        Checks recursively if any parent of the item passes the query check.
-
-        :param item: The item we want to check.
-        :return: True if any parent passes the query check, False otherwise.
-        """
-        parent = item.parent()
-        if parent is None:
-            return False
-
-        if cls._item_query_check(item, queries_dict):
-            return True
-
-        return cls._item_query_check(parent, queries_dict)
-
-    @classmethod
-    def _children_query_check(cls, item: Item, queries_dict: Dict[str, List[str]]) -> bool:
-        """
-        Checks recursively if any child of the item passes the query check.
-
-        :param item: The item we want to check.
-        :return: True if any parent passes the query check, False otherwise.
-        """
-        if not item.hasChildren():
-            return False
-
-        for i in range(item.rowCount()):
-            child = item.child(i, 0)
-            if cls._item_query_check(child, queries_dict):
-                return True
-            if cls._children_query_check(child, queries_dict):
-                return True
-
-        return False
 
 
 # TODO: Figure out the parent situation going on here.
@@ -2784,17 +2746,17 @@ class Monitr(QtWidgets.QMainWindow):
         self.loading_movie = QtGui.QMovie(os.path.join(plottrPath, 'resource', 'gfx', "loading_gif.gif"))
 
         # Debug items
-        self.debug_layout = QtWidgets.QHBoxLayout()
-        self.model_button = QtWidgets.QPushButton(f'Print model data')
-        self.model_main_dictionary_button = QtWidgets.QPushButton('Print model main dictionary')
-        self.extra_action_button = QtWidgets.QPushButton('Extra action')  # For when you want to trigger a specific thing.
-        self.debug_layout.addWidget(self.model_button)
-        self.debug_layout.addWidget(self.model_main_dictionary_button)
-        self.debug_layout.addWidget(self.extra_action_button)
-        self.model_button.clicked.connect(self.print_model_data)
-        self.model_main_dictionary_button.clicked.connect(self.print_model_main_dictionary)
-        self.extra_action_button.clicked.connect(self.extra_action)
-        self.left_side_layout.addLayout(self.debug_layout)
+        # self.debug_layout = QtWidgets.QHBoxLayout()
+        # self.model_button = QtWidgets.QPushButton(f'Print model data')
+        # self.model_main_dictionary_button = QtWidgets.QPushButton('Print model main dictionary')
+        # self.extra_action_button = QtWidgets.QPushButton('Extra action')  # For when you want to trigger a specific thing.
+        # self.debug_layout.addWidget(self.model_button)
+        # self.debug_layout.addWidget(self.model_main_dictionary_button)
+        # self.debug_layout.addWidget(self.extra_action_button)
+        # self.model_button.clicked.connect(self.print_model_data)
+        # self.model_main_dictionary_button.clicked.connect(self.print_model_main_dictionary)
+        # self.extra_action_button.clicked.connect(self.extra_action)
+        # self.left_side_layout.addLayout(self.debug_layout)
 
 
         self.main_partition_splitter.addWidget(self.left_side_dummy_widget)
