@@ -219,7 +219,7 @@ class Item(QtGui.QStandardItem):
                 self.tags_widget.add_tag(path.stem)
                 model.tag_added(path.stem)
 
-            model.tags_changed(self)
+            model.item_files_changed(self)
 
     def delete_file(self, path: Path) -> None:
         """
@@ -244,7 +244,7 @@ class Item(QtGui.QStandardItem):
             elif path.name == '__trash__.tag':
                 self.trash = False
 
-            model.tags_changed(self)
+            model.item_files_changed(self)
 
     def change_path(self, path: Path) -> None:
         """Changes the internal path of the item as welll as the text of it."""
@@ -295,7 +295,7 @@ class FileModel(QtGui.QStandardItemModel):
     update_me = Signal(Path)
 
     # Signal() -- Emitted when an item has changed its icon.
-    adjust_width = Signal(Item)
+    item_files_updated = Signal(Item)
 
     # Signal() -- Emitted when the model gets refreshed.
     model_refreshed = Signal()
@@ -844,7 +844,7 @@ class FileModel(QtGui.QStandardItemModel):
         """
         item = self.itemFromIndex(item_index)
 
-    def tags_changed(self, item: Item) -> None:
+    def item_files_changed(self, item: Item) -> None:
         """
         Gets called when item changes its tags, checks if item is either star, trash or nothing and sets the correct
         icon.
@@ -858,9 +858,7 @@ class FileModel(QtGui.QStandardItemModel):
         else:
             item.setIcon(QtGui.QIcon())
 
-        # TODO: DONT FOPRGET ABOUT THIS GUY
-        # HERE HERE PLEASE RENAME THIS IF ITS GOING TO END UP BEING USED FOR OTHER THINGS
-        self.adjust_width.emit(item)
+        self.item_files_updated.emit(item)
 
     def tag_added(self, tag: str) -> None:
         """
@@ -1042,7 +1040,7 @@ class FileTreeView(QtWidgets.QTreeView):
         self.proxy_model.filter_finished.connect(self.on_filter_ended_event)
         self.model_.new_tag.connect(self.on_add_tag_action)
         self.model_.tag_deleted_signal.connect(self.on_delete_tag_action)
-        self.model_.adjust_width.connect(self.on_adjust_column_width)
+        self.model_.item_files_updated.connect(self.on_adjust_column_width)
         # self.model_.model_refreshed.connect(self.set_all_tags)
 
         self.setContextMenuPolicy(QtCore.Qt.CustomContextMenu)
@@ -1247,12 +1245,12 @@ class FilterWorker(QtCore.QObject):
         """
         Process the text in filter, separtes them into the different queries and filters the items.
 
-        The parent status (its trash or star status) always overrides the children status,
-        e.g.: If a parent is trash but its children are not, the parent with the children will be
-        hidden.
+        The parent status always overrides the children status, meaning if a parent is shown, their children will be
+        shown too. A parent my also be shown if it has a children that has to be shown. this is because if we hide the
+        parent when a children should be shown, the children will not be shown.
 
         Queries are separated by commas (','). Empty queries or composed of only
-        a single whitespace are ignored. It also ignores the first character of a query itis a whitespace.
+        a single whitespace are ignored. It also ignores the first character of a query if it is a whitespace.
 
         It accepts 5 kinds of queries:
             * tags: queries starting with, 'tag:', 't:', or 'T:'.
@@ -1262,7 +1260,7 @@ class FilterWorker(QtCore.QObject):
             * Folder names: any other query.
 
         The filtering is done by creating a copy of all the items in a dctionary, and deleting all the ones that don't
-        pass the filter. Parents of items that have passed are added in the end. Children of starred items are also
+        pass the filter. Parents of items that have passed are added in the end. Children items are also
         added after the item passed the check.
 
         If at any point any helper function returns a None instead of an empty dictionary, it means that the thread
@@ -1274,47 +1272,9 @@ class FilterWorker(QtCore.QObject):
         :param filter: The raw stirng that is located in the.
         :param tag_filter: List of extra tags to be added to the filtering.
         :return: A tuple where the first item is a dictionary with the allowed items and second item the queries dict.
+            Look into the method parse_queries of this object for more on the queries_dict.
         """
-        raw_queries = filter.split(',')
-        queries_with_empty_spaces = [item[1:] if len(item) >= 1 and item[0] == " " else item for item in raw_queries]
-        queries = [item for item in queries_with_empty_spaces if item != '' and item != ' ']
-
-        queries_dict = {}
-        if len(queries) > 0 or len(tag_filter) > 0:
-            tag_queries = []
-            md_queries = []
-            image_queries = []
-            json_queries = []
-            name_queries = []
-            for query in queries:
-                if self.thread().isInterruptionRequested():
-                    return None
-                if query != '':
-                    if query[:4] == 'tag:':
-                        tag_queries.append(query[4:])
-                    elif query[:2] == 't:' or query[:2] == 'T:':
-                        tag_queries.append(query[2:])
-                    elif query[:3] == 'md:':
-                        md_queries.append(query[3:])
-                    elif query[:2] == 'm:' or query[:2] == 'M:':
-                        md_queries.append(query[2:])
-                    elif query[:6] == 'image:':
-                        image_queries.append(query[6:])
-                    elif query[:2] == 'i:' or query[:2] == 'I:':
-                        image_queries.append(query[2:])
-                    elif query[:5] == 'json:':
-                        json_queries.append(query[5:])
-                    elif query[:2] == 'j:' or query[:2] == 'J:':
-                        json_queries.append(query[2:])
-                    else:
-                        name_queries.append(query)
-
-            tag_queries = list(set(tag_queries + tag_filter))
-            queries_dict = {'tag': tag_queries,
-                            'md': md_queries,
-                            'image': image_queries,
-                            'json': json_queries,
-                            'name': name_queries, }
+        queries_dict = self.parse_queries(filter, tag_filter)
 
         current_dict = model.main_dictionary.copy()
 
@@ -1339,7 +1299,7 @@ class FilterWorker(QtCore.QObject):
                     if not item.star and item.path in current_dict:
                         del current_dict[path]
 
-        if len(queries) > 0 or len(tag_filter) > 0:
+        if len(queries_dict) > 0:
             for query_type, queries in queries_dict.items():
                 if self.thread().isInterruptionRequested():
                     return None
@@ -1461,9 +1421,27 @@ class FilterWorker(QtCore.QObject):
 
         return trashed_dict, current_dict
 
-    # TODO: Find a way of having a space after the colon when specifying a special type of query be ignored.
     @classmethod
     def parse_queries(cls, filter: str, tag_filter: List[str] = []) -> Dict[str, List[str]]:
+        """
+        Separates a string of queries into a dictionary where the queries are organized by categories.
+
+        Queries are separated by commas (','). Empty queries or composed of only
+        a single whitespace are ignored. It also ignores the first or last character of a query if it is a whitespace.
+
+        It accepts 5 kinds of queries:
+            * tags: queries starting with, 'tag:', 't:', or 'T:'.
+            * Markdown files: queries starting with, 'md:', 'm:', or 'M:'.
+            * Images: queries starting with, 'image:', 'i:', or 'I:'.
+            * Json files: queries starting with, 'json:', 'j:', or 'J:'.
+            * Folder names: any other query.
+
+        :param filter: The string which we want to separate. It would look something like this: "my_file, t:favorite".
+            That string would be filtering for files that have the text "my_file" in their path and a tag named favorite.
+        :param tag_filter: Adds the items in this list to the tag filter category.
+        :returns: Dictionary with the keys: tag, md, image, json, and name. Each contains a list with the queries
+            for each respective category.
+        """
         raw_queries = filter.split(',')
         queries_with_empty_spaces = [item[1:] if len(item) >= 1 and item[0] == " " else item for item in raw_queries]
         queries = [item for item in queries_with_empty_spaces if item != '' and item != ' ']
@@ -1478,23 +1456,23 @@ class FilterWorker(QtCore.QObject):
             for query in queries:
                 if query != '':
                     if query[:4] == 'tag:':
-                        tag_queries.append(query[4:])
+                        tag_queries.append(cls._remove_whitespace(query[4:]))
                     elif query[:2] == 't:' or query[:2] == 'T:':
-                        tag_queries.append(query[2:])
+                        tag_queries.append(cls._remove_whitespace(query[2:]))
                     elif query[:3] == 'md:':
-                        md_queries.append(query[3:])
+                        md_queries.append(cls._remove_whitespace(query[3:]))
                     elif query[:2] == 'm:' or query[:2] == 'M:':
-                        md_queries.append(query[2:])
+                        md_queries.append(cls._remove_whitespace(query[2:]))
                     elif query[:6] == 'image:':
-                        image_queries.append(query[6:])
+                        image_queries.append(cls._remove_whitespace(query[6:]))
                     elif query[:2] == 'i:' or query[:2] == 'I:':
-                        image_queries.append(query[2:])
+                        image_queries.append(cls._remove_whitespace(query[2:]))
                     elif query[:5] == 'json:':
-                        json_queries.append(query[5:])
+                        json_queries.append(cls._remove_whitespace(query[5:]))
                     elif query[:2] == 'j:' or query[:2] == 'J:':
-                        json_queries.append(query[2:])
+                        json_queries.append(cls._remove_whitespace(query[2:]))
                     else:
-                        name_queries.append(query)
+                        name_queries.append(cls._remove_whitespace(query))
 
             tag_queries = list(set(tag_queries + tag_filter))
             queries_dict = {'tag': tag_queries,
@@ -1505,8 +1483,20 @@ class FilterWorker(QtCore.QObject):
 
         return queries_dict
 
-    # TODO: Find a way to optimize this function. You are iterating through the parents and children potentially 3
-    #   times. There should be a better way of doing this.
+    @classmethod
+    def _remove_whitespace(cls, text: str) -> str:
+        """
+        Helper function, removes any empty space at the beggining or end of a string.
+
+        :param text: The string we want to remove the initial or ending whitespace.
+        """
+        if len(text) > 0:
+            if text[0] == ' ':
+                text = text[1:]
+            if len(text) > 0 and text[-1] == ' ':
+                text = text[0:-1]
+        return text
+
     @classmethod
     def is_item_shown(cls, item: Item, filter: str, tag_filter: List[str], star_status: bool, trash_status: bool) -> bool:
         """
@@ -1693,6 +1683,7 @@ class FileExplorer(QtWidgets.QWidget):
         self.model.selected_tags_changed.connect(self.on_selected_tag_changed)
         self.model.new_item.connect(self.on_new_item_created)
         self.model.model_refreshed.connect(self.on_star_trash_refresh_clicked)
+        self.model.item_files_updated.connect(self.on_existing_item_files_updated)
 
         # When the refresh button of the file explorer is pressed, refresh the model
         self.refresh_button.clicked.connect(self.model.refresh_model)
@@ -1798,6 +1789,25 @@ class FileExplorer(QtWidgets.QWidget):
 
         self.proxy_model.allowed_items.append(item)
 
+    @Slot(Item)
+    def on_existing_item_files_updated(self, item: Item) -> None:
+        """
+        Gets called when an item had its files changed. Checks if the item should be shown or not and updates the
+        proxy model allowed lists accordingly and triggers a filtering.
+
+        :param item: The item whose files changed.
+        """
+        should_item_show = FilterWorker.is_item_shown(item, self.filter_line_edit.text(), self.selected_tags,
+                                                      self.star_button.isChecked(), self.trash_button.isChecked())
+
+        if should_item_show:
+            if not item in self.proxy_model.allowed_items:
+                self.proxy_model.allowed_items.append(item)
+                self.proxy_model.trigger_filter()
+        else:
+            if item in self.proxy_model.allowed_items:
+                self.proxy_model.allowed_items.remove(item)
+                self.proxy_model.trigger_filter()
 
 class DataTreeWidgetItem(QtWidgets.QTreeWidgetItem):
     """
