@@ -227,8 +227,9 @@ class App(QtCore.QObject):
 
 class ProcessMonitor(QtCore.QObject):
     """
-    Helper class that runs in a separate thread. Its only job is to constantly check if a process is still running and
-    alert the AppManager when a process has been closed.
+    Helper class that runs in a separate thread. Its job is to constantly check if a process is still running and
+    alert the AppManager when a process has been closed and to print any standard output or standard error that
+    any process is sending.
     """
 
     #: Signal(IdType) -- emitted when it detects that a process is closed.
@@ -250,6 +251,8 @@ class ProcessMonitor(QtCore.QObject):
         :param process: The QProcess to keep track of.
         """
         self.processes[Id] = process
+        self.processes[Id].readyReadStandardOutput.connect(self.onReadyStandardOutput)
+        self.processes[Id].readyReadStandardError.connect(self.onReadyStandardError)
 
     def quit(self) -> None:
         """
@@ -270,6 +273,26 @@ class ProcessMonitor(QtCore.QObject):
                     del self.processes[Id]
                     self.processTerminated.emit(Id)
             qtsleep(0.01)
+
+    @Slot()
+    def onReadyStandardOutput(self):
+        """
+        Gets called when any process emits the readyReadStandardOutput signal, and prints any message it receives.
+        """
+        for Id, process in self.processes.items():
+            output = str(process.readAllStandardOutput(), 'utf-8')
+            if output != '':
+                print(f'Process {Id}: {output}')
+
+    @Slot()
+    def onReadyStandardError(self):
+        """
+        Gets called when any process emits the readyReadStandardError signal, and prints any messages it receives.
+        """
+        for Id, process in self.processes.items():
+            output = str(process.readAllStandardError(), 'utf-8')
+            if output != '':
+                print(f'Process {Id}: {output}')
 
 
 class AppManager(QtWidgets.QWidget):
