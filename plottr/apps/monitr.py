@@ -1574,7 +1574,7 @@ class FilterWorker(QtCore.QObject):
         parent = item.parent()
         if parent is None:
             return False
-
+        assert isinstance(parent, Item)
         if cls._item_check(item, star_status, queries_dict):
             return True
 
@@ -1594,6 +1594,7 @@ class FilterWorker(QtCore.QObject):
 
         for i in range(item.rowCount()):
             child = item.child(i, 0)
+            assert isinstance(child, Item)
             if cls._item_check(child, star_status, queries_dict):
                 return True
             if cls._children_query_check(child, star_status, queries_dict):
@@ -1612,6 +1613,8 @@ class FilterWorker(QtCore.QObject):
         parent = item.parent()
         if parent is None:
             return False
+
+        assert isinstance(parent, Item)
 
         if parent.trash:
             return True
