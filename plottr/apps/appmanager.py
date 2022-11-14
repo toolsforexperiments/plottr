@@ -209,7 +209,9 @@ class App(QtCore.QObject):
         """
         Gets called when win is about to close. Stops the server and stops the server thread.
         """
-        self.server.quit()
+        if self.server is not None:
+            self.server.quit()
+
         if self.server is not None and self.serverThread is not None:
             self.serverThread.requestInterruption()
             self.serverThread.quit()
