@@ -68,7 +68,7 @@ class AppServer(QtCore.QObject):
         self.reply = None
         self.running = True
 
-        self.socket = self.context.socket(zmq.REP)
+        self.socket: Optional[zmq.Socket] = self.context.socket(zmq.REP)
         self.poller = zmq.Poller()
         self.poller.register(self.socket, zmq.POLLIN)
 
@@ -76,6 +76,7 @@ class AppServer(QtCore.QObject):
         """
         Connects the socket and starts listening for commands.
         """
+        assert isinstance(self.socket, zmq.Socket)
         self.socket.bind(f'tcp://{self.address}:{self.port}')
 
         while self.running:
