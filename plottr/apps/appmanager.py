@@ -52,7 +52,7 @@ class AppServer(QtCore.QObject):
 
     messageReceived = Signal(object)
 
-    def __init__(self, context: zmq.Context, port: str, parent: Optional[QtCore.QObject] = None):
+    def __init__(self, port: str, parent: Optional[QtCore.QObject] = None):
         """
         Constructor for :class: `.AppServer`
 
@@ -63,7 +63,7 @@ class AppServer(QtCore.QObject):
         super().__init__(parent=parent)
         self.port = port
         self.address = '127.0.0.1'
-        self.context = context
+        self.context = zmq.Context()
         self.t_blocking = 1000  # in ms
         self.reply = None
         self.running = True
@@ -80,7 +80,9 @@ class AppServer(QtCore.QObject):
 
         while self.running:
             # Check if there are any messages.
-            evts = self.poller.poll(self.t_blocking)
+            evts = []
+            if not self.socket._closed:
+                evts = self.poller.poll(self.t_blocking)
             if len(evts) > 0:
                 message = self.socket.recv_pyobj()
                 if message == 'ping':
@@ -122,8 +124,6 @@ class App(QtCore.QObject):
     Runs an :class:`.AppServer` in a separate thread, which allows to receive and send messages
     from the parent :class:`.AppManager` to the app.
     """
-    #: Signal() --  emitted when the app is going to close. Used to close the AppServer
-    endProcess = Signal()
 
     #: Signal(Any) -- emitted when the App has the reply for a message. The AppServer gets the signal and replies.
     #: Arguments:
@@ -139,12 +139,10 @@ class App(QtCore.QObject):
         self.win.show()
         self.win.windowClosed.connect(self.onQuit)
 
-        self.context = zmq.Context()
         self.port = port
-        self.server: Optional[AppServer] = AppServer(self.context, str(port))
+        self.server: Optional[AppServer] = AppServer(str(port))
         self.serverThread: Optional[QtCore.QThread] = QtCore.QThread()
 
-        self.endProcess.connect(self.server.quit)
         self.replyReady.connect(self.server.loadReply)
         self.server.messageReceived.connect(self.onMessageReceived)
         self.server.moveToThread(self.serverThread)
@@ -209,12 +207,9 @@ class App(QtCore.QObject):
     @Slot()
     def onQuit(self) -> None:
         """
-        Gets called when win is about to close. Emits endProcess to stop the server. Destroys the zmq context and stops
-        the server thread.
+        Gets called when win is about to close. Stops the server and stops the server thread.
         """
-        self.endProcess.emit()
-        self.context.destroy(1)
-
+        self.server.quit()
         if self.server is not None and self.serverThread is not None:
             self.serverThread.requestInterruption()
             self.serverThread.quit()
