@@ -496,7 +496,7 @@ class FileModel(QtGui.QStandardItemModel):
         Gets called everytime a new file or folder gets created. Checks what it is and if it should be added and adds
         data to the model.
         """
-        # LOGGER.info(f'file created: {event}')
+        # LOGGER.warning(f'file created: {event}')
 
         path = Path(event.src_path)
         # If a folder is created, it will be added when a data file will be created.
@@ -532,7 +532,7 @@ class FileModel(QtGui.QStandardItemModel):
         Triggered every time a file or directory is deleted. Identifies if the deleted file/folder is relevant and
         deletes it and any other non-relevant files.
         """
-        # LOGGER.info(f'file deleted: {event}')
+        # LOGGER.warning(f'file deleted: {event}')
 
         path = Path(event.src_path)
         # If the path deleted it's a folder, then it should be in the mian dictionary, or we don't care about it.
@@ -598,7 +598,7 @@ class FileModel(QtGui.QStandardItemModel):
         """
         Gets triggered everytime a file is moved or the name of a file (including type) changes.
         """
-        # LOGGER.info(f'file moved: {event}')
+        # LOGGER.warning(f'file moved: {event}')
 
         parent = None
 
@@ -723,7 +723,7 @@ class FileModel(QtGui.QStandardItemModel):
         Gets triggered everytime a file is modified. Checks if the modification is for a current data file and
         triggers the update_data signal if it is.
         """
-        # LOGGER.info(f'file modified: {event}')
+        # LOGGER.warning(f'file modified: {event}')
 
         path = Path(event.src_path)
 
@@ -744,6 +744,7 @@ class FileModel(QtGui.QStandardItemModel):
                 self.on_file_created(event)
 
                 if ContentType.sort(path) == ContentType.data:
+                    # print(f'triggering update data')
                     self.update_data.emit(path)
 
     @Slot(FileSystemEvent)
@@ -2585,8 +2586,8 @@ class LoaderWorker(QtCore.QObject):
     #:   - The dictionary with all the necessary data to create the right side window.
     finished = Signal(dict)
 
-    def run(self, item: Item) -> None:
-        data = self.gather_all_right_side_window_data(item)
+    def run(self, item: Item, only_data_files: bool = False) -> None:
+        data = self.gather_all_right_side_window_data(item, only_data_files)
         if data is not None:
             self.finished.emit(data)
 
@@ -2623,7 +2624,7 @@ class LoaderWorker(QtCore.QObject):
                 return None
             child = item.child(i, 0)
             assert isinstance(child, Item)
-            data_ret = self._check_children_data(child, data, 1)
+            data_ret = self._check_children_data(child, data, 1, only_data_files)
             if data_ret is None:
                 return None
             data = data_ret
@@ -2649,12 +2650,12 @@ class LoaderWorker(QtCore.QObject):
             if self.thread().isInterruptionRequested() or data_in is None:
                 return None
             if file_type == ContentType.data:
-                data_in['data_files']['paths'].append(file)
-                data_in['data_files']['names'].append(prefix_text + str(file.stem))
                 # There might be an error with the ddh5 trying to be loaded.
                 try:
                     data_dict = datadict_from_hdf5(str(file), structure_only=True)
                     data_in['data_files']['data'].append(data_dict)
+                    data_in['data_files']['paths'].append(file)
+                    data_in['data_files']['names'].append(prefix_text + str(file.stem))
                 except Exception as e:
                     LOGGER.error(f'Failed to load the data file: {file} \n {e}')
 
@@ -2757,6 +2758,15 @@ class Monitr(QtWidgets.QMainWindow):
         self.header_label: Optional[QtWidgets.QLabel] = None
         self.loading_label: Optional[IconLabel] = None
         self.loading_movie = QtGui.QMovie(os.path.join(plottrPath, 'resource', 'gfx', "loading_gif.gif"))
+        self.last_data_window_update_time = time.time()
+
+        # Sets the minimum time between updates of the right data_window.
+        self.data_widget_update_buffer = 3
+
+        self.data_file_need_update = None
+        self.active_timer = False
+        # Timer in charge of calling on_update_data_window if there have been updates faster than the buffer.
+        self.data_window_timer = QtCore.QTimer()
 
         # Debug items
         # self.debug_layout = QtWidgets.QHBoxLayout()
@@ -3000,102 +3010,6 @@ class Monitr(QtWidgets.QMainWindow):
                 window.deleteLater()
             self.file_windows = []
 
-    @classmethod
-    def gather_all_right_side_window_data(cls, item: Item, only_data_files: bool = False) ->\
-            dict:
-        """
-        Static method used to create a dictionary with all the necessary information (file names, paths, etc.)
-         of an item of the model to create the right side window. This function will also go through all the children the item might have, and add the
-         names of each nested folders in front of the windows titles. Utilizes 2 helper functions to do this.
-
-        :param item: Item of the model to generate the dictionary
-        :return: A dictionary with the following structure:
-            return {'tag_labels': [str],
-                    'data_files': {'paths': [Path],
-                                   'names': [str],
-                                   'data': [DataDict]},
-                    'extra_files': [(Path, str, ContentType)]}
-        """
-        data = {'tag_labels': [],
-                'data_files': {'paths': [],
-                               'names': [],
-                               'data': []},
-                'extra_files': []}
-
-        data = cls._fill_dict(data, item.files, '', only_data_files)
-
-        # Get the data of all of the children.
-        for i in range(item.rowCount()):
-            child = item.child(i, 0)
-            assert isinstance(child, Item)
-            data = cls._check_children_data(child, data, 1)
-
-        # Sort the files so that they appear in reverse alphabetical order.
-        data['extra_files'] = sorted(data['extra_files'], key=lambda x: str.lower(x[1]), reverse=True)
-        return data
-
-    @classmethod
-    def _fill_dict(cls, data_in: dict, files_dict: Dict[Path, ContentType], prefix_text: str, only_data_files:bool = False) -> dict:
-        """
-        Helper method for gather_all_right_sice_window_data. Fills in the data dictionary with the files inside of
-        files_dict and adds prefix text to all tittles.
-
-        :param data_in: Dictionary with the same structure as the data dictionary of gather_all_right_sice_window_data.
-        :param files_dict: Dictionary with Path of files as keys and their ContentType as values.
-        :param prefix_text: String to add to the front of the titles for the widgets. Used to specify from which
-            specific nested folder this file is coming from.
-        :return: data_in with the files of files_dict in it.
-        """
-
-        for file, file_type in files_dict.items():
-            if file_type == ContentType.data:
-                data_in['data_files']['paths'].append(file)
-                data_in['data_files']['names'].append(prefix_text + str(file.stem))
-                # There might be an error with the ddh5 trying to be loaded.
-                try:
-                    data_dict = datadict_from_hdf5(str(file), structure_only=True)
-                    data_in['data_files']['data'].append(data_dict)
-                except Exception as e:
-                    LOGGER.error(f'Failed to load the data file: {file} \n {e}')
-
-            if not only_data_files:
-                if file_type == ContentType.tag:
-                    data_in['tag_labels'].append(prefix_text + str(file.stem))
-                elif file_type == ContentType.json or file_type == ContentType.md or file_type == ContentType.image:
-                    # Check if the files exist.
-                    if file.is_file():
-                        data_in['extra_files'].append((file, prefix_text + str(file.name), file_type))
-        return data_in
-
-    @classmethod
-    def _check_children_data(cls, child_item: Item, data_in: dict, deepness: int, only_data_files: bool = False) -> dict:
-        """
-        Helper function for gather_all_right_side_window_data. Fills the data_in dictionary with the files of
-         child_item and all of its children. Returns the filled dictionary with the information of child_item and all
-
-        :param child_item: Item for which files and children the data should be gathered.
-        :param data_in: Already partially filled dictionary with the parent data. Same structure as data from
-            gather_all_right_side_window_data
-        :param deepness: int marking the level of recursion. If calling this function for the first level children of an
-            item should be 1, for the children of the first children should be 2 and so on.
-        :return: data_in with the data of all of the children.
-        """
-
-        child_path = child_item.path
-        prefix_text = ''
-        # Make the prefix text. Should be all the parent folders until the original parent item.
-        for i in range(deepness):
-            prefix_text = child_path.parts[-i - 1] + '/' + prefix_text
-
-        data_in = cls._fill_dict(data_in, child_item.files, prefix_text, only_data_files)
-
-        for i in range(child_item.rowCount()):
-            child = child_item.child(i, 0)
-            assert isinstance(child, Item)
-            data_in = cls._check_children_data(child, data_in, deepness + 1, only_data_files)
-
-        return data_in
-
     def add_folder_header(self) -> None:
         """
         Adds the folder header.
@@ -3258,16 +3172,43 @@ class Monitr(QtWidgets.QMainWindow):
     def on_update_data_widget(self, path: Path) -> None:
         """
         Updates the current DataTreeWidget. Resets the data widget to show updated numbers in the data window.
+        Checks if the time between updates is longer than the self.data_widget_update_buffer value (in seconds).
+
+        If an update happened but the time in between 2 updates is shorter than the buffer value,
+        a QTimer set for the same time as the buffer is created that will call on_data_window_timer
+        that calls this function to update the data widget. This is so that we always get the final number of points.
 
         :param path: The path of the data file that should be updated.
         """
-        if path.parent in self.model.main_dictionary:
-            item = self.model.main_dictionary[path.parent]
-            data_dicts = self.gather_all_right_side_window_data(item, True)
-            data_window_widget = DataTreeWidget(data_dicts['data_files']['paths'], data_dicts['data_files']['names'], data_dicts['data_files']['data'])
-            if self.data_window is not None:
-                self.data_window.restart_widget(data_window_widget)
-                data_window_widget.plot_requested.connect(self.on_plot_data)
+        current_time = time.time()
+        if current_time - self.last_data_window_update_time > self.data_widget_update_buffer:
+            if path.is_relative_to(self.current_selected_folder) and path.parent in self.model.main_dictionary:
+                # Always gather the data for the currently selected folder, since a child item might need the update
+                # but the currently selected item with all of its childs should be shown.
+                item = self.model.main_dictionary[self.current_selected_folder]
+                loader_worker = LoaderWorker()
+                data_dicts = loader_worker.gather_all_right_side_window_data(item, True)
+                data_window_widget = DataTreeWidget(data_dicts['data_files']['paths'],
+                                                    data_dicts['data_files']['names'],
+                                                    data_dicts['data_files']['data'])
+                if self.data_window is not None:
+                    self.data_window.restart_widget(data_window_widget)
+                    data_window_widget.plot_requested.connect(self.on_plot_data)
+                self.last_data_window_update_time = time.time()
+        else:
+            if not self.active_timer:
+                self.data_file_need_update = path
+                self.active_timer = True
+                QtCore.QTimer.singleShot(self.data_widget_update_buffer * 1e3, self.on_data_window_timer)
+
+    @Slot()
+    def on_data_window_timer(self):
+        """
+        Helper function. Gets called by the timer set in self.on_update_data_widget. Sets the active timer variable to
+        False and calls on_update_data_widget.
+        """
+        self.active_timer = False
+        self.on_update_data_widget(self.data_file_need_update)
 
     def closeEvent(self, a0: QtGui.QCloseEvent) -> None:
         """
