@@ -124,10 +124,7 @@ def _data_file_path(file: Union[str, Path], init_directory: bool = False) -> Pat
     """Get the full filepath of the data file.
     If `init_directory` is True, then create the parent directory."""
 
-    if isinstance(file, str):
-        path = Path(file)
-    else:
-        path = file
+    path = Path(file)
 
     if path.suffix != f'.{DATAFILEXT}':
         path = Path(path.parent, path.stem + f'.{DATAFILEXT}')
@@ -137,7 +134,7 @@ def _data_file_path(file: Union[str, Path], init_directory: bool = False) -> Pat
 
 # TODO: Check if the linking of class in the docstring is working.
 def datadict_to_hdf5(datadict: DataDict,
-                     path: str,
+                     path: Union[str, Path],
                      groupname: str = 'data',
                      append_mode: AppendMode = AppendMode.new,
                      file_timeout: Optional[float] = None) -> None:
@@ -230,7 +227,7 @@ def init_file(f: h5py.File,
         f.flush()
 
 
-def datadict_from_hdf5(path: str,
+def datadict_from_hdf5(path: Union[str, Path],
                        groupname: str = 'data',
                        startidx: Union[int, None] = None,
                        stopidx: Union[int, None] = None,
@@ -310,7 +307,7 @@ def datadict_from_hdf5(path: str,
     return dd
 
 
-def all_datadicts_from_hdf5(path: str, file_timeout: Optional[float] = None, **kwargs: Any) -> Dict[str, Any]:
+def all_datadicts_from_hdf5(path: Union[str, Path], file_timeout: Optional[float] = None, **kwargs: Any) -> Dict[str, Any]:
     """
     Loads all the DataDicts contained on a single HDF5 file. Returns a dictionary with the group names as keys and
     the DataDicts as the values of that key.
@@ -337,11 +334,11 @@ def all_datadicts_from_hdf5(path: str, file_timeout: Optional[float] = None, **k
 class FileOpener:
     """Context manager for opening files while respecting file system locks."""
 
-    def __init__(self, path: Path,
+    def __init__(self, path: Union[Path, str],
                  mode: str = 'r',
                  timeout: Optional[float] = None,
                  test_delay: float = 0.1):
-        self.path = path
+        self.path = Path(path)
         self.lock_path = path.parent.joinpath("~" + str(path.stem) + '.lock')
         if mode not in ['r', 'w', 'w-', 'a']:
             raise ValueError("Only 'r', 'w', 'w-', 'a' modes are supported.")
