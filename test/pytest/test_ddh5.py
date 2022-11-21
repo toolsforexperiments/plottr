@@ -39,6 +39,10 @@ def _clean_from_file(datafromfile):
     except KeyError:
         pass
 
+    for axis, data in datafromfile.data_items():
+        if "label" in data:
+            datafromfile[axis].pop("label")
+
     return datafromfile
 
 
@@ -216,7 +220,7 @@ def test_writer_with_large_data():
     dataset_from_file = dds.datadict_from_hdf5(writer.filepath)
     assert(_clean_from_file(dataset_from_file) == ref_dataset)
 
-    rmtree('./TESTDATA')
+    rmtree(str(Path(writer.filepath).parent))
 
 
 def test_concurrent_write_and_read():
@@ -238,4 +242,4 @@ def test_concurrent_write_and_read():
     dataset_from_file = dds.datadict_from_hdf5(writer.filepath)
     assert(_clean_from_file(dataset_from_file) == ref_dataset)
 
-    rmtree('./TESTDATA')
+    rmtree(str(Path(writer.filepath).parent))
