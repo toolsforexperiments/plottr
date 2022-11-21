@@ -339,7 +339,7 @@ class FileOpener:
                  timeout: Optional[float] = None,
                  test_delay: float = 0.1):
         self.path = Path(path)
-        self.lock_path = path.parent.joinpath("~" + str(path.stem) + '.lock')
+        self.lock_path = self.path.parent.joinpath("~" + str(self.path.stem) + '.lock')
         if mode not in ['r', 'w', 'w-', 'a']:
             raise ValueError("Only 'r', 'w', 'w-', 'a' modes are supported.")
         self.mode = mode
