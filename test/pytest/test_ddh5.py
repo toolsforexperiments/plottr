@@ -45,6 +45,21 @@ def _clean_from_file(datafromfile):
 
     return datafromfile
 
+# Test the FileOpener.
+
+
+def test_file_lock_creation_and_deletion():
+    lock_path = FILEPATH.parent.joinpath("~" + str(FILEPATH.stem) + '.lock')
+    try:
+        with dds.FileOpener(FILEPATH, 'a') as f:
+            assert lock_path.is_file()
+            raise RuntimeError('crashing on purpose')
+    except RuntimeError:
+        pass
+    assert not lock_path.is_file()
+
+    FILEPATH.unlink()
+
 
 def test_basic_storage_and_retrieval():
     x = np.arange(3)
