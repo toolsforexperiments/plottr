@@ -55,6 +55,13 @@ def html_color_generator() -> Generator[str, None, None]:
         yield color
 
 
+def is_file_lock(path: Path) -> bool:
+    if path.name[0] == '~' and path.suffix == '.lock':
+        return True
+    return False
+
+
+
 class ContentType(Enum):
     """
     Enum class for the types of files that are of interest in the monitored subdirectories. Contains helper methods to
@@ -496,35 +503,38 @@ class FileModel(QtGui.QStandardItemModel):
         Gets called everytime a new file or folder gets created. Checks what it is and if it should be added and adds
         data to the model.
         """
-        # LOGGER.warning(f'file created: {event}')
+        # LOGGER.debug(f'file created: {event}')
 
         path = Path(event.src_path)
         # If a folder is created, it will be added when a data file will be created.
         if not path.is_dir():
-            # Every folder that is currently in the tree will be in the main dictionary.
-            if path.parent in self.main_dictionary:
-                parent = self.main_dictionary[path.parent]
-                if path not in parent.files:
-                    parent.add_file(path)
-                    if self.currently_selected_folder is not None and parent.path.is_relative_to(
-                            self.currently_selected_folder):
-                        self.update_me.emit(parent.path)
 
+            # If the file created is a lock, we ignore it.
+            if not is_file_lock(path):
 
-            # If the parent of the file does not exist, we first need to check that file is valid data.
-            elif SupportedDataTypes.check_valid_data([path]):
-                new_files_dict = {file: ContentType.sort(file) for file in path.parent.iterdir() if
-                                  str(file.suffix) != ''}
+                # Every folder that is currently in the tree will be in the main dictionary.
+                if path.parent in self.main_dictionary:
+                    parent = self.main_dictionary[path.parent]
+                    if path not in parent.files:
+                        parent.add_file(path)
+                        if self.currently_selected_folder is not None and parent.path.is_relative_to(
+                                self.currently_selected_folder):
+                            self.update_me.emit(parent.path)
 
-                # If sort_and_add_item returns false, it means that it could not add an item because it was triggered
-                # for files in the monitoring directory.
-                added_status = self.sort_and_add_item(path.parent, new_files_dict)
-                if added_status is None:
-                    item = self.main_dictionary[path.parent]
-                    # Send signal indicating that current folder requires update
-                    if self.currently_selected_folder is not None and item.path.is_relative_to(
-                            self.currently_selected_folder):
-                        self.update_me.emit(item.path)
+                # If the parent of the file does not exist, we first need to check that file is valid data.
+                elif SupportedDataTypes.check_valid_data([path]):
+                    new_files_dict = {file: ContentType.sort(file) for file in path.parent.iterdir() if
+                                      str(file.suffix) != ''}
+
+                    # If sort_and_add_item returns false, it means that it could not add an item because it was
+                    # triggered for files in the monitoring directory.
+                    added_status = self.sort_and_add_item(path.parent, new_files_dict)
+                    if added_status is None:
+                        item = self.main_dictionary[path.parent]
+                        # Send signal indicating that current folder requires update
+                        if self.currently_selected_folder is not None and item.path.is_relative_to(
+                                self.currently_selected_folder):
+                            self.update_me.emit(item.path)
 
     @Slot(FileSystemEvent)
     def on_file_deleted(self, event: FileSystemEvent) -> None:
@@ -532,7 +542,7 @@ class FileModel(QtGui.QStandardItemModel):
         Triggered every time a file or directory is deleted. Identifies if the deleted file/folder is relevant and
         deletes it and any other non-relevant files.
         """
-        # LOGGER.warning(f'file deleted: {event}')
+        # LOGGER.debug(f'file deleted: {event}')
 
         path = Path(event.src_path)
         # If the path deleted it's a folder, then it should be in the mian dictionary, or we don't care about it.
@@ -550,33 +560,36 @@ class FileModel(QtGui.QStandardItemModel):
 
         else:
             if path.parent in self.main_dictionary:
-                parent = self.main_dictionary[path.parent]
-                if path in parent.files:
-                    # Checks if the file is a data file.
-                    if SupportedDataTypes.check_valid_data([path]):
-                        # Check if there are other data files remaining in the directory.
-                        all_folder_files = [file for file in parent.path.iterdir()]
+                # If the file created is a lock, we ignore it.
+                if not is_file_lock(path):
 
-                        # Checks if the folder itself needs to be deleted or only the file
-                        if SupportedDataTypes.check_valid_data(
-                                all_folder_files) or parent.hasChildren():
-                            parent.delete_file(path)
-                        else:
-                            # If the parent needs to be deleted, removes it from the correct widget.
-                            if parent.parent() is None:
-                                self.removeRow(parent.row())
+                    parent = self.main_dictionary[path.parent]
+                    if path in parent.files:
+                        # Checks if the file is a data file.
+                        if SupportedDataTypes.check_valid_data([path]):
+                            # Check if there are other data files remaining in the directory.
+                            all_folder_files = [file for file in parent.path.iterdir()]
+
+                            # Checks if the folder itself needs to be deleted or only the file
+                            if SupportedDataTypes.check_valid_data(
+                                    all_folder_files) or parent.hasChildren():
+                                parent.delete_file(path)
                             else:
-                                parent.parent().removeRow(parent.row())
-                            del self.main_dictionary[parent.path]
-                    else:
-                        parent.delete_file(path)
-                # Send signal indicating that current folder requires update.
-                if self.currently_selected_folder is not None and parent.path.is_relative_to(
-                        self.currently_selected_folder):
-                    # Checks if the folder still exists. If the user has the folder that is getting deleted at that
-                    # moment, no update should happen.
-                    if self.currently_selected_folder.is_dir():
-                        self.update_me.emit(parent.path)
+                                # If the parent needs to be deleted, removes it from the correct widget.
+                                if parent.parent() is None:
+                                    self.removeRow(parent.row())
+                                else:
+                                    parent.parent().removeRow(parent.row())
+                                del self.main_dictionary[parent.path]
+                        else:
+                            parent.delete_file(path)
+                    # Send signal indicating that current folder requires update.
+                    if self.currently_selected_folder is not None and parent.path.is_relative_to(
+                            self.currently_selected_folder):
+                        # Checks if the folder still exists. If the user has the folder that is getting deleted at that
+                        # moment, no update should happen.
+                        if self.currently_selected_folder.is_dir():
+                            self.update_me.emit(parent.path)
 
     def _delete_all_children_from_main_dictionary(self, item: Item) -> None:
         """
@@ -596,9 +609,9 @@ class FileModel(QtGui.QStandardItemModel):
     @Slot(FileSystemEvent)
     def on_file_moved(self, event: FileSystemEvent) -> None:
         """
-        Gets triggered everytime a file is moved or the name of a file (including type) changes.
+        Gets triggered every time a file is moved or the name of a file (including type) changes.
         """
-        # LOGGER.warning(f'file moved: {event}')
+        # LOGGER.debug(f'file moved: {event}')
 
         parent = None
 
@@ -669,6 +682,10 @@ class FileModel(QtGui.QStandardItemModel):
 
             # A normal file changed.
             else:
+                # If a file is changing to a lock file, we ignore the update.
+                if is_file_lock(dest_path):
+                    return None
+
                 # Find the parent.
                 parent = None
                 if src_path.parent in self.main_dictionary:
@@ -684,7 +701,7 @@ class FileModel(QtGui.QStandardItemModel):
                         parent.add_file(dest_path)
 
             if self.currently_selected_folder is not None and dest_path.is_relative_to(self.currently_selected_folder):
-                # This happenes when a top level item is changed.
+                # This happens when a top level item is changed.
                 if parent is None:
                     check = self.check_all_files_are_valid(self.main_dictionary[dest_path], dest_path)[0]
                 else:
@@ -723,36 +740,40 @@ class FileModel(QtGui.QStandardItemModel):
         Gets triggered everytime a file is modified. Checks if the modification is for a current data file and
         triggers the update_data signal if it is.
         """
-        # LOGGER.warning(f'file modified: {event}')
+        # LOGGER.debug(f'file modified: {event}')
 
         path = Path(event.src_path)
 
         if path.parent in self.main_dictionary:
-            parent = self.main_dictionary[path.parent]
-            # If the folder is not currently being selected I don't care about modifications.
-            if self.currently_selected_folder is not None and parent.path.is_relative_to(
-                    self.currently_selected_folder):
 
-                # If im expecting this update, ignore it.
-                if path in self.modified_exceptions:
-                    self.modified_exceptions.remove(path)
-                    return
+            # If the file created is a lock, we ignore it.
+            if not is_file_lock(path):
 
-                # TODO: Test if this an appropriate solution.
-                # The file monitoring for network drives in linux seems to miss the creation event,
-                # but it does not miss the file modified event.
-                self.on_file_created(event)
+                parent = self.main_dictionary[path.parent]
+                # If the folder is not currently being selected I don't care about modifications.
+                if self.currently_selected_folder is not None and parent.path.is_relative_to(
+                        self.currently_selected_folder):
 
-                if ContentType.sort(path) == ContentType.data:
-                    # print(f'triggering update data')
-                    self.update_data.emit(path)
+                    # If im expecting this update, ignore it.
+                    if path in self.modified_exceptions:
+                        self.modified_exceptions.remove(path)
+                        return
+
+                    # TODO: Test if this an appropriate solution.
+                    # The file monitoring for network drives in linux seems to miss the creation event,
+                    # but it does not miss the file modified event.
+                    self.on_file_created(event)
+
+                    if ContentType.sort(path) == ContentType.data:
+                        # print(f'triggering update data')
+                        self.update_data.emit(path)
 
     @Slot(FileSystemEvent)
     def on_file_closed(self, event: FileSystemEvent) -> None:
         """
         Gets triggered everytime a file is closed
         """
-        # LOGGER.info(f'file closed: {event}')
+        # LOGGER.debug(f'file closed: {event}')
         pass
 
     def delete_root_item(self, row: int, path: Path) -> None:

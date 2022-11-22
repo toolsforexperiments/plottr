@@ -39,7 +39,26 @@ def _clean_from_file(datafromfile):
     except KeyError:
         pass
 
+    for axis, data in datafromfile.data_items():
+        if "label" in data:
+            datafromfile[axis].pop("label")
+
     return datafromfile
+
+# Test the FileOpener.
+
+
+def test_file_lock_creation_and_deletion():
+    lock_path = FILEPATH.parent.joinpath("~" + str(FILEPATH.stem) + '.lock')
+    try:
+        with dds.FileOpener(FILEPATH, 'a') as f:
+            assert lock_path.is_file()
+            raise RuntimeError('crashing on purpose')
+    except RuntimeError:
+        pass
+    assert not lock_path.is_file()
+
+    FILEPATH.unlink()
 
 
 def test_basic_storage_and_retrieval():
@@ -216,7 +235,7 @@ def test_writer_with_large_data():
     dataset_from_file = dds.datadict_from_hdf5(writer.filepath)
     assert(_clean_from_file(dataset_from_file) == ref_dataset)
 
-    rmtree('./TESTDATA')
+    rmtree(str(Path(writer.filepath).parent))
 
 
 def test_concurrent_write_and_read():
@@ -238,4 +257,4 @@ def test_concurrent_write_and_read():
     dataset_from_file = dds.datadict_from_hdf5(writer.filepath)
     assert(_clean_from_file(dataset_from_file) == ref_dataset)
 
-    rmtree('./TESTDATA')
+    rmtree(str(Path(writer.filepath).parent))
