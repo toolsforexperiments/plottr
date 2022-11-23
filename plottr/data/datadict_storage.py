@@ -1,6 +1,11 @@
 """plottr.data.datadict_storage
 
 Provides file-storage tools for the DataDict class.
+
+.. note::
+    Any function in this module that interacts with a ddh5 file, will create a lock file while it is using the file.
+    The lock file has the following format: ~<file_name>.lock. The file lock will get deleted even if the program
+    crashes. If the process is suddenly stopped however, we cannot guarantee that the file lock will be deleted.
 """
 import os
 import time
@@ -132,7 +137,7 @@ def _data_file_path(file: Union[str, Path], init_directory: bool = False) -> Pat
         path.parent.mkdir(parents=True, exist_ok=True)
     return path
 
-# TODO: Check if the linking of class in the docstring is working.
+
 def datadict_to_hdf5(datadict: DataDict,
                      path: Union[str, Path],
                      groupname: str = 'data',
@@ -156,7 +161,7 @@ def datadict_to_hdf5(datadict: DataDict,
         - `AppendMode.all` : Append all data in datadict to file data sets.
     :param file_timeout: How long the function will wait for the ddh5 file to unlock. Only relevant if you are
         writing to a file that already exists and some other program is trying to read it at the same time.
-        If none uses the default value from the :class:FileOpener.
+        If none uses the default value from the :class:`FileOpener`.
 
     """
     filepath = _data_file_path(path, True)
@@ -244,7 +249,7 @@ def datadict_from_hdf5(path: Union[str, Path],
     :param ignore_unequal_lengths: If `True`, don't fail when the rows have
         unequal length; will return the longest consistent DataDict possible.
     :param file_timeout: How long the function will wait for the ddh5 file to unlock. If none uses the default
-        value from the :class:FileOpener.
+        value from the :class:`FileOpener`.
     :return: Validated DataDict.
     """
     filepath = _data_file_path(path)
@@ -314,7 +319,7 @@ def all_datadicts_from_hdf5(path: Union[str, Path], file_timeout: Optional[float
 
     :param path: The path of the HDF5 file.
     :param file_timeout: How long the function will wait for the ddh5 file to unlock. If none uses the default
-        value from the :class:FileOpener.
+        value from the :class:`FileOpener`.
     :return: Dictionary with group names as key, and the DataDicts inside them as values.
     """
     filepath = _data_file_path(path)
@@ -332,7 +337,16 @@ def all_datadicts_from_hdf5(path: Union[str, Path], file_timeout: Optional[float
 # File access with locking
 
 class FileOpener:
-    """Context manager for opening files while respecting file system locks."""
+    """
+    Context manager for opening files, creates its own file lock to indicate other programs that the file is being
+    used. The lock file follows the following structure: "~<file_name>.lock".
+
+    :param path: The file path.
+    :param mode: The opening file mode. Only the following modes are supported: 'r', 'w', 'w-', 'a'. Defaults to 'r'.
+    :param timeout: Time, in seconds, the context manager waits for the file to unlock. Defaults to 30.
+    :param test_delay: Length of time in between checks. I.e. how long the FileOpener waits to see if a file got
+        unlocked again
+   """
 
     def __init__(self, path: Union[Path, str],
                  mode: str = 'r',
@@ -537,6 +551,8 @@ class DDH5Writer(object):
     """Context manager for writing data to DDH5.
     Based on typical needs in taking data in an experimental physics lab.
 
+    Creates lock file when writing data.
+
     :param basedir: The root directory in which data is stored.
         :meth:`.create_file_structure` is creating the structure inside this root and
         determines the file name of the data. The default structure implemented here is
@@ -551,7 +567,7 @@ class DDH5Writer(object):
     :param name: Name of this dataset. Used in path/file creation and added as meta data.
     :param filename: Filename to use. Defaults to 'data.ddh5'.
     :param file_timeout: How long the function will wait for the ddh5 file to unlock. If none uses the default
-        value from the :class:FileOpener.
+        value from the :class:`FileOpener`.
     """
 
     # TODO: need an operation mode for not keeping data in memory.
