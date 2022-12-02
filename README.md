@@ -50,7 +50,7 @@ Note: this package is not compatible with the original `plottr` tool.
 You might want to install freshly if you still use the old version.
 
 ## Requirements:
-* python >= 3.7 (f-strings...)
+* python >= 3.8
 * the usual: numpy, mpl, ...
 * pandas >= 0.22
 * xarray
