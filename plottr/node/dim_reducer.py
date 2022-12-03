@@ -363,10 +363,12 @@ class DimensionReductionAssignmentWidget(DimensionAssignmentWidget):
         roles = self.getRoles()
         axidx = self._dataStructure.axes().index(dim)
         naxvals = self._dataShapes[dim][axidx]
-        idx = roles[dim]['options']['index']
-        text = f"({idx + 1}/{naxvals})"
-        if value is not None:
-            text = value + ' ' + text
+        text = ''
+        if 'index' in roles[dim]['options']:
+            idx = roles[dim]['options']['index']
+            text = f"({idx + 1}/{naxvals})"
+            if value is not None:
+                text = value + ' ' + text
         self.setDimInfo(dim, text)
 
 
