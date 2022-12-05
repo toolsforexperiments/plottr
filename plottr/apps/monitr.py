@@ -61,6 +61,17 @@ def is_file_lock(path: Path) -> bool:
     return False
 
 
+def _is_relative_to(path1: Path, path2: Path) -> bool:
+    """
+    The function Path.is_relative_to has been added in python 3.9.
+    This function does the same thing and the code has been taken from the source code of pathlib for python 3.9
+    """
+    try:
+        path1.relative_to(path2)
+        return True
+    except ValueError:
+        return False
+
 
 class ContentType(Enum):
     """
@@ -517,8 +528,8 @@ class FileModel(QtGui.QStandardItemModel):
                     parent = self.main_dictionary[path.parent]
                     if path not in parent.files:
                         parent.add_file(path)
-                        if self.currently_selected_folder is not None and parent.path.is_relative_to(
-                                self.currently_selected_folder):
+                        if self.currently_selected_folder is not None and _is_relative_to(parent.path,
+                                                                                          self.currently_selected_folder):
                             self.update_me.emit(parent.path)
 
                 # If the parent of the file does not exist, we first need to check that file is valid data.
@@ -532,8 +543,8 @@ class FileModel(QtGui.QStandardItemModel):
                     if added_status is None:
                         item = self.main_dictionary[path.parent]
                         # Send signal indicating that current folder requires update
-                        if self.currently_selected_folder is not None and item.path.is_relative_to(
-                                self.currently_selected_folder):
+                        if self.currently_selected_folder is not None and \
+                                _is_relative_to(item.path, self.currently_selected_folder):
                             self.update_me.emit(item.path)
 
     @Slot(FileSystemEvent)
@@ -584,8 +595,8 @@ class FileModel(QtGui.QStandardItemModel):
                         else:
                             parent.delete_file(path)
                     # Send signal indicating that current folder requires update.
-                    if self.currently_selected_folder is not None and parent.path.is_relative_to(
-                            self.currently_selected_folder):
+                    if self.currently_selected_folder is not None and \
+                            _is_relative_to(parent.path, self.currently_selected_folder):
                         # Checks if the folder still exists. If the user has the folder that is getting deleted at that
                         # moment, no update should happen.
                         if self.currently_selected_folder.is_dir():
@@ -598,7 +609,7 @@ class FileModel(QtGui.QStandardItemModel):
         :param item: The item whose children should be deleted.
         """
         path = item.path
-        children_folders = [key for key in self.main_dictionary.keys() if key.is_relative_to(path) and key != path]
+        children_folders = [key for key in self.main_dictionary.keys() if _is_relative_to(key, path) and key != path]
         for child in children_folders:
             if child in self.main_dictionary:
                 child_item = self.main_dictionary[child]
@@ -700,7 +711,7 @@ class FileModel(QtGui.QStandardItemModel):
                     if dest_path not in parent.files:
                         parent.add_file(dest_path)
 
-            if self.currently_selected_folder is not None and dest_path.is_relative_to(self.currently_selected_folder):
+            if self.currently_selected_folder is not None and _is_relative_to(dest_path, self.currently_selected_folder):
                 # This happens when a top level item is changed.
                 if parent is None:
                     check = self.check_all_files_are_valid(self.main_dictionary[dest_path], dest_path)[0]
@@ -721,7 +732,7 @@ class FileModel(QtGui.QStandardItemModel):
         :return: Returns a tuple composed of a bool indicating if it passed or not the check and the first_path.
         """
         for file in item.files.keys():
-            if not file.is_relative_to(first_path):
+            if not _is_relative_to(file, first_path):
                 return False, first_path
 
         if item.hasChildren():
@@ -751,8 +762,8 @@ class FileModel(QtGui.QStandardItemModel):
 
                 parent = self.main_dictionary[path.parent]
                 # If the folder is not currently being selected I don't care about modifications.
-                if self.currently_selected_folder is not None and parent.path.is_relative_to(
-                        self.currently_selected_folder):
+                if self.currently_selected_folder is not None and _is_relative_to(parent.path,
+                                                                                  self.currently_selected_folder):
 
                     # If im expecting this update, ignore it.
                     if path in self.modified_exceptions:
@@ -2012,7 +2023,7 @@ class FloatingButtonWidget(QtWidgets.QPushButton):
         parent = self.parent()
         assert isinstance(parent, QtWidgets.QWidget)
         if hasattr(parent, 'viewport'):
-            parent_rect = parent.viewport().rect()
+            parent_rect = parent.viewport().rect()  # type: ignore[attr-defined] # we are just asking if this object has it.
         else:
             parent_rect = parent.rect()
 
@@ -2172,7 +2183,7 @@ class TextInputFloatingButton(QtWidgets.QPushButton):
         parent = self.parent()
         assert isinstance(parent, QtWidgets.QWidget)
         if hasattr(parent, 'viewport'):
-            parent_rect = parent.viewport().rect()
+            parent_rect = parent.viewport().rect()  # type: ignore[attr-defined] # we are just asking if this object has it.
         else:
             parent_rect = parent.rect()
 
@@ -3019,9 +3030,8 @@ class Monitr(QtWidgets.QMainWindow):
 
         if len(self.file_windows) >= 1:
             # Save the collapsed state before deleting them.
-            current_collapsed_state = {window.widget.path: window.btn.isChecked() for window in self.file_windows if
-                                       hasattr(window.widget,
-                                               'path')}
+            current_collapsed_state = {window.widget.path: window.btn.isChecked() for window in self.file_windows if  # type: ignore[attr-defined] # The hasattr already checks if the widget has a path attribute.
+                                       hasattr(window.widget, 'path')}
 
             self.collapsed_state_dictionary.update(current_collapsed_state)
 
@@ -3185,7 +3195,7 @@ class Monitr(QtWidgets.QMainWindow):
 
         :param path: The path of the item that has changed.
         """
-        if path.is_relative_to(self.current_selected_folder):
+        if _is_relative_to(path, self.current_selected_folder):
             self.generate_right_side_window()
 
     @Slot(Path)
@@ -3202,7 +3212,7 @@ class Monitr(QtWidgets.QMainWindow):
         """
         current_time = time.time()
         if current_time - self.last_data_window_update_time > self.data_widget_update_buffer:
-            if path.is_relative_to(self.current_selected_folder) and path.parent in self.model.main_dictionary:
+            if _is_relative_to(path, self.current_selected_folder) and path.parent in self.model.main_dictionary:
                 # Always gather the data for the currently selected folder, since a child item might need the update
                 # but the currently selected item with all of its childs should be shown.
                 item = self.model.main_dictionary[self.current_selected_folder]
