@@ -537,7 +537,7 @@ def test_2_starred_parent_one_tagged(qtbot, tmp_path):
             assert not FilterWorker.is_item_shown(item, queries, tag_queries, star_status, trash_status)
 
 def test_trash_child_items(qtbot, tmp_path):
-    folder_path, days_paths, folder_paths = generate_file_structure(FOLDER_PATH)
+    folder_path, days_paths, folder_paths = generate_file_structure(tmp_path)
 
     trashed_folders = folder_paths[12:]
     allowed_folders = days_paths + folder_paths[:12]
