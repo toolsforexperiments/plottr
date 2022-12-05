@@ -22,7 +22,7 @@ from typing import List, Optional, Dict, Any, Union, Generator, Iterable, Tuple,
 from functools import partial
 from itertools import cycle
 
-from watchdog.events import FileSystemEvent
+from watchdog.events import FileSystemEvent  # type: ignore[import] # Open PR for mypy in watchdog: https://github.com/gorakhargosh/watchdog/pull/908
 
 from .. import log as plottrlog
 from .. import QtCore, QtWidgets, Signal, Slot, QtGui, plottrPath
