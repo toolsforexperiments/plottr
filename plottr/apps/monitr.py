@@ -2012,7 +2012,7 @@ class FloatingButtonWidget(QtWidgets.QPushButton):
         parent = self.parent()
         assert isinstance(parent, QtWidgets.QWidget)
         if hasattr(parent, 'viewport'):
-            parent_rect = parent.viewport().rect()  # type: ignore[attr-defined] # I am checking for viewport the previous line.
+            parent_rect = parent.viewport().rect()
         else:
             parent_rect = parent.rect()
 
@@ -2172,8 +2172,7 @@ class TextInputFloatingButton(QtWidgets.QPushButton):
         parent = self.parent()
         assert isinstance(parent, QtWidgets.QWidget)
         if hasattr(parent, 'viewport'):
-            parent_rect = parent.viewport().rect()  # type: ignore[attr-defined] # I am checking for viewport the
-            # previous line.
+            parent_rect = parent.viewport().rect()
         else:
             parent_rect = parent.rect()
 
@@ -2784,7 +2783,7 @@ class Monitr(QtWidgets.QMainWindow):
         # Sets the minimum time between updates of the right data_window.
         self.data_widget_update_buffer = 3
 
-        self.data_file_need_update = None
+        self.data_file_need_update: Optional[Path] = None
         self.active_timer = False
         # Timer in charge of calling on_update_data_window if there have been updates faster than the buffer.
         self.data_window_timer = QtCore.QTimer()
@@ -3020,7 +3019,7 @@ class Monitr(QtWidgets.QMainWindow):
 
         if len(self.file_windows) >= 1:
             # Save the collapsed state before deleting them.
-            current_collapsed_state = {window.widget.path: window.btn.isChecked() for window in self.file_windows if  # type: ignore[attr-defined] # The hasattr already checks if the widget has a path attribute.
+            current_collapsed_state = {window.widget.path: window.btn.isChecked() for window in self.file_windows if
                                        hasattr(window.widget,
                                                'path')}
 
@@ -3209,6 +3208,7 @@ class Monitr(QtWidgets.QMainWindow):
                 item = self.model.main_dictionary[self.current_selected_folder]
                 loader_worker = LoaderWorker()
                 data_dicts = loader_worker.gather_all_right_side_window_data(item, True)
+                assert data_dicts is not None
                 data_window_widget = DataTreeWidget(data_dicts['data_files']['paths'],
                                                     data_dicts['data_files']['names'],
                                                     data_dicts['data_files']['data'])
@@ -3220,10 +3220,10 @@ class Monitr(QtWidgets.QMainWindow):
             if not self.active_timer:
                 self.data_file_need_update = path
                 self.active_timer = True
-                QtCore.QTimer.singleShot(self.data_widget_update_buffer * 1e3, self.on_data_window_timer)
+                QtCore.QTimer.singleShot(round(self.data_widget_update_buffer * 1e3), self.on_data_window_timer)
 
     @Slot()
-    def on_data_window_timer(self):
+    def on_data_window_timer(self) -> None:
         """
         Helper function. Gets called by the timer set in self.on_update_data_widget. Sets the active timer variable to
         False and calls on_update_data_widget.
