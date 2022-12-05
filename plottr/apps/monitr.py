@@ -2023,7 +2023,7 @@ class FloatingButtonWidget(QtWidgets.QPushButton):
         parent = self.parent()
         assert isinstance(parent, QtWidgets.QWidget)
         if hasattr(parent, 'viewport'):
-            parent_rect = parent.viewport().rect()  # type: ignore[attr-defined] # we are just asking if this object has it.
+            parent_rect = parent.viewport().rect()
         else:
             parent_rect = parent.rect()
 
@@ -2183,7 +2183,7 @@ class TextInputFloatingButton(QtWidgets.QPushButton):
         parent = self.parent()
         assert isinstance(parent, QtWidgets.QWidget)
         if hasattr(parent, 'viewport'):
-            parent_rect = parent.viewport().rect()  # type: ignore[attr-defined] # we are just asking if this object has it.
+            parent_rect = parent.viewport().rect()
         else:
             parent_rect = parent.rect()
 
@@ -3030,7 +3030,7 @@ class Monitr(QtWidgets.QMainWindow):
 
         if len(self.file_windows) >= 1:
             # Save the collapsed state before deleting them.
-            current_collapsed_state = {window.widget.path: window.btn.isChecked() for window in self.file_windows if  # type: ignore[attr-defined] # The hasattr already checks if the widget has a path attribute.
+            current_collapsed_state = {window.widget.path: window.btn.isChecked() for window in self.file_windows if
                                        hasattr(window.widget, 'path')}
 
             self.collapsed_state_dictionary.update(current_collapsed_state)
