@@ -1,11 +1,10 @@
 from matplotlib import cycler
 from plottr.plot.pyqtgraph.autoplot import AutoPlot as PGAutoPlot
-# from plottr.plot.mpl.autoplot import AutoPlot as MPLAutoPlot
+from plottr.plot.mpl.autoplot import AutoPlot as MPLAutoPlot
 
 config = {
 
-    # 'default-plotwidget': MPLAutoPlot,
-    'default-plotwidget': PGAutoPlot,
+    'default-plotwidget': MPLAutoPlot,
 
     'matplotlibrc': {
         'axes.grid': True,
