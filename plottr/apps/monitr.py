@@ -7,7 +7,7 @@ import argparse
 import time
 import importlib
 
-# Uncomment the next 2 lines if the app sudenly crash with no error.
+# Uncomment the next 2 lines if the app suddenly crash with no error.
 # import cgitb
 # cgitb.enable(format = 'text')
 
@@ -31,7 +31,7 @@ from ..data.datadict import DataDict
 from ..utils.misc import unwrap_optional
 from ..apps.watchdog_classes import WatcherClient
 from ..gui.widgets import Collapsible
-from .json_veiwer import JsonModel, JsonTreeView
+from .json_viewer import JsonModel, JsonTreeView
 from ..icons import get_starIcon as get_star_icon, get_trashIcon as get_trash_icon
 from .appmanager import AppManager
 
@@ -45,6 +45,7 @@ AUTOPLOTFUNC = 'autoplotDDH5App'
 
 
 LOGGER = logging.getLogger('plottr.apps.monitr')
+
 
 def html_color_generator() -> Generator[str, None, None]:
     """
@@ -265,7 +266,7 @@ class Item(QtGui.QStandardItem):
             model.item_files_changed(self)
 
     def change_path(self, path: Path) -> None:
-        """Changes the internal path of the item as welll as the text of it."""
+        """Changes the internal path of the item as well as the text of it."""
         self.path = path
         self.setText(str(path.name))
 
@@ -297,7 +298,7 @@ class Item(QtGui.QStandardItem):
 class FileModel(QtGui.QStandardItemModel):
     """
     Model holding the file structure. Column 0 holds the items that represent datasets, these have all the information
-    about them, the files they have, the tags they hold and wether or not they are star or trash. Column 1 are only
+    about them, the files they have, the tags they hold and whether they are star or trash. Column 1 are only
     there to display the tags of each item in the same row. The widget displayed in column 1 point towards the
     tag_widget of column 0, so the only thing that needs to be manually changed of them is the icon.
 
@@ -823,7 +824,7 @@ class FileModel(QtGui.QStandardItemModel):
 
     def tag_action_triggered(self, item_index: QtCore.QModelIndex, tag: str) -> None:
         """
-        Gets called every time the user triggeres a tag action in the context menu of the view.
+        Gets called every time the user triggers a tag action in the context menu of the view.
         If the item doesn't have that tag, adds it. If it does, deletes it. Handles the special __trash__ and __star__
         tags.
 
@@ -913,7 +914,7 @@ class FileModel(QtGui.QStandardItemModel):
 
     def tag_deleted(self, tag: str) -> None:
         """
-        Gets called when a tag is deleted to update the tag model. If it is an existing tag, substracts a count to it.
+        Gets called when a tag is deleted to update the tag model. If it is an existing tag, subtracts a count to it.
         If the count is 0, removes the tag from the tag model.
 
         :param tag: The new tag.
@@ -982,7 +983,7 @@ class SortFilterProxyModel(QtCore.QSortFilterProxyModel):
     def filterAcceptsRow(self, source_row: int, source_parent: QtCore.QModelIndex) -> bool:
         """
         Override of the QSortFilterProxyModel. Our custom filtering needs are implemented here.
-        Checks wether or not to show the item agaisnt its allowed items list..
+        Checks whether or not to show the item against its allowed items list.
 
         :param source_row: The row of the item.
         :param source_parent: The index of the parent of the item.
@@ -1089,13 +1090,13 @@ class FileTreeView(QtWidgets.QTreeView):
     @Slot()
     def on_filter_incoming_event(self) -> None:
         """
-        Gets called everytime the proxy model emmits the filter_incoming_event signal.
+        Gets called everytime the proxy model emits the filter_incoming_event signal.
         """
         self.create_collapsed_state()
 
     def on_filter_ended_event(self) -> None:
         """
-        Gets called everytime the proxy model emmits the filter_ended_event signal.
+        Gets called everytime the proxy model emits the filter_ended_event signal.
         The tags need to be reset after a filtering event happens.
         """
         self.set_all_tags()
@@ -1113,7 +1114,7 @@ class FileTreeView(QtWidgets.QTreeView):
 
     def _set_widget_for_item_and_children(self, item: Item) -> None:
         """
-        Helper function of set_all_tags, goes throguh the passed item and all of its children and sets all of the
+        Helper function of set_all_tags, goes through the passed item and all of its children and sets all of the
         tag widget from column 0 for the items in row 1.
 
         :param item: The item that its setting the widget for.
@@ -1276,7 +1277,7 @@ class FilterWorker(QtCore.QObject):
     def filter_items(self, model: FileModel, star_status: bool, trash_status: bool, filter: str,
                      tag_filter: List[str] = []) -> Optional[Tuple[Dict[Path, Item], Dict[str, List[str]]]]:
         """
-        Process the text in filter, separtes them into the different queries and filters the items.
+        Process the text in filter, separates them into the different queries and filters the items.
 
         The parent status always overrides the children status, meaning if a parent is shown, their children will be
         shown too. A parent my also be shown if it has a children that has to be shown. this is because if we hide the
@@ -1292,7 +1293,7 @@ class FilterWorker(QtCore.QObject):
             * Json files: queries starting with, 'json:', 'j:', or 'J:'.
             * Folder names: any other query.
 
-        The filtering is done by creating a copy of all the items in a dctionary, and deleting all the ones that don't
+        The filtering is done by creating a copy of all the items in a dictionary, and deleting all the ones that don't
         pass the filter. Parents of items that have passed are added in the end. Children items are also
         added after the item passed the check.
 
@@ -1302,7 +1303,7 @@ class FilterWorker(QtCore.QObject):
         :param model: The model to perform the filtering.
         :param star_status: The status of the star button in the FileExplorer.
         :param trash_status: The status of the trash button in the FileExplorer.
-        :param filter: The raw stirng that is located in the.
+        :param filter: The raw string that is located in the line edit.
         :param tag_filter: List of extra tags to be added to the filtering.
         :return: A tuple where the first item is a dictionary with the allowed items and second item the queries dict.
             Look into the method parse_queries of this object for more on the queries_dict.
@@ -1519,7 +1520,7 @@ class FilterWorker(QtCore.QObject):
     @classmethod
     def _remove_whitespace(cls, text: str) -> str:
         """
-        Helper function, removes any empty space at the beggining or end of a string.
+        Helper function, removes any empty space at the beginning or end of a string.
 
         :param text: The string we want to remove the initial or ending whitespace.
         """
@@ -1538,7 +1539,7 @@ class FilterWorker(QtCore.QObject):
 
         :param item: The item we want to check.
         :param filter: The string with the current queries.
-        :param tag_filter: The currently selectedtags with the tag filtering widget.
+        :param tag_filter: The currently selected tags with the tag filtering widget.
         :param star_status: True if the star filter is activated, False otherwise.
         :param trash_status: True if the hide trash is activated, False otherwise.
         :returns: True if the item should be shown, False otherwise.
@@ -1771,7 +1772,7 @@ class FileExplorer(QtWidgets.QWidget):
     def on_finished_filtering(self, filtering_results: Tuple[Dict[Path, Item], Dict[str, List[str]]]) -> None:
         """
         Gets called when the FilterWorker is done filtering. Ends the loading animation and the thread and triggers the
-        filtering in the porxy model.
+        filtering in the proxy model.
         """
         if self.loading_label is not None:
             self.loading_label.stop_animation()
@@ -1861,12 +1862,12 @@ class DataTreeWidgetItem(QtWidgets.QTreeWidgetItem):
 class DataTreeWidget(QtWidgets.QTreeWidget):
     """
     Widget that displays all ddh5 files passed in incoming_data. All items must be in ordered lists with their names,
-    paths and DataDicts for the widget to laod properly.
+    paths and DataDicts for the widget to load properly.
 
     :param incoming_data: Dictionary containing all the information required to load all ddh5 files. The dictionary
         should contain 3 different items with they keys being: "paths", "names", and "data", each containing a list
         of (in order): Path, str, DataDict. All 3 lists should be ordered by index (meaning for example that index
-        number 3 represents a single datadicts). E.g.:
+        number 3 represents a single datadict). E.g.:
             incoming_data = {"paths": [Path(r"~/data/measurement_1"),
                                        Path(r"~/data/measurement_2"),],
                              "names": ["measurement_1/data",
@@ -2330,12 +2331,12 @@ class ImageViewer(QtWidgets.QLabel):
         self.installEventFilter(self)
         self.setMinimumWidth(1)
 
-    # FIXME: Instead of detecting when the infinite loop starts occuring and stopping it, figure out exaclty what starts
+    # FIXME: Instead of detecting when the infinite loop starts occurring and stopping it, figure out exactly what starts
     #   it and prevent it all together.
     def eventFilter(self, a0: QtCore.QObject, a1: QtCore.QEvent) -> bool:
         """
-        Custom implementation of eventFilter. Sometimes rezising the pixmap will trigger a rezising event that would
-        rezise the pixmap and so on. To fix this bug, we create this filter to detect that case and ignore one of those
+        Custom implementation of eventFilter. Sometimes resizing the pixmap will trigger a resizing event that would
+        resize the pixmap and so on. To fix this bug, we create this filter to detect that case and ignore one of those
         events, stopping the loop. For attributes and return details see Qt official documentation.
         """
         self.event_record.append(a1)
@@ -2352,7 +2353,7 @@ class ImageViewer(QtWidgets.QLabel):
             scaled_pixmap = QtGui.QPixmap.fromImage(self.image.copy(QtCore.QRect())).scaled(parent_size.width(),
                                                                                             parent_size.height(),
                                                                                             QtCore.Qt.KeepAspectRatio)
-            # If a rezising event happen, only update the pixmap if the size of the pixmap changed.
+            # If a resizing event happen, only update the pixmap if the size of the pixmap changed.
             if self.old_pixmap.size() != scaled_pixmap.size():
                 # Check if the new image is bigger than the original picture size. If it is don't show it.
                 if self.image_size.width() > scaled_pixmap.width():
@@ -2467,7 +2468,7 @@ class TagLabel(QtWidgets.QWidget):
 
     def generate_tag_string(self) -> None:
         """
-        Converts the list of tags into the html formated string.
+        Converts the list of tags into the html formatted string.
         """
         self.tags_str = ''
         self.html_tags = []
@@ -2487,7 +2488,7 @@ class TagLabel(QtWidgets.QWidget):
 
 class ItemTagLabel(QtWidgets.QLabel):
     """
-    Qlabel wisget used in the FileTree to display the tags in an item of the model.
+    Qlabel widget used in the FileTree to display the tags in an item of the model.
 
     :param tags: List with the tags that should be displayed.
     """
@@ -2525,7 +2526,7 @@ class ItemTagLabel(QtWidgets.QLabel):
 
     def generate_tag_string(self) -> None:
         """
-        Converts the list of tags into the html formated string.
+        Converts the list of tags into the html formatted string.
         """
         self.tags_str = ''
         self.html_tags = []
@@ -2762,11 +2763,11 @@ class Monitr(QtWidgets.QMainWindow):
         self.left_side_dummy_widget = QtWidgets.QWidget()
         self.left_side_dummy_widget.setLayout(self.left_side_layout)
 
-        left_side_dummy_size_ploicy = QtWidgets.QSizePolicy(QtWidgets.QSizePolicy.Preferred,
-                                                                          QtWidgets.QSizePolicy.Preferred)
-        left_side_dummy_size_ploicy.setHorizontalStretch(1)
-        left_side_dummy_size_ploicy.setVerticalStretch(0)
-        self.left_side_dummy_widget.setSizePolicy(left_side_dummy_size_ploicy)
+        left_side_dummy_size_policy = QtWidgets.QSizePolicy(QtWidgets.QSizePolicy.Preferred,
+                                                            QtWidgets.QSizePolicy.Preferred)
+        left_side_dummy_size_policy.setHorizontalStretch(1)
+        left_side_dummy_size_policy.setVerticalStretch(0)
+        self.left_side_dummy_widget.setSizePolicy(left_side_dummy_size_policy)
 
         # Load left side layout
         self.file_explorer = FileExplorer(proxy_model=self.proxy_model, parent=self.left_side_dummy_widget)
@@ -2908,7 +2909,7 @@ class Monitr(QtWidgets.QMainWindow):
 
     def generate_right_side_window(self) -> None:
         """
-        Generates the right side window. Clears the window first, gets all the necesary data and loads all of the
+        Generates the right side window. Clears the window first, gets all the necessary data and loads all of the
         widgets.
         """
         # Check that the folder passed is a dataset.
@@ -3068,7 +3069,7 @@ class Monitr(QtWidgets.QMainWindow):
         :param data_files: Dictionary containing all the information required to load all ddh5 files. The dictionary
             should contain 3 different items with they keys being: "paths", "names", and "data", each containing a list
             of (in order): Path, str, DataDict. All 3 lists should be ordered by index (meaning for example that index
-            number 3 represents a single datadicts). E.g.:
+            number 3 represents a single datadict). E.g.:
                 incoming_data = {"paths": [Path(r"~/data/measurement_1"),
                                            Path(r"~/data/measurement_2"),],
                                  "names": ["measurement_1/data",
