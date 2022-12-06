@@ -4,7 +4,7 @@ from plottr.plot.mpl.autoplot import AutoPlot as MPLAutoPlot
 
 config = {
 
-    'default-plotwidget': MPLAutoPlot,
+    'default-plotwidget': PGAutoPlot,
 
     'matplotlibrc': {
         'axes.grid': True,
