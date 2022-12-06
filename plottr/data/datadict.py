@@ -95,8 +95,8 @@ class DataDictBase(dict):
             if i > 0:
                 ret += "\n"
             ret += f"{self.label(dn)}: {self[dn]['values'].shape}"
-            for i in self.axes(dn):
-                ret += f"\n  \u2319 {self.label(i)}: {self[i]['values'].shape}"
+            for ax in self.axes(dn):
+                ret += f"\n  \u2319 {self.label(ax)}: {self[ax]['values'].shape}"
         return ret
 
     # Assignment and retrieval of data and meta data
