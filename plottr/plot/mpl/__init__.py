@@ -50,5 +50,3 @@ from .widgets import MPLPlot, MPLPlotWidget
 
 logger = logging.getLogger(__name__)
 
-# matplotlib tools and settings
-symmetric_cmap = colormaps.get_cmap('bwr')

@@ -144,6 +144,7 @@ class DataDictBase(dict):
                         is_common = False
                 if is_common:
                     commons.append(n)
+
         nrecs = max(commons)
 
         for k, v in records.items():
@@ -770,7 +771,7 @@ class DataDict(DataDictBase):
                 kw[name] = None
 
         records = self.to_records(**kw)
-        for name, datavals in records.items():  #
+        for name, datavals in records.items():
             dd[name]['values'] = datavals
 
         if dd.validate():
@@ -954,10 +955,11 @@ class DataDict(DataDictBase):
             except TypeError:
                 pass
 
-            idxs.append(_idxs.astype(int))
+            idxs.append(_idxs)
 
         if len(idxs) > 0:
-            remove_idxs = reduce(np.intersect1d, tuple(idxs))
+            remove_idxs = reduce(np.intersect1d,
+                                 tuple(np.array(idxs).astype(int)))
             for k, v in ret.data_items():
                 v['values'] = np.delete(v['values'], remove_idxs, axis=0)
 
