@@ -7,7 +7,7 @@ import argparse
 import time
 import importlib
 
-# Uncomment the next 2 lines if the app sudenly crash with no error.
+# Uncomment the next 2 lines if the app suddenly crash with no error.
 # import cgitb
 # cgitb.enable(format = 'text')
 
@@ -22,7 +22,7 @@ from typing import List, Optional, Dict, Any, Union, Generator, Iterable, Tuple,
 from functools import partial
 from itertools import cycle
 
-from watchdog.events import FileSystemEvent
+from watchdog.events import FileSystemEvent  # type: ignore[import] # Open PR for mypy in watchdog: https://github.com/gorakhargosh/watchdog/pull/908
 
 from .. import log as plottrlog
 from .. import QtCore, QtWidgets, Signal, Slot, QtGui, plottrPath
@@ -31,7 +31,7 @@ from ..data.datadict import DataDict
 from ..utils.misc import unwrap_optional
 from ..apps.watchdog_classes import WatcherClient
 from ..gui.widgets import Collapsible
-from .json_veiwer import JsonModel, JsonTreeView
+from .json_viewer import JsonModel, JsonTreeView
 from ..icons import get_starIcon as get_star_icon, get_trashIcon as get_trash_icon
 from .appmanager import AppManager
 
@@ -45,6 +45,7 @@ AUTOPLOTFUNC = 'autoplotDDH5App'
 
 
 LOGGER = logging.getLogger('plottr.apps.monitr')
+
 
 def html_color_generator() -> Generator[str, None, None]:
     """
@@ -60,6 +61,17 @@ def is_file_lock(path: Path) -> bool:
         return True
     return False
 
+
+def _is_relative_to(path1: Path, path2: Path) -> bool:
+    """
+    The function Path.is_relative_to has been added in python 3.9.
+    This function does the same thing and the code has been taken from the source code of pathlib for python 3.9
+    """
+    try:
+        path1.relative_to(path2)
+        return True
+    except ValueError:
+        return False
 
 
 class ContentType(Enum):
@@ -254,7 +266,7 @@ class Item(QtGui.QStandardItem):
             model.item_files_changed(self)
 
     def change_path(self, path: Path) -> None:
-        """Changes the internal path of the item as welll as the text of it."""
+        """Changes the internal path of the item as well as the text of it."""
         self.path = path
         self.setText(str(path.name))
 
@@ -286,7 +298,7 @@ class Item(QtGui.QStandardItem):
 class FileModel(QtGui.QStandardItemModel):
     """
     Model holding the file structure. Column 0 holds the items that represent datasets, these have all the information
-    about them, the files they have, the tags they hold and wether or not they are star or trash. Column 1 are only
+    about them, the files they have, the tags they hold and whether they are star or trash. Column 1 are only
     there to display the tags of each item in the same row. The widget displayed in column 1 point towards the
     tag_widget of column 0, so the only thing that needs to be manually changed of them is the icon.
 
@@ -517,8 +529,8 @@ class FileModel(QtGui.QStandardItemModel):
                     parent = self.main_dictionary[path.parent]
                     if path not in parent.files:
                         parent.add_file(path)
-                        if self.currently_selected_folder is not None and parent.path.is_relative_to(
-                                self.currently_selected_folder):
+                        if self.currently_selected_folder is not None and _is_relative_to(parent.path,
+                                                                                          self.currently_selected_folder):
                             self.update_me.emit(parent.path)
 
                 # If the parent of the file does not exist, we first need to check that file is valid data.
@@ -532,8 +544,8 @@ class FileModel(QtGui.QStandardItemModel):
                     if added_status is None:
                         item = self.main_dictionary[path.parent]
                         # Send signal indicating that current folder requires update
-                        if self.currently_selected_folder is not None and item.path.is_relative_to(
-                                self.currently_selected_folder):
+                        if self.currently_selected_folder is not None and \
+                                _is_relative_to(item.path, self.currently_selected_folder):
                             self.update_me.emit(item.path)
 
     @Slot(FileSystemEvent)
@@ -584,8 +596,8 @@ class FileModel(QtGui.QStandardItemModel):
                         else:
                             parent.delete_file(path)
                     # Send signal indicating that current folder requires update.
-                    if self.currently_selected_folder is not None and parent.path.is_relative_to(
-                            self.currently_selected_folder):
+                    if self.currently_selected_folder is not None and \
+                            _is_relative_to(parent.path, self.currently_selected_folder):
                         # Checks if the folder still exists. If the user has the folder that is getting deleted at that
                         # moment, no update should happen.
                         if self.currently_selected_folder.is_dir():
@@ -598,7 +610,7 @@ class FileModel(QtGui.QStandardItemModel):
         :param item: The item whose children should be deleted.
         """
         path = item.path
-        children_folders = [key for key in self.main_dictionary.keys() if key.is_relative_to(path) and key != path]
+        children_folders = [key for key in self.main_dictionary.keys() if _is_relative_to(key, path) and key != path]
         for child in children_folders:
             if child in self.main_dictionary:
                 child_item = self.main_dictionary[child]
@@ -700,7 +712,7 @@ class FileModel(QtGui.QStandardItemModel):
                     if dest_path not in parent.files:
                         parent.add_file(dest_path)
 
-            if self.currently_selected_folder is not None and dest_path.is_relative_to(self.currently_selected_folder):
+            if self.currently_selected_folder is not None and _is_relative_to(dest_path, self.currently_selected_folder):
                 # This happens when a top level item is changed.
                 if parent is None:
                     check = self.check_all_files_are_valid(self.main_dictionary[dest_path], dest_path)[0]
@@ -721,7 +733,7 @@ class FileModel(QtGui.QStandardItemModel):
         :return: Returns a tuple composed of a bool indicating if it passed or not the check and the first_path.
         """
         for file in item.files.keys():
-            if not file.is_relative_to(first_path):
+            if not _is_relative_to(file, first_path):
                 return False, first_path
 
         if item.hasChildren():
@@ -751,8 +763,8 @@ class FileModel(QtGui.QStandardItemModel):
 
                 parent = self.main_dictionary[path.parent]
                 # If the folder is not currently being selected I don't care about modifications.
-                if self.currently_selected_folder is not None and parent.path.is_relative_to(
-                        self.currently_selected_folder):
+                if self.currently_selected_folder is not None and _is_relative_to(parent.path,
+                                                                                  self.currently_selected_folder):
 
                     # If im expecting this update, ignore it.
                     if path in self.modified_exceptions:
@@ -812,7 +824,7 @@ class FileModel(QtGui.QStandardItemModel):
 
     def tag_action_triggered(self, item_index: QtCore.QModelIndex, tag: str) -> None:
         """
-        Gets called every time the user triggeres a tag action in the context menu of the view.
+        Gets called every time the user triggers a tag action in the context menu of the view.
         If the item doesn't have that tag, adds it. If it does, deletes it. Handles the special __trash__ and __star__
         tags.
 
@@ -902,7 +914,7 @@ class FileModel(QtGui.QStandardItemModel):
 
     def tag_deleted(self, tag: str) -> None:
         """
-        Gets called when a tag is deleted to update the tag model. If it is an existing tag, substracts a count to it.
+        Gets called when a tag is deleted to update the tag model. If it is an existing tag, subtracts a count to it.
         If the count is 0, removes the tag from the tag model.
 
         :param tag: The new tag.
@@ -971,7 +983,7 @@ class SortFilterProxyModel(QtCore.QSortFilterProxyModel):
     def filterAcceptsRow(self, source_row: int, source_parent: QtCore.QModelIndex) -> bool:
         """
         Override of the QSortFilterProxyModel. Our custom filtering needs are implemented here.
-        Checks wether or not to show the item agaisnt its allowed items list..
+        Checks whether or not to show the item against its allowed items list.
 
         :param source_row: The row of the item.
         :param source_parent: The index of the parent of the item.
@@ -1078,13 +1090,13 @@ class FileTreeView(QtWidgets.QTreeView):
     @Slot()
     def on_filter_incoming_event(self) -> None:
         """
-        Gets called everytime the proxy model emmits the filter_incoming_event signal.
+        Gets called everytime the proxy model emits the filter_incoming_event signal.
         """
         self.create_collapsed_state()
 
     def on_filter_ended_event(self) -> None:
         """
-        Gets called everytime the proxy model emmits the filter_ended_event signal.
+        Gets called everytime the proxy model emits the filter_ended_event signal.
         The tags need to be reset after a filtering event happens.
         """
         self.set_all_tags()
@@ -1102,7 +1114,7 @@ class FileTreeView(QtWidgets.QTreeView):
 
     def _set_widget_for_item_and_children(self, item: Item) -> None:
         """
-        Helper function of set_all_tags, goes throguh the passed item and all of its children and sets all of the
+        Helper function of set_all_tags, goes through the passed item and all of its children and sets all of the
         tag widget from column 0 for the items in row 1.
 
         :param item: The item that its setting the widget for.
@@ -1265,7 +1277,7 @@ class FilterWorker(QtCore.QObject):
     def filter_items(self, model: FileModel, star_status: bool, trash_status: bool, filter: str,
                      tag_filter: List[str] = []) -> Optional[Tuple[Dict[Path, Item], Dict[str, List[str]]]]:
         """
-        Process the text in filter, separtes them into the different queries and filters the items.
+        Process the text in filter, separates them into the different queries and filters the items.
 
         The parent status always overrides the children status, meaning if a parent is shown, their children will be
         shown too. A parent my also be shown if it has a children that has to be shown. this is because if we hide the
@@ -1281,7 +1293,7 @@ class FilterWorker(QtCore.QObject):
             * Json files: queries starting with, 'json:', 'j:', or 'J:'.
             * Folder names: any other query.
 
-        The filtering is done by creating a copy of all the items in a dctionary, and deleting all the ones that don't
+        The filtering is done by creating a copy of all the items in a dictionary, and deleting all the ones that don't
         pass the filter. Parents of items that have passed are added in the end. Children items are also
         added after the item passed the check.
 
@@ -1291,7 +1303,7 @@ class FilterWorker(QtCore.QObject):
         :param model: The model to perform the filtering.
         :param star_status: The status of the star button in the FileExplorer.
         :param trash_status: The status of the trash button in the FileExplorer.
-        :param filter: The raw stirng that is located in the.
+        :param filter: The raw string that is located in the line edit.
         :param tag_filter: List of extra tags to be added to the filtering.
         :return: A tuple where the first item is a dictionary with the allowed items and second item the queries dict.
             Look into the method parse_queries of this object for more on the queries_dict.
@@ -1508,7 +1520,7 @@ class FilterWorker(QtCore.QObject):
     @classmethod
     def _remove_whitespace(cls, text: str) -> str:
         """
-        Helper function, removes any empty space at the beggining or end of a string.
+        Helper function, removes any empty space at the beginning or end of a string.
 
         :param text: The string we want to remove the initial or ending whitespace.
         """
@@ -1527,7 +1539,7 @@ class FilterWorker(QtCore.QObject):
 
         :param item: The item we want to check.
         :param filter: The string with the current queries.
-        :param tag_filter: The currently selectedtags with the tag filtering widget.
+        :param tag_filter: The currently selected tags with the tag filtering widget.
         :param star_status: True if the star filter is activated, False otherwise.
         :param trash_status: True if the hide trash is activated, False otherwise.
         :returns: True if the item should be shown, False otherwise.
@@ -1760,7 +1772,7 @@ class FileExplorer(QtWidgets.QWidget):
     def on_finished_filtering(self, filtering_results: Tuple[Dict[Path, Item], Dict[str, List[str]]]) -> None:
         """
         Gets called when the FilterWorker is done filtering. Ends the loading animation and the thread and triggers the
-        filtering in the porxy model.
+        filtering in the proxy model.
         """
         if self.loading_label is not None:
             self.loading_label.stop_animation()
@@ -1850,12 +1862,12 @@ class DataTreeWidgetItem(QtWidgets.QTreeWidgetItem):
 class DataTreeWidget(QtWidgets.QTreeWidget):
     """
     Widget that displays all ddh5 files passed in incoming_data. All items must be in ordered lists with their names,
-    paths and DataDicts for the widget to laod properly.
+    paths and DataDicts for the widget to load properly.
 
     :param incoming_data: Dictionary containing all the information required to load all ddh5 files. The dictionary
         should contain 3 different items with they keys being: "paths", "names", and "data", each containing a list
         of (in order): Path, str, DataDict. All 3 lists should be ordered by index (meaning for example that index
-        number 3 represents a single datadicts). E.g.:
+        number 3 represents a single datadict). E.g.:
             incoming_data = {"paths": [Path(r"~/data/measurement_1"),
                                        Path(r"~/data/measurement_2"),],
                              "names": ["measurement_1/data",
@@ -2012,7 +2024,7 @@ class FloatingButtonWidget(QtWidgets.QPushButton):
         parent = self.parent()
         assert isinstance(parent, QtWidgets.QWidget)
         if hasattr(parent, 'viewport'):
-            parent_rect = parent.viewport().rect()  # type: ignore[attr-defined] # I am checking for viewport the previous line.
+            parent_rect = parent.viewport().rect()
         else:
             parent_rect = parent.rect()
 
@@ -2172,8 +2184,7 @@ class TextInputFloatingButton(QtWidgets.QPushButton):
         parent = self.parent()
         assert isinstance(parent, QtWidgets.QWidget)
         if hasattr(parent, 'viewport'):
-            parent_rect = parent.viewport().rect()  # type: ignore[attr-defined] # I am checking for viewport the
-            # previous line.
+            parent_rect = parent.viewport().rect()
         else:
             parent_rect = parent.rect()
 
@@ -2320,12 +2331,12 @@ class ImageViewer(QtWidgets.QLabel):
         self.installEventFilter(self)
         self.setMinimumWidth(1)
 
-    # FIXME: Instead of detecting when the infinite loop starts occuring and stopping it, figure out exaclty what starts
+    # FIXME: Instead of detecting when the infinite loop starts occurring and stopping it, figure out exactly what starts
     #   it and prevent it all together.
     def eventFilter(self, a0: QtCore.QObject, a1: QtCore.QEvent) -> bool:
         """
-        Custom implementation of eventFilter. Sometimes rezising the pixmap will trigger a rezising event that would
-        rezise the pixmap and so on. To fix this bug, we create this filter to detect that case and ignore one of those
+        Custom implementation of eventFilter. Sometimes resizing the pixmap will trigger a resizing event that would
+        resize the pixmap and so on. To fix this bug, we create this filter to detect that case and ignore one of those
         events, stopping the loop. For attributes and return details see Qt official documentation.
         """
         self.event_record.append(a1)
@@ -2342,7 +2353,7 @@ class ImageViewer(QtWidgets.QLabel):
             scaled_pixmap = QtGui.QPixmap.fromImage(self.image.copy(QtCore.QRect())).scaled(parent_size.width(),
                                                                                             parent_size.height(),
                                                                                             QtCore.Qt.KeepAspectRatio)
-            # If a rezising event happen, only update the pixmap if the size of the pixmap changed.
+            # If a resizing event happen, only update the pixmap if the size of the pixmap changed.
             if self.old_pixmap.size() != scaled_pixmap.size():
                 # Check if the new image is bigger than the original picture size. If it is don't show it.
                 if self.image_size.width() > scaled_pixmap.width():
@@ -2457,7 +2468,7 @@ class TagLabel(QtWidgets.QWidget):
 
     def generate_tag_string(self) -> None:
         """
-        Converts the list of tags into the html formated string.
+        Converts the list of tags into the html formatted string.
         """
         self.tags_str = ''
         self.html_tags = []
@@ -2477,7 +2488,7 @@ class TagLabel(QtWidgets.QWidget):
 
 class ItemTagLabel(QtWidgets.QLabel):
     """
-    Qlabel wisget used in the FileTree to display the tags in an item of the model.
+    Qlabel widget used in the FileTree to display the tags in an item of the model.
 
     :param tags: List with the tags that should be displayed.
     """
@@ -2515,7 +2526,7 @@ class ItemTagLabel(QtWidgets.QLabel):
 
     def generate_tag_string(self) -> None:
         """
-        Converts the list of tags into the html formated string.
+        Converts the list of tags into the html formatted string.
         """
         self.tags_str = ''
         self.html_tags = []
@@ -2752,11 +2763,11 @@ class Monitr(QtWidgets.QMainWindow):
         self.left_side_dummy_widget = QtWidgets.QWidget()
         self.left_side_dummy_widget.setLayout(self.left_side_layout)
 
-        left_side_dummy_size_ploicy = QtWidgets.QSizePolicy(QtWidgets.QSizePolicy.Preferred,
-                                                                          QtWidgets.QSizePolicy.Preferred)
-        left_side_dummy_size_ploicy.setHorizontalStretch(1)
-        left_side_dummy_size_ploicy.setVerticalStretch(0)
-        self.left_side_dummy_widget.setSizePolicy(left_side_dummy_size_ploicy)
+        left_side_dummy_size_policy = QtWidgets.QSizePolicy(QtWidgets.QSizePolicy.Preferred,
+                                                            QtWidgets.QSizePolicy.Preferred)
+        left_side_dummy_size_policy.setHorizontalStretch(1)
+        left_side_dummy_size_policy.setVerticalStretch(0)
+        self.left_side_dummy_widget.setSizePolicy(left_side_dummy_size_policy)
 
         # Load left side layout
         self.file_explorer = FileExplorer(proxy_model=self.proxy_model, parent=self.left_side_dummy_widget)
@@ -2784,7 +2795,7 @@ class Monitr(QtWidgets.QMainWindow):
         # Sets the minimum time between updates of the right data_window.
         self.data_widget_update_buffer = 3
 
-        self.data_file_need_update = None
+        self.data_file_need_update: Optional[Path] = None
         self.active_timer = False
         # Timer in charge of calling on_update_data_window if there have been updates faster than the buffer.
         self.data_window_timer = QtCore.QTimer()
@@ -2898,7 +2909,7 @@ class Monitr(QtWidgets.QMainWindow):
 
     def generate_right_side_window(self) -> None:
         """
-        Generates the right side window. Clears the window first, gets all the necesary data and loads all of the
+        Generates the right side window. Clears the window first, gets all the necessary data and loads all of the
         widgets.
         """
         # Check that the folder passed is a dataset.
@@ -3020,9 +3031,8 @@ class Monitr(QtWidgets.QMainWindow):
 
         if len(self.file_windows) >= 1:
             # Save the collapsed state before deleting them.
-            current_collapsed_state = {window.widget.path: window.btn.isChecked() for window in self.file_windows if  # type: ignore[attr-defined] # The hasattr already checks if the widget has a path attribute.
-                                       hasattr(window.widget,
-                                               'path')}
+            current_collapsed_state = {window.widget.path: window.btn.isChecked() for window in self.file_windows if
+                                       hasattr(window.widget, 'path')}
 
             self.collapsed_state_dictionary.update(current_collapsed_state)
 
@@ -3059,7 +3069,7 @@ class Monitr(QtWidgets.QMainWindow):
         :param data_files: Dictionary containing all the information required to load all ddh5 files. The dictionary
             should contain 3 different items with they keys being: "paths", "names", and "data", each containing a list
             of (in order): Path, str, DataDict. All 3 lists should be ordered by index (meaning for example that index
-            number 3 represents a single datadicts). E.g.:
+            number 3 represents a single datadict). E.g.:
                 incoming_data = {"paths": [Path(r"~/data/measurement_1"),
                                            Path(r"~/data/measurement_2"),],
                                  "names": ["measurement_1/data",
@@ -3186,7 +3196,7 @@ class Monitr(QtWidgets.QMainWindow):
 
         :param path: The path of the item that has changed.
         """
-        if path.is_relative_to(self.current_selected_folder):
+        if _is_relative_to(path, self.current_selected_folder):
             self.generate_right_side_window()
 
     @Slot(Path)
@@ -3203,12 +3213,13 @@ class Monitr(QtWidgets.QMainWindow):
         """
         current_time = time.time()
         if current_time - self.last_data_window_update_time > self.data_widget_update_buffer:
-            if path.is_relative_to(self.current_selected_folder) and path.parent in self.model.main_dictionary:
+            if _is_relative_to(path, self.current_selected_folder) and path.parent in self.model.main_dictionary:
                 # Always gather the data for the currently selected folder, since a child item might need the update
                 # but the currently selected item with all of its childs should be shown.
                 item = self.model.main_dictionary[self.current_selected_folder]
                 loader_worker = LoaderWorker()
                 data_dicts = loader_worker.gather_all_right_side_window_data(item, True)
+                assert data_dicts is not None
                 data_window_widget = DataTreeWidget(data_dicts['data_files']['paths'],
                                                     data_dicts['data_files']['names'],
                                                     data_dicts['data_files']['data'])
@@ -3220,10 +3231,10 @@ class Monitr(QtWidgets.QMainWindow):
             if not self.active_timer:
                 self.data_file_need_update = path
                 self.active_timer = True
-                QtCore.QTimer.singleShot(self.data_widget_update_buffer * 1e3, self.on_data_window_timer)
+                QtCore.QTimer.singleShot(round(self.data_widget_update_buffer * 1e3), self.on_data_window_timer)
 
     @Slot()
-    def on_data_window_timer(self):
+    def on_data_window_timer(self) -> None:
         """
         Helper function. Gets called by the timer set in self.on_update_data_widget. Sets the active timer variable to
         False and calls on_update_data_widget.
