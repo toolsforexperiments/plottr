@@ -39,5 +39,6 @@ config = {
         'line_symbols': ['o', ],
         'line_symbol_size': 7,
         'minimum_plot_size': (400, 400),
+        'default_colormap': 'magma',
     }
 }
