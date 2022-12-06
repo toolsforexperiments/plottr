@@ -89,6 +89,16 @@ class DataDictBase(dict):
         else:
             return datasets_are_equal(self, other)
 
+    def __repr__(self) -> str:
+        ret = ""
+        for i, dn in enumerate(self.dependents()):
+            if i > 0:
+                ret += "\n"
+            ret += f"{self.label(dn)}: {self[dn]['values'].shape}"
+            for ax in self.axes(dn):
+                ret += f"\n  \u2319 {self.label(ax)}: {self[ax]['values'].shape}"
+        return ret
+
     # Assignment and retrieval of data and meta data
 
     @staticmethod
@@ -1038,6 +1048,9 @@ class MeshgridDataDict(DataDictBase):
                         if max_step_along_axes == 0:
                             msg += (f"Malformed data: {na} is expected to be {axis_num}th "
                                      "axis but has no variation along that axis.\n")
+
+            if '__shape__' in v:
+                v['__shape__'] = shp
 
             if msg != '\n':
                 raise ValueError(msg)

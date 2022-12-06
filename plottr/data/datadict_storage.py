@@ -8,6 +8,7 @@ Provides file-storage tools for the DataDict class.
     crashes. If the process is suddenly stopped however, we cannot guarantee that the file lock will be deleted.
 """
 import os
+import logging
 import time
 import datetime
 import uuid
@@ -34,6 +35,7 @@ __license__ = 'MIT'
 DATAFILEXT = 'ddh5'
 TIMESTRFORMAT = "%Y-%m-%d %H:%M:%S"
 
+logger = logging.getLogger(__name__)
 
 # FIXME: need correct handling of dtypes and list/array conversion
 
@@ -604,7 +606,7 @@ class DDH5Writer(object):
     def __enter__(self) -> "DDH5Writer":
         if self.filepath is None:
             self.filepath = _data_file_path(self.data_file_path(), True)
-        print('Data location: ', self.filepath)
+        logger.info(f'Data location: {self.filepath}')
 
         nrecords: Optional[int] = self.datadict.nrecords()
         if nrecords is not None and nrecords > 0:
