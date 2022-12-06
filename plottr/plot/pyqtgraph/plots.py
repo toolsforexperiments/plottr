@@ -6,7 +6,7 @@ from typing import Optional, Tuple, NoReturn
 import numpy as np
 import pyqtgraph as pg
 
-from plottr import QtCore, QtWidgets
+from plottr import QtCore, QtWidgets, config_entry
 
 __all__ = ['PlotBase', 'Plot']
 
@@ -73,9 +73,14 @@ class PlotWithColorbar(PlotBase):
     def __init__(self, parent: Optional[QtWidgets.QWidget] = None) -> None:
         super().__init__(parent)
 
-        cmap = pg.colormap.get('viridis', source='matplotlib')
+        cmap_name = config_entry('main', 'pyqtgraph', 'default_colormap')
+        try:
+            cmap = pg.colormap.get(cmap_name)
+        except:
+            cmap = pg.colormap.get('CET-L1')
+
         self.colorbar: pg.ColorBarItem = pg.ColorBarItem(interactive=True, values=(0, 1),
-                                                         cmap=cmap, width=15)
+                                                         colorMap=cmap, width=15)
         self.graphicsLayout.addItem(self.colorbar)
 
         self.img: Optional[pg.ImageItem] = None
