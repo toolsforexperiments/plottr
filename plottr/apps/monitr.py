@@ -2328,8 +2328,27 @@ class ImageViewer(QtWidgets.QLabel):
             self.setText(f'Image could not be displayed')
             LOGGER.error(e)
 
+        self.context_menu = QtWidgets.QMenu(self)
+
+        # creating actions
+        self.copy_action = QtWidgets.QAction('copy')
+        self.copy_action.triggered.connect(self.on_copy_action)
+
+        self.setContextMenuPolicy(QtCore.Qt.CustomContextMenu)
+        self.customContextMenuRequested.connect(self.on_context_menu_requested)
+        self.context_menu.addAction(self.copy_action)
+
         self.installEventFilter(self)
         self.setMinimumWidth(1)
+
+    @Slot(QtCore.QPoint)
+    def on_context_menu_requested(self, pos: QtCore.QPoint) -> None:
+        self.context_menu.exec_(self.mapToGlobal(pos))
+
+    @Slot()
+    def on_copy_action(self) -> None:
+        clipboard = QtWidgets.QApplication.clipboard()
+        clipboard.setImage(self.image)
 
     # FIXME: Instead of detecting when the infinite loop starts occurring and stopping it, figure out exactly what starts
     #   it and prevent it all together.
