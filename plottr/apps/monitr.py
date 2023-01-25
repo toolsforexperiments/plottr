@@ -22,7 +22,7 @@ from typing import List, Optional, Dict, Any, Union, Generator, Iterable, Tuple,
 from functools import partial
 from itertools import cycle
 
-from watchdog.events import FileSystemEvent  # type: ignore[import] # Open PR for mypy in watchdog: https://github.com/gorakhargosh/watchdog/pull/908
+from watchdog.events import FileSystemEvent, FileSystemMovedEvent
 
 from .. import log as plottrlog
 from .. import QtCore, QtWidgets, Signal, Slot, QtGui, plottrPath
@@ -619,7 +619,7 @@ class FileModel(QtGui.QStandardItemModel):
                 del self.main_dictionary[child_item.path]
 
     @Slot(FileSystemEvent)
-    def on_file_moved(self, event: FileSystemEvent) -> None:
+    def on_file_moved(self, event: FileSystemMovedEvent) -> None:
         """
         Gets triggered every time a file is moved or the name of a file (including type) changes.
         """
