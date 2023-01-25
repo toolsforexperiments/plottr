@@ -398,8 +398,13 @@ def interp_meshgrid_2d(xx: np.ndarray,
     if xx = [[0, 0], [1, nan]], yy = [[0, 1], [0, nan]]
     this will return [[0, 0], [1, 1]], [[0, 1], [0, 1]].
     """
-    xx2 = pd.DataFrame(xx).interpolate(axis=1).values
-    yy2 = pd.DataFrame(yy).interpolate(axis=0).values
+    xx2 = pd.DataFrame(xx).interpolate(axis=1)
+    assert xx2 is not None
+    xx2 = xx2.values
+
+    yy2 = pd.DataFrame(yy).interpolate(axis=0)
+    assert yy2 is not None
+    yy2 = yy2.values
     return xx2, yy2
 
 
