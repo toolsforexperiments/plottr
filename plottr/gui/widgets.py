@@ -265,7 +265,7 @@ class Collapsible(QtWidgets.QWidget):
 
     def __init__(self, widget: QtWidgets.QWidget, title: str = '',
                  parent: Optional[QtWidgets.QWidget] = None,
-                 expanding: bool = True, icon: QtGui.QIcon = None) -> None:
+                 expanding: bool = True, icon: Optional[QtGui.QIcon] = None) -> None:
         """Constructor.
 
         :param widget: the widget we'd like to collapse.
