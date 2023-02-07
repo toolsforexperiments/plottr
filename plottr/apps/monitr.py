@@ -619,7 +619,7 @@ class FileModel(QtGui.QStandardItemModel):
                 del self.main_dictionary[child_item.path]
 
     @Slot(FileSystemEvent)
-    def on_file_moved(self, event: FileSystemEvent) -> None:
+    def on_file_moved(self, event: FileSystemMovedEvent) -> None:
         """
         Gets triggered every time a file is moved or the name of a file (including type) changes.
         """
