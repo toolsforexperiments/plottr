@@ -1,8 +1,8 @@
 from logging import getLogger
 from pathlib import Path
 
-from watchdog.observers import Observer  # type: ignore[import] # Open PR for mypy in watchdog: https://github.com/gorakhargosh/watchdog/pull/908
-from watchdog.events import FileSystemEventHandler, FileSystemEvent  # type: ignore[import] # Open PR for mypy in watchdog: https://github.com/gorakhargosh/watchdog/pull/908
+from watchdog.observers import Observer
+from watchdog.events import FileSystemEventHandler, FileSystemEvent
 from plottr import QtCore, Signal
 
 
