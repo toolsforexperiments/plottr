@@ -399,13 +399,11 @@ def interp_meshgrid_2d(xx: np.ndarray,
     this will return [[0, 0], [1, 1]], [[0, 1], [0, 1]].
     """
     xx2 = pd.DataFrame(xx).interpolate(axis=1)
+    # interpolate would return None if inplace=True
     assert xx2 is not None
-    xx2Arr = xx2.values
-
     yy2 = pd.DataFrame(yy).interpolate(axis=0)
     assert yy2 is not None
-    yy2Arr = yy2.values
-    return xx2Arr, yy2Arr
+    return xx2.values, yy2.values
 
 
 def centers2edges_1d(arr: np.ndarray) -> np.ndarray:

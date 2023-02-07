@@ -33,6 +33,7 @@ module = [
     "matplotlib.*",
     "pyqtgraph.*",
     "xhistogram.*",
+    "ruamel.*"
 ]
 ignore_missing_imports = true
 
