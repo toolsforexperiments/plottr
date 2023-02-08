@@ -1044,7 +1044,7 @@ class MeshgridDataDict(DataDictBase):
                     # if data present
                     axis_data = data_items[na]['values']
                     if axis_data.size > 0:
-                        max_step_along_axes = np.max(np.abs(np.diff(data_items[na]['values'],axis=axis_num)))
+                        max_step_along_axes = np.max(np.abs(np.diff(data_items[na]['values'],axis=axis_num)), initial=0)
                         if max_step_along_axes == 0:
                             msg += (f"Malformed data: {na} is expected to be {axis_num}th "
                                      "axis but has no variation along that axis.\n")
