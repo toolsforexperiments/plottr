@@ -32,7 +32,7 @@ from ..utils.misc import unwrap_optional
 from ..apps.watchdog_classes import WatcherClient
 from ..gui.widgets import Collapsible
 from .json_viewer import JsonModel, JsonTreeView
-from ..icons import get_starIcon as get_star_icon, get_trashIcon as get_trash_icon
+from ..icons import get_starIcon as get_star_icon, get_trashIcon as get_trash_icon, get_imageIcon as get_img_icon, get_jsonIcon as get_json_icon, get_mdIcon as get_md_icon
 from .appmanager import AppManager
 
 TIMESTRFORMAT = "%Y-%m-%dT%H%M%S"
@@ -3153,7 +3153,8 @@ class Monitr(QtWidgets.QMainWindow):
                 expand = False
                 if file in self.collapsed_state_dictionary:
                     expand = self.collapsed_state_dictionary[file]
-                json_view = Collapsible(widget=JsonTreeView(path=file), title=name, expanding=expand)
+                json_view = Collapsible(widget=JsonTreeView(path=file), title=name, expanding=expand,
+                                        icon=get_json_icon())
                 json_view.widget.setVisible(expand)
                 json_view.btn.setChecked(expand)
                 if expand:
@@ -3179,7 +3180,7 @@ class Monitr(QtWidgets.QMainWindow):
                 if file in self.collapsed_state_dictionary:
                     expand = self.collapsed_state_dictionary[file]
                 plain_text_edit = Collapsible(widget=TextEditWidget(path=file),
-                                              title=name, expanding=expand)
+                                              title=name, expanding=expand, icon=get_md_icon())
 
                 plain_text_edit.widget.setVisible(expand)
                 plain_text_edit.btn.setChecked(expand)
@@ -3196,7 +3197,7 @@ class Monitr(QtWidgets.QMainWindow):
                 if file in self.collapsed_state_dictionary:
                     expand = self.collapsed_state_dictionary[file]
                 label = Collapsible(ImageViewer(file, parent=self.right_side_dummy_widget),
-                                    title=name, expanding=expand)
+                                    title=name, expanding=expand, icon=get_img_icon())
                 label.widget.setVisible(expand)
                 label.btn.setChecked(expand)
                 if expand:
