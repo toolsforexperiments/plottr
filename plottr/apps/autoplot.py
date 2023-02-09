@@ -377,11 +377,11 @@ def autoplotDDH5App(*args: Any) -> Tuple[Flowchart, AutoPlotMainWindow]:
     filepath = args[0][0]
     groupname = args[0][1]
     if len(args[0]) > 2 and args[0][2] == "matplotlib":
-        autoplotDDH5(filepath, groupname, MPLAutoPlot)
+        return autoplotDDH5(filepath, groupname, MPLAutoPlot)
     elif len(args[0]) > 2 and args[0][2] == "pyqtgraph":
-        autoplotDDH5(filepath, groupname, PGAutoPlot)
+        return autoplotDDH5(filepath, groupname, PGAutoPlot)
     else:
-        autoplotDDH5(filepath, groupname)  # use default backend
+        return autoplotDDH5(filepath, groupname)  # use default backend
 
 
 def main(f: str, g: str) -> int:
