@@ -25,6 +25,7 @@ from ..node.tools import linearFlowchart
 from ..node.node import Node
 from ..node.histogram import Histogrammer
 from ..plot import PlotNode, makeFlowchartWithPlot, PlotWidget
+from ..plot.mpl.autoplot import AutoPlot as MPLAutoPlot
 from ..plot.pyqtgraph.autoplot import AutoPlot as PGAutoPlot
 from ..utils.misc import unwrap_optional
 
@@ -335,7 +336,9 @@ def autoplotQcodesDataset(log: bool = False,
     return fc, win
 
 
-def autoplotDDH5(filepath: str = '', groupname: str = 'data') \
+def autoplotDDH5(filepath: str = '',
+                 groupname: str = 'data',
+                 plotWidgetClass: Optional[Type[PlotWidget]] = None) \
         -> Tuple[Flowchart, AutoPlotMainWindow]:
 
     fc = linearFlowchart(
@@ -359,7 +362,8 @@ def autoplotDDH5(filepath: str = '', groupname: str = 'data') \
     win = AutoPlotMainWindow(fc, loaderName='Data loader',
                              widgetOptions=widgetOptions,
                              monitor=True,
-                             monitorInterval=0.0)
+                             monitorInterval=0.0,
+                             plotWidgetClass=plotWidgetClass)
     win.show()
 
     fc.nodes()['Data loader'].filepath = filepath
@@ -372,8 +376,14 @@ def autoplotDDH5(filepath: str = '', groupname: str = 'data') \
 def autoplotDDH5App(*args: Any) -> Tuple[Flowchart, AutoPlotMainWindow]:
     filepath = args[0][0]
     groupname = args[0][1]
+    if len(args[0]) > 2 and args[0][2] == "matplotlib":
+        plotWidgetClass = MPLAutoPlot
+    elif len(args[0]) > 2 and args[0][2] == "pyqtgraph":
+        plotWidgetClass = PGAutoPlot
+    else:
+        plotWidgetClass = None  # use default backend
 
-    return autoplotDDH5(filepath, groupname)
+    return autoplotDDH5(filepath, groupname, plotWidgetClass)
 
 
 def main(f: str, g: str) -> int:
