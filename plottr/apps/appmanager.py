@@ -13,6 +13,7 @@ app processes. An app can be launched using the launchApp function.
     will result in the app not opening without an error warning.
 """
 
+import sys
 import zmq
 from pathlib import Path
 from typing import Dict, Union, Any, Callable, Tuple, Optional
@@ -352,7 +353,7 @@ class AppManager(QtWidgets.QWidget):
 
             fullArgs = [str(Path(plottrPath).joinpath('apps', 'apprunner.py')), str(port), module, func] + list(args)
             process = QtCore.QProcess()
-            process.start('python', fullArgs)
+            process.start(sys.executable, fullArgs)
             process.waitForStarted(100)
             socket = self.context.socket(zmq.REQ)
             socket.connect(f'tcp://{self.address}:{str(port)}')
