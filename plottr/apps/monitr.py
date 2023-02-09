@@ -83,6 +83,7 @@ class ContentType(Enum):
     tag = auto()
     json = auto()
     md = auto()
+    py = auto()
     image = auto()
     unknown = auto()
 
@@ -105,6 +106,8 @@ class ContentType(Enum):
             return ContentType.json
         elif extension == 'md':
             return ContentType.md
+        elif extension == 'py':
+            return ContentType.py
         elif extension == 'jpg' or extension == 'jpeg' or extension == 'png' or extension == 'image':
             return ContentType.image
         else:
@@ -127,7 +130,7 @@ class ContentType(Enum):
 
 class SupportedDataTypes:
 
-    valid_types = ['.ddh5', '.md', '.json']
+    valid_types = ['.ddh5', '.md', '.json', '.py']
 
     @classmethod
     def check_valid_data(cls, file_names: Sequence[Union[str, Path]]) -> bool:
@@ -2057,20 +2060,14 @@ class FloatingButtonWidget(QtWidgets.QPushButton):
             self.setText(self.edit_text)
 
 
-class TextEditWidget(QtWidgets.QTextEdit):
+class TextViewWidget(QtWidgets.QTextEdit):
     """
-    Widget that displays md files that are in the same folder as a ddh5 file.
-
-    It contains a floating button that allows for editing and saving changes done in the editing phase. Text is not
-    editable before clicking the button.
+    Widget that displays a text-based file such as .md or .py in the same folder as a ddh5 file.
     """
 
     def __init__(self, path: Path, *args: Any, **kwargs: Any):
         super().__init__(*args, **kwargs)
         self.path = path
-
-        self.floating_button = FloatingButtonWidget(parent=self)
-        self.floating_button.hide()
 
         size_policy = QtWidgets.QSizePolicy(QtWidgets.QSizePolicy.Minimum, QtWidgets.QSizePolicy.Minimum)
         self.setSizePolicy(size_policy)
@@ -2085,22 +2082,12 @@ class TextEditWidget(QtWidgets.QTextEdit):
         self.setPlainText(self.file_text)
         document = QtGui.QTextDocument(self.file_text, parent=self)
         self.setDocument(document)
-        self.text_before_edit = self.toPlainText()
-        self.floating_button.save_activated.connect(self.save_activated)
-        self.floating_button.edit_activated.connect(self.edit_activated)
         self.document().contentsChanged.connect(self.size_change)
 
         # Arbitrary threshold height.
         self.max_threshold_height = 211
         self.min_threshold_height = 2
         self.size_change()
-
-    def resizeEvent(self, event: QtGui.QResizeEvent) -> None:
-        """
-        Called every time the size of the widget changes. Triggers the change in position of the floating button.
-        """
-        super().resizeEvent(event)
-        self.floating_button.update_position()
 
     def size_change(self) -> None:
         """
@@ -2122,6 +2109,29 @@ class TextEditWidget(QtWidgets.QTextEdit):
             height = round(self.document().size().height())
 
         return QtCore.QSize(width, height)
+
+
+class TextEditWidget(TextViewWidget):
+    """
+    Widget that displays md files that are in the same folder as a ddh5 file.
+
+    It contains a floating button that allows for editing and saving changes done in the editing phase. Text is not
+    editable before clicking the button.
+    """
+
+    def __init__(self, path: Path, *args: Any, **kwargs: Any):
+        super().__init__(path, *args, **kwargs)
+        self.floating_button = FloatingButtonWidget(parent=self)
+        self.floating_button.hide()
+        self.floating_button.save_activated.connect(self.save_activated)
+        self.floating_button.edit_activated.connect(self.edit_activated)
+
+    def resizeEvent(self, event: QtGui.QResizeEvent) -> None:
+        """
+        Called every time the size of the widget changes. Triggers the change in position of the floating button.
+        """
+        super().resizeEvent(event)
+        self.floating_button.update_position()
 
     def enterEvent(self, *args: Any, **kwargs: Any) -> None:
         super().enterEvent(*args, **kwargs)
@@ -2713,7 +2723,7 @@ class LoaderWorker(QtCore.QObject):
             if not only_data_files:
                 if file_type == ContentType.tag:
                     data_in['tag_labels'].append(prefix_text + str(file.stem))
-                elif file_type == ContentType.json or file_type == ContentType.md or file_type == ContentType.image:
+                elif file_type in [ContentType.json, ContentType.md, ContentType.py, ContentType.image]:
                     # Check if the files exist.
                     if file.is_file():
                         data_in['extra_files'].append((file, prefix_text + str(file.name), file_type))
@@ -3180,6 +3190,23 @@ class Monitr(QtWidgets.QMainWindow):
                 if file in self.collapsed_state_dictionary:
                     expand = self.collapsed_state_dictionary[file]
                 plain_text_edit = Collapsible(widget=TextEditWidget(path=file),
+                                              title=name, expanding=expand, icon=get_md_icon())
+
+                plain_text_edit.widget.setVisible(expand)
+                plain_text_edit.btn.setChecked(expand)
+                if expand:
+                    plain_text_edit.btn.setText(plain_text_edit.expandedTitle)
+                else:
+                    plain_text_edit.btn.setText(plain_text_edit.collapsedTitle)
+
+                self.file_windows.append(plain_text_edit)
+                self.right_side_layout.addWidget(plain_text_edit)
+
+            elif file_type == ContentType.py:
+                expand = True
+                if file in self.collapsed_state_dictionary:
+                    expand = self.collapsed_state_dictionary[file]
+                plain_text_edit = Collapsible(widget=TextViewWidget(path=file),
                                               title=name, expanding=expand, icon=get_md_icon())
 
                 plain_text_edit.widget.setVisible(expand)
