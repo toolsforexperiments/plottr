@@ -694,22 +694,26 @@ class DDH5Writer(object):
 
     # convenience methods for saving things in the same directory as the ddh5 file
 
-    def add_tag(self, tags: Union[str, Collection[str]]):
+    def add_tag(self, tags: Union[str, Collection[str]]) -> None:
+        assert self.filepath is not None
         if isinstance(tags, str):
             tags = [tags]
         for tag in tags:
             open(self.filepath.parent / f"{tag}.tag", "x").close()
 
-    def backup_file(self, paths: Union[str, Collection[str]]):
+    def backup_file(self, paths: Union[str, Collection[str]]) -> None:
+        assert self.filepath is not None
         if isinstance(paths, str):
             paths = [paths]
         for path in paths:
             shutil.copy(path, self.filepath.parent)
 
-    def save_text(self, name: str, text: str):
+    def save_text(self, name: str, text: str) -> None:
+        assert self.filepath is not None
         with open(self.filepath.parent / name, "x") as f:
             f.write(text)
 
-    def save_dict(self, name: str, d: dict):
+    def save_dict(self, name: str, d: dict) -> None:
+        assert self.filepath is not None
         with open(self.filepath.parent / name, "x") as f:
             json.dump(d, f, indent=4, ensure_ascii=False, cls=NumpyJSONEncoder)
