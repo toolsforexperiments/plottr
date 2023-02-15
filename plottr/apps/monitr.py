@@ -2785,8 +2785,9 @@ class Monitr(QtWidgets.QMainWindow):
         menu = menu_bar.addMenu("Backend")
         self.backend_group = QtWidgets.QActionGroup(menu)
         for backend, plotWidgetClass in [("matplotlib", MPLAutoPlot), ("pyqtgraph", PGAutoPlot)]:
-            checked = getcfg('main', 'default-plotwidget') == plotWidgetClass
-            action = QtWidgets.QAction(backend, checkable=True, checked=checked)
+            action = QtWidgets.QAction(backend)
+            action.setCheckable(True)
+            action.setChecked(getcfg('main', 'default-plotwidget') == plotWidgetClass)
             self.backend_group.addAction(action)
             menu.addAction(action)
 
