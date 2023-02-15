@@ -26,6 +26,9 @@ from watchdog.events import FileSystemEvent, FileSystemMovedEvent
 
 from .. import log as plottrlog
 from .. import QtCore, QtWidgets, Signal, Slot, QtGui, plottrPath
+from .. import config_entry as getcfg
+from ..plot.mpl.autoplot import AutoPlot as MPLAutoPlot
+from ..plot.pyqtgraph.autoplot import AutoPlot as PGAutoPlot
 from ..data.datadict_storage import all_datadicts_from_hdf5, datadict_from_hdf5
 from ..data.datadict import DataDict
 from ..utils.misc import unwrap_optional
@@ -2777,6 +2780,16 @@ class Monitr(QtWidgets.QMainWindow):
         self.main_partition_splitter = QtWidgets.QSplitter()
         self.setCentralWidget(self.main_partition_splitter)
 
+        # Create menu bar
+        menu_bar = self.menuBar()
+        menu = menu_bar.addMenu("Backend")
+        self.backend_group = QtWidgets.QActionGroup(menu)
+        for backend, plotWidgetClass in [("matplotlib", MPLAutoPlot), ("pyqtgraph", PGAutoPlot)]:
+            checked = getcfg('main', 'default-plotwidget') == plotWidgetClass
+            action = QtWidgets.QAction(backend, checkable=True, checked=checked)
+            self.backend_group.addAction(action)
+            menu.addAction(action)
+
         # Set left side layout
         self.left_side_layout = QtWidgets.QVBoxLayout()
         self.left_side_dummy_widget = QtWidgets.QWidget()
@@ -3128,7 +3141,11 @@ class Monitr(QtWidgets.QMainWindow):
         :param path: The path of the ddh5 file that should be displayed.
         :return:
         """
-        self.app_manager.launchApp(self.current_app_id, AUTOPLOTMODULE, AUTOPLOTFUNC, str(path), 'data')
+        if self.backend_group.checkedAction() is None:
+            backend = "default"
+        else:
+            backend = self.backend_group.checkedAction().text()
+        self.app_manager.launchApp(self.current_app_id, AUTOPLOTMODULE, AUTOPLOTFUNC, str(path), 'data', backend)
         self.current_app_id += 1
 
     def add_text_input(self, path: Path) -> None:
