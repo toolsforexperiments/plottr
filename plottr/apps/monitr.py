@@ -1886,8 +1886,7 @@ class DataTreeWidget(QtWidgets.QTreeWidget):
     # Signal(Path) -- Emitted when the user selects the plot option in the popup menu.
     #: Arguments:
     #:   - The path of the ddh5 with the data for the requested plot.
-    #:   - The name of the selected backend
-    plot_requested = Signal(Path, str)
+    plot_requested = Signal(Path)
 
     # incoming_data: Dict[str, Union[Path, str, DataDict]]
     def __init__(self, paths: List[Path], names: List[str], data: DataDict, *args: Any, **kwargs: Any):
@@ -1903,13 +1902,10 @@ class DataTreeWidget(QtWidgets.QTreeWidget):
         self.data = data
 
         # Popup menu.
-        self.plot_matplotlib_action = QtWidgets.QAction(f'Plot (matplotlib)')
-        self.plot_matplotlib_action.triggered.connect(self.emit_plot_requested_signal)
-        self.plot_pyqtgraph_action = QtWidgets.QAction(f'Plot (pyqtgraph)')
-        self.plot_pyqtgraph_action.triggered.connect(self.emit_plot_requested_signal)
+        self.plot_popup_action = QtWidgets.QAction('Plot')
         self.popup_menu = QtWidgets.QMenu(self)
-        self.popup_menu.addAction(self.plot_matplotlib_action)
-        self.popup_menu.addAction(self.plot_pyqtgraph_action)
+
+        self.plot_popup_action.triggered.connect(self.emit_plot_requested_signal)
 
         self.setContextMenuPolicy(QtCore.Qt.CustomContextMenu)
         self.customContextMenuRequested.connect(self.on_context_menu_requested)
@@ -1958,20 +1954,19 @@ class DataTreeWidget(QtWidgets.QTreeWidget):
         parent_item = item.parent()
         # Check that the item is in fact a top level item and open the popup menu
         if item is not None and parent_item is None:
+            self.popup_menu.addAction(self.plot_popup_action)
             self.popup_menu.exec_(self.mapToGlobal(pos))
+            self.popup_menu.removeAction(self.plot_popup_action)
 
     @Slot()
     def emit_plot_requested_signal(self) -> None:
         """
         Emits the signal when the user selects the plot option in the popup menu. The signal is emitted with the Path of
-        the current selected item and the selected backend as arguments.
+        the current selected item as an argument.
         """
         current_item = self.currentItem()
         assert isinstance(current_item, DataTreeWidgetItem)
-        if self.sender() == self.plot_matplotlib_action:
-            self.plot_requested.emit(current_item.path, 'matplotlib')
-        elif self.sender() == self.plot_pyqtgraph_action:
-            self.plot_requested.emit(current_item.path, 'pyqtgraph')
+        self.plot_requested.emit(current_item.path)
 
     def sizeHint(self) -> QtCore.QSize:
         height = 2 * self.frameWidth()  # border around tree
@@ -3124,8 +3119,8 @@ class Monitr(QtWidgets.QMainWindow):
 
         self.right_side_layout.addWidget(self.data_window)
 
-    @Slot(Path, str)
-    def on_plot_data(self, path: Path, backend: str) -> None:
+    @Slot(Path)
+    def on_plot_data(self, path: Path) -> None:
         """
         Gets called when the user clicks plot on the context menu of the data viewer. Orders the app manager to open
         a new autoplot window.
@@ -3133,7 +3128,7 @@ class Monitr(QtWidgets.QMainWindow):
         :param path: The path of the ddh5 file that should be displayed.
         :return:
         """
-        self.app_manager.launchApp(self.current_app_id, AUTOPLOTMODULE, AUTOPLOTFUNC, str(path), 'data', backend)
+        self.app_manager.launchApp(self.current_app_id, AUTOPLOTMODULE, AUTOPLOTFUNC, str(path), 'data')
         self.current_app_id += 1
 
     def add_text_input(self, path: Path) -> None:
