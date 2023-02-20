@@ -605,6 +605,7 @@ class DDH5Writer(object):
 
         self.datadict.add_meta('dataset.name', name)
         self.file_timeout = file_timeout
+        self.uuid = uuid.uuid1()
 
     def __enter__(self) -> "DDH5Writer":
         if self.filepath is None:
@@ -639,7 +640,7 @@ class DDH5Writer(object):
 
         :returns: The folder path.
         """
-        ID = str(uuid.uuid1()).split('-')[0]
+        ID = str(self.uuid).split('-')[0]
         parent = f"{datetime.datetime.now().replace(microsecond=0).isoformat().replace(':', '')}_{ID}"
         if self.name:
             parent += f'-{self.name}'
