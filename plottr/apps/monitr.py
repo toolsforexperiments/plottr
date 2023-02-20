@@ -35,7 +35,7 @@ from ..utils.misc import unwrap_optional
 from ..apps.watchdog_classes import WatcherClient
 from ..gui.widgets import Collapsible
 from .json_viewer import JsonModel, JsonTreeView
-from ..icons import get_starIcon as get_star_icon, get_trashIcon as get_trash_icon, get_imageIcon as get_img_icon, get_jsonIcon as get_json_icon, get_mdIcon as get_md_icon
+from ..icons import get_starIcon as get_star_icon, get_trashIcon as get_trash_icon, get_completeIcon as get_complete_icon, get_interruptedIcon as get_interrupted_icon, get_imageIcon as get_img_icon, get_jsonIcon as get_json_icon, get_mdIcon as get_md_icon
 from .appmanager import AppManager
 
 TIMESTRFORMAT = "%Y-%m-%dT%H%M%S"
@@ -172,11 +172,14 @@ class Item(QtGui.QStandardItem):
         self.tags_widget = ItemTagLabel(self.tags)
         self.star = False
         self.trash = False
+        self.complete = False
+        self.interrupted = False
         self.scroll_height = 0
         self.show = True
         if files is not None:
             self.files.update(files)
             self.tags = [file.stem for file, file_type in self.files.items() if file_type == ContentType.tag]
+
             if '__star__' in self.tags and '__trash__' in self.tags:
                 star_path = self.path.joinpath('__star__.tag')
                 trash_path = self.path.joinpath('__trash__.tag')
@@ -193,6 +196,24 @@ class Item(QtGui.QStandardItem):
             elif '__trash__' in self.tags:
                 self.trash = True
                 self.tags.remove('__trash__')
+
+            if '__complete__' in self.tags and '__interrupted__' in self.tags:
+                complete_path = self.path.joinpath('__complete__.tag')
+                interrupted_path = self.path.joinpath('__interrupted__.tag')
+                if complete_path.is_file() and interrupted_path.is_file():
+                    LOGGER.error(
+                        f'The folder: {self.path} contains both the complete and interrupted tag. Both tags will be deleted.')
+                    complete_path.unlink()
+                    interrupted_path.unlink()
+                    self.tags.remove('__complete__')
+                    self.tags.remove('__interrupted__')
+            elif '__complete__' in self.tags:
+                self.complete = True
+                self.tags.remove('__complete__')
+            elif '__interrupted__' in self.tags:
+                self.interrupted = True
+                self.tags.remove('__interrupted__')
+
             self.tags_widget = ItemTagLabel(self.tags)
 
         self.setText(str(self.path.name))
@@ -219,7 +240,7 @@ class Item(QtGui.QStandardItem):
                     error_msg = QtWidgets.QMessageBox()
                     error_msg.setText(f'Folder is already trash. Please do not add both __trash__ and __star__ tags in the same folder. '
                                       f' \n {path} was deleted ')
-                    error_msg.setWindowTitle(f'Deleting __trash__.tag')
+                    error_msg.setWindowTitle(f'Deleting __star__.tag')
                     error_msg.exec_()
                     return
                 else:
@@ -234,11 +255,42 @@ class Item(QtGui.QStandardItem):
                     error_msg.setText(
                         f'Folder is already star. Please do not add both __trash__ and __star__ tags in the same folder. '
                         f' \n {path} was deleted ')
-                    error_msg.setWindowTitle(f'Deleting __star__.tag')
+                    error_msg.setWindowTitle(f'Deleting __trash__.tag')
                     error_msg.exec_()
                     return
                 else:
                     self.trash = True
+
+            elif path.name == '__complete__.tag':
+                # Check if the item is already tagged as interrupted.
+                interrupted_path = path.parent.joinpath('__interrupted__.tag')
+                if interrupted_path.is_file():
+                    path.unlink()
+                    error_msg = QtWidgets.QMessageBox()
+                    error_msg.setText(
+                        f'Folder is already tagged as interrupted. Please do not add both __complete__ and __interrupted__ tags in the same folder.\n'
+                        f'{path} was deleted.')
+                    error_msg.setWindowTitle(f'Deleting __complete__.tag')
+                    error_msg.exec_()
+                    return
+                else:
+                    self.complete = True
+
+            elif path.name == '__interrupted__.tag':
+                # Check if the item is already tagged as complete.
+                complete_path = path.parent.joinpath('__complete__.tag')
+                if complete_path.is_file():
+                    path.unlink()
+                    error_msg = QtWidgets.QMessageBox()
+                    error_msg.setText(
+                        f'Folder is already tagged as complete. Please do not add both __complete__ and __interrupted__ tags in the same folder.\n'
+                        f'{path} was deleted.')
+                    error_msg.setWindowTitle(f'Deleting __interrupted__.tag')
+                    error_msg.exec_()
+                    return
+                else:
+                    self.interrupted = True
+
             else:
                 self.tags.append(path.stem)
                 self.tags_widget.add_tag(path.stem)
@@ -268,6 +320,10 @@ class Item(QtGui.QStandardItem):
                 self.star = False
             elif path.name == '__trash__.tag':
                 self.trash = False
+            elif path.name == '__complete__.tag':
+                self.complete = False
+            elif path.name == '__interrupted__.tag':
+                self.interrupted = False
 
             model.item_files_changed(self)
 
@@ -500,6 +556,10 @@ class FileModel(QtGui.QStandardItemModel):
             item.setIcon(get_star_icon())
         elif item.trash:
             item.setIcon(get_trash_icon())
+        elif item.complete:
+            item.setIcon(get_complete_icon())
+        elif item.interrupted:
+            item.setIcon(get_interrupted_icon())
         else:
             item.setIcon(QtGui.QIcon())
 
@@ -895,6 +955,10 @@ class FileModel(QtGui.QStandardItemModel):
             item.setIcon(get_star_icon())
         elif item.trash:
             item.setIcon(get_trash_icon())
+        elif item.complete:
+            item.setIcon(get_complete_icon())
+        elif item.interrupted:
+            item.setIcon(get_interrupted_icon())
         else:
             item.setIcon(QtGui.QIcon())
 

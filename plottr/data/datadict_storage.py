@@ -629,6 +629,12 @@ class DDH5Writer(object):
         assert self.filepath is not None
         with FileOpener(self.filepath, 'a', timeout=self.file_timeout) as f:
             add_cur_time_attr(f[self.groupname], name='close')
+        if exc_type is None:
+            # exiting because the measurement is complete
+            self.add_tag('__complete__')
+        else:
+            # exiting because of an exception
+            self.add_tag('__interrupted__')
 
     def data_folder(self) -> Path:
         """Return the folder, relative to the data root path, in which data will
