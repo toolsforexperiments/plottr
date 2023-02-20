@@ -12,6 +12,8 @@ import logging
 import time
 import datetime
 import uuid
+import json
+import shutil
 from enum import Enum
 from typing import Any, Union, Optional, Dict, Type, Collection
 from types import TracebackType
@@ -20,6 +22,7 @@ from pathlib import Path
 import numpy as np
 import h5py
 
+from qcodes.utils import NumpyJSONEncoder
 from plottr import QtGui, Signal, Slot, QtWidgets, QtCore
 
 from ..node import (
@@ -687,3 +690,30 @@ class DDH5Writer(object):
             with FileOpener(self.filepath, 'a', timeout=self.file_timeout) as f:
                 add_cur_time_attr(f, name='last_change')
                 add_cur_time_attr(f[self.groupname], name='last_change')
+
+
+    # convenience methods for saving things in the same directory as the ddh5 file
+
+    def add_tag(self, tags: Union[str, Collection[str]]) -> None:
+        assert self.filepath is not None
+        if isinstance(tags, str):
+            tags = [tags]
+        for tag in tags:
+            open(self.filepath.parent / f"{tag}.tag", "x").close()
+
+    def backup_file(self, paths: Union[str, Collection[str]]) -> None:
+        assert self.filepath is not None
+        if isinstance(paths, str):
+            paths = [paths]
+        for path in paths:
+            shutil.copy(path, self.filepath.parent)
+
+    def save_text(self, name: str, text: str) -> None:
+        assert self.filepath is not None
+        with open(self.filepath.parent / name, "x") as f:
+            f.write(text)
+
+    def save_dict(self, name: str, d: dict) -> None:
+        assert self.filepath is not None
+        with open(self.filepath.parent / name, "x") as f:
+            json.dump(d, f, indent=4, ensure_ascii=False, cls=NumpyJSONEncoder)
