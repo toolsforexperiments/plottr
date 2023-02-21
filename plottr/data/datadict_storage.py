@@ -15,7 +15,7 @@ import uuid
 import json
 import shutil
 from enum import Enum
-from typing import Any, Union, Optional, Dict, Type, Collection
+from typing import Any, Iterator, Tuple, Union, Optional, Dict, Type, Collection
 from types import TracebackType
 from pathlib import Path
 
@@ -561,7 +561,7 @@ class DDH5Writer(object):
     :param basedir: The root directory in which data is stored.
         :meth:`.create_file_structure` is creating the structure inside this root and
         determines the file name of the data. The default structure implemented here is
-        ``<root>/YYYY-MM-DD/YYYY-mm-dd_THHMMSS_<ID>-<name>/<filename>.ddh5``,
+        ``<root>/YYYY-MM-DD/YYYY-mm-ddTHHMMSS_<ID>-<name>/<filename>.ddh5``,
         where <ID> is a short identifier string and <name> is the value of parameter `name`.
         To change this, re-implement :meth:`.data_folder` and/or
         :meth:`.create_file_structure`.
@@ -724,3 +724,81 @@ class DDH5Writer(object):
         assert self.filepath is not None
         with open(self.filepath.parent / name, "x") as f:
             json.dump(d, f, indent=4, ensure_ascii=False, cls=NumpyJSONEncoder)
+
+
+def search_datadicts(
+    since: str,
+    until: Optional[str] = None,
+    name: Optional[str] = None,
+    basedir: Union[str, Path] = '.',
+    groupname: str = 'data',
+    filename: str = 'data',
+    structure_only: bool = False,
+) -> Iterator[Tuple[str, DataDict]]:
+    """Iterate over datadicts matching a set of conditions.
+    :param since: Date (and time) in the format `YYYY-MM-DD` (or `YYYY-mm-ddTHHMMSS`).
+    :param until: Date (and time) in the format `YYYY-MM-DD` (or `YYYY-mm-ddTHHMMSS`). Defaults to `since`.
+    :param name: Name of the dataset (if not given, match all datasets).
+    :param basedir: The root directory in which data is stored.
+    :param groupname: Name of hdf5 group.
+    :param filename: Name of the ddh5 file without the extension.
+    :param structure_only: If `True`, don't load the data values.
+    :return: Iterator over (foldername, datadict).
+    """
+    basedir = Path(basedir)
+    if until is None:
+        until = since
+    assert len(since) == len(until)
+    date = datetime.datetime.strptime(since[:10], "%Y-%m-%d")
+    until_date = datetime.datetime.strptime(until[:10], "%Y-%m-%d")
+
+    while date <= until_date:
+        date_str = datetime.datetime.strftime(date, "%Y-%m-%d")
+        for folder_path in sorted((basedir / date_str).iterdir()):
+            if not folder_path.is_dir():
+                continue
+            foldername = folder_path.name
+            if not (name is None or foldername.endswith(name)):
+                continue
+            if not (since <= foldername[:len(since)] <= until):
+                continue
+            datadict = datadict_from_hdf5(
+                folder_path / filename,
+                groupname,
+                structure_only=structure_only
+            )
+            yield foldername, datadict
+        date += datetime.timedelta(days=1)
+
+
+def search_datadict(
+    since: str,
+    until: Optional[str] = None,
+    name: Optional[str] = None,
+    basedir: Union[str, Path] = '.',
+    groupname: str = 'data',
+    filename: str = 'data',
+    structure_only: bool = False,
+) -> Tuple[str, DataDict]:
+    """Find the datadict which matches a set of conditions.
+    `AssertionError` is raised if there are zero or multiple matching datadicts.
+    :param since: Date (and time) in the format `YYYY-MM-DD` (or `YYYY-mm-ddTHHMMSS`).
+    :param until: Date (and time) in the format `YYYY-MM-DD` (or `YYYY-mm-ddTHHMMSS`). Defaults to `since`.
+    :param name: Name of the dataset (if not given, match all datasets).
+    :param basedir: The root directory in which data is stored.
+    :param groupname: Name of hdf5 group.
+    :param filename: Name of the ddh5 file without the extension.
+    :param structure_only: If `True`, don't load the data values.
+    :return: (foldername, datadict).
+    """
+    result = list(search_datadicts(
+        since,
+        until=until,
+        name=name,
+        basedir=basedir,
+        groupname=groupname,
+        filename=filename,
+        structure_only=structure_only,
+    ))
+    assert len(result) == 1, f"{len(result)} matching datadicts found"
+    return result[0]
