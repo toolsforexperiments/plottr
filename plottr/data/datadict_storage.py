@@ -727,19 +727,20 @@ class DDH5Writer(object):
 
 
 def search_datadicts(
+    basedir: Union[str, Path],
     since: str,
     until: Optional[str] = None,
     name: Optional[str] = None,
-    basedir: Union[str, Path] = '.',
     groupname: str = 'data',
     filename: str = 'data',
     structure_only: bool = False,
 ) -> Iterator[Tuple[str, DataDict]]:
     """Iterate over datadicts matching a set of conditions.
+
+    :param basedir: The root directory in which data is stored.
     :param since: Date (and time) in the format `YYYY-MM-DD` (or `YYYY-mm-ddTHHMMSS`).
     :param until: Date (and time) in the format `YYYY-MM-DD` (or `YYYY-mm-ddTHHMMSS`). Defaults to `since`.
     :param name: Name of the dataset (if not given, match all datasets).
-    :param basedir: The root directory in which data is stored.
     :param groupname: Name of hdf5 group.
     :param filename: Name of the ddh5 file without the extension.
     :param structure_only: If `True`, don't load the data values.
@@ -772,30 +773,31 @@ def search_datadicts(
 
 
 def search_datadict(
+    basedir: Union[str, Path],
     since: str,
     until: Optional[str] = None,
     name: Optional[str] = None,
-    basedir: Union[str, Path] = '.',
     groupname: str = 'data',
     filename: str = 'data',
     structure_only: bool = False,
 ) -> Tuple[str, DataDict]:
     """Find the datadict which matches a set of conditions.
     `AssertionError` is raised if there are zero or multiple matching datadicts.
+
+    :param basedir: The root directory in which data is stored.
     :param since: Date (and time) in the format `YYYY-MM-DD` (or `YYYY-mm-ddTHHMMSS`).
     :param until: Date (and time) in the format `YYYY-MM-DD` (or `YYYY-mm-ddTHHMMSS`). Defaults to `since`.
     :param name: Name of the dataset (if not given, match all datasets).
-    :param basedir: The root directory in which data is stored.
     :param groupname: Name of hdf5 group.
     :param filename: Name of the ddh5 file without the extension.
     :param structure_only: If `True`, don't load the data values.
     :return: (foldername, datadict).
     """
     result = list(search_datadicts(
+        basedir,
         since,
         until=until,
         name=name,
-        basedir=basedir,
         groupname=groupname,
         filename=filename,
         structure_only=structure_only,
