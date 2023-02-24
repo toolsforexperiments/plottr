@@ -7,6 +7,7 @@ Provides file-storage tools for the DataDict class.
     The lock file has the following format: ~<file_name>.lock. The file lock will get deleted even if the program
     crashes. If the process is suddenly stopped however, we cannot guarantee that the file lock will be deleted.
 """
+from operator import itemgetter
 import os
 import logging
 import time
@@ -780,6 +781,7 @@ def search_datadict(
     groupname: str = 'data',
     filename: str = 'data',
     structure_only: bool = False,
+    newest: bool = False,
 ) -> Tuple[str, DataDict]:
     """Find the datadict which matches a set of conditions.
     `AssertionError` is raised if there are zero or multiple matching datadicts.
@@ -791,6 +793,7 @@ def search_datadict(
     :param groupname: Name of hdf5 group.
     :param filename: Name of the ddh5 file without the extension.
     :param structure_only: If `True`, don't load the data values.
+    :param newest: If `True`, return the newest matching datadict
     :return: (foldername, datadict).
     """
     result = list(search_datadicts(
@@ -802,5 +805,7 @@ def search_datadict(
         filename=filename,
         structure_only=structure_only,
     ))
-    assert len(result) == 1, f"{len(result)} matching datadicts found"
-    return result[0]
+    assert len(result) > 0, "no matching datadict found"
+    if not newest:
+        assert len(result) == 1, f"{len(result)} matching datadicts found"
+    return max(result, key=itemgetter(0))
