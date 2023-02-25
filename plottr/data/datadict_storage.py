@@ -280,7 +280,7 @@ def datadict_from_hdf5(path: Union[str, Path],
 
             if stopidx is None or stopidx > min(lens):
                 stopidx = min(lens)
-        else:
+        elif len(set(lens)) == 1:
             if stopidx is None or stopidx > lens[0]:
                 stopidx = lens[0]
 
