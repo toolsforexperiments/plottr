@@ -629,7 +629,7 @@ class DDH5Writer(object):
                  exc_traceback: Optional[TracebackType]) -> None:
         assert self.filepath is not None
         with FileOpener(self.filepath, 'a', timeout=self.file_timeout) as f:
-            add_cur_time_attr(f[self.groupname], name='close')
+            add_cur_time_attr(f.require_group(self.groupname), name='close')
         if exc_type is None:
             # exiting because the measurement is complete
             self.add_tag('__complete__')
