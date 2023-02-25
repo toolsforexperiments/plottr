@@ -735,6 +735,8 @@ def search_datadicts(
     groupname: str = 'data',
     filename: str = 'data',
     structure_only: bool = False,
+    only_complete: bool = True,
+    skip_trash: bool = True,
 ) -> Iterator[Tuple[str, DataDict]]:
     """Iterate over datadicts matching a set of conditions.
 
@@ -746,6 +748,8 @@ def search_datadicts(
     :param groupname: Name of hdf5 group.
     :param filename: Name of the ddh5 file without the extension.
     :param structure_only: If `True`, don't load the data values.
+    :param only_complete: If `True`, only return datadicts tagged as complete.
+    :param skip_trash: If `True`, skip datadicts tagged as trash.
     :return: Iterator over (foldername, datadict).
     """
     basedir = Path(basedir)
@@ -765,6 +769,10 @@ def search_datadicts(
                 continue
             if not (since <= foldername[:len(since)] <= until):
                 continue
+            if only_complete and not ((folder_path / "__complete__.tag").is_file()):
+                continue
+            if skip_trash and (folder_path / "__trash__.tag").is_file():
+                continue
             datadict = datadict_from_hdf5(
                 folder_path / filename,
                 groupname,
@@ -782,6 +790,8 @@ def search_datadict(
     groupname: str = 'data',
     filename: str = 'data',
     structure_only: bool = False,
+    only_complete: bool = True,
+    skip_trash: bool = True,
     newest: bool = False,
 ) -> Tuple[str, DataDict]:
     """Find the datadict which matches a set of conditions.
@@ -795,6 +805,8 @@ def search_datadict(
     :param groupname: Name of hdf5 group.
     :param filename: Name of the ddh5 file without the extension.
     :param structure_only: If `True`, don't load the data values.
+    :param only_complete: If `True`, only return datadicts tagged as complete.
+    :param skip_trash: If `True`, skip datadicts tagged as trash.
     :param newest: If `True`, return the newest matching datadict
     :return: (foldername, datadict).
     """
@@ -806,6 +818,8 @@ def search_datadict(
         groupname=groupname,
         filename=filename,
         structure_only=structure_only,
+        only_complete=only_complete,
+        skip_trash=skip_trash,
     ))
     assert len(result) > 0, "no matching datadict found"
     if not newest:
