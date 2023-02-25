@@ -562,7 +562,7 @@ class DDH5Writer(object):
     :param basedir: The root directory in which data is stored.
         :meth:`.create_file_structure` is creating the structure inside this root and
         determines the file name of the data. The default structure implemented here is
-        ``<root>/YYYY-MM-DD/YYYY-mm-ddTHHMMSS_<ID>-<name>/<filename>.ddh5``,
+        ``<root>/YYYY-mm-dd/YYYY-mm-ddTHHMMSS_<ID>-<name>/<filename>.ddh5``,
         where <ID> is a short identifier string and <name> is the value of parameter `name`.
         To change this, re-implement :meth:`.data_folder` and/or
         :meth:`.create_file_structure`.
@@ -642,7 +642,7 @@ class DDH5Writer(object):
         be saved.
 
         Default format:
-        ``<basedir>/YYYY-MM-DD/YYYY-mm-ddTHHMMSS_<ID>-<name>``.
+        ``<basedir>/YYYY-mm-dd/YYYY-mm-ddTHHMMSS_<ID>-<name>``.
         In this implementation we use the first 8 characters of a UUID as ID.
 
         :returns: The folder path.
@@ -739,8 +739,9 @@ def search_datadicts(
     """Iterate over datadicts matching a set of conditions.
 
     :param basedir: The root directory in which data is stored.
-    :param since: Date (and time) in the format `YYYY-MM-DD` (or `YYYY-mm-ddTHHMMSS`).
-    :param until: Date (and time) in the format `YYYY-MM-DD` (or `YYYY-mm-ddTHHMMSS`). Defaults to `since`.
+    :param since: Date (and time) in the format `YYYY-mm-dd` (or `YYYY-mm-ddTHHMMSS`).
+    :param until: Date (and time) in the format `YYYY-mm-dd` (or `YYYY-mm-ddTHHMMSS`).
+        If not given, default to `until = since`.
     :param name: Name of the dataset (if not given, match all datasets).
     :param groupname: Name of hdf5 group.
     :param filename: Name of the ddh5 file without the extension.
@@ -787,8 +788,9 @@ def search_datadict(
     `AssertionError` is raised if there are zero or multiple matching datadicts.
 
     :param basedir: The root directory in which data is stored.
-    :param since: Date (and time) in the format `YYYY-MM-DD` (or `YYYY-mm-ddTHHMMSS`).
-    :param until: Date (and time) in the format `YYYY-MM-DD` (or `YYYY-mm-ddTHHMMSS`). Defaults to `since`.
+    :param since: Date (and time) in the format `YYYY-mm-dd` (or `YYYY-mm-ddTHHMMSS`).
+    :param until: Date (and time) in the format `YYYY-mm-dd` (or `YYYY-mm-ddTHHMMSS`).
+        If not given, default to `until = since`.
     :param name: Name of the dataset (if not given, match all datasets).
     :param groupname: Name of hdf5 group.
     :param filename: Name of the ddh5 file without the extension.
