@@ -432,6 +432,22 @@ class DataDictBase(dict):
 
             return s
         return None
+    
+
+    def nbytes(self, name: Optional[str]=None) -> int:
+        """Get the size of data.
+        
+        :param name: Name of the data field. if none, return size of 
+            entire datadict.
+        :return: size in bytes.
+        """
+        if self.validate():
+            if name is None:
+                return sum([v['values'].size * v['values'].itemsize 
+                            for _, v in self.data_items()])
+            else:
+                return self.data_vals(name).size * self.data_vals(name).itemsize
+
 
     def label(self, name: str) -> Optional[str]:
         """
