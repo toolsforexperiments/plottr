@@ -419,7 +419,7 @@ class DataDictBase(dict):
             for n, v in self.data_items():
                 v2 = v.copy()
                 v2.pop('values')
-                s[n] = v2
+                s[n] = cp.deepcopy(v2)
 
             if include_meta:
                 for n, v in self.meta_items():
