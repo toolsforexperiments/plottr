@@ -393,7 +393,8 @@ class DataDictBase(dict):
 
     def structure(self: T, add_shape: bool = False,
                   include_meta: bool = True,
-                  same_type: bool = False) -> Optional[T]:
+                  same_type: bool = False,
+                  remove_data: Optional[List[str]] = None) -> Optional[T]:
         """
         Get the structure of the DataDict.
 
@@ -404,6 +405,8 @@ class DataDictBase(dict):
                              the returned dict.
         :param same_type: If `True`, return type will be the one of the
                           object this is called on. Else, DataDictBase.
+        :param remove_data: any data fields listed will be removed from
+                            the result, also when listed in any axes.
 
         :return: The DataDict containing the structure only. The exact type
                      is the same as the type of ``self``.
@@ -414,12 +417,21 @@ class DataDictBase(dict):
                           DeprecationWarning)
         add_shape = False
 
+        if remove_data is None:
+            remove_data = []
+
         if self.validate():
             s = self.__class__()
             for n, v in self.data_items():
-                v2 = v.copy()
-                v2.pop('values')
-                s[n] = cp.deepcopy(v2)
+                if n not in remove_data:
+                    v2 = v.copy()
+                    v2.pop('values')
+                    s[n] = cp.deepcopy(v2)
+                    if 'axes' in s[n]:
+                        for r in remove_data:
+                            if r in s[n]['axes']:
+                                i = s[n]['axes'].index(r)
+                                s[n]['axes'].pop(i)
 
             if include_meta:
                 for n, v in self.meta_items():
