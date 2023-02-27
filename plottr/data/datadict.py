@@ -13,6 +13,7 @@ from typing import List, Tuple, Dict, Sequence, Union, Any, Iterator, Optional, 
 
 from plottr.utils import num, misc
 
+
 __author__ = 'Wolfgang Pfaff'
 __license__ = 'MIT'
 
@@ -1071,6 +1072,9 @@ class MeshgridDataDict(DataDictBase):
                     # check that the data of the axes matches its use
                     # if data present
                     axis_data = data_items[na]['values']
+
+                    # for the data to be a valid meshgrid, we need to have an increase/decrease along each
+                    # axis that contains data.
                     if axis_data.size > 0:
                         max_step_along_axes = np.max(np.abs(np.diff(data_items[na]['values'],axis=axis_num)))
                         if max_step_along_axes == 0:
@@ -1092,6 +1096,8 @@ class MeshgridDataDict(DataDictBase):
 
         This includes transposing the data, since we're on a grid.
 
+        :param data_names: Which dependents to include. if None are given,
+                           all dependents are included.
         :param pos: New axes position in the form ``axis_name = new_position``.
                     non-specified axes positions are adjusted automatically.
 
@@ -1116,6 +1122,61 @@ class MeshgridDataDict(DataDictBase):
 
         ret.validate()
         return ret
+    
+    def mean(self, axis: str) -> 'MeshgridDataDict':
+        """Take the mean over the given axis.
+        
+        :param axis: which axis to take the average over.
+        :return: data, averaged over ``axis``.
+        """
+        return _mesh_mean(self, axis)
+    
+    def slice(self, **kwargs: Dict[str, Union[slice, int]]) -> 'MeshgridDataDict':
+        """Return a N-d slice of the data.
+
+        :param kwargs: slicing information in the format ``axis: spec``, where
+            ``spec`` can be a ``slice`` object, or an integer (usual slicing 
+            notation).
+        :return: sliced data (as a copy)
+        """
+        return _mesh_slice(self, **kwargs)
+
+
+def _mesh_mean(data: MeshgridDataDict, ax: str) -> MeshgridDataDict:
+    """Average gridded data over one axis.
+    
+    :param data: input data
+    :param ax: axis over which the average is performed; this dimension
+        is removed from the result.
+    :return: averaged data
+    """
+    iax = data.axes().index(ax)
+    new_data = data.structure(remove_data=[ax])
+    for d, v in data.data_items():
+        if d in new_data:
+            new_data[d]['values'] = data.data_vals(d).mean(axis=iax)
+    new_data.validate()
+    return new_data
+
+
+def _mesh_slice(data: MeshgridDataDict, **kwargs: Dict[str, Union[slice, int]]):
+    """Return a N-d slice of the data.
+    
+    :param data: input data
+    :param kwargs: slicing information in the format ``axis = spec``, where
+        ``spec`` can be a ``slice`` object, or an integer (usual slicing 
+        notation).
+    :return: sliced data
+    """
+    slices = [np.s_[::] for a in data.axes()]
+    for ax, val in kwargs.items():
+        i = data.axes().index(ax)
+        slices[i] = val
+    ret = data.structure()
+    for d, _ in data.data_items():
+        ret[d]['values'] = data[d]['values'][tuple(slices)]
+    ret.validate()
+    return ret
 
 
 # Tools for converting between different data types
