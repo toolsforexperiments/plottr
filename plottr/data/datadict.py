@@ -1140,6 +1140,10 @@ class MeshgridDataDict(DataDictBase):
         :return: sliced data (as a copy)
         """
         return _mesh_slice(self, **kwargs)
+    
+    def squeeze(self) -> None:
+        """Remove size-1 dimensions."""
+        raise NotImplementedError
 
 
 def _mesh_mean(data: MeshgridDataDict, ax: str) -> MeshgridDataDict:
