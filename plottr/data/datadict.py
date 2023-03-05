@@ -1076,10 +1076,14 @@ class MeshgridDataDict(DataDictBase):
                     # for the data to be a valid meshgrid, we need to have an increase/decrease along each
                     # axis that contains data.
                     if axis_data.size > 0:
-                        max_step_along_axes = np.max(np.abs(np.diff(data_items[na]['values'],axis=axis_num)))
-                        if max_step_along_axes == 0:
-                            msg += (f"Malformed data: {na} is expected to be {axis_num}th "
-                                     "axis but has no variation along that axis.\n")
+                        # if axis length is 1, then we cannot infer anything about grids yet
+                        if axis_data.shape[axis_num] > 1:
+                            steps = np.unique(np.sign(np.diff(axis_data, axis=axis_num)))
+                            if 0 in steps:
+                                msg += (f"Malformed data: {na} is expected to be {axis_num}th "
+                                         "axis but has no variation along that axis.\n")
+                            if steps.size > 1:
+                                msg += (f"Malformed data: axis {na} is not monotonous.\n")
 
             if '__shape__' in v:
                 v['__shape__'] = shp
