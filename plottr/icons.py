@@ -94,6 +94,23 @@ def get_starIcon() -> QtGui.QIcon:
     return starIcon
 
 
+def get_completeIcon() -> QtGui.QIcon:
+    """
+    Icon taken from: https://glyphs.fyi/
+    """
+    completeIcon = QtGui.QIcon(
+        os.path.join(gfxPath, "complete.svg")
+    )
+    return completeIcon
+
+
+def get_interruptedIcon() -> QtGui.QIcon:
+    interruptedIcon = QtGui.QIcon(
+        os.path.join(gfxPath, "interrupted.svg")
+    )
+    return interruptedIcon
+
+
 def get_imageIcon() -> QtGui.QIcon:
     """
     Icon taken from: https://www.svgrepo.com/collection/file-type-collection/
