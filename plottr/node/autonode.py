@@ -115,7 +115,7 @@ def autonode(nodeName: str, confirm: bool = True, **options: Any) -> Callable:
         AutoNode_.__name__ = nodeName
         AutoNode_.nodeName = nodeName
         AutoNode_.nodeOptions = options
-        AutoNode_.process = func  # type: ignore[assignment]
+        AutoNode_.process = func  # type: ignore[method-assign]
 
         return AutoNode_
 
