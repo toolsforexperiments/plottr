@@ -6,7 +6,7 @@ Data classes we use throughout the plottr package, and tools to work on them.
 import warnings
 import copy as cp
 import re
-
+import pandas as pd
 import numpy as np
 from functools import reduce
 from typing import List, Tuple, Dict, Sequence, Union, Any, Iterator, Optional, TypeVar
@@ -1490,3 +1490,26 @@ def datasets_are_equal(a: DataDictBase, b: DataDictBase,
                     return False
 
     return True
+
+
+
+def to_dataframe(data: DataDict) ->pd.DataFrame:
+    """
+    to _datafarme take the variables and values into a dictionary {str: list (default as 1-D list),
+    then convert to dataFrame format (a table)
+    column lables are the names of variables
+    row lables are the index of values in list
+    ex.       x     y      z    ...
+          0   x1    y1     z1
+          1   x2    y2     z2
+          2   x3    y3     z3
+          ...
+    """
+
+
+    dat_set = {}
+    for key, value in data.data_items():
+        dat_set[key] = data.data_vals(key)
+
+    output_dataframe = pd.DataFrame(data=dat_set)
+    return output_dataframe
