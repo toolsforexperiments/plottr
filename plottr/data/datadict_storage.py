@@ -12,6 +12,8 @@ import logging
 import time
 import datetime
 import uuid
+import json
+import shutil
 from enum import Enum
 from typing import Any, Union, Optional, Dict, Type, Collection
 from types import TracebackType
@@ -20,6 +22,7 @@ from pathlib import Path
 import numpy as np
 import h5py
 
+from qcodes.utils import NumpyJSONEncoder
 from plottr import QtGui, Signal, Slot, QtWidgets, QtCore
 
 from ..node import (
@@ -587,7 +590,6 @@ class DDH5Writer(object):
 
         self.basedir = Path(basedir)
         self.datadict = datadict
-        self.inserted_rows = 0
 
         if name is None:
             name = ''
@@ -602,6 +604,7 @@ class DDH5Writer(object):
 
         self.datadict.add_meta('dataset.name', name)
         self.file_timeout = file_timeout
+        self.uuid = uuid.uuid1()
 
     def __enter__(self) -> "DDH5Writer":
         if self.filepath is None:
@@ -615,7 +618,6 @@ class DDH5Writer(object):
                              groupname=self.groupname,
                              append_mode=AppendMode.none,
                              file_timeout=self.file_timeout)
-            self.inserted_rows = nrecords
         return self
 
     def __exit__(self,
@@ -624,7 +626,13 @@ class DDH5Writer(object):
                  exc_traceback: Optional[TracebackType]) -> None:
         assert self.filepath is not None
         with FileOpener(self.filepath, 'a', timeout=self.file_timeout) as f:
-            add_cur_time_attr(f[self.groupname], name='close')
+            add_cur_time_attr(f.require_group(self.groupname), name='close')
+        if exc_type is None:
+            # exiting because the measurement is complete
+            self.add_tag('__complete__')
+        else:
+            # exiting because of an exception
+            self.add_tag('__interrupted__')
 
     def data_folder(self) -> Path:
         """Return the folder, relative to the data root path, in which data will
@@ -636,7 +644,7 @@ class DDH5Writer(object):
 
         :returns: The folder path.
         """
-        ID = str(uuid.uuid1()).split('-')[0]
+        ID = str(self.uuid).split('-')[0]
         parent = f"{datetime.datetime.now().replace(microsecond=0).isoformat().replace(':', '')}_{ID}"
         if self.name:
             parent += f'-{self.name}'
@@ -671,19 +679,40 @@ class DDH5Writer(object):
         an outer dimension with length 1 is added for all.
         """
         self.datadict.add_data(**kwargs)
-
-        if self.inserted_rows > 0:
-            mode = AppendMode.new
-        else:
-            mode = AppendMode.none
         nrecords = self.datadict.nrecords()
         if nrecords is not None and nrecords > 0:
             datadict_to_hdf5(self.datadict, str(self.filepath),
                              groupname=self.groupname,
-                             append_mode=mode,
                              file_timeout=self.file_timeout)
 
             assert self.filepath is not None
             with FileOpener(self.filepath, 'a', timeout=self.file_timeout) as f:
                 add_cur_time_attr(f, name='last_change')
                 add_cur_time_attr(f[self.groupname], name='last_change')
+
+
+    # convenience methods for saving things in the same directory as the ddh5 file
+
+    def add_tag(self, tags: Union[str, Collection[str]]) -> None:
+        assert self.filepath is not None
+        if isinstance(tags, str):
+            tags = [tags]
+        for tag in tags:
+            open(self.filepath.parent / f"{tag}.tag", "x").close()
+
+    def backup_file(self, paths: Union[str, Collection[str]]) -> None:
+        assert self.filepath is not None
+        if isinstance(paths, str):
+            paths = [paths]
+        for path in paths:
+            shutil.copy(path, self.filepath.parent)
+
+    def save_text(self, name: str, text: str) -> None:
+        assert self.filepath is not None
+        with open(self.filepath.parent / name, "x") as f:
+            f.write(text)
+
+    def save_dict(self, name: str, d: dict) -> None:
+        assert self.filepath is not None
+        with open(self.filepath.parent / name, "x") as f:
+            json.dump(d, f, indent=4, ensure_ascii=False, cls=NumpyJSONEncoder)
