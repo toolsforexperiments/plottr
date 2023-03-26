@@ -974,6 +974,12 @@ class DataDict(DataDictBase):
                 v['values'] = np.delete(v['values'], remove_idxs, axis=0)
 
         return ret
+    def avg(self, axis_name :str) ->int:
+        for entry in self[axis_name]['values']:
+            sum += entry
+            num +=1
+            return sum/num
+        return None
 
 
 class MeshgridDataDict(DataDictBase):
