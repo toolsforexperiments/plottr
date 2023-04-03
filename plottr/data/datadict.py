@@ -974,7 +974,7 @@ class DataDict(DataDictBase):
                 v['values'] = np.delete(v['values'], remove_idxs, axis=0)
 
         return ret
-    def avg(self, axis_name :str) ->float:
+    def average(self, axis_name :str) ->float:
         """
         Returns the average of a given axis
 
@@ -983,21 +983,11 @@ class DataDict(DataDictBase):
         """
         for axis in self.axes():
             if axis == axis_name:
-                if len(self.data_vals(axis_name)) == 0: raise IndexError("Axis contains no values")
-                sum = num = 0
-                for entry in self.data_vals(axis_name):
-                    sum += entry
-                    num += 1
-                return sum/num
+                return np.average(self.data_vals(axis_name))
         for axis in self.dependents():
             if axis == axis_name:
-                if len(self.data_vals(axis_name)) == 0: raise IndexError("Axis contains no values")
-                sum = num = 0
-                for entry in self.data_vals(axis_name):
-                    sum += entry
-                    num += 1
-                return sum/num
-        raise IndexError("The axis does not exist!")
+                return np.average(self.data_vals(axis_name))
+        raise IndexError("Axis does not exist!")
     def std(self,axis_name:str)->float:
         """
         Returns the standard deviation of a given axis
@@ -1007,80 +997,49 @@ class DataDict(DataDictBase):
         """
         for axis in self.axes():
             if axis == axis_name:
-                if len(self.data_vals(axis_name)) == 0: raise IndexError("Axis contains no values")
-                sum = num = 0
-                avg = self.avg(axis_name)
-                for entry in self.data_vals(axis_name):
-                    sum += (entry - avg)**2
-                    num += 1
-                return (sum/num)**0.5
+                return np.std(self.data_vals(axis_name))
         for axis in self.dependents():
             if axis == axis_name:
-                if len(self.data_vals(axis_name)) == 0: raise IndexError("Axis contains no values")
-                sum = num = 0
-                avg = self.avg(axis_name)
-                for entry in self.data_vals(axis_name):
-                    sum += (entry - avg)**2
-                    num += 1
-                return (sum/num)**0.5
-        raise IndexError("The axis does not exist!")
-    def normalize(self,axis_name:str)->None:
-        """
-        Normalizes a given axis if axis exists and is valid
-
-        :return: ``None``
-        :raises: ``IndexError`` if the axis contains no values or doesn't exist
-        """
-        for axis in self.axes():
-            if axis == axis_name:
-                length = len(self['x']['values'])
+                return np.std(self.data_vals(axis_name))
+        raise IndexError("Axis does not exist!")
+    def normalize(self, axes = None)->"DataDict":
+        copy = self.astype(float)
+        if axes == None:
+            changed = False
+            for axis in copy.axes():
+                length = len(self[axis]['values'])
                 if length == 0: raise IndexError("Axis contains no values")
-                max = self['x']['values'][0]
-                temp_arr = np.zeros((length,))
-                for num in range(length):
-                    if self[axis_name]['values'][num] > max: max = self[axis_name]['values'][num]
-                    temp_arr[num] = self[axis_name]['values'][num]
-                self[axis_name]['values'] = np.ndarray(shape=(length,),dtype = float)
-                for num in range(length):
-                    self.data_vals(axis_name)[num] = temp_arr[num] / max
-                return None
-        for axis in self.dependents():
-            if axis == axis_name:
-                length = len(self['x']['values'])
+                max = np.max(self.data_vals(axis))
+                temp_arr = self[axis]['values']/max
+                copy[axis]['values'] = temp_arr
+                changed = True
+            for axis in copy.dependents():
+                length = len(self[axis]['values'])
                 if length == 0: raise IndexError("Axis contains no values")
-                max = self['x']['values'][0]
-                temp_arr = np.zeros((length,))
-                for num in range(length):
-                    if self[axis_name]['values'][num] > max: max = self[axis_name]['values'][num]
-                    temp_arr[num] = self[axis_name]['values'][num]
-                self[axis_name]['values'] = np.ndarray(shape=(length,),dtype = float)
-                for num in range(length):
-                    self.data_vals(axis_name)[num] = temp_arr[num] / max
-                return None
-        raise IndexError("The axis does not exist!")
-    def med(self,axis_name:str)->float:
-        """
-        Returns the standard deviation of a given axis
-
-        :return: ``float`` Median of axis
-        :raises: ``IndexError`` if the axis contains no values or doesn't exist
-        """
-        for axis in self.axes():
-            if axis == axis_name:
-                size = len(self.data_vals(axis_name))
-                if (size) == 0: raise IndexError("Axis contains no values")
-                if size % 2 == 1:
-                    return self.data_vals(axis_name)[int(size%2 + 0.5)]
-                else:
-                    return (self.data_vals(axis_name)[int(size/2)-1] + self.data_vals(axis_name)[int(size/2)])/2
-        for axis in self.dependents():
-            if axis == axis_name:
-                size = len(self.data_vals(axis_name))
-                if size % 2 == 1:
-                    return self.data_vals(axis_name)[int(size/2 + 0.5)]
-                else:
-                    return (self.data_vals(axis_name)[int(size/2)-1] + self.data_vals(axis_name)[int(size/2)])/2
-        raise IndexError("The axis does not exist!")
+                max = np.max(self.data_vals(axis))
+                temp_arr = self[axis]['values']/max
+                changed = True
+            if not changed: raise IndexError("The axis does not exist!")
+            return copy
+        for axis_name in axes:
+            changed = False
+            for axis in copy.axes():
+                if axis == axis_name:
+                    length = len(self[axis]['values'])
+                    if length == 0: raise IndexError("Axis contains no values")
+                    max = np.max(self.data_vals(axis_name))
+                    temp_arr = self[axis_name]['values']/max
+                    copy[axis_name]['values'] = temp_arr
+                    changed = True
+            for axis in copy.dependents():
+                if axis == axis_name:
+                    length = len(self[axis]['values'])
+                    if length == 0: raise IndexError("Axis contains no values")
+                    max = np.max(self.data_vals(axis_name))
+                    temp_arr = self[axis_name]['values']/max
+                    changed = True
+            if not changed: raise IndexError("The axis does not exist!")
+        return copy
 class MeshgridDataDict(DataDictBase):
     """
     Implementation of DataDictBase meant to be used for when the axes form
