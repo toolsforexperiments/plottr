@@ -1491,25 +1491,41 @@ def datasets_are_equal(a: DataDictBase, b: DataDictBase,
 
     return True
 
-
-
-def to_dataframe(data: DataDict) ->pd.DataFrame:
+def to_dataframe(data: DataDict)->pd.DataFrame:
     """
-    to _datafarme take the variables and values into a dictionary {str: list (default as 1-D list),
-    then convert to dataFrame format (a table)
-    column lables are the names of variables
-    row lables are the index of values in list
-    ex.       x     y      z    ...
-          0   x1    y1     z1
-          1   x2    y2     z2
-          2   x3    y3     z3
-          ...
+        *
+        to _datafarme take the variables and values into a dictionary {str: list (default as 1-D list),
+        then convert to dataFrame format (a table)
+        column lables are the names of variables
+        row lables are the index of values in list
+        ex.       x     y      z    ...
+              0   x1    y1     z1
+              1   x2    y2     z2
+              2   x3    y3     z3
+              ...
+        *
     """
-
-
     dat_set = {}
-    for key, value in data.data_items():
-        dat_set[key] = data.data_vals(key)
+    axe_ls = data.axes()
+    dimension_check = True
+    max_ele = 0
 
+    for key, value in data.data_items():
+        if np.shape(data.data_vals(key)) != np.shape(data.data_vals(axe_ls[0])):
+            dimension_check = False
+
+        if np.size(data.data_vals(key)) > max_ele:
+            max_ele = np.size(data.data_vals(key))
+    if dimension_check:
+        for key, value in data.data_items():
+            dat_set[key] = (data.data_vals(key)).flatten()
+    else:
+        for key, value in data.data_items():
+            repeated_time = int(max_ele/np.size(data.data_vals(key)))
+            value_array = np.repeat(data.data_vals(key), repeated_time)
+            dat_set[key] = value_array.flatten('F')
     output_dataframe = pd.DataFrame(data=dat_set)
     return output_dataframe
+
+
+
