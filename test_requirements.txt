@@ -1,7 +1,7 @@
 qcodes
 pytest
 pytest-qt
-mypy==1.0.1
+mypy==1.1.1
 PyQt5-stubs==5.15.6.0
 pandas-stubs
 watchdog
