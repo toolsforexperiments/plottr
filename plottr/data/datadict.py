@@ -1491,9 +1491,8 @@ def datasets_are_equal(a: DataDictBase, b: DataDictBase,
 
     return True
 
-def to_dataframe(data: DataDict)->pd.DataFrame:
+def datadict_todataframe(data: DataDict)->pd.DataFrame:
     """
-        *
         to _datafarme take the variables and values into a dictionary {str: list (default as 1-D list),
         then convert to dataFrame format (a table)
         column lables are the names of variables
@@ -1503,7 +1502,6 @@ def to_dataframe(data: DataDict)->pd.DataFrame:
               1   x2    y2     z2
               2   x3    y3     z3
               ...
-        *
     """
     dat_set = {}
     axe_ls = data.axes()
@@ -1526,6 +1524,4 @@ def to_dataframe(data: DataDict)->pd.DataFrame:
             dat_set[key] = value_array.flatten('F')
     output_dataframe = pd.DataFrame(data=dat_set)
     return output_dataframe
-
-
 
