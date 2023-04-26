@@ -974,72 +974,116 @@ class DataDict(DataDictBase):
                 v['values'] = np.delete(v['values'], remove_idxs, axis=0)
 
         return ret
-    def average(self, axis_name :str) ->float:
+    
+    def average(self, axis_name :str) -> float:
         """
         Returns the average of a given axis
 
         :return: ``float`` Average of axis
         :raises: ``IndexError`` if the axis contains no values or doesn't exist
         """
-        for axis in self.axes():
-            if axis == axis_name:
-                return np.average(self.data_vals(axis_name))
-        for axis in self.dependents():
-            if axis == axis_name:
-                return np.average(self.data_vals(axis_name))
-        raise IndexError("Axis does not exist!")
-    def std(self,axis_name:str)->float:
+        
+        try:
+            return np.average(self[axis_name]['values'])
+        except KeyError:
+            raise IndexError("Axis contains no values or does not exist!")
+    
+    def std(self,axis_name:str) -> float:
         """
         Returns the standard deviation of a given axis
 
         :return: ``float`` Standard Deviation of axis
         :raises: ``IndexError`` if the axis contains no values or doesn't exist
         """
-        for axis in self.axes():
-            if axis == axis_name:
-                return np.std(self.data_vals(axis_name))
-        for axis in self.dependents():
-            if axis == axis_name:
-                return np.std(self.data_vals(axis_name))
-        raise IndexError("Axis does not exist!")
-    def normalize(self, axes = None)->"DataDict":
-        copy = self.astype(float)
+        try:
+            return np.std(self.data_vals(axis_name))
+        except KeyError:
+            raise IndexError("Axis contains no values or does not exist!")
+                    
+    def normalize(self, axes = None) -> "DataDict":
+        '''Normalizes the DataDict's axes, or specified axes provided in a tuple and returns
+        a copy of the normalized DataDict
+        :return: ``DataDict`` DataDict with normalized axes
+        :raises: ``IndexError`` if the axis contains no values or doesn't exist
+        '''
+        
+        copy = self.copy()
+        
+        #if there are no specified axes that should be normalized, normalize all the axes
         if axes == None:
             changed = False
             for axis in copy.axes():
-                length = len(self[axis]['values'])
-                if length == 0: raise IndexError("Axis contains no values")
+                if len(self[axis]['values']) == 0: raise IndexError("Axis contains no values")
                 max = np.max(self.data_vals(axis))
-                temp_arr = self[axis]['values']/max
-                copy[axis]['values'] = temp_arr
+                min = np.min(self.data_vals(axis))
+                copy[axis]['values'] = (self[axis]['values']- min)/(max-min)
                 changed = True
             for axis in copy.dependents():
-                length = len(self[axis]['values'])
-                if length == 0: raise IndexError("Axis contains no values")
+                if len(self[axis]['values']) == 0: raise IndexError("Axis contains no values")
                 max = np.max(self.data_vals(axis))
-                temp_arr = self[axis]['values']/max
+                min = np.min(self.data_vals(axis))
+                copy[axis]['values'] = (self[axis]['values']- min)/(max-min)
                 changed = True
+            
             if not changed: raise IndexError("The axis does not exist!")
             return copy
+        
+        #if there are specified axes, only normalize those axes
         for axis_name in axes:
             changed = False
             for axis in copy.axes():
                 if axis == axis_name:
-                    length = len(self[axis]['values'])
-                    if length == 0: raise IndexError("Axis contains no values")
-                    max = np.max(self.data_vals(axis_name))
-                    temp_arr = self[axis_name]['values']/max
-                    copy[axis_name]['values'] = temp_arr
+                    if len(self[axis]['values']) == 0: raise IndexError("Axis contains no values")
+                    max = np.max(self.data_vals(axis))
+                    min = np.min(self.data_vals(axis))
+                    copy[axis_name]['values'] = (self[axis]['values']- min)/(max-min)
                     changed = True
             for axis in copy.dependents():
                 if axis == axis_name:
-                    length = len(self[axis]['values'])
-                    if length == 0: raise IndexError("Axis contains no values")
-                    max = np.max(self.data_vals(axis_name))
-                    temp_arr = self[axis_name]['values']/max
+                    if len(self[axis]['values']) == 0: raise IndexError("Axis contains no values")
+                    max = np.max(self.data_vals(axis))
+                    min = np.min(self.data_vals(axis))
+                    copy[axis]['values'] = (self[axis]['values']- min)/(max-min)
                     changed = True
             if not changed: raise IndexError("The axis does not exist!")
         return copy
+
+    def median(self, axis_name:str) -> float:
+        """
+        Returns the median of a given axis
+
+        :return: ``float`` Median of axis
+        :raises: ``IndexError`` if the axis contains no values or doesn't exist
+        """
+        try:
+            return np.median(self.data_vals(axis_name))
+        except KeyError:
+            raise IndexError("Axis does not exist!")
+        
+    def max(self,axis_name:str) -> float:
+        """
+        Returns the maximum value of a given axis
+        
+        :return: ``float`` Maximum of axis
+        ::raises: ``IndexError`` if the axis contains no values or doesn't exist
+        """
+        try:
+            return np.max(self.data_vals(axis_name))
+        except KeyError:
+            raise IndexError("Axis does not exist!")
+        
+    def min(self,axis_name:str) -> float:
+        """
+        Returns the minimum value of a given axis
+        
+        :return: ``float`` Maximum of axis
+        ::raises: ``IndexError`` if the axis contains no values or doesn't exist
+        """
+        try:
+            return np.min(self.data_vals(axis_name))
+        except KeyError:
+            raise IndexError("Axis does not exist!")
+
 class MeshgridDataDict(DataDictBase):
     """
     Implementation of DataDictBase meant to be used for when the axes form
