@@ -1000,7 +1000,7 @@ class DataDict(DataDictBase):
         except KeyError:
             raise IndexError("Axis contains no values or does not exist!")
                     
-    def normalize(self, axes = None) -> "DataDict":
+    def normalize(self, axes: tuple = None) -> "DataDict":
         '''Normalizes the DataDict's axes, or specified axes provided in a tuple and returns
         a copy of the normalized DataDict
         :return: ``DataDict`` DataDict with normalized axes
