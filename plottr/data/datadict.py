@@ -6,7 +6,7 @@ Data classes we use throughout the plottr package, and tools to work on them.
 import warnings
 import copy as cp
 import re
-
+import pandas as pd
 import numpy as np
 from functools import reduce
 from typing import List, Tuple, Dict, Sequence, Union, Any, Iterator, Optional, TypeVar
@@ -1598,3 +1598,47 @@ def datasets_are_equal(a: DataDictBase, b: DataDictBase,
                     return False
 
     return True
+
+
+def datadict_to_dataframe(data: DataDict) -> pd.DataFrame:
+    """
+    datadict_to_dataframe use data stored in DataDict return a copy in form pandas.DataFrame
+    column labels are the names of variables
+    row labels are the index of values in list
+    ex.       x     y      z
+          0   x1    y1     z1
+          1   x2    y2     z2
+          2   x3    y3     z3
+
+    :param data: source data stored in Datadict form
+    :return: copy of data stored in DataFrame form
+    """
+    # initialize parameter
+    data_set = {}
+    axe_ls = data.axes()
+    dimension_check = True
+    max_ele = 0
+
+    # check for the dimension of Data
+    for key, value in data.data_items():
+        if np.shape(data.data_vals(key)) != np.shape(data.data_vals(axe_ls[0])):
+            dimension_check = False
+
+        if np.size(data.data_vals(key)) > max_ele:
+            max_ele = np.size(data.data_vals(key))
+
+    # if the dimension of all variables are the same, directly flat the array
+    if dimension_check:
+        for key, value in data.data_items():
+            data_set[key] = (data.data_vals(key)).flatten()
+
+    # if the dimension is different between variables, match their dimension to the highest one
+    else:
+        for key, value in data.data_items():
+            repeated_time = int(max_ele/np.size(data.data_vals(key)))
+            value_array = np.repeat(data.data_vals(key), repeated_time)
+            data_set[key] = value_array.flatten('F')
+
+    # convert organized data to DataFrame and return it
+    return pd.DataFrame(data=data_set)
+
