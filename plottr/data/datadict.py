@@ -1069,6 +1069,9 @@ class MeshgridDataDict(DataDictBase):
                     msg += f" {v['values'].shape}, "
                     msg += f"and '{shpsrc}' has {shp}.\n"
 
+            if msg != '\n':
+                raise ValueError(msg)
+
             if 'axes' in v:
                 for axis_num, na in enumerate(v['axes']):
                     # check that the data of the axes matches its use
@@ -1079,13 +1082,19 @@ class MeshgridDataDict(DataDictBase):
                     # axis that contains data.
                     if axis_data.size > 0:
                         # if axis length is 1, then we cannot infer anything about grids yet
-                        if axis_data.shape[axis_num] > 1:
-                            steps = np.unique(np.sign(np.diff(axis_data, axis=axis_num)))
-                            if 0 in steps:
-                                msg += (f"Malformed data: {na} is expected to be {axis_num}th "
-                                         "axis but has no variation along that axis.\n")
-                            if steps.size > 1:
-                                msg += (f"Malformed data: axis {na} is not monotonous.\n")
+
+                        try:
+                            if axis_data.shape[axis_num] > 1:
+                                steps = np.unique(np.sign(np.diff(axis_data, axis=axis_num)))
+                                if 0 in steps:
+                                    msg += (f"Malformed data: {na} is expected to be {axis_num}th "
+                                            "axis but has no variation along that axis.\n")
+                                if steps.size > 1:
+                                    msg += (f"Malformed data: axis {na} is not monotonous.\n")
+                        
+                        # can happen if we have bad shapes. but that should already have been caught.
+                        except IndexError:
+                            pass
 
             if '__shape__' in v:
                 v['__shape__'] = shp
@@ -1186,7 +1195,7 @@ def _mesh_slice(data: MeshgridDataDict, **kwargs: Dict[str, Union[slice, int]]) 
         slices[i] = val
     ret = data.structure()
     assert isinstance(ret, MeshgridDataDict)
-    
+
     for d, _ in data.data_items():
         ret[d]['values'] = data[d]['values'][tuple(slices)]
     ret.validate()
