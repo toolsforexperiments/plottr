@@ -590,7 +590,6 @@ class DDH5Writer(object):
 
         self.basedir = Path(basedir)
         self.datadict = datadict
-        self.inserted_rows = 0
 
         if name is None:
             name = ''
@@ -619,7 +618,6 @@ class DDH5Writer(object):
                              groupname=self.groupname,
                              append_mode=AppendMode.none,
                              file_timeout=self.file_timeout)
-            self.inserted_rows = nrecords
         return self
 
     def __exit__(self,
@@ -681,16 +679,10 @@ class DDH5Writer(object):
         an outer dimension with length 1 is added for all.
         """
         self.datadict.add_data(**kwargs)
-
-        if self.inserted_rows > 0:
-            mode = AppendMode.new
-        else:
-            mode = AppendMode.none
         nrecords = self.datadict.nrecords()
         if nrecords is not None and nrecords > 0:
             datadict_to_hdf5(self.datadict, str(self.filepath),
                              groupname=self.groupname,
-                             append_mode=mode,
                              file_timeout=self.file_timeout)
 
             assert self.filepath is not None
