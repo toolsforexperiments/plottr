@@ -1162,6 +1162,8 @@ def _mesh_mean(data: MeshgridDataDict, ax: str) -> MeshgridDataDict:
     """
     iax = data.axes().index(ax)
     new_data = data.structure(remove_data=[ax])
+    assert isinstance(new_data, MeshgridDataDict)
+
     for d, v in data.data_items():
         if d in new_data:
             new_data[d]['values'] = data.data_vals(d).mean(axis=iax)
@@ -1169,7 +1171,7 @@ def _mesh_mean(data: MeshgridDataDict, ax: str) -> MeshgridDataDict:
     return new_data
 
 
-def _mesh_slice(data: MeshgridDataDict, **kwargs: Dict[str, Union[slice, int]]):
+def _mesh_slice(data: MeshgridDataDict, **kwargs: Dict[str, Union[slice, int]]) -> MeshgridDataDict:
     """Return a N-d slice of the data.
     
     :param data: input data
@@ -1178,11 +1180,13 @@ def _mesh_slice(data: MeshgridDataDict, **kwargs: Dict[str, Union[slice, int]]):
         notation).
     :return: sliced data
     """
-    slices = [np.s_[::] for a in data.axes()]
+    slices: List[Any] = [np.s_[::] for a in data.axes()]
     for ax, val in kwargs.items():
         i = data.axes().index(ax)
         slices[i] = val
     ret = data.structure()
+    assert isinstance(ret, MeshgridDataDict)
+    
     for d, _ in data.data_items():
         ret[d]['values'] = data[d]['values'][tuple(slices)]
     ret.validate()
