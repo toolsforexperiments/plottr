@@ -13,6 +13,7 @@ from typing import List, Tuple, Dict, Sequence, Union, Any, Iterator, Optional, 
 
 from plottr.utils import num, misc
 
+
 __author__ = 'Wolfgang Pfaff'
 __license__ = 'MIT'
 
@@ -393,7 +394,8 @@ class DataDictBase(dict):
 
     def structure(self: T, add_shape: bool = False,
                   include_meta: bool = True,
-                  same_type: bool = False) -> Optional[T]:
+                  same_type: bool = False,
+                  remove_data: Optional[List[str]] = None) -> Optional[T]:
         """
         Get the structure of the DataDict.
 
@@ -404,6 +406,8 @@ class DataDictBase(dict):
                              the returned dict.
         :param same_type: If `True`, return type will be the one of the
                           object this is called on. Else, DataDictBase.
+        :param remove_data: any data fields listed will be removed from
+                            the result, also when listed in any axes.
 
         :return: The DataDict containing the structure only. The exact type
                      is the same as the type of ``self``.
@@ -414,12 +418,21 @@ class DataDictBase(dict):
                           DeprecationWarning)
         add_shape = False
 
+        if remove_data is None:
+            remove_data = []
+
         if self.validate():
             s = self.__class__()
             for n, v in self.data_items():
-                v2 = v.copy()
-                v2.pop('values')
-                s[n] = v2
+                if n not in remove_data:
+                    v2 = v.copy()
+                    v2.pop('values')
+                    s[n] = cp.deepcopy(v2)
+                    if 'axes' in s[n]:
+                        for r in remove_data:
+                            if r in s[n]['axes']:
+                                i = s[n]['axes'].index(r)
+                                s[n]['axes'].pop(i)
 
             if include_meta:
                 for n, v in self.meta_items():
@@ -432,6 +445,24 @@ class DataDictBase(dict):
 
             return s
         return None
+    
+
+    def nbytes(self, name: Optional[str]=None) -> Optional[int]:
+        """Get the size of data.
+        
+        :param name: Name of the data field. if none, return size of 
+            entire datadict.
+        :return: size in bytes.
+        """
+        if self.validate():
+            if name is None:
+                return sum([v['values'].size * v['values'].itemsize 
+                            for _, v in self.data_items()])
+            else:
+                return self.data_vals(name).size * self.data_vals(name).itemsize
+        
+        return None
+
 
     def label(self, name: str) -> Optional[str]:
         """
@@ -974,115 +1005,7 @@ class DataDict(DataDictBase):
                 v['values'] = np.delete(v['values'], remove_idxs, axis=0)
 
         return ret
-    
-    def average(self, axis_name :str) -> float:
-        """
-        Returns the average of a given axis
 
-        :return: ``float`` Average of axis
-        :raises: ``IndexError`` if the axis contains no values or doesn't exist
-        """
-        
-        try:
-            return np.average(self[axis_name]['values'])
-        except KeyError:
-            raise IndexError("Axis contains no values or does not exist!")
-    
-    def std(self,axis_name:str) -> float:
-        """
-        Returns the standard deviation of a given axis
-
-        :return: ``float`` Standard Deviation of axis
-        :raises: ``IndexError`` if the axis contains no values or doesn't exist
-        """
-        try:
-            return np.std(self.data_vals(axis_name))
-        except KeyError:
-            raise IndexError("Axis contains no values or does not exist!")
-                    
-    def normalize(self, axes: tuple = tuple()) -> "DataDict":
-        '''Normalizes the DataDict's axes, or specified axes provided in a tuple and returns
-        a copy of the normalized DataDict
-        :return: ``DataDict`` DataDict with normalized axes
-        :raises: ``IndexError`` if the axis contains no values or doesn't exist
-        '''
-        
-        copy = self.copy()
-        
-        #if there are no specified axes that should be normalized, normalize all the axes
-        if len(axes) == 0:
-            changed = False
-            for axis in copy.axes():
-                if len(self[axis]['values']) == 0: raise IndexError("Axis contains no values")
-                max = np.max(self.data_vals(axis))
-                min = np.min(self.data_vals(axis))
-                copy[axis]['values'] = (self[axis]['values']- min)/(max-min)
-                changed = True
-            for axis in copy.dependents():
-                if len(self[axis]['values']) == 0: raise IndexError("Axis contains no values")
-                max = np.max(self.data_vals(axis))
-                min = np.min(self.data_vals(axis))
-                copy[axis]['values'] = (self[axis]['values']- min)/(max-min)
-                changed = True
-            
-            if not changed: raise IndexError("The axis does not exist!")
-            return copy
-        
-        #if there are specified axes, only normalize those axes
-        for axis_name in axes:
-            changed = False
-            for axis in copy.axes():
-                if axis == axis_name:
-                    if len(self[axis]['values']) == 0: raise IndexError("Axis contains no values")
-                    max = np.max(self.data_vals(axis))
-                    min = np.min(self.data_vals(axis))
-                    copy[axis_name]['values'] = (self[axis]['values']- min)/(max-min)
-                    changed = True
-            for axis in copy.dependents():
-                if axis == axis_name:
-                    if len(self[axis]['values']) == 0: raise IndexError("Axis contains no values")
-                    max = np.max(self.data_vals(axis))
-                    min = np.min(self.data_vals(axis))
-                    copy[axis]['values'] = (self[axis]['values']- min)/(max-min)
-                    changed = True
-            if not changed: raise IndexError("The axis does not exist!")
-        return copy
-
-    def median(self, axis_name:str) -> float:
-        """
-        Returns the median of a given axis
-
-        :return: ``float`` Median of axis
-        :raises: ``IndexError`` if the axis contains no values or doesn't exist
-        """
-        try:
-            return np.median(self.data_vals(axis_name))
-        except KeyError:
-            raise IndexError("Axis does not exist!")
-        
-    def max(self,axis_name:str) -> float:
-        """
-        Returns the maximum value of a given axis
-        
-        :return: ``float`` Maximum of axis
-        ::raises: ``IndexError`` if the axis contains no values or doesn't exist
-        """
-        try:
-            return np.max(self.data_vals(axis_name))
-        except KeyError:
-            raise IndexError("Axis does not exist!")
-        
-    def min(self,axis_name:str) -> float:
-        """
-        Returns the minimum value of a given axis
-        
-        :return: ``float`` Maximum of axis
-        ::raises: ``IndexError`` if the axis contains no values or doesn't exist
-        """
-        try:
-            return np.min(self.data_vals(axis_name))
-        except KeyError:
-            raise IndexError("Axis does not exist!")
 
 class MeshgridDataDict(DataDictBase):
     """
@@ -1146,16 +1069,32 @@ class MeshgridDataDict(DataDictBase):
                     msg += f" {v['values'].shape}, "
                     msg += f"and '{shpsrc}' has {shp}.\n"
 
+            if msg != '\n':
+                raise ValueError(msg)
+
             if 'axes' in v:
                 for axis_num, na in enumerate(v['axes']):
                     # check that the data of the axes matches its use
                     # if data present
                     axis_data = data_items[na]['values']
+
+                    # for the data to be a valid meshgrid, we need to have an increase/decrease along each
+                    # axis that contains data.
                     if axis_data.size > 0:
-                        max_step_along_axes = np.max(np.abs(np.diff(data_items[na]['values'],axis=axis_num)))
-                        if max_step_along_axes == 0:
-                            msg += (f"Malformed data: {na} is expected to be {axis_num}th "
-                                     "axis but has no variation along that axis.\n")
+                        # if axis length is 1, then we cannot infer anything about grids yet
+
+                        try:
+                            if axis_data.shape[axis_num] > 1:
+                                steps = np.unique(np.sign(np.diff(axis_data, axis=axis_num)))
+                                if 0 in steps:
+                                    msg += (f"Malformed data: {na} is expected to be {axis_num}th "
+                                            "axis but has no variation along that axis.\n")
+                                if steps.size > 1:
+                                    msg += (f"Malformed data: axis {na} is not monotonous.\n")
+                        
+                        # can happen if we have bad shapes. but that should already have been caught.
+                        except IndexError:
+                            pass
 
             if '__shape__' in v:
                 v['__shape__'] = shp
@@ -1172,6 +1111,8 @@ class MeshgridDataDict(DataDictBase):
 
         This includes transposing the data, since we're on a grid.
 
+        :param data_names: Which dependents to include. if None are given,
+                           all dependents are included.
         :param pos: New axes position in the form ``axis_name = new_position``.
                     non-specified axes positions are adjusted automatically.
 
@@ -1196,6 +1137,69 @@ class MeshgridDataDict(DataDictBase):
 
         ret.validate()
         return ret
+    
+    def mean(self, axis: str) -> 'MeshgridDataDict':
+        """Take the mean over the given axis.
+        
+        :param axis: which axis to take the average over.
+        :return: data, averaged over ``axis``.
+        """
+        return _mesh_mean(self, axis)
+    
+    def slice(self, **kwargs: Dict[str, Union[slice, int]]) -> 'MeshgridDataDict':
+        """Return a N-d slice of the data.
+
+        :param kwargs: slicing information in the format ``axis: spec``, where
+            ``spec`` can be a ``slice`` object, or an integer (usual slicing 
+            notation).
+        :return: sliced data (as a copy)
+        """
+        return _mesh_slice(self, **kwargs)
+    
+    def squeeze(self) -> None:
+        """Remove size-1 dimensions."""
+        raise NotImplementedError
+
+
+def _mesh_mean(data: MeshgridDataDict, ax: str) -> MeshgridDataDict:
+    """Average gridded data over one axis.
+    
+    :param data: input data
+    :param ax: axis over which the average is performed; this dimension
+        is removed from the result.
+    :return: averaged data
+    """
+    iax = data.axes().index(ax)
+    new_data = data.structure(remove_data=[ax])
+    assert isinstance(new_data, MeshgridDataDict)
+
+    for d, v in data.data_items():
+        if d in new_data:
+            new_data[d]['values'] = data.data_vals(d).mean(axis=iax)
+    new_data.validate()
+    return new_data
+
+
+def _mesh_slice(data: MeshgridDataDict, **kwargs: Dict[str, Union[slice, int]]) -> MeshgridDataDict:
+    """Return a N-d slice of the data.
+    
+    :param data: input data
+    :param kwargs: slicing information in the format ``axis = spec``, where
+        ``spec`` can be a ``slice`` object, or an integer (usual slicing 
+        notation).
+    :return: sliced data
+    """
+    slices: List[Any] = [np.s_[::] for a in data.axes()]
+    for ax, val in kwargs.items():
+        i = data.axes().index(ax)
+        slices[i] = val
+    ret = data.structure()
+    assert isinstance(ret, MeshgridDataDict)
+
+    for d, _ in data.data_items():
+        ret[d]['values'] = data[d]['values'][tuple(slices)]
+    ret.validate()
+    return ret
 
 
 # Tools for converting between different data types
