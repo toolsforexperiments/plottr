@@ -265,13 +265,15 @@ class Collapsible(QtWidgets.QWidget):
 
     def __init__(self, widget: QtWidgets.QWidget, title: str = '',
                  parent: Optional[QtWidgets.QWidget] = None,
-                 expanding: bool = True) -> None:
+                 expanding: bool = True, icon: Optional[QtGui.QIcon] = None) -> None:
         """Constructor.
 
         :param widget: the widget we'd like to collapse.
         :param title: title of the widget. will appear on the toolbutton that
             we use to trigger collapse/expansion.
         :param parent: parent widget.
+        :param expanding: determine if the collapsible is expanded vertically.
+        :param icon: the icon that is added in front of the title.
         """
         super().__init__(parent=parent)
 
@@ -294,6 +296,8 @@ class Collapsible(QtWidgets.QWidget):
         self.btn.setChecked(True)
         setHExpanding(self.btn)
         self.btn.clicked.connect(self._onButton)
+        if icon is not None:
+            self.btn.setIcon(icon)
 
         layout = QtWidgets.QVBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)

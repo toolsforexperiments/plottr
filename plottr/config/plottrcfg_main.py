@@ -13,7 +13,7 @@ config = {
         'figure.dpi': 150,
         'figure.figsize': (4.5, 3),
         'font.size': 6,
-        'font.family': ['Helvetica', 'Arial', 'DejaVu Sans', 'Bitstream Vera Sans'],
+        'font.sans-serif': ['Helvetica', 'Arial', 'DejaVu Sans', 'Bitstream Vera Sans'],
         'grid.linewidth': 0.5,
         'grid.linestyle': '--',
         'image.cmap': 'magma',

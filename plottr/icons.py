@@ -93,3 +93,49 @@ def get_starIcon() -> QtGui.QIcon:
     )
     return starIcon
 
+
+def get_completeIcon() -> QtGui.QIcon:
+    """
+    Icon taken from: https://glyphs.fyi/
+    """
+    completeIcon = QtGui.QIcon(
+        os.path.join(gfxPath, "complete.svg")
+    )
+    return completeIcon
+
+
+def get_interruptedIcon() -> QtGui.QIcon:
+    interruptedIcon = QtGui.QIcon(
+        os.path.join(gfxPath, "interrupted.svg")
+    )
+    return interruptedIcon
+
+
+def get_imageIcon() -> QtGui.QIcon:
+    """
+    Icon taken from: https://www.svgrepo.com/collection/file-type-collection/
+    """
+    imageIcon = QtGui.QIcon(
+        os.path.join(gfxPath, "png_file_icon.svg")
+    )
+    return imageIcon
+
+
+def get_mdIcon() -> QtGui.QIcon:
+    """
+    Icon taken from: https://www.svgrepo.com/collection/file-type-collection/
+    """
+    jpgIcon = QtGui.QIcon(
+        os.path.join(gfxPath, "txt_file_icon.svg")
+    )
+    return jpgIcon
+
+
+def get_jsonIcon() -> QtGui.QIcon:
+    """
+    Icon taken from: https://www.svgrepo.com/collection/file-type-collection/
+    """
+    jpgIcon = QtGui.QIcon(
+        os.path.join(gfxPath, "json_file_icon.svg")
+    )
+    return jpgIcon
