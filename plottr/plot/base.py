@@ -264,8 +264,9 @@ class ComplexRepresentation(LabeledOptions):
     #: magnitude and phase
     magAndPhase = "Mag/Phase"
 
-    #: Logarithmic magnitude and phase
-    log_magAndPhase = "Logarithmic Mag/Phase"
+    #: Natural Logarithmic magnitude and phase
+    log_magAndPhase = "ln(Mag**2)/Phase"
+
 
 
 
@@ -475,9 +476,9 @@ class AutoFigureMaker:
             phase_data = np.angle(data)
 
             if label == '':
-                mag_label, phase_label = 'Log(Mag**2)', 'Phase'
+                mag_label, phase_label = 'ln(Mag**2)', 'Phase'
             else:
-                mag_label, phase_label = label + ' (Log(Mag**2))', label + ' (Phase)'
+                mag_label, phase_label = label + ' (ln(Mag**2))', label + ' (Phase)'
 
             mag_plotItem = plotItem
             phase_plotItem = deepcopy(mag_plotItem)
