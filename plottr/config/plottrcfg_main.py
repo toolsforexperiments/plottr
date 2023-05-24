@@ -13,7 +13,7 @@ config = {
         'figure.dpi': 150,
         'figure.figsize': (4.5, 3),
         'font.size': 6,
-        'font.family': ['Helvetica', 'Arial', 'DejaVu Sans', 'Bitstream Vera Sans'],
+        'font.sans-serif': ['Helvetica', 'Arial', 'DejaVu Sans', 'Bitstream Vera Sans'],
         'grid.linewidth': 0.5,
         'grid.linestyle': '--',
         'image.cmap': 'magma',
@@ -39,5 +39,6 @@ config = {
         'line_symbols': ['o', ],
         'line_symbol_size': 7,
         'minimum_plot_size': (400, 400),
+        'default_colormap': 'magma',
     }
 }

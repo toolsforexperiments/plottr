@@ -13,6 +13,7 @@ app processes. An app can be launched using the launchApp function.
     will result in the app not opening without an error warning.
 """
 
+import sys
 import zmq
 from pathlib import Path
 from typing import Dict, Union, Any, Callable, Tuple, Optional
@@ -52,7 +53,7 @@ class AppServer(QtCore.QObject):
 
     messageReceived = Signal(object)
 
-    def __init__(self, context: zmq.Context, port: str, parent: Optional[QtCore.QObject] = None):
+    def __init__(self, port: str, parent: Optional[QtCore.QObject] = None):
         """
         Constructor for :class: `.AppServer`
 
@@ -63,12 +64,12 @@ class AppServer(QtCore.QObject):
         super().__init__(parent=parent)
         self.port = port
         self.address = '127.0.0.1'
-        self.context = context
+        self.context = zmq.Context()
         self.t_blocking = 1000  # in ms
         self.reply = None
         self.running = True
 
-        self.socket = self.context.socket(zmq.REP)
+        self.socket: Optional[zmq.Socket] = self.context.socket(zmq.REP)
         self.poller = zmq.Poller()
         self.poller.register(self.socket, zmq.POLLIN)
 
@@ -76,11 +77,14 @@ class AppServer(QtCore.QObject):
         """
         Connects the socket and starts listening for commands.
         """
+        assert isinstance(self.socket, zmq.Socket)
         self.socket.bind(f'tcp://{self.address}:{self.port}')
 
         while self.running:
             # Check if there are any messages.
-            evts = self.poller.poll(self.t_blocking)
+            evts = []
+            if not self.socket._closed:
+                evts = self.poller.poll(self.t_blocking)
             if len(evts) > 0:
                 message = self.socket.recv_pyobj()
                 if message == 'ping':
@@ -122,8 +126,6 @@ class App(QtCore.QObject):
     Runs an :class:`.AppServer` in a separate thread, which allows to receive and send messages
     from the parent :class:`.AppManager` to the app.
     """
-    #: Signal() --  emitted when the app is going to close. Used to close the AppServer
-    endProcess = Signal()
 
     #: Signal(Any) -- emitted when the App has the reply for a message. The AppServer gets the signal and replies.
     #: Arguments:
@@ -139,12 +141,10 @@ class App(QtCore.QObject):
         self.win.show()
         self.win.windowClosed.connect(self.onQuit)
 
-        self.context = zmq.Context()
         self.port = port
-        self.server: Optional[AppServer] = AppServer(self.context, str(port))
+        self.server: Optional[AppServer] = AppServer(str(port))
         self.serverThread: Optional[QtCore.QThread] = QtCore.QThread()
 
-        self.endProcess.connect(self.server.quit)
         self.replyReady.connect(self.server.loadReply)
         self.server.messageReceived.connect(self.onMessageReceived)
         self.server.moveToThread(self.serverThread)
@@ -209,11 +209,10 @@ class App(QtCore.QObject):
     @Slot()
     def onQuit(self) -> None:
         """
-        Gets called when win is about to close. Emits endProcess to stop the server. Destroys the zmq context and stops
-        the server thread.
+        Gets called when win is about to close. Stops the server and stops the server thread.
         """
-        self.endProcess.emit()
-        self.context.destroy(1)
+        if self.server is not None:
+            self.server.quit()
 
         if self.server is not None and self.serverThread is not None:
             self.serverThread.requestInterruption()
@@ -227,8 +226,9 @@ class App(QtCore.QObject):
 
 class ProcessMonitor(QtCore.QObject):
     """
-    Helper class that runs in a separate thread. Its only job is to constantly check if a process is still running and
-    alert the AppManager when a process has been closed.
+    Helper class that runs in a separate thread. Its job is to constantly check if a process is still running and
+    alert the AppManager when a process has been closed and to print any standard output or standard error that
+    any process is sending.
     """
 
     #: Signal(IdType) -- emitted when it detects that a process is closed.
@@ -250,6 +250,8 @@ class ProcessMonitor(QtCore.QObject):
         :param process: The QProcess to keep track of.
         """
         self.processes[Id] = process
+        self.processes[Id].readyReadStandardOutput.connect(self.onReadyStandardOutput)
+        self.processes[Id].readyReadStandardError.connect(self.onReadyStandardError)
 
     def quit(self) -> None:
         """
@@ -270,6 +272,26 @@ class ProcessMonitor(QtCore.QObject):
                     del self.processes[Id]
                     self.processTerminated.emit(Id)
             qtsleep(0.01)
+
+    @Slot()
+    def onReadyStandardOutput(self) -> None:
+        """
+        Gets called when any process emits the readyReadStandardOutput signal, and prints any message it receives.
+        """
+        for Id, process in self.processes.items():
+            output = str(process.readAllStandardOutput(), 'utf-8')  # type: ignore[call-overload] # mypy complains about str() not accepting QbyteArray even though it is an object
+            if output != '':
+                print(f'Process {Id}: {output}')
+
+    @Slot()
+    def onReadyStandardError(self) -> None:
+        """
+        Gets called when any process emits the readyReadStandardError signal, and prints any messages it receives.
+        """
+        for Id, process in self.processes.items():
+            output = str(process.readAllStandardError(), 'utf-8')  # type: ignore[call-overload] # mypy complains about str() not accepting QbyteArray even though it is an object.
+            if output != '':
+                print(f'Process {Id}: {output}')
 
 
 class AppManager(QtWidgets.QWidget):
@@ -331,7 +353,7 @@ class AppManager(QtWidgets.QWidget):
 
             fullArgs = [str(Path(plottrPath).joinpath('apps', 'apprunner.py')), str(port), module, func] + list(args)
             process = QtCore.QProcess()
-            process.start('python', fullArgs)
+            process.start(sys.executable, fullArgs)
             process.waitForStarted(100)
             socket = self.context.socket(zmq.REQ)
             socket.connect(f'tcp://{self.address}:{str(port)}')

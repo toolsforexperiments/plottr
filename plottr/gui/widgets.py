@@ -265,13 +265,15 @@ class Collapsible(QtWidgets.QWidget):
 
     def __init__(self, widget: QtWidgets.QWidget, title: str = '',
                  parent: Optional[QtWidgets.QWidget] = None,
-                 expanding: bool = True) -> None:
+                 expanding: bool = True, icon: Optional[QtGui.QIcon] = None) -> None:
         """Constructor.
 
         :param widget: the widget we'd like to collapse.
         :param title: title of the widget. will appear on the toolbutton that
             we use to trigger collapse/expansion.
         :param parent: parent widget.
+        :param expanding: determine if the collapsible is expanded vertically.
+        :param icon: the icon that is added in front of the title.
         """
         super().__init__(parent=parent)
 
@@ -280,6 +282,7 @@ class Collapsible(QtWidgets.QWidget):
         if expanding:
             setVExpanding(self.widget)
 
+        self.plainTitle = title
         self.expandedTitle = "[-] " + title
         self.collapsedTitle = "[+] " + title
 
@@ -293,6 +296,8 @@ class Collapsible(QtWidgets.QWidget):
         self.btn.setChecked(True)
         setHExpanding(self.btn)
         self.btn.clicked.connect(self._onButton)
+        if icon is not None:
+            self.btn.setIcon(icon)
 
         layout = QtWidgets.QVBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
@@ -307,6 +312,19 @@ class Collapsible(QtWidgets.QWidget):
         else:
             self.widget.setVisible(False)
             self.btn.setText(self.collapsedTitle)
+
+    def restart_widget(self, widget: QtWidgets.QWidget) -> None:
+        """
+        Deletes the current widget and replaces it with the incoming widget.
+
+        :param widget: The new widget that should be displayed. It should already be instantiated.
+        """
+
+        self.layout().removeWidget(self.widget)
+        self.widget.deleteLater()
+
+        self.widget = widget
+        self.layout().addWidget(self.widget)
 
 
 class DimensionCombo(QtWidgets.QComboBox):

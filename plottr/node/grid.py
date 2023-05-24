@@ -3,7 +3,6 @@ grid.py
 
 A node and widget for placing data onto a grid (or not).
 """
-
 from enum import Enum, unique
 
 from typing import Tuple, Dict, Any, List, Optional, Sequence, cast
@@ -490,9 +489,19 @@ class DataGridder(Node[DataGridderNodeWidget]):
                         inner_axis_order=order,
                     )
                 elif method is GridOption.metadataShape:
-                    dout = dd.datadict_to_meshgrid(
-                        data, use_existing_shape=True
-                    )
+                    try:
+                        dout = dd.datadict_to_meshgrid(
+                            data, use_existing_shape=True
+                        )
+                    except ValueError as err:
+                        if "Malformed data" in str(err):
+                            self.node_logger.warning(
+                                "Shape/Setpoint order does"
+                                " not match data. Falling back to guessing shape"
+                                )
+                            dout = dd.datadict_to_meshgrid(data)
+                        else:
+                            raise err
             except GriddingError:
                 dout = data.expand()
                 self.node_logger.info("data could not be gridded. Falling back "
