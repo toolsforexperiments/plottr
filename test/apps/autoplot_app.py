@@ -24,7 +24,7 @@ from plottr.plot.mpl.autoplot import AutoPlot as MPLAutoPlot
 from plottr.plot.pyqtgraph.autoplot import AutoPlot as PGAutoPlot
 from plottr.utils import testdata
 
-plottrlog.enableStreamHandler(True)
+plottrlog.enableStreamHandler(True, level=logging.DEBUG)
 logger = plottrlog.getLogger('plottr.test.autoplot_app')
 
 
@@ -161,7 +161,7 @@ plotWidgetClass = PGAutoPlot
 if __name__ == '__main__':
     # src = LineDataMovie(20, 3, 31)
     # src = ImageDataMovie(10, 2, 101)
-    # src = ImageDataLiveAcquisition(101, 101, 67)
-    src = ComplexImage(21, 21)
+    src = ImageDataLiveAcquisition(101, 101, 67)
+    # src = ComplexImage(21, 21)
     src.delay = 0.1
     main(src)
