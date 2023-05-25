@@ -161,7 +161,7 @@ plotWidgetClass = PGAutoPlot
 if __name__ == '__main__':
     # src = LineDataMovie(20, 3, 31)
     # src = ImageDataMovie(10, 2, 101)
-    src = ImageDataLiveAcquisition(101, 81, 67)
+    src = ImageDataLiveAcquisition(101, 101, 67)
     # src = ComplexImage(21, 21)
     src.delay = 0.1
     main(src)

@@ -1112,6 +1112,11 @@ class MeshgridDataDict(DataDictBase):
                         try:
                             if axis_data.shape[axis_num] > 1:
                                 steps = np.unique(np.sign(np.diff(axis_data, axis=axis_num)))
+                                
+                                # for incomplete data, there maybe nan steps -- we need to remove those, 
+                                # doesn't mean anything is wrong.
+                                steps = steps[~np.isnan(steps)]
+                                
                                 if 0 in steps:
                                     msg += (f"Malformed data: {na} is expected to be {axis_num}th "
                                             "axis but has no variation along that axis.\n")
