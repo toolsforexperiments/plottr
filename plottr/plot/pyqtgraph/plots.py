@@ -59,15 +59,14 @@ class Plot(PlotBase):
         """Clear the plot item."""
         self.plot.clear()
 
-class PlotLogSquared(PlotBase):
-    """A simple plot with a single ``PlotItem``."""
+class PlotLog(PlotBase):
+    """A simple Log plot with a single ``PlotItem``."""
 
     def __init__(self, parent: Optional[QtWidgets.QWidget] = None):
         super().__init__(parent)
         legend = self.plot.addLegend(offset=(5, 5), pen='#999',
                                      brush=(255, 255, 255, 150))
         legend.layout.setContentsMargins(0, 0, 0, 0)
-        self.plot.setLogMode(y=True)
         self.plot.showGrid(True, True)
 
     def clearPlot(self) -> None:

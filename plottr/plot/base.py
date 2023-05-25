@@ -248,6 +248,12 @@ class PlotDataType(Enum):
     #: grid data with 2 dependents
     grid2d = auto()
 
+    #: logarithmic scatter-type data with 1 dependent (data is not on a grid)
+    log_scatter1d = auto()
+
+    #: logarithmic line data with 1 dependent (data is on a grid)
+    log_line1d = auto()
+
 
 class ComplexRepresentation(LabeledOptions):
     """Options for plotting complex-valued data."""
@@ -265,7 +271,7 @@ class ComplexRepresentation(LabeledOptions):
     magAndPhase = "Mag/Phase"
 
     #: Natural Logarithmic magnitude and phase
-    log_magAndPhase = "ln(Mag**2)/Phase"
+    log_MagSqAndPhase = "ln(Mag**2)/Phase"
 
 
 
@@ -468,7 +474,7 @@ class AutoFigureMaker:
 
             return [re_plotItem, im_plotItem]
 
-        elif self.complexRepresentation == ComplexRepresentation.log_magAndPhase:
+        elif self.complexRepresentation == ComplexRepresentation.log_MagSqAndPhase:
             data = plotItem.data[-1]
 
             # this check avoids a numpy ComplexWarning when we're working with MaskedArray (almost always)

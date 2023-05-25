@@ -20,7 +20,7 @@ from pyqtgraph import mkPen
 from plottr import QtWidgets, QtCore, Signal, Slot, \
     config_entry as getcfg
 from plottr.data.datadict import DataDictBase
-from .plots import Plot, PlotWithColorbar, PlotBase, PlotLogSquared
+from .plots import Plot, PlotWithColorbar, PlotBase, PlotLog
 from ..base import AutoFigureMaker as BaseFM, PlotDataType, \
     PlotItem, ComplexRepresentation, determinePlotDataType, \
     PlotWidgetContainer, PlotWidget
@@ -144,8 +144,8 @@ class FigureMaker(BaseFM):
             self.widget.deleteAllPlots()
             for i in range(nSubPlots):
                 if max(self.dataDimensionsInSubPlot(i).values()) == 1:
-                    if self.complexRepresentation == ComplexRepresentation.log_magAndPhase:
-                        plot = PlotLogSquared(self.widget)
+                    if self.complexRepresentation == ComplexRepresentation.log_MagSqAndPhase:
+                        plot = PlotLog(self.widget)
                     else:
                         plot = Plot(self.widget)
                     self.widget.addPlot(plot)
@@ -170,7 +170,7 @@ class FigureMaker(BaseFM):
             if len(set(labels[0])) == 1:
                 subPlot.plot.setLabel("bottom", labels[0][0])
         
-        if isinstance(subPlot, PlotLogSquared):
+        if isinstance(subPlot, PlotLog):
             if len(set(labels[0])) == 1:
                 subPlot.plot.setLabel("bottom", labels[0][0])
 
@@ -185,8 +185,6 @@ class FigureMaker(BaseFM):
                 subPlot.colorbar.setLabel('left', labels[2][0])
 
     def plot(self, plotItem: PlotItem) -> None:
-
-
         """Plot the given item."""
 
         subPlot = self.subPlotFromId(plotItem.subPlot)
@@ -197,7 +195,12 @@ class FigureMaker(BaseFM):
             elif len(plotItem.data) == 3:
                 plotItem.plotDataType = PlotDataType.scatter2d
 
-        if plotItem.plotDataType in [PlotDataType.scatter1d, PlotDataType.line1d]:
+        if isinstance(subPlot, PlotLog) and plotItem.subPlot == 0:
+            if plotItem.plotDataType is PlotDataType.line1d: plotItem.plotDataType = PlotDataType.log_line1d
+            if plotItem.plotDataType is PlotDataType.scatter1d: plotItem.plotDataType = PlotDataType.log_scatter1d
+
+                
+        if plotItem.plotDataType in [PlotDataType.scatter1d, PlotDataType.line1d, PlotDataType.log_scatter1d, PlotDataType.log_line1d]:
             self._1dPlot(plotItem)
         elif plotItem.plotDataType == PlotDataType.grid2d:
             self._colorPlot(plotItem)
@@ -217,6 +220,9 @@ class FigureMaker(BaseFM):
 
         color = colors[self.findPlotIndexInSubPlot(plotItem.id) % len(colors)]
         symbol = symbols[self.findPlotIndexInSubPlot(plotItem.id) % len(symbols)]
+
+        if plotItem.plotDataType in [PlotDataType.log_scatter1d, PlotDataType.log_line1d]:
+            subPlot.plot.setLogMode(y=True)
 
         if plotItem.plotDataType == PlotDataType.line1d:
             name = plotItem.labels[-1] if isinstance(plotItem.labels, list) else ''
