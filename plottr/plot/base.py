@@ -483,7 +483,7 @@ class AutoFigureMaker:
             mag_plotItem = plotItem
             phase_plotItem = deepcopy(mag_plotItem)
 
-            mag_plotItem.data[-1] = np.log(mag_data**2)
+            mag_plotItem.data[-1] = mag_data**2
             phase_plotItem.data[-1] = phase_data
             phase_plotItem.id = mag_plotItem.id + 1
             phase_plotItem.subPlot = mag_plotItem.subPlot + 1

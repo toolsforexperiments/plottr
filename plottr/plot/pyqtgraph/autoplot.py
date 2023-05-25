@@ -20,7 +20,7 @@ from pyqtgraph import mkPen
 from plottr import QtWidgets, QtCore, Signal, Slot, \
     config_entry as getcfg
 from plottr.data.datadict import DataDictBase
-from .plots import Plot, PlotWithColorbar, PlotBase
+from .plots import Plot, PlotWithColorbar, PlotBase, PlotLogSquared
 from ..base import AutoFigureMaker as BaseFM, PlotDataType, \
     PlotItem, ComplexRepresentation, determinePlotDataType, \
     PlotWidgetContainer, PlotWidget
@@ -144,7 +144,10 @@ class FigureMaker(BaseFM):
             self.widget.deleteAllPlots()
             for i in range(nSubPlots):
                 if max(self.dataDimensionsInSubPlot(i).values()) == 1:
-                    plot = Plot(self.widget)
+                    if self.complexRepresentation == ComplexRepresentation.log_magAndPhase:
+                        plot = PlotLogSquared(self.widget)
+                    else:
+                        plot = Plot(self.widget)
                     self.widget.addPlot(plot)
                 elif max(self.dataDimensionsInSubPlot(i).values()) == 2:
                     plot = PlotWithColorbar(self.widget)
@@ -166,6 +169,10 @@ class FigureMaker(BaseFM):
         if isinstance(subPlot, Plot):
             if len(set(labels[0])) == 1:
                 subPlot.plot.setLabel("bottom", labels[0][0])
+        
+        if isinstance(subPlot, PlotLogSquared):
+            if len(set(labels[0])) == 1:
+                subPlot.plot.setLabel("bottom", labels[0][0])
 
         if isinstance(subPlot, PlotWithColorbar):
             if len(set(labels[0])) == 1:
@@ -178,10 +185,15 @@ class FigureMaker(BaseFM):
                 subPlot.colorbar.setLabel('left', labels[2][0])
 
     def plot(self, plotItem: PlotItem) -> None:
+
+
         """Plot the given item."""
+
+        subPlot = self.subPlotFromId(plotItem.subPlot)
+
         if plotItem.plotDataType is PlotDataType.unknown:
             if len(plotItem.data) == 2:
-                plotItem.plotDataType = PlotDataType.scatter1d
+                plotItem.plotDataType = PlotDataType.scatter1d 
             elif len(plotItem.data) == 3:
                 plotItem.plotDataType = PlotDataType.scatter2d
 
@@ -200,7 +212,6 @@ class FigureMaker(BaseFM):
         symbolSize = getcfg('main', 'pyqtgraph', 'line_symbol_size', default=5)
 
         subPlot = self.subPlotFromId(plotItem.subPlot)
-
         assert len(plotItem.data) == 2
         x, y = plotItem.data
 
@@ -227,7 +238,6 @@ class FigureMaker(BaseFM):
         subPlot = self.subPlotFromId(plotItem.subPlot)
         assert isinstance(subPlot, PlotWithColorbar) and len(plotItem.data) == 3
         subPlot.setScatter2d(*plotItem.data)
-
 
 class AutoPlot(PlotWidget):
     """Widget for automatic plotting with pyqtgraph.
