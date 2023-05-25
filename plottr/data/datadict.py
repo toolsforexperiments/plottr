@@ -82,6 +82,7 @@ class DataDictBase(dict):
 
     def __init__(self, **kw: Any):
         super().__init__(self, **kw)
+        self.d_ = DataDictBase._DataAccess(self) 
 
     def __eq__(self, other: object) -> bool:
         """Check for content equality of two datadicts."""
@@ -426,7 +427,7 @@ class DataDictBase(dict):
             for n, v in self.data_items():
                 if n not in remove_data:
                     v2 = v.copy()
-                    v2.pop('values')
+                    v2['values'] = []
                     s[n] = cp.deepcopy(v2)
                     if 'axes' in s[n]:
                         for r in remove_data:
@@ -578,6 +579,8 @@ class DataDictBase(dict):
         :return: ``True`` if valid, ``False`` if invalid.
         :raises: ``ValueError`` if invalid.
         """
+        self._update_data_access()
+
         msg = '\n'
         for n, v in self.data_items():
 
@@ -694,7 +697,10 @@ class DataDictBase(dict):
 
         :return: A copy of the dataset.
         """
-        return cp.deepcopy(self)
+        ret = self.structure()
+        for k, v in self.data_items():
+            ret[k]['values'] = self.data_vals(k).copy()
+        return ret
 
     def astype(self: T, dtype: np.dtype) -> T:
         """
@@ -728,6 +734,23 @@ class DataDictBase(dict):
             ret[d]['values'] = vals
 
         return ret
+    
+    class _DataAccess:
+        def __init__(self, parent: "DataDictBase") -> None:
+            self._parent = parent
+
+        def __getattribute__(self, __name: str) -> Any:
+            parent = super(DataDictBase._DataAccess, self).__getattribute__('_parent')
+
+            if __name in [k for k, _ in parent.data_items()]:
+                return parent.data_vals(__name)
+            else:
+                return super(DataDictBase._DataAccess, self).__getattribute__(__name)
+
+
+    def _update_data_access(self):
+        for d, i in self.data_items():
+            self.d_.__dict__[d] = None
 
 
 class DataDict(DataDictBase):
