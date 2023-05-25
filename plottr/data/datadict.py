@@ -698,6 +698,8 @@ class DataDictBase(dict):
         :return: A copy of the dataset.
         """
         ret = self.structure()
+        assert isinstance(ret, DataDictBase)
+
         for k, v in self.data_items():
             ret[k]['values'] = self.data_vals(k).copy()
         return ret
@@ -748,7 +750,7 @@ class DataDictBase(dict):
                 return super(DataDictBase._DataAccess, self).__getattribute__(__name)
 
 
-    def _update_data_access(self):
+    def _update_data_access(self) -> None:
         for d, i in self.data_items():
             self.d_.__dict__[d] = None
 
