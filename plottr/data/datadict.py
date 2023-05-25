@@ -691,7 +691,7 @@ class DataDictBase(dict):
         ret.validate()
         return ret
 
-    def copy(self: T) -> T:
+    def copy(self: T) -> "DataDictBase":
         """
         Make a copy of the dataset.
 
