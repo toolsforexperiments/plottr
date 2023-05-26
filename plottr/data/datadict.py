@@ -22,11 +22,8 @@ __license__ = 'MIT'
 logger = logging.getLogger(__name__)
 
 
-# TODO: functionality that returns axes values given a set of slices.
-# TODO: an easier way to access data and meta values.
-#       maybe with getattr/setattr?
 # TODO: direct slicing of full datasets. implement getitem/setitem?
-# TODO: feature to compare if datadicts are equal not fully tested yet.
+# TODO: it may be more sophisticated do define a dataclass for a data field.
 
 
 def is_meta_key(key: str) -> bool:
@@ -752,6 +749,18 @@ class DataDictBase(dict):
             else:
                 return super(DataDictBase._DataAccess, self).__getattribute__(__name)
 
+        def __setattr__(self, __name: str, __value: Any) -> None:
+            # this check: make sure that we can set the parent correctly in the
+            # constructor.
+            if hasattr(self, '_parent'):
+                if __name in [k for k, _ in self._parent.data_items()]:
+                    self._parent[__name]['values'] = __value
+                
+                # still allow setting random things, essentially.
+                else:
+                    super(DataDictBase._DataAccess, self).__setattr__(__name, __value)
+            else:
+                super(DataDictBase._DataAccess, self).__setattr__(__name, __value)
 
     def _update_data_access(self) -> None:
         for d, i in self.data_items():
