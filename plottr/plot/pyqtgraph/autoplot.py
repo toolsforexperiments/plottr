@@ -166,6 +166,7 @@ class FigureMaker(BaseFM):
         if isinstance(subPlot, Plot):
             if len(set(labels[0])) == 1:
                 subPlot.plot.setLabel("bottom", labels[0][0])
+
         if isinstance(subPlot, PlotWithColorbar):
             if len(set(labels[0])) == 1:
                 subPlot.plot.setLabel("bottom", labels[0][0])
@@ -181,7 +182,7 @@ class FigureMaker(BaseFM):
 
         if plotItem.plotDataType is PlotDataType.unknown:
             if len(plotItem.data) == 2:
-                plotItem.plotDataType = PlotDataType.scatter1d 
+                plotItem.plotDataType = PlotDataType.scatter1d
             elif len(plotItem.data) == 3:
                 plotItem.plotDataType = PlotDataType.scatter2d
         
@@ -207,7 +208,7 @@ class FigureMaker(BaseFM):
         symbolSize = getcfg('main', 'pyqtgraph', 'line_symbol_size', default=5)
 
         subPlot = self.subPlotFromId(plotItem.subPlot)
-        
+
         assert len(plotItem.data) == 2
         x, y = plotItem.data
 
