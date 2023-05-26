@@ -179,15 +179,12 @@ class FigureMaker(BaseFM):
     def plot(self, plotItem: PlotItem) -> None:
         """Plot the given item."""
 
-        subPlot = self.subPlotFromId(plotItem.subPlot)
-
         if plotItem.plotDataType is PlotDataType.unknown:
             if len(plotItem.data) == 2:
                 plotItem.plotDataType = PlotDataType.scatter1d 
             elif len(plotItem.data) == 3:
                 plotItem.plotDataType = PlotDataType.scatter2d
         
-
         #If the Complex Representation is for 20*log10(Mag) and it's regarding the Magnitude Plot, not the Phase Plot
         if self.complexRepresentation == ComplexRepresentation.log10_MagAndPhase and plotItem.subPlot == 0:
 
@@ -210,6 +207,7 @@ class FigureMaker(BaseFM):
         symbolSize = getcfg('main', 'pyqtgraph', 'line_symbol_size', default=5)
 
         subPlot = self.subPlotFromId(plotItem.subPlot)
+        
         assert len(plotItem.data) == 2
         x, y = plotItem.data
 
@@ -247,6 +245,7 @@ class FigureMaker(BaseFM):
         subPlot = self.subPlotFromId(plotItem.subPlot)
         assert isinstance(subPlot, PlotWithColorbar) and len(plotItem.data) == 3
         subPlot.setScatter2d(*plotItem.data)
+
 
 class AutoPlot(PlotWidget):
     """Widget for automatic plotting with pyqtgraph.

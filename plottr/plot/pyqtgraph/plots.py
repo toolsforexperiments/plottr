@@ -59,6 +59,7 @@ class Plot(PlotBase):
         """Clear the plot item."""
         self.plot.clear()
 
+
 class PlotWithColorbar(PlotBase):
     """Plot containing a plot item and a colorbar item.
 
