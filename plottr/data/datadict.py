@@ -1136,7 +1136,7 @@ class MeshgridDataDict(DataDictBase):
         return True
 
     def reorder_axes(self, data_names: Union[str, Sequence[str], None] = None,
-                     copy: bool = False, **pos: int) -> 'MeshgridDataDict':
+                     **pos: int) -> 'MeshgridDataDict':
         """
         Reorder the axes for all data.
 
