@@ -23,7 +23,8 @@ logger = logging.getLogger(__name__)
 
 
 # TODO: direct slicing of full datasets. implement getitem/setitem?
-# TODO: it may be more sophisticated do define a dataclass for a data field.
+# TODO: it may be more sophisticated do define a dataclass for a data field?
+#   (or some other dedicated object)
 
 
 def is_meta_key(key: str) -> bool:
