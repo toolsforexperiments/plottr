@@ -249,10 +249,10 @@ class PlotDataType(Enum):
     grid2d = auto()
 
     #: logarithmic scatter-type data with 1 dependent (data is not on a grid)
-    log_scatter1d = auto()
+    log10_scatter1d = auto()
 
     #: logarithmic line data with 1 dependent (data is on a grid)
-    log_line1d = auto()
+    log10_line1d = auto()
 
 
 class ComplexRepresentation(LabeledOptions):
@@ -271,7 +271,7 @@ class ComplexRepresentation(LabeledOptions):
     magAndPhase = "Mag/Phase"
 
     #: Natural Logarithmic magnitude and phase
-    log_MagSqAndPhase = "ln(Mag**2)/Phase"
+    log10_MagAndPhase = "20*log10(Mag)/Phase"
 
 
 
@@ -474,7 +474,7 @@ class AutoFigureMaker:
 
             return [re_plotItem, im_plotItem]
 
-        elif self.complexRepresentation == ComplexRepresentation.log_MagSqAndPhase:
+        elif self.complexRepresentation == ComplexRepresentation.log10_MagAndPhase:
             data = plotItem.data[-1]
 
             # this check avoids a numpy ComplexWarning when we're working with MaskedArray (almost always)
@@ -482,14 +482,14 @@ class AutoFigureMaker:
             phase_data = np.angle(data)
 
             if label == '':
-                mag_label, phase_label = 'ln(Mag**2)', 'Phase'
+                mag_label, phase_label = '20*log10(Mag)', 'Phase'
             else:
-                mag_label, phase_label = label + ' (ln(Mag**2))', label + ' (Phase)'
+                mag_label, phase_label = label + ' 20*log10(Mag)', label + ' (Phase)'
 
             mag_plotItem = plotItem
             phase_plotItem = deepcopy(mag_plotItem)
 
-            mag_plotItem.data[-1] = mag_data**2
+            mag_plotItem.data[-1] = mag_data
             phase_plotItem.data[-1] = phase_data
             phase_plotItem.id = mag_plotItem.id + 1
             phase_plotItem.subPlot = mag_plotItem.subPlot + 1
