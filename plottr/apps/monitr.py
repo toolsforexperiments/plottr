@@ -1954,11 +1954,13 @@ class FileExplorer(QtWidgets.QWidget):
         self.path_list = []
         if item_index is None:
             for item in self.proxy_model.allowed_items:
+                assert isinstance(item, Item)
                 for path, tpe in item.files.items():
                     if tpe == ContentType.data:
                         self.path_list.append(str(path))
         else:
-            item = self.model.itemFromIndex(item_index)  # Type: ignore[attr-defined] # Not sure why mypy is complaining about using itemFromIndex only here but not in other places.
+            item = self.model.itemFromIndex(item_index)  # type: ignore[attr-defined] # Not sure why mypy is complaining about using itemFromIndex only here but not in other places.
+            assert isinstance(item, Item)
             for path, tpe in item.files.items():
                 if tpe == ContentType.data:
                     self.path_list.append(str(path))
