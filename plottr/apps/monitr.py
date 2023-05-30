@@ -1753,7 +1753,7 @@ class FileExplorer(QtWidgets.QWidget):
 
         # Holds all the current .ddh5 file paths that are currently being displayed.
         # Used to set the tooltip in the copy button
-        self.path_list: List[str] = []
+        self.path_list: Union[List[str], str] = []
 
         # Tree and model initialization
         self.proxy_model = proxy_model
@@ -1943,7 +1943,7 @@ class FileExplorer(QtWidgets.QWidget):
                 self.proxy_model.allowed_items.remove(item)
                 self.proxy_model.trigger_filter()
 
-    def on_create_path_list(self, item_index: QtCore.QModelIndex = None) -> None:
+    def on_create_path_list(self, item_index: Optional[QtCore.QModelIndex] = None) -> None:
         """
         Creates the path list for the copy button. The path list is a list of all the paths of the data files of the
         allowed items. If no item_index is passed, it will copy all the items that are currently shown by the view.
@@ -1958,7 +1958,7 @@ class FileExplorer(QtWidgets.QWidget):
                     if tpe == ContentType.data:
                         self.path_list.append(str(path))
         else:
-            item = self.model.itemFromIndex(item_index)
+            item = self.model.itemFromIndex(item_index)  # Type: ignore[attr-defined] # Not sure why mypy is complaining about using itemFromIndex only here but not in other places.
             for path, tpe in item.files.items():
                 if tpe == ContentType.data:
                     self.path_list.append(str(path))
