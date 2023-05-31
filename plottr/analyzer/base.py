@@ -51,7 +51,7 @@ class AnalysisResult(object):
         Each value contains all attributes of the parameter object, except
         those whose names start with `_` and those that are callable.
         """
-        ret = {}
+        ret: Dict[str, Any] = {}
         for name, param in self.params.items():
             ret[name] = {}
             for n in dir(param):
