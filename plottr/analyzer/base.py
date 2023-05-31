@@ -1,6 +1,8 @@
 from typing import Tuple, Any, Optional, Union, Dict, List
 from collections import OrderedDict
 from dataclasses import dataclass
+from pathlib import Path
+import json
 
 import numpy as np
 from matplotlib import pyplot as plt
@@ -42,6 +44,21 @@ class AnalysisResult(object):
         """Analysis types that produce data (like filters or fits) should implement this.
         """
         raise NotImplementedError
+
+    def params_to_dict(self) -> Dict[str, Any]:
+        """Get all analysis parameters.
+        Returns a dictionary that contains one key per parameter (its name).
+        Each value contains all attributes of the parameter object, except
+        those whose names start with `_` and those that are callable.
+        """
+        ret: Dict[str, Any] = {}
+        for name, param in self.params.items():
+            ret[name] = {}
+            for n in dir(param):
+                attr = getattr(param, n)
+                if n[0] != '_' and not callable(attr):
+                    ret[name][n] = attr
+        return ret
 
 
 class Analysis(object):
