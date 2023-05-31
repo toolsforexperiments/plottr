@@ -624,7 +624,6 @@ class DataDictBase(dict):
         """
         dependents = self.dependents()
         unused = []
-        ret = self  #.copy()
 
         for n, v in self.data_items():
             used = False
@@ -638,9 +637,9 @@ class DataDictBase(dict):
                 unused.append(n)
 
         for u in unused:
-            del ret[u]
+            del self[u]
 
-        return ret
+        return self
 
     def sanitize(self: T) -> T:
         """
