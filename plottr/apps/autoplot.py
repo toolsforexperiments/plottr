@@ -87,6 +87,7 @@ class UpdateToolBar(QtWidgets.QToolBar):
         super().__init__(name, parent)
 
         self.monitorInput = MonitorIntervalInput()
+        self.monitorInput.spin.setMaximum(1000)
         self.monitorInput.setToolTip('Set to 0 for disabling triggering')
         self.monitorInput.intervalChanged.connect(self.setMonitorInterval)
         self.addWidget(self.monitorInput)
