@@ -136,7 +136,7 @@ class ComplexImage(DataSource):
 
 
 def main(dataSrc):
-    plottrlog.LEVEL = logging.INFO
+    plottrlog.LEVEL = logging.DEBUG
 
     app = QtWidgets.QApplication([])
     fc, win = autoplot(plotWidgetClass=plotWidgetClass)
@@ -163,5 +163,5 @@ if __name__ == '__main__':
     # src = ImageDataMovie(10, 2, 101)
     src = ImageDataLiveAcquisition(101, 101, 67)
     # src = ComplexImage(21, 21)
-    src.delay = 0.1
+    src.delay = 0.5
     main(src)
