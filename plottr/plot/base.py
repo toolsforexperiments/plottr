@@ -271,7 +271,7 @@ class ComplexRepresentation(LabeledOptions):
     magAndPhase = "Mag/Phase"
 
     #: Natural Logarithmic magnitude and phase
-    log10_MagAndPhase = "20*log10(Mag)/Phase"
+    log_MagAndPhase = "logMag/Phase"
 
 
 
@@ -433,7 +433,7 @@ class AutoFigureMaker:
 
         if not np.issubsctype(plotItem.data[-1], np.complexfloating):
             return [plotItem]
-        
+
         elif self.complexRepresentation is ComplexRepresentation.real:
             plotItem.data[-1] = plotItem.data[-1].real
             assert isinstance(plotItem.labels, list)
@@ -442,7 +442,7 @@ class AutoFigureMaker:
             else:
                 plotItem.labels[-1] = label + ' (Real)'
             return [plotItem]
-        
+
         elif self.complexRepresentation in \
                 [ComplexRepresentation.realAndImag, ComplexRepresentation.realAndImagSeparate]:
 
@@ -474,7 +474,7 @@ class AutoFigureMaker:
 
             return [re_plotItem, im_plotItem]
 
-        elif self.complexRepresentation == ComplexRepresentation.log10_MagAndPhase:
+        elif self.complexRepresentation == ComplexRepresentation.log_MagAndPhase:
             data = plotItem.data[-1]
 
             # this check avoids a numpy ComplexWarning when we're working with MaskedArray (almost always)

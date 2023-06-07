@@ -11,7 +11,7 @@ object for plotting data automatically using ``pyqtgraph``.
 import logging
 from pathlib import Path
 import time
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import List, Optional, Any
 
 import numpy as np
@@ -186,12 +186,12 @@ class FigureMaker(BaseFM):
             elif len(plotItem.data) == 3:
                 plotItem.plotDataType = PlotDataType.scatter2d
         
-        #If the Complex Representation is for 20*log10(Mag) and it's regarding the Magnitude Plot, not the Phase Plot
-        if self.complexRepresentation == ComplexRepresentation.log10_MagAndPhase and plotItem.subPlot == 0:
+        #If the Complex Representation is correct
+        if self.complexRepresentation == ComplexRepresentation.log_MagAndPhase:
 
             #Switch the 1d plots to the logarithmic variation
-            if plotItem.plotDataType == PlotDataType.scatter1d: plotItem.plotDataType = PlotDataType.log10_scatter1d
-            if plotItem.plotDataType == PlotDataType.line1d: plotItem.plotDataType = PlotDataType.log10_line1d
+            if plotItem.plotDataType == PlotDataType.scatter1d and plotItem.subPlot == 0: plotItem.plotDataType = PlotDataType.log10_scatter1d
+            if plotItem.plotDataType == PlotDataType.line1d and plotItem.subPlot == 0: plotItem.plotDataType = PlotDataType.log10_line1d
         
         if plotItem.plotDataType in [PlotDataType.scatter1d, PlotDataType.line1d,PlotDataType.log10_line1d,PlotDataType.log10_scatter1d]:
             self._1dPlot(plotItem)
@@ -245,14 +245,16 @@ class FigureMaker(BaseFM):
     def _scatterPlot2d(self, plotItem: PlotItem) -> None:
         subPlot = self.subPlotFromId(plotItem.subPlot)
         assert isinstance(subPlot, PlotWithColorbar) and len(plotItem.data) == 3
+        assert not self.complexRepresentation == ComplexRepresentation.log_MagAndPhase
         subPlot.setScatter2d(*plotItem.data)
 
 
 class AutoPlot(PlotWidget):
     """Widget for automatic plotting with pyqtgraph.
-
+    
     Uses :class:`.FigureMaker` to produce subplots.
     """
+
 
     def __init__(self, parent: Optional[PlotWidgetContainer]) -> None:
         """Constructor for the pyqtgraph auto plot widget.
@@ -303,10 +305,8 @@ class AutoPlot(PlotWidget):
 
         with FigureMaker(parentWidget=self, widget=self.fmWidget,
                          **kwargs) as fm:
-
             fm.complexRepresentation = self.figOptions.complexRepresentation
             fm.combineTraces = self.figOptions.combineLinePlots
-
             for dep in self.data.dependents():
                 inds = self.data.axes(dep)
                 dvals = self.data.data_vals(dep)
@@ -330,6 +330,9 @@ class AutoPlot(PlotWidget):
         if self.data.has_meta('title'):
             self.fmWidget.setTitle(self.data.meta_val('title'))
             self.title = self.data.meta_val('title')
+        self.figOptions.numAxes = len(inds)
+        self.figConfig.updateComplexButton()
+
 
     @Slot()
     def _refreshPlot(self) -> None:
@@ -365,7 +368,7 @@ class AutoPlot(PlotWidget):
             screenshot.save(str(path.parent)+'/'+filename, format='PNG')
             return
 
-        logger.error("Could not find the path of the figuer. Figure has not been saved")
+        logger.error("Could not find the path of the figure. Figure has not been saved")
 
     # TODO: Allow for the option to choose filetypes and the name/directory
 
@@ -379,6 +382,8 @@ class FigureOptions:
 
     #: how to represent complex data
     complexRepresentation: ComplexRepresentation = ComplexRepresentation.realAndImag
+
+    numAxes: int = 0
 
 
 class FigureConfigToolBar(QtWidgets.QToolBar):
@@ -394,6 +399,7 @@ class FigureConfigToolBar(QtWidgets.QToolBar):
     #: Signal() -- emitted when the save figure button has been pressed
     figSaved = Signal()
 
+
     def __init__(self, options: FigureOptions,
                  parent: Optional[QtWidgets.QWidget] = None) -> None:
         """Constructor.
@@ -405,7 +411,6 @@ class FigureConfigToolBar(QtWidgets.QToolBar):
         super().__init__(parent)
 
         self.options = options
-
         combineLinePlots = self.addAction("Combine 1D")
         combineLinePlots.setCheckable(True)
         combineLinePlots.setChecked(self.options.combineLinePlots)
@@ -413,11 +418,35 @@ class FigureConfigToolBar(QtWidgets.QToolBar):
             lambda: self._setOption('combineLinePlots',
                                     combineLinePlots.isChecked())
         )
+        complexOptions = QtWidgets.QMenu(parent=self)
+        complexGroup = QtWidgets.QActionGroup(complexOptions)
+        complexGroup.setExclusive(True)
+        self._createComplexRepresentation()
+        complexOptions = QtWidgets.QMenu(parent=self)
+        
+        # Adding functionality to copy and save the graph
+        self.copyFig = self.addAction('Copy Figure', self._copyFig)
+        self.saveFig = self.addAction('Save Figure', self._saveFig)
+        
 
+
+
+    def _setOption(self, option: str, value: Any) -> None:
+        setattr(self.options, option, value)
+        self.optionsChanged.emit()
+        
+    def _copyFig(self) -> None:
+        self.figCopied.emit()
+
+    def _saveFig(self) -> None:
+        self.figSaved.emit()
+
+    def _createComplexRepresentation(self) -> None:
         complexOptions = QtWidgets.QMenu(parent=self)
         complexGroup = QtWidgets.QActionGroup(complexOptions)
         complexGroup.setExclusive(True)
         for k in ComplexRepresentation:
+            if self.options.numAxes == 2 and k == ComplexRepresentation.log_MagAndPhase: continue    
             a = QtWidgets.QAction(k.label, complexOptions)
             a.setCheckable(True)
             complexGroup.addAction(a)
@@ -432,18 +461,18 @@ class FigureConfigToolBar(QtWidgets.QToolBar):
         complexButton.setText('Complex')
         complexButton.setPopupMode(QtWidgets.QToolButton.InstantPopup)
         complexButton.setMenu(complexOptions)
-        self.addWidget(complexButton)
 
-        # Adding functionality to copy and save the graph
-        self.copyFig = self.addAction('Copy Figure', self._copyFig)
-        self.saveFig = self.addAction('Save Figure', self._saveFig)
+        #stylistic edit to ensure that complexButton is the second button, also to ensure that the _updateComplexButton removes the correct button
+        if len(self.actions()) == 1:
+            self.addWidget(complexButton)
+        else:
+            self.insertAction(self.actions()[1],self.addWidget(complexButton))
 
-    def _setOption(self, option: str, value: Any) -> None:
-        setattr(self.options, option, value)
-        self.optionsChanged.emit()
+    def updateComplexButton(self) -> None:
 
-    def _copyFig(self) -> None:
-        self.figCopied.emit()
-
-    def _saveFig(self) -> None:
-        self.figSaved.emit()
+        #remove the second action in the list (currently corresponding to the complexRepresentation button)
+        self.removeAction(self.actions()[1])
+        self._createComplexRepresentation()
+        self.update()
+    
+        
