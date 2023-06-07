@@ -330,7 +330,17 @@ class AutoPlot(PlotWidget):
         if self.data.has_meta('title'):
             self.fmWidget.setTitle(self.data.meta_val('title'))
             self.title = self.data.meta_val('title')
+
+        #update FigOptions numAxes and imagData
         self.figOptions.numAxes = len(inds)
+        for val in dvals:
+            if isinstance(val, np.complex128):
+                if not val.imag == 0:
+                    self.figOptions.imagData = True
+                    break
+            if not all(val.imag == 0):
+                self.figOptions.imagData = True
+                break
         self.figConfig.updateComplexButton()
 
 
@@ -384,6 +394,8 @@ class FigureOptions:
     complexRepresentation: ComplexRepresentation = ComplexRepresentation.realAndImag
 
     numAxes: int = 0
+
+    imagData: bool = False
 
 
 class FigureConfigToolBar(QtWidgets.QToolBar):
@@ -442,11 +454,18 @@ class FigureConfigToolBar(QtWidgets.QToolBar):
         self.figSaved.emit()
 
     def _createComplexRepresentation(self) -> None:
+        #constructs/reconstructs the Complex Button with different viewing options based upon input data
+
         complexOptions = QtWidgets.QMenu(parent=self)
         complexGroup = QtWidgets.QActionGroup(complexOptions)
         complexGroup.setExclusive(True)
+
         for k in ComplexRepresentation:
-            if self.options.numAxes == 2 and k == ComplexRepresentation.log_MagAndPhase: continue    
+
+            #Checks instance of non-imaginary data (to only enable real view) and 2 independent variables (to disable logMag view)
+            if not self.options.imagData and not k == ComplexRepresentation.real: continue
+            if self.options.numAxes == 2 and k == ComplexRepresentation.log_MagAndPhase: continue
+
             a = QtWidgets.QAction(k.label, complexOptions)
             a.setCheckable(True)
             complexGroup.addAction(a)
@@ -462,14 +481,13 @@ class FigureConfigToolBar(QtWidgets.QToolBar):
         complexButton.setPopupMode(QtWidgets.QToolButton.InstantPopup)
         complexButton.setMenu(complexOptions)
 
-        #stylistic edit to ensure that complexButton is the second button, also to ensure that the _updateComplexButton removes the correct button
+        #stylistic edit to ensure that complexButton is the second button, also to ensure that the updateComplexButton removes the correct button
         if len(self.actions()) == 1:
             self.addWidget(complexButton)
         else:
             self.insertAction(self.actions()[1],self.addWidget(complexButton))
 
     def updateComplexButton(self) -> None:
-
         #remove the second action in the list (currently corresponding to the complexRepresentation button)
         self.removeAction(self.actions()[1])
         self._createComplexRepresentation()
