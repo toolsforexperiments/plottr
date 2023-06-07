@@ -453,7 +453,7 @@ class FigureConfigToolBar(QtWidgets.QToolBar):
     def _saveFig(self) -> None:
         self.figSaved.emit()
 
-    def _createComplexRepresentation(self) -> None:
+    def _createComplexRepresentation(self) -> bool:
         #constructs/reconstructs the Complex Button with different viewing options based upon input data
 
         complexOptions = QtWidgets.QMenu(parent=self)
@@ -486,8 +486,10 @@ class FigureConfigToolBar(QtWidgets.QToolBar):
             self.addWidget(complexButton)
         else:
             self.insertAction(self.actions()[1],self.addWidget(complexButton))
+        return True
 
-    def updateComplexButton(self) -> None:
+    def updateComplexButton(self) -> bool:
         #remove the second action in the list (currently corresponding to the complexRepresentation button)
         self.removeAction(self.actions()[1])
         self._createComplexRepresentation()
+        return True
