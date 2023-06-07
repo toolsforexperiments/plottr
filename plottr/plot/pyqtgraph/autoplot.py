@@ -341,6 +341,10 @@ class AutoPlot(PlotWidget):
             if not all(val.imag == 0):
                 self.figOptions.imagData = True
                 break
+        #Assertions to make mypy happy
+        assert self.figConfig is not None
+        assert self.figConfig.updateComplexButton() is not None
+
         self.figConfig.updateComplexButton()
 
     @Slot()
@@ -437,8 +441,6 @@ class FigureConfigToolBar(QtWidgets.QToolBar):
         # Adding functionality to copy and save the graph
         self.copyFig = self.addAction('Copy Figure', self._copyFig)
         self.saveFig = self.addAction('Save Figure', self._saveFig)
-        
-
 
 
     def _setOption(self, option: str, value: Any) -> None:
