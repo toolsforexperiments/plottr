@@ -274,8 +274,6 @@ class ComplexRepresentation(LabeledOptions):
     log_MagAndPhase = "logMag/Phase"
 
 
-
-
 def determinePlotDataType(data: Optional[DataDictBase]) -> PlotDataType:
     """
     Analyze input data and determine most likely :class:`PlotDataType`.

@@ -11,7 +11,7 @@ object for plotting data automatically using ``pyqtgraph``.
 import logging
 from pathlib import Path
 import time
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from typing import List, Optional, Any
 
 import numpy as np
@@ -179,7 +179,6 @@ class FigureMaker(BaseFM):
 
     def plot(self, plotItem: PlotItem) -> None:
         """Plot the given item."""
-
         if plotItem.plotDataType is PlotDataType.unknown:
             if len(plotItem.data) == 2:
                 plotItem.plotDataType = PlotDataType.scatter1d
@@ -251,10 +250,9 @@ class FigureMaker(BaseFM):
 
 class AutoPlot(PlotWidget):
     """Widget for automatic plotting with pyqtgraph.
-    
+
     Uses :class:`.FigureMaker` to produce subplots.
     """
-
 
     def __init__(self, parent: Optional[PlotWidgetContainer]) -> None:
         """Constructor for the pyqtgraph auto plot widget.
@@ -305,8 +303,10 @@ class AutoPlot(PlotWidget):
 
         with FigureMaker(parentWidget=self, widget=self.fmWidget,
                          **kwargs) as fm:
+
             fm.complexRepresentation = self.figOptions.complexRepresentation
             fm.combineTraces = self.figOptions.combineLinePlots
+
             for dep in self.data.dependents():
                 inds = self.data.axes(dep)
                 dvals = self.data.data_vals(dep)
@@ -342,7 +342,6 @@ class AutoPlot(PlotWidget):
                 self.figOptions.imagData = True
                 break
         self.figConfig.updateComplexButton()
-
 
     @Slot()
     def _refreshPlot(self) -> None:
@@ -411,7 +410,6 @@ class FigureConfigToolBar(QtWidgets.QToolBar):
     #: Signal() -- emitted when the save figure button has been pressed
     figSaved = Signal()
 
-
     def __init__(self, options: FigureOptions,
                  parent: Optional[QtWidgets.QWidget] = None) -> None:
         """Constructor.
@@ -423,6 +421,7 @@ class FigureConfigToolBar(QtWidgets.QToolBar):
         super().__init__(parent)
 
         self.options = options
+
         combineLinePlots = self.addAction("Combine 1D")
         combineLinePlots.setCheckable(True)
         combineLinePlots.setChecked(self.options.combineLinePlots)
@@ -434,7 +433,6 @@ class FigureConfigToolBar(QtWidgets.QToolBar):
         complexGroup = QtWidgets.QActionGroup(complexOptions)
         complexGroup.setExclusive(True)
         self._createComplexRepresentation()
-        complexOptions = QtWidgets.QMenu(parent=self)
         
         # Adding functionality to copy and save the graph
         self.copyFig = self.addAction('Copy Figure', self._copyFig)
@@ -491,6 +489,3 @@ class FigureConfigToolBar(QtWidgets.QToolBar):
         #remove the second action in the list (currently corresponding to the complexRepresentation button)
         self.removeAction(self.actions()[1])
         self._createComplexRepresentation()
-        self.update()
-    
-        
