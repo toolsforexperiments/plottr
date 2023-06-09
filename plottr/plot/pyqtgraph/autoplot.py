@@ -212,13 +212,22 @@ class FigureMaker(BaseFM):
         assert len(plotItem.data) == 2
         x, y = plotItem.data
 
+
         color = colors[self.findPlotIndexInSubPlot(plotItem.id) % len(colors)]
         symbol = symbols[self.findPlotIndexInSubPlot(plotItem.id) % len(symbols)]
-        name = plotItem.labels[-1] if isinstance(plotItem.labels, list) else ''
+        if isinstance(plotItem.labels, list):
+             name = plotItem.labels[-1]
+        else:
+            name = ''
 
+        #flatten and apply data transformations (if applicable)
         x = x.flatten()
-        y = 20*np.log(y.flatten()) if plotItem.plotDataType in [PlotDataType.log10_line1d, PlotDataType.log10_scatter1d] else y.flatten()
+        if plotItem.plotDataType in [PlotDataType.log10_line1d, PlotDataType.log10_scatter1d]:
+            y = 20*np.log(y.flatten())
+        else:
+            y = y.flatten()
 
+        #plot either line or scatter depending on what graph is being requested
         if plotItem.plotDataType in [PlotDataType.line1d, PlotDataType.log10_line1d]:
             return subPlot.plot.plot(x, y, name=name,
                                      pen=mkPen(color, width=1), symbol=symbol, symbolBrush=color,
