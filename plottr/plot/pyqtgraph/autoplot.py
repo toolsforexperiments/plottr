@@ -214,26 +214,17 @@ class FigureMaker(BaseFM):
 
         color = colors[self.findPlotIndexInSubPlot(plotItem.id) % len(colors)]
         symbol = symbols[self.findPlotIndexInSubPlot(plotItem.id) % len(symbols)]
+        name = plotItem.labels[-1] if isinstance(plotItem.labels, list) else ''
 
-        if plotItem.plotDataType == PlotDataType.line1d:
-            name = plotItem.labels[-1] if isinstance(plotItem.labels, list) else ''
-            return subPlot.plot.plot(x.flatten(), y.flatten(), name=name,
+        x = x.flatten()
+        y = 20*np.log(y.flatten()) if plotItem.plotDataType in [PlotDataType.log10_line1d, PlotDataType.log10_scatter1d] else y.flatten()
+
+        if plotItem.plotDataType in [PlotDataType.line1d, PlotDataType.log10_line1d]:
+            return subPlot.plot.plot(x, y, name=name,
                                      pen=mkPen(color, width=1), symbol=symbol, symbolBrush=color,
                                      symbolPen=None, symbolSize=symbolSize)
-        elif plotItem.plotDataType == PlotDataType.log10_line1d:
-            name = plotItem.labels[-1] if isinstance(plotItem.labels, list) else ''
-            return subPlot.plot.plot(x.flatten(), 20*np.log10(y.flatten()), name=name,
-                                     pen=mkPen(color, width=1), symbol=symbol, symbolBrush=color,
-                                     symbolPen=None, symbolSize=symbolSize)
-        elif plotItem.plotDataType == PlotDataType.scatter1d:
-            name = plotItem.labels[-1] if isinstance(plotItem.labels, list) else ''
-            return subPlot.plot.plot(x.flatten(), y.flatten(), name=name,
-                                     pen=None, symbol=symbol, symbolBrush=color,
-                                     symbolPen=None, symbolSize=symbolSize)
-       
-        else:  #instance of PlotDataType.log10_scatter1d
-            name = plotItem.labels[-1] if isinstance(plotItem.labels, list) else ''
-            return subPlot.plot.plot(x.flatten(), 20*np.log10(y.flatten()), name=name,
+        else: #plotItem.plotDataType is either PlotDataType.scatter1d or PlotDataType.log10_scatter1d
+            return subPlot.plot.plot(x, y, name=name,
                                      pen=None, symbol=symbol, symbolBrush=color,
                                      symbolPen=None, symbolSize=symbolSize)
 
