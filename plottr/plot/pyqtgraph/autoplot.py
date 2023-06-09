@@ -185,12 +185,13 @@ class FigureMaker(BaseFM):
             elif len(plotItem.data) == 3:
                 plotItem.plotDataType = PlotDataType.scatter2d
         
-        #If the Complex Representation is correct
+        #If the Complex Representation is LogMag
         if self.complexRepresentation == ComplexRepresentation.log_MagAndPhase:
 
-            #Switch the 1d plots to the logarithmic variation
-            if plotItem.plotDataType == PlotDataType.scatter1d and plotItem.subPlot == 0: plotItem.plotDataType = PlotDataType.log10_scatter1d
-            if plotItem.plotDataType == PlotDataType.line1d and plotItem.subPlot == 0: plotItem.plotDataType = PlotDataType.log10_line1d
+            #Switch the 1d plots to the logarithmic variation if the plot is the Magnitude plot (not the Phase Plot)
+            if plotItem.subPlot == 0:
+                if plotItem.plotDataType == PlotDataType.scatter1d: plotItem.plotDataType = PlotDatType.log10_scatter1d
+                if plotItem.plotDataType == PlotDataType.line1d: plotItem.plotDataType = PlotDataType.log10_line1d
         
         if plotItem.plotDataType in [PlotDataType.scatter1d, PlotDataType.line1d,PlotDataType.log10_line1d,PlotDataType.log10_scatter1d]:
             self._1dPlot(plotItem)
@@ -229,8 +230,8 @@ class FigureMaker(BaseFM):
             return subPlot.plot.plot(x.flatten(), y.flatten(), name=name,
                                      pen=None, symbol=symbol, symbolBrush=color,
                                      symbolPen=None, symbolSize=symbolSize)
-        #instance of PlotDataType.log10_scatter1d
-        else:
+       
+        else:  #instance of PlotDataType.log10_scatter1d
             name = plotItem.labels[-1] if isinstance(plotItem.labels, list) else ''
             return subPlot.plot.plot(x.flatten(), 20*np.log10(y.flatten()), name=name,
                                      pen=None, symbol=symbol, symbolBrush=color,
@@ -333,14 +334,18 @@ class AutoPlot(PlotWidget):
 
         #update FigOptions numAxes and imagData
         self.figOptions.numAxes = len(inds)
+
+        #define imagData for single and multiple value data
         for val in dvals:
-            if isinstance(val, np.complex128):
-                if not val.imag == 0:
+            try:
+                if not all(val.imag == 0):
                     self.figOptions.imagData = True
                     break
-            if not all(val.imag == 0):
-                self.figOptions.imagData = True
-                break
+            except:
+                 if not val.imag == 0:
+                    self.figOptions.imagData = True
+                    break
+
         #Assertions to make mypy happy
         assert self.figConfig is not None
         assert self.figConfig.updateComplexButton() is not None
@@ -396,8 +401,10 @@ class FigureOptions:
     #: how to represent complex data
     complexRepresentation: ComplexRepresentation = ComplexRepresentation.realAndImag
 
+    #: The number of independent axes that are passed
     numAxes: int = 0
 
+    #: whether the dependent data contains any instance of imaginary data
     imagData: bool = False
 
 
