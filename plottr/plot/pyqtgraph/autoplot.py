@@ -190,7 +190,7 @@ class FigureMaker(BaseFM):
 
             #Switch the 1d plots to the logarithmic variation if the plot is the Magnitude plot (not the Phase Plot)
             if plotItem.subPlot == 0:
-                if plotItem.plotDataType == PlotDataType.scatter1d: plotItem.plotDataType = PlotDatType.log10_scatter1d
+                if plotItem.plotDataType == PlotDataType.scatter1d: plotItem.plotDataType = PlotDataType.log10_scatter1d
                 if plotItem.plotDataType == PlotDataType.line1d: plotItem.plotDataType = PlotDataType.log10_line1d
         
         if plotItem.plotDataType in [PlotDataType.scatter1d, PlotDataType.line1d,PlotDataType.log10_line1d,PlotDataType.log10_scatter1d]:
