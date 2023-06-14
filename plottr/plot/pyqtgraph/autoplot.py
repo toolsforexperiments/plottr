@@ -184,8 +184,16 @@ class FigureMaker(BaseFM):
                 plotItem.plotDataType = PlotDataType.scatter1d
             elif len(plotItem.data) == 3:
                 plotItem.plotDataType = PlotDataType.scatter2d
+        
+        #If the Complex Representation is LogMag
+        if self.complexRepresentation == ComplexRepresentation.log_MagAndPhase:
 
-        if plotItem.plotDataType in [PlotDataType.scatter1d, PlotDataType.line1d]:
+            #Switch the 1d plots to the logarithmic variation if the plot is the Magnitude plot (not the Phase Plot)
+            if plotItem.subPlot == 0:
+                if plotItem.plotDataType == PlotDataType.scatter1d: plotItem.plotDataType = PlotDataType.log10_scatter1d
+                if plotItem.plotDataType == PlotDataType.line1d: plotItem.plotDataType = PlotDataType.log10_line1d
+        
+        if plotItem.plotDataType in [PlotDataType.scatter1d, PlotDataType.line1d,PlotDataType.log10_line1d,PlotDataType.log10_scatter1d]:
             self._1dPlot(plotItem)
         elif plotItem.plotDataType == PlotDataType.grid2d:
             self._colorPlot(plotItem)
@@ -204,17 +212,28 @@ class FigureMaker(BaseFM):
         assert len(plotItem.data) == 2
         x, y = plotItem.data
 
+
         color = colors[self.findPlotIndexInSubPlot(plotItem.id) % len(colors)]
         symbol = symbols[self.findPlotIndexInSubPlot(plotItem.id) % len(symbols)]
+        if isinstance(plotItem.labels, list):
+             name = plotItem.labels[-1]
+        else:
+            name = ''
 
-        if plotItem.plotDataType == PlotDataType.line1d:
-            name = plotItem.labels[-1] if isinstance(plotItem.labels, list) else ''
-            return subPlot.plot.plot(x.flatten(), y.flatten(), name=name,
+        #flatten and apply data transformations (if applicable)
+        x = x.flatten()
+        if plotItem.plotDataType in [PlotDataType.log10_line1d, PlotDataType.log10_scatter1d]:
+            y = 20*np.log(y.flatten())
+        else:
+            y = y.flatten()
+
+        #plot either line or scatter depending on what graph is being requested
+        if plotItem.plotDataType in [PlotDataType.line1d, PlotDataType.log10_line1d]:
+            return subPlot.plot.plot(x, y, name=name,
                                      pen=mkPen(color, width=1), symbol=symbol, symbolBrush=color,
                                      symbolPen=None, symbolSize=symbolSize)
-        else:
-            name = plotItem.labels[-1] if isinstance(plotItem.labels, list) else ''
-            return subPlot.plot.plot(x.flatten(), y.flatten(), name=name,
+        else: #plotItem.plotDataType is either PlotDataType.scatter1d or PlotDataType.log10_scatter1d
+            return subPlot.plot.plot(x, y, name=name,
                                      pen=None, symbol=symbol, symbolBrush=color,
                                      symbolPen=None, symbolSize=symbolSize)
 
@@ -226,6 +245,7 @@ class FigureMaker(BaseFM):
     def _scatterPlot2d(self, plotItem: PlotItem) -> None:
         subPlot = self.subPlotFromId(plotItem.subPlot)
         assert isinstance(subPlot, PlotWithColorbar) and len(plotItem.data) == 3
+        assert not self.complexRepresentation == ComplexRepresentation.log_MagAndPhase
         subPlot.setScatter2d(*plotItem.data)
 
 
@@ -312,6 +332,26 @@ class AutoPlot(PlotWidget):
             self.fmWidget.setTitle(self.data.meta_val('title'))
             self.title = self.data.meta_val('title')
 
+        #update FigOptions numAxes and imagData
+        self.figOptions.numAxes = len(inds)
+
+        #define imagData for single and multiple value data
+        for val in dvals:
+            try:
+                if not all(val.imag == 0):
+                    self.figOptions.imagData = True
+                    break
+            except:
+                 if not val.imag == 0:
+                    self.figOptions.imagData = True
+                    break
+
+        #Assertions to make mypy happy
+        assert self.figConfig is not None
+        assert self.figConfig.updateComplexButton() is not None
+
+        self.figConfig.updateComplexButton()
+
     @Slot()
     def _refreshPlot(self) -> None:
         self._plotData()
@@ -346,7 +386,7 @@ class AutoPlot(PlotWidget):
             screenshot.save(str(path.parent)+'/'+filename, format='PNG')
             return
 
-        logger.error("Could not find the path of the figuer. Figure has not been saved")
+        logger.error("Could not find the path of the figure. Figure has not been saved")
 
     # TODO: Allow for the option to choose filetypes and the name/directory
 
@@ -360,6 +400,12 @@ class FigureOptions:
 
     #: how to represent complex data
     complexRepresentation: ComplexRepresentation = ComplexRepresentation.realAndImag
+
+    #: The number of independent axes that are passed
+    numAxes: int = 0
+
+    #: whether the dependent data contains any instance of imaginary data
+    imagData: bool = False
 
 
 class FigureConfigToolBar(QtWidgets.QToolBar):
@@ -394,11 +440,39 @@ class FigureConfigToolBar(QtWidgets.QToolBar):
             lambda: self._setOption('combineLinePlots',
                                     combineLinePlots.isChecked())
         )
+        complexOptions = QtWidgets.QMenu(parent=self)
+        complexGroup = QtWidgets.QActionGroup(complexOptions)
+        complexGroup.setExclusive(True)
+        self._createComplexRepresentation()
+        
+        # Adding functionality to copy and save the graph
+        self.copyFig = self.addAction('Copy Figure', self._copyFig)
+        self.saveFig = self.addAction('Save Figure', self._saveFig)
+
+
+    def _setOption(self, option: str, value: Any) -> None:
+        setattr(self.options, option, value)
+        self.optionsChanged.emit()
+        
+    def _copyFig(self) -> None:
+        self.figCopied.emit()
+
+    def _saveFig(self) -> None:
+        self.figSaved.emit()
+
+    def _createComplexRepresentation(self) -> bool:
+        #constructs/reconstructs the Complex Button with different viewing options based upon input data
 
         complexOptions = QtWidgets.QMenu(parent=self)
         complexGroup = QtWidgets.QActionGroup(complexOptions)
         complexGroup.setExclusive(True)
+
         for k in ComplexRepresentation:
+
+            #Checks instance of non-imaginary data (to only enable real view) and 2 independent variables (to disable logMag view)
+            if not self.options.imagData and not k == ComplexRepresentation.real: continue
+            if self.options.numAxes == 2 and k == ComplexRepresentation.log_MagAndPhase: continue
+
             a = QtWidgets.QAction(k.label, complexOptions)
             a.setCheckable(True)
             complexGroup.addAction(a)
@@ -413,18 +487,16 @@ class FigureConfigToolBar(QtWidgets.QToolBar):
         complexButton.setText('Complex')
         complexButton.setPopupMode(QtWidgets.QToolButton.InstantPopup)
         complexButton.setMenu(complexOptions)
-        self.addWidget(complexButton)
 
-        # Adding functionality to copy and save the graph
-        self.copyFig = self.addAction('Copy Figure', self._copyFig)
-        self.saveFig = self.addAction('Save Figure', self._saveFig)
+        #stylistic edit to ensure that complexButton is the second button, also to ensure that the updateComplexButton removes the correct button
+        if len(self.actions()) == 1:
+            self.addWidget(complexButton)
+        else:
+            self.insertAction(self.actions()[1],self.addWidget(complexButton))
+        return True
 
-    def _setOption(self, option: str, value: Any) -> None:
-        setattr(self.options, option, value)
-        self.optionsChanged.emit()
-
-    def _copyFig(self) -> None:
-        self.figCopied.emit()
-
-    def _saveFig(self) -> None:
-        self.figSaved.emit()
+    def updateComplexButton(self) -> bool:
+        #remove the second action in the list (currently corresponding to the complexRepresentation button)
+        self.removeAction(self.actions()[1])
+        self._createComplexRepresentation()
+        return True

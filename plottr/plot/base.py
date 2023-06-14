@@ -248,6 +248,12 @@ class PlotDataType(Enum):
     #: grid data with 2 dependents
     grid2d = auto()
 
+    #: logarithmic scatter-type data with 1 dependent (data is not on a grid)
+    log10_scatter1d = auto()
+
+    #: logarithmic line data with 1 dependent (data is on a grid)
+    log10_line1d = auto()
+
 
 class ComplexRepresentation(LabeledOptions):
     """Options for plotting complex-valued data."""
@@ -263,6 +269,9 @@ class ComplexRepresentation(LabeledOptions):
 
     #: magnitude and phase
     magAndPhase = "Mag/Phase"
+
+    #: Natural Logarithmic magnitude and phase
+    log_MagAndPhase = "logMag/Phase"
 
 
 def determinePlotDataType(data: Optional[DataDictBase]) -> PlotDataType:
@@ -462,6 +471,35 @@ class AutoFigureMaker:
             im_plotItem.labels[-1] = im_label
 
             return [re_plotItem, im_plotItem]
+
+        elif self.complexRepresentation == ComplexRepresentation.log_MagAndPhase:
+            data = plotItem.data[-1]
+
+            # this check avoids a numpy ComplexWarning when we're working with MaskedArray (almost always)
+            mag_data = np.ma.abs(data).real if isinstance(data, np.ma.MaskedArray) else np.abs(data)
+            phase_data = np.angle(data)
+
+            if label == '':
+                mag_label, phase_label = '20*log10(Mag)', 'Phase'
+            else:
+                mag_label, phase_label = label + ' 20*log10(Mag)', label + ' (Phase)'
+
+            mag_plotItem = plotItem
+            phase_plotItem = deepcopy(mag_plotItem)
+
+            mag_plotItem.data[-1] = mag_data
+            phase_plotItem.data[-1] = phase_data
+            phase_plotItem.id = mag_plotItem.id + 1
+            phase_plotItem.subPlot = mag_plotItem.subPlot + 1
+
+            # this is a bit of a silly check (see top of the function -- should certainly be True!).
+            # but it keeps mypy happy.
+            assert isinstance(mag_plotItem.labels, list)
+            mag_plotItem.labels[-1] = mag_label
+            assert isinstance(phase_plotItem.labels, list)
+            phase_plotItem.labels[-1] = phase_label
+
+            return [mag_plotItem, phase_plotItem]
 
         else:  # means that self.complexRepresentation is ComplexRepresentation.magAndPhase:
             data = plotItem.data[-1]
