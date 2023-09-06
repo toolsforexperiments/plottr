@@ -32,10 +32,17 @@ from ..data.qcodes_dataset import (get_runs_from_db_as_dataframe,
 from plottr.gui.widgets import MonitorIntervalInput, FormLayoutWrapper, dictToTreeWidgetItems
 
 from .autoplot import autoplotQcodesDataset, QCAutoPlotMainWindow
+from .appmanager import AppManager
 
 
 __author__ = 'Wolfgang Pfaff'
 __license__ = 'MIT'
+
+# Change this variable to change the module of the app that monitr should open.
+AUTOPLOTMODULE = 'plottr.apps.autoplot'
+
+# Function that the app manager should run to open a new app.
+AUTOPLOTFUNC = 'autoplotQcodesDatasetApp'
 
 LOGGER = plottrlog.getLogger('plottr.apps.inspectr')
 
@@ -310,8 +317,6 @@ class QCodesDBInspector(QtWidgets.QMainWindow):
         """Constructor for :class:`QCodesDBInspector`."""
         super().__init__(parent)
 
-        self._plotWindows: Dict[int, WindowDict] = {}
-
         self.filepath = dbPath
         self.dbdf: Optional[pandas.DataFrame] = None
         self.monitor = QtCore.QTimer()
@@ -323,6 +328,9 @@ class QCodesDBInspector(QtWidgets.QMainWindow):
         self.latestRunId: Optional[int] = None
 
         self.setWindowTitle('Plottr | QCoDeS dataset inspectr')
+
+        # App manager
+        self.appManager = AppManager()
 
         ### GUI elements
 
@@ -439,14 +447,13 @@ class QCodesDBInspector(QtWidgets.QMainWindow):
         """
         When closing the inspectr window, do some house keeping:
         * stop the monitor, if running
-        * close all plot windows
+        * closes the app manager.
         """
 
         if self.monitor.isActive():
             self.monitor.stop()
 
-        for runId, info in self._plotWindows.items():
-            info['window'].close()
+        self.appManager.close()
 
     @Slot()
     def showDBPath(self) -> None:
@@ -505,10 +512,7 @@ class QCodesDBInspector(QtWidgets.QMainWindow):
 
             if self.monitor.isActive() and self.autoLaunchPlots.elements['Auto-plot new'].isChecked():
                 for idx in newIdxs:
-                    self.plotRun(idx)
-                    self._plotWindows[idx]['window'].setMonitorInterval(
-                        self.monitorInput.spin.value()
-                    )
+                    self.plotRun(idx, monitorInterval=self.monitorInput.spin.value())
 
     @Slot()
     def updateDates(self) -> None:
@@ -594,14 +598,10 @@ class QCodesDBInspector(QtWidgets.QMainWindow):
         self._sendInfo.emit(contentInfo)
 
     @Slot(int)
-    def plotRun(self, runId: int) -> None:
+    def plotRun(self, runId: int, monitorInterval: float = 0.0) -> None:
         assert self.filepath is not None
-        fc, win = autoplotQcodesDataset(pathAndId=(self.filepath, runId))
-        self._plotWindows[runId] = {
-            'flowchart': fc,
-            'window': win,
-        }
-        win.showTime()
+        self.appManager.launchApp(runId, AUTOPLOTMODULE, AUTOPLOTFUNC, 'False', str(self.filepath), str(runId),
+                                  str(monitorInterval))
 
     def setTag(self, item: QtWidgets.QTreeWidgetItem, tag: str) -> None:
         # set tag in the database
