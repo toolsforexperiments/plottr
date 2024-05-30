@@ -123,6 +123,11 @@ class MPLPlot(FCanvas):
                                      for k, v in self._meta_info.items())
         clipboard.setText(meta_info_string)
 
+    def coordinateToClipboard(self, event):
+        clipboard = QtWidgets.QApplication.clipboard()
+        coord_info_string = '({:.4g}, {:.4g})'.format(event.xdata, event.ydata)
+        clipboard.setText(coord_info_string)
+
     def setFigureTitle(self, title: str) -> None:
         """Add a title to the figure."""
         self.fig.suptitle(title,
@@ -162,6 +167,7 @@ class MPLPlotWidget(PlotWidget):
         layout.addWidget(self.plot)
         layout.addWidget(self.mplBar)
         self.setLayout(layout)
+        self.addPlotOptions()
 
     def setMeta(self, data: DataDictBase) -> None:
         """Add meta info contained in the data to the figure.
@@ -195,6 +201,10 @@ class MPLPlotWidget(PlotWidget):
         self.mplBar.addSeparator()
         self.mplBar.addAction('Copy Figure', self.plot.toClipboard)
         self.mplBar.addAction('Copy Meta', self.plot.metaToClipboard)
+    
+    def addPlotOptions(self) -> None:
+        """Add options for copying coordinates to the clipboard"""
+        self.plot.mpl_connect('button_press_event', self.plot.coordinateToClipboard)
 
 
 def figureDialog() -> Tuple[Figure, QtWidgets.QDialog]:
