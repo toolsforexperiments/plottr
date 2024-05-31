@@ -123,10 +123,13 @@ class MPLPlot(FCanvas):
                                      for k, v in self._meta_info.items())
         clipboard.setText(meta_info_string)
 
-    def coordinateToClipboard(self, event):
+    def coordinateToClipboard(self, event) -> None:
         clipboard = QtWidgets.QApplication.clipboard()
-        coord_info_string = '({:.4g}, {:.4g})'.format(event.xdata, event.ydata)
-        clipboard.setText(coord_info_string)
+        try:
+            coord_info_string = '({:.4g}, {:.4g})'.format(event.xdata, event.ydata)
+            clipboard.setText(coord_info_string)
+        except TypeError:
+            pass
 
     def setFigureTitle(self, title: str) -> None:
         """Add a title to the figure."""
