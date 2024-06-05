@@ -9,7 +9,7 @@ from numpy import rint
 from matplotlib import rcParams
 from matplotlib.axes import Axes
 from matplotlib.figure import Figure
-from matplotlib.backend_bases import Event
+from matplotlib.backend_bases import LocationEvent
 from matplotlib.backends.backend_qt5agg import (
     FigureCanvasQTAgg as FCanvas,
     NavigationToolbar2QT as NavBar,
@@ -124,7 +124,7 @@ class MPLPlot(FCanvas):
                                      for k, v in self._meta_info.items())
         clipboard.setText(meta_info_string)
 
-    def coordinateToClipboard(self, event: Event) -> None:
+    def coordinateToClipboard(self, event: LocationEvent) -> None:
         clipboard = QtWidgets.QApplication.clipboard()
         try:
             coord_info_string = '({:.4g}, {:.4g})'.format(event.xdata, event.ydata)
