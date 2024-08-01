@@ -132,3 +132,6 @@ dmypy.json
 
 # sphinx outputs
 doc/_build/*
+
+# Macos
+.DS_Store
