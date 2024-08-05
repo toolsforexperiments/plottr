@@ -522,6 +522,9 @@ class FileModel(QtGui.QStandardItemModel):
                 LOGGER.warning(f'Files have been found in the monitoring folder, please remove them')
             return False
 
+        # Checks if the item is in a hidden folder, if it is ignore.
+        if any(part.startswith('.') for part in folder_path.parts): return None
+
         # Check if the new item should have a parent item. If the new item should have a parent, but this does
         # not yet exist, create it.
         if folder_path.parent == self.monitor_path:
@@ -585,7 +588,7 @@ class FileModel(QtGui.QStandardItemModel):
 
         path = Path(event.src_path)
         # If a folder is created, it will be added when a data file will be created.
-        if not path.is_dir():
+        if not path.is_dir() and not any(part.startswith('.') for part in path.parts):
 
             # If the file created is a lock, we ignore it.
             if not is_file_lock(path):
