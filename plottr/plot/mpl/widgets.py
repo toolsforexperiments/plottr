@@ -128,7 +128,7 @@ class MPLPlot(FCanvas):
         if isinstance(event, LocationEvent):
             clipboard = QtWidgets.QApplication.clipboard()
             if event.xdata is not None and event.ydata is not None:
-                coord_info_string = '({:.4g}, {:.4g})'.format(event.xdata, event.ydata)
+                coord_info_string = '({:.8g}, {:.8g})'.format(event.xdata, event.ydata)
                 clipboard.setText(coord_info_string)
             else:
                 pass
