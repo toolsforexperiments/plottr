@@ -301,7 +301,8 @@ class QCAutoPlotMainWindow(AutoPlotMainWindow):
 
 
 def autoplotQcodesDataset(log: bool = False,
-                          pathAndId: Union[Tuple[str, int], None] = None) \
+                          pathAndId: Union[Tuple[str, int], None] = None,
+                          monitorInterval: float = 0.0) \
         -> Tuple[Flowchart, QCAutoPlotMainWindow]:
     """
     Sets up a simple flowchart consisting of a data selector,
@@ -333,8 +334,26 @@ def autoplotQcodesDataset(log: bool = False,
                                monitor=True,
                                loaderName='Data loader')
     win.show()
+    win.setMonitorInterval(monitorInterval)
 
     return fc, win
+
+
+def autoplotQcodesDatasetApp(*args: Any) -> Tuple[Flowchart, AutoPlotMainWindow]:
+    """
+    Function used by the apprunner script to convert the arguments
+    in a console to python objects and run autoplotQcodesDataset.
+
+    returns the flowchart and the window created by the autolpot creation function.
+    """
+    log = bool(args[0][0])
+    path = args[0][1]
+    _id = int(args[0][2])
+    refresh = 0.0
+    if len(args[0]) == 4:
+        refresh = float(args[0][3])
+
+    return autoplotQcodesDataset(log, (path, _id), refresh)
 
 
 def autoplotDDH5(filepath: str = '',
