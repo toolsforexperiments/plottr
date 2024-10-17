@@ -70,7 +70,7 @@ class Differentiation(Node):
 
         return dict(dataOut=data)
 
-    def remove_last_element(self, arr, axis):
+    def remove_last_element(self, arr: np.ndarray, axis: int) -> np.ndarray:
         """
         remove last element of specified axes
 
