@@ -117,7 +117,7 @@ class FigureMaker(BaseFM):
             return None
 
     # methods specific to this class
-    def plotLine(self, plotItem: PlotItem) -> Optional[List[Line2D]]:
+    def plotLine(self, plotItem: PlotItem) -> Optional[List[Artist]]:
         axes = self.subPlots[plotItem.subPlot].axes
         assert isinstance(axes, list) and len(axes) > 0
         assert len(plotItem.data) == 2

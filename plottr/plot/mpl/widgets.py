@@ -13,6 +13,7 @@ from matplotlib.backends.backend_qt5agg import (
     FigureCanvasQTAgg as FCanvas,
     NavigationToolbar2QT as NavBar,
 )
+from matplotlib.text import Text
 
 from plottr import QtWidgets, QtGui, QtCore, config as plottrconfig
 from plottr.data.datadict import DataDictBase
@@ -49,7 +50,7 @@ class MPLPlot(FCanvas):
         self.axes: List[Axes] = []
         self._tightLayout = False
         self._showInfo = False
-        self._infoArtist = None
+        self._infoArtist: Optional[Text] = None
         self._info = ''
         self._meta_info: Dict[str, str] = {}
         self._constrainedLayout = constrainedLayout

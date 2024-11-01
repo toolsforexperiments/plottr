@@ -50,7 +50,7 @@ class SymmetricNorm(colors.Normalize):
         super().__init__(vmin, vmax, clip)
         self.vcenter = vcenter
 
-    def __call__(self, value: float, clip: Optional[bool] = None) -> np.ma.core.MaskedArray:
+    def __call__(self, value: np.ndarray, clip: Optional[bool] = None) -> np.ma.MaskedArray:
         vlim = max(abs(self.vmin - self.vcenter), abs(self.vmax - self.vcenter))
         self.vmax: float = vlim + self.vcenter
         self.vmin: float = -vlim + self.vcenter
@@ -118,7 +118,7 @@ def colorplot2d(ax: Axes,
             # special case: if we have a single line, a pcolor-type plot won't work.
             elif min(g.shape) < 2:
                 plotType = PlotType.scatter2d
-
+    im: Optional[AxesImage] 
     if plotType is PlotType.image:
         im = plotImage(ax, x, y, z, cmap=cmap, **kw)
     elif plotType is PlotType.colormesh:
@@ -131,8 +131,10 @@ def colorplot2d(ax: Axes,
     if im is None:
         return None
 
-    ax.set_xlabel(axLabels[0])
-    ax.set_ylabel(axLabels[1])
+    if axLabels[0]:
+        ax.set_xlabel(axLabels[0])
+    if axLabels[1]:
+        ax.set_ylabel(axLabels[1])
     return im
 
 
@@ -191,7 +193,7 @@ def plotImage(ax: Axes, x: np.ndarray, y: np.ndarray,
         extenty = extenty[::-1]
     if y0 == y1:
         extenty = [y0, y0 + 1]
-    extent = tuple(extentx + extenty)
+    extent: tuple[float, float, float, float] = tuple(extentx + extenty)
 
     if x.shape[0] > 1:
         # in image mode we have to be a little careful:
