@@ -9,6 +9,7 @@ import numpy as np
 from matplotlib import colors, rcParams
 from matplotlib.axes import Axes
 from matplotlib.image import AxesImage
+from matplotlib.cm import ScalarMappable
 
 from plottr.utils import num
 from plottr.utils.num import centers2edges_2d, interp_meshgrid_2d
@@ -50,7 +51,7 @@ class SymmetricNorm(colors.Normalize):
         super().__init__(vmin, vmax, clip)
         self.vcenter = vcenter
 
-    def __call__(self, value: np.ndarray, clip: Optional[bool] = None) -> np.ma.MaskedArray:
+    def __call__(self, value, clip: Optional[bool] = None):
         vlim = max(abs(self.vmin - self.vcenter), abs(self.vmax - self.vcenter))
         self.vmax: float = vlim + self.vcenter
         self.vmin: float = -vlim + self.vcenter
@@ -64,7 +65,7 @@ def colorplot2d(ax: Axes,
                 z: Union[np.ndarray, np.ma.MaskedArray],
                 plotType: PlotType = PlotType.image,
                 axLabels: Tuple[Optional[str], Optional[str], Optional[str]] = ('', '', ''),
-                **kw: Any) -> Optional[AxesImage]:
+                **kw: Any) -> Optional[ScalarMappable]:
     """make a 2d colorplot. what plot is made, depends on `plotType`.
     Any of the 2d plot types in :class:`PlotType` works.
 
@@ -118,7 +119,7 @@ def colorplot2d(ax: Axes,
             # special case: if we have a single line, a pcolor-type plot won't work.
             elif min(g.shape) < 2:
                 plotType = PlotType.scatter2d
-    im: Optional[AxesImage] 
+    im: Optional[ScalarMappable] 
     if plotType is PlotType.image:
         im = plotImage(ax, x, y, z, cmap=cmap, **kw)
     elif plotType is PlotType.colormesh:
@@ -139,7 +140,7 @@ def colorplot2d(ax: Axes,
 
 
 def ppcolormesh_from_meshgrid(ax: Axes, x: np.ndarray, y: np.ndarray,
-                              z: np.ndarray, **kw: Any) -> Union[AxesImage, None]:
+                              z: np.ndarray, **kw: Any) -> Optional[ScalarMappable]:
     r"""Plot a pcolormesh with some reasonable defaults.
     Input are the corresponding arrays from a 2D ``MeshgridDataDict``.
 
@@ -193,7 +194,7 @@ def plotImage(ax: Axes, x: np.ndarray, y: np.ndarray,
         extenty = extenty[::-1]
     if y0 == y1:
         extenty = [y0, y0 + 1]
-    extent: tuple[float, float, float, float] = tuple(extentx + extenty)
+    extent = tuple(extentx + extenty)
 
     if x.shape[0] > 1:
         # in image mode we have to be a little careful:
@@ -206,5 +207,5 @@ def plotImage(ax: Axes, x: np.ndarray, y: np.ndarray,
         z = z if y[0, 0] < y[0, 1] else z[:, ::-1]
 
     im = ax.imshow(z.T, aspect='auto', origin='lower',
-                   extent=extent, **kw)
+                   extent=extent, **kw) # type: ignore[arg-type]
     return im
