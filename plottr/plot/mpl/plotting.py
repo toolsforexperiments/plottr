@@ -194,7 +194,7 @@ def plotImage(ax: Axes, x: np.ndarray, y: np.ndarray,
         extenty = extenty[::-1]
     if y0 == y1:
         extenty = [y0, y0 + 1]
-    extent = tuple(extentx + extenty)
+    extent: Tuple[float,float,float,float] = tuple(extentx + extenty)
 
     if x.shape[0] > 1:
         # in image mode we have to be a little careful:
