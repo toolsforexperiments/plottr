@@ -51,7 +51,7 @@ class SymmetricNorm(colors.Normalize):
         super().__init__(vmin, vmax, clip)
         self.vcenter = vcenter
 
-    def __call__(self, value, clip: Optional[bool] = None):
+    def __call__(self, value: float, clip: Optional[bool] = None) -> float:
         vlim = max(abs(self.vmin - self.vcenter), abs(self.vmax - self.vcenter))
         self.vmax: float = vlim + self.vcenter
         self.vmin: float = -vlim + self.vcenter
@@ -119,7 +119,7 @@ def colorplot2d(ax: Axes,
             # special case: if we have a single line, a pcolor-type plot won't work.
             elif min(g.shape) < 2:
                 plotType = PlotType.scatter2d
-    im: Optional[ScalarMappable] 
+    im: Optional[ScalarMappable]
     if plotType is PlotType.image:
         im = plotImage(ax, x, y, z, cmap=cmap, **kw)
     elif plotType is PlotType.colormesh:
@@ -207,5 +207,5 @@ def plotImage(ax: Axes, x: np.ndarray, y: np.ndarray,
         z = z if y[0, 0] < y[0, 1] else z[:, ::-1]
 
     im = ax.imshow(z.T, aspect='auto', origin='lower',
-                   extent=extent, **kw) # type: ignore[arg-type]
+                   extent=extent, **kw)
     return im
