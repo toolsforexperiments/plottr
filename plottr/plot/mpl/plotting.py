@@ -3,7 +3,7 @@
 """
 
 from enum import Enum, auto, unique
-from typing import Any, Optional, Tuple, Union
+from typing import Any, Optional, Tuple, Union, cast
 
 import numpy as np
 from matplotlib import colors, rcParams
