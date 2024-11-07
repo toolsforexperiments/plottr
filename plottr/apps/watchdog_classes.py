@@ -97,7 +97,7 @@ class WatcherClient(QtCore.QObject):
 
     def run(self) -> None:
         logger.info('starting the watcher')
-        self.observer.schedule(self.handler, self.directory, recursive=True)
+        self.observer.schedule(self.handler, str(self.directory), recursive=True)
         self.observer.start()
         try:
             while self.observer.is_alive():

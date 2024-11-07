@@ -206,10 +206,10 @@ class PlotWidget(QtWidgets.QWidget):
 
         if dependentName is None:
             for d in self.data.dependents():
-                if np.issubsctype(self.data.data_vals(d), np.complexfloating):
+                if np.issubdtype(self.data.data_vals(d).dtype, np.complexfloating):
                     return True
         else:
-            if np.issubsctype(self.data.data_vals(dependentName), np.complexfloating):
+            if np.issubdtype(self.data.data_vals(dependentName).dtype, np.complexfloating):
                 return True
 
         return False
@@ -429,7 +429,7 @@ class AutoFigureMaker:
             plotItem.labels = [''] * len(plotItem.data)
         label = plotItem.labels[-1]
 
-        if not np.issubsctype(plotItem.data[-1], np.complexfloating):
+        if not np.issubdtype(plotItem.data[-1].dtype, np.complexfloating):
             return [plotItem]
 
         elif self.complexRepresentation is ComplexRepresentation.real:
