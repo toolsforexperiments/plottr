@@ -51,8 +51,9 @@ class SymmetricNorm(colors.Normalize):
         super().__init__(vmin, vmax, clip)
         self.vcenter = vcenter
 
-    # this only overrides one of the overloaded signatures
-    def __call__(self, value: float, clip: Optional[bool] = None) -> float:  # type: ignore[override]
+    # this only overrides one of the overloaded signatures and therefor fails
+    # however on 3.8 this does not fail.
+    def __call__(self, value: float, clip: Optional[bool] = None) -> float:  # type: ignore[override,unused-ignore]
         vlim = max(abs(self.vmin - self.vcenter), abs(self.vmax - self.vcenter))
         self.vmax: float = vlim + self.vcenter
         self.vmin: float = -vlim + self.vcenter
