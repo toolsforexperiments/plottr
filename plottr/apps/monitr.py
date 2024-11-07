@@ -18,7 +18,18 @@ import json
 from enum import Enum, auto
 from pathlib import Path
 from multiprocessing import Process
-from typing import List, Optional, Dict, Any, Union, Generator, Iterable, Tuple, Sequence
+from typing import (
+    List,
+    Optional,
+    Dict,
+    Any,
+    Union,
+    Generator,
+    Iterable,
+    Tuple,
+    Sequence,
+    cast,
+)
 from functools import partial
 from itertools import cycle
 
@@ -1860,8 +1871,14 @@ class FileExplorer(QtWidgets.QWidget):
         self.filter_thread = QtCore.QThread(self)
         self.filter_worker = FilterWorker()
         self.filter_worker.moveToThread(self.filter_thread)
-        run_fun = partial(self.filter_worker.run, self.model, self.star_button.isChecked(),
-                          self.trash_button.isChecked(), filter, self.selected_tags)
+        run_fun = partial(
+            self.filter_worker.run,
+            cast(FileModel, self.model),
+            self.star_button.isChecked(),
+            self.trash_button.isChecked(),
+            filter,
+            self.selected_tags,
+        )
         self.filter_thread.started.connect(run_fun)
         self.filter_worker.finished.connect(self.on_finished_filtering)
         self.filter_thread.start()
