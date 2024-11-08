@@ -10,7 +10,7 @@ class Cosine(Fit):
     @staticmethod
     def model(coordinates: np.ndarray,
               A: float, f: float, phi: float, of: float) -> np.ndarray:
-        """$A \cos(2 \pi f x + \phi) + of$"""
+        r"""$A \cos(2 \pi f x + \phi) + of$"""
         return A * np.cos(2 * np.pi * coordinates * f + phi) + of
 
     @staticmethod
