@@ -57,7 +57,6 @@ AUTOPLOTMODULE = 'plottr.apps.autoplot'
 # Function that the app manager should run to open a new app.
 AUTOPLOTFUNC = 'autoplotDDH5App'
 
-
 LOGGER = logging.getLogger('plottr.apps.monitr')
 
 
