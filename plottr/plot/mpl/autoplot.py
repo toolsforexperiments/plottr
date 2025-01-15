@@ -7,11 +7,10 @@ from typing import Dict, List, Tuple, Union, Optional, Any, Type, cast
 from types import TracebackType
 
 import numpy as np
-from matplotlib.artist import Artist
 from matplotlib.axes import Axes
 from matplotlib.figure import Figure
 from matplotlib.gridspec import GridSpec
-from matplotlib.lines import Line2D
+from matplotlib.cm import ScalarMappable
 
 from plottr import QtWidgets, QtCore, Signal, Slot
 from plottr.data.datadict import DataDictBase
@@ -103,7 +102,7 @@ class FigureMaker(BaseFM):
                 axes[1].set_ylabel(labels[2][0])
         return None
 
-    def plot(self, plotItem: PlotItem) -> Optional[Union[Artist, List[Artist]]]:
+    def plot(self, plotItem: PlotItem) -> Optional[Union[ScalarMappable, List[ScalarMappable]]]:
         """Plots data in a PlotItem.
 
         :param plotItem: the item to plot.
@@ -117,7 +116,7 @@ class FigureMaker(BaseFM):
             return None
 
     # methods specific to this class
-    def plotLine(self, plotItem: PlotItem) -> Optional[List[Line2D]]:
+    def plotLine(self, plotItem: PlotItem) -> Optional[List[ScalarMappable]]:
         axes = self.subPlots[plotItem.subPlot].axes
         assert isinstance(axes, list) and len(axes) > 0
         assert len(plotItem.data) == 2
@@ -125,12 +124,14 @@ class FigureMaker(BaseFM):
         x, y = plotItem.data
         return axes[0].plot(x, y, label=lbl, **plotItem.plotOptions)
 
-    def plotImage(self, plotItem: PlotItem) -> Optional[Artist]:
+    def plotImage(self, plotItem: PlotItem) -> Optional[ScalarMappable]:
         assert len(plotItem.data) == 3
         x, y, z = plotItem.data
         axes = self.subPlots[plotItem.subPlot].axes
         assert isinstance(axes, list) and len(axes) > 0
         im = colorplot2d(axes[0], x, y, z, plotType=self.plotType)
+        if im is None:
+            return None
         cb = self.fig.colorbar(im, ax=axes[0], shrink=0.75, pad=0.02)
         lbl = plotItem.labels[-1] if isinstance(plotItem.labels, list) and len(plotItem.labels) > 0 else ''
         cb.set_label(lbl)

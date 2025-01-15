@@ -1,10 +1,82 @@
 [build-system]
-requires = [
-    "setuptools >= 48",
-    "wheel >= 0.29.0",
-    "versioningit >= 1.1.0"
+requires = ["setuptools>=68.1", "versioningit >= 2.2.1",]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "plottr"
+description = "A tool for live plotting and processing data"
+authors = [{name = "Wolfgang Pfaff", email = "wolfgangpfff@gmail.com"}]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Science/Research",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3 :: Only",
+    "Programming Language :: Python :: 3.8",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Topic :: Scientific/Engineering",
 ]
-build-backend = 'setuptools.build_meta'
+license = {text = "MIT"}
+requires-python = ">=3.8"
+dependencies = [
+    "pandas>=0.22",
+    "xarray",
+    "pyqtgraph>=0.12.1",
+    "matplotlib>=3.0.0",
+    "numpy>=1.12.0",
+    "lmfit>=1.0",
+    "h5py>=2.10.0",
+    "qtpy>=1.9.0",
+    "typing-extensions>=3.7.4.3",
+    "packaging>=20.0",
+    "xhistogram>=0.3.0",
+    "versioningit>=1.1.0",
+    "psutil",
+    "watchdog",
+    "pyzmq",
+]
+dynamic = ["version"]
+
+[project.readme]
+file = "README.md"
+content-type = "text/markdown"
+
+[project.urls]
+Homepage = "https://github.com/toolsforexperiments/plottr"
+Documentation = "https://plottr.readthedocs.io"
+Source = "https://github.com/toolsforexperiments/plottr/"
+Tracker = "https://github.com/toolsforexperiments/plottr/issues"
+
+[project.optional-dependencies]
+pyqt5 = ["PyQt5"]
+pyqt6 = ["PyQt6"]
+pyside2 = ["PySide2>=5.12"]
+qcodes = ["qcodes"]
+
+[project.scripts]
+plottr-monitr = "plottr.apps.monitr:script"
+plottr-inspectr = "plottr.apps.inspectr:script"
+plottr-autoplot-ddh5 = "plottr.apps.autoplot:script"
+
+[tool.setuptools]
+include-package-data = false
+
+[tool.setuptools.package-data]
+plottr = [
+    "resource/gfx/*",
+    "py.typed",
+]
+
+[tool.setuptools.packages.find]
+include = ["plottr*"]
+namespaces = false
+
+[tool.setuptools.cmdclass]
+sdist = "versioningit.cmdclass.sdist"
+build_py = "versioningit.cmdclass.build_py"
 
 [tool.mypy]
 strict_optional = true

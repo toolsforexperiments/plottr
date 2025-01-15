@@ -18,7 +18,18 @@ import json
 from enum import Enum, auto
 from pathlib import Path
 from multiprocessing import Process
-from typing import List, Optional, Dict, Any, Union, Generator, Iterable, Tuple, Sequence
+from typing import (
+    List,
+    Optional,
+    Dict,
+    Any,
+    Union,
+    Generator,
+    Iterable,
+    Tuple,
+    Sequence,
+    cast,
+)
 from functools import partial
 from itertools import cycle
 
@@ -586,7 +597,7 @@ class FileModel(QtGui.QStandardItemModel):
         """
         # LOGGER.debug(f'file created: {event}')
 
-        path = Path(event.src_path)
+        path = Path(str(event.src_path))
         # If a folder is created, it will be added when a data file will be created.
         if not path.is_dir() and not any(part.startswith('.') for part in path.parts):
 
@@ -625,7 +636,7 @@ class FileModel(QtGui.QStandardItemModel):
         """
         # LOGGER.debug(f'file deleted: {event}')
 
-        path = Path(event.src_path)
+        path = Path(str(event.src_path))
         # If the path deleted it's a folder, then it should be in the mian dictionary, or we don't care about it.
         if path in self.main_dictionary:
             item = self.main_dictionary[path]
@@ -700,8 +711,8 @@ class FileModel(QtGui.QStandardItemModel):
         # so we ignore them.
         if event.src_path is not None and event.src_path != '' \
                 and event.dest_path is not None and event.dest_path != '':
-            src_path = Path(event.src_path)
-            dest_path = Path(event.dest_path)
+            src_path = Path(str(event.src_path))
+            dest_path = Path(str(event.dest_path))
 
             # If a directory is moved, only need to change the old path for the new path
             if event.is_directory:
@@ -823,7 +834,7 @@ class FileModel(QtGui.QStandardItemModel):
         """
         # LOGGER.debug(f'file modified: {event}')
 
-        path = Path(event.src_path)
+        path = Path(str(event.src_path))
 
         if path.parent in self.main_dictionary:
 
@@ -1860,8 +1871,14 @@ class FileExplorer(QtWidgets.QWidget):
         self.filter_thread = QtCore.QThread(self)
         self.filter_worker = FilterWorker()
         self.filter_worker.moveToThread(self.filter_thread)
-        run_fun = partial(self.filter_worker.run, self.model, self.star_button.isChecked(),
-                          self.trash_button.isChecked(), filter, self.selected_tags)
+        run_fun = partial(
+            self.filter_worker.run,
+            cast(FileModel, self.model),
+            self.star_button.isChecked(),
+            self.trash_button.isChecked(),
+            filter,
+            self.selected_tags,
+        )
         self.filter_thread.started.connect(run_fun)
         self.filter_worker.finished.connect(self.on_finished_filtering)
         self.filter_thread.start()
