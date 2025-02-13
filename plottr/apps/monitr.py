@@ -57,7 +57,6 @@ AUTOPLOTMODULE = 'plottr.apps.autoplot'
 # Function that the app manager should run to open a new app.
 AUTOPLOTFUNC = 'autoplotDDH5App'
 
-
 LOGGER = logging.getLogger('plottr.apps.monitr')
 
 
@@ -3317,6 +3316,26 @@ class Monitr(QtWidgets.QMainWindow):
         self.text_input = Collapsible(TextInput(path), title='Add Comment:')
         self.right_side_layout.addWidget(self.text_input)
 
+    @staticmethod
+    def _sort_right_window_files(x):
+        file_name, file_type = x[1], x[2]
+        # 1. Images
+        if file_type == ContentType.image:
+            return (0, file_name)
+        # 2. directory path
+        elif file_name == "directry_path.md":
+            return (1, file_name)
+        # 3. Param dict
+        elif file_name == "param_dict.json":
+            return (2, file_name)
+        # Last - python scripts
+        elif file_type == ContentType.py:
+            return (4, file_name)
+        # Everything else in between
+        else:
+            return (3, file_name)
+
+
     def add_all_files(self, files_data: List[Tuple[Path, str, ContentType]]) -> None:
         """
         Adds all other md, json or images files on the right side of the screen.
@@ -3324,6 +3343,9 @@ class Monitr(QtWidgets.QMainWindow):
         :param file_dict: List containing 3 items Tuples. The first item should always be the Path of the file.
             The second item should be the name of the file. The third item should be the ContentType of it.
         """
+        # Sort files before displaying content
+        files_data.sort(key=self._sort_right_window_files)
+
         for file, name, file_type in files_data:
             if file_type == ContentType.json:
 
