@@ -59,7 +59,6 @@ AUTOPLOTFUNC = 'autoplotDDH5App'
 
 LOGGER = logging.getLogger('plottr.apps.monitr')
 
-
 def html_color_generator() -> Generator[str, None, None]:
     """
     Generator that cycles through string colors for use in html code.
@@ -3317,7 +3316,7 @@ class Monitr(QtWidgets.QMainWindow):
         self.right_side_layout.addWidget(self.text_input)
 
     @staticmethod
-    def _sort_right_window_files(x):
+    def _sort_right_window_files(x: List[Tuple[Path, str, ContentType]]) -> tuple[int, str]:
         file_name, file_type = x[1], x[2]
         # 1. Images
         if file_type == ContentType.image:
@@ -3334,7 +3333,6 @@ class Monitr(QtWidgets.QMainWindow):
         # Everything else in between
         else:
             return (3, file_name)
-
 
     def add_all_files(self, files_data: List[Tuple[Path, str, ContentType]]) -> None:
         """
