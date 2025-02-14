@@ -3316,7 +3316,7 @@ class Monitr(QtWidgets.QMainWindow):
         self.right_side_layout.addWidget(self.text_input)
 
     @staticmethod
-    def _sort_right_window_files(x: Tuple[Path, str, ContentType]) -> tuple[int, str]:
+    def _sort_right_window_files(x: Tuple[str, ContentType]) -> tuple[int, str]:
         file_name, file_type = x[1], x[2]
         # 1. Images
         if file_type == ContentType.image:
