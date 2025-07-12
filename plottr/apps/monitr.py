@@ -2376,6 +2376,26 @@ class DataTreeWidget(QtWidgets.QTreeWidget):
         return QtCore.QSize(width, height)
 
 
+class CopyPathSection(QtWidgets.QWidget):
+    def __init__(self, path: str, parent=None):
+        super().__init__(parent)
+        self.path = path
+
+        layout = QtWidgets.QHBoxLayout(self)
+        layout.setContentsMargins(0, 0, 0, 0)
+
+        self.copy_btn = QtWidgets.QPushButton("Copy path")
+        self.copy_btn.setFixedSize(80, 24)
+        self.copy_btn.clicked.connect(self.copy_path_to_clipboard)
+
+        layout.addStretch()
+        layout.addWidget(self.copy_btn)
+
+    def copy_path_to_clipboard(self):
+        clipboard = QtWidgets.QApplication.clipboard()
+        clipboard.setText(self.path)
+
+
 class FloatingButtonWidget(QtWidgets.QPushButton):
     """
     Floating button inside the textbox showing any md file. Allows editing or saving the file.
@@ -3270,6 +3290,7 @@ class Monitr(QtWidgets.QMainWindow):
         self.right_side_dummy_widget.setLayout(self.right_side_layout)
 
         self.data_window: Optional[Collapsible] = None
+        self.copy_path_widget = None
         self.text_input: Optional[Collapsible] = None
         self.file_windows: List[Collapsible] = []
         self.scroll_area: Optional[VerticalScrollArea] = None
@@ -3474,6 +3495,7 @@ class Monitr(QtWidgets.QMainWindow):
         self.add_folder_header()
         self.add_tag_label(files_meta["tag_labels"])
         self.add_data_window(files_meta["data_files"])
+        self.add_copy_path_buttons()
         self.add_text_input(self.current_selected_folder)
         self.add_all_files(files_meta["extra_files"])
 
@@ -3527,6 +3549,11 @@ class Monitr(QtWidgets.QMainWindow):
             self.right_side_layout.removeWidget(self.invalid_data_label)
             self.invalid_data_label.deleteLater()
             self.invalid_data_label = None
+
+        if self.copy_path_widget is not None:
+            self.right_side_layout.removeWidget(self.copy_path_widget)
+            self.copy_path_widget.deleteLater()
+            self.copy_path_widget = None
 
         if self.text_input is not None:
             self.right_side_layout.removeWidget(self.text_input)
@@ -3645,6 +3672,38 @@ class Monitr(QtWidgets.QMainWindow):
         self.text_input = Collapsible(TextInput(path), title="Add Comment:")
         self.right_side_layout.addWidget(self.text_input)
 
+    def add_copy_path_buttons(self):
+        self.copy_path_widget = QtWidgets.QWidget()
+        layout = QtWidgets.QHBoxLayout(self.copy_path_widget)
+        layout.setContentsMargins(0, 0, 0, 0)
+
+        path_file = self.current_selected_folder / "paths.md"
+        if path_file.exists():
+            with open(path_file, "r", encoding="utf-8") as f:
+                paths = [line.strip() for line in f if line.strip()]
+        else:
+            paths = [str(self.current_selected_folder)]
+
+        local_paths = [p for p in paths if p.startswith("C")]
+        remote_paths = [p for p in paths if not p.startswith("C")]
+
+        for path in local_paths:
+            btn = QtWidgets.QPushButton("Copy local db path")
+            btn.clicked.connect(
+                lambda _, p=path: QtWidgets.QApplication.clipboard().setText(p)
+            )
+            layout.addWidget(btn)
+
+        for path in remote_paths:
+            btn = QtWidgets.QPushButton("Copy remote db path")
+            btn.clicked.connect(
+                lambda _, p=path: QtWidgets.QApplication.clipboard().setText(p)
+            )
+            layout.addWidget(btn)
+
+        layout.addStretch()
+        self.right_side_layout.addWidget(self.copy_path_widget)
+
     @staticmethod
     def _sort_right_window_files(x: Tuple[Path, str, ContentType]) -> Tuple[int, str]:
         file_name, file_type = x[1], x[2]
@@ -3652,10 +3711,10 @@ class Monitr(QtWidgets.QMainWindow):
         if file_type == ContentType.image:
             return (0, file_name)
         # 2. directory path
-        elif file_name == "directry_path.md":
+        elif file_name in ["paths.md", "directry_path.md"]:
             return (1, file_name)
         # 3. Param dict
-        elif file_name == "param_dict.json":
+        elif file_name in ["qpu_old.json", "qpu_new.json", "param_dict.json"]:
             return (2, file_name)
         # Last - python scripts
         elif file_type == ContentType.py:
