@@ -4,6 +4,8 @@ qcodes_dataset.py
 Dealing with qcodes dataset (the database) data in plottr.
 """
 import os
+import sys
+from contextlib import closing
 from itertools import chain
 from operator import attrgetter
 from typing import Dict, List, Set, Union, TYPE_CHECKING, Any, Tuple, Optional, cast
@@ -14,7 +16,7 @@ import pandas as pd
 
 from qcodes.dataset.data_set import load_by_id
 from qcodes.dataset.experiment_container import experiments
-from qcodes.dataset.sqlite.database import initialise_or_create_database_at
+from qcodes.dataset.sqlite.database import conn_from_dbpath_or_conn, initialise_or_create_database_at
 
 from .datadict import DataDictBase, DataDict, combine_datadicts
 from ..node.node import Node, updateOption
@@ -160,7 +162,7 @@ def get_ds_info(ds: 'DataSetProtocol', get_structure: bool = True) -> DataSetInf
     return data
 
 
-def load_dataset_from(path: str, run_id: int) -> 'DataSetProtocol':
+def load_dataset_from(path: str, run_id: int, read_only: bool = True) -> 'DataSetProtocol':
     """
     Loads ``DataSet`` with the given ``run_id`` from a database file that
     is located in in the given ``path``.
@@ -169,6 +171,8 @@ def load_dataset_from(path: str, run_id: int) -> 'DataSetProtocol':
     qcodes config of the current python process is changed to ``path``.
     """
     initialise_or_create_database_at(path)
+    if sys.version_info >= (3, 11):
+        return load_by_id(run_id=run_id, read_only=read_only)
     return load_by_id(run_id=run_id)
 
 
@@ -187,18 +191,24 @@ def get_runs_from_db(path: str, start: int = 0,
     in the return dict.
     """
     initialise_or_create_database_at(path)
+    if sys.version_info >= (3, 11):
+        conn = conn_from_dbpath_or_conn(conn=None, path_to_db=path, read_only=True)
+    else:
+        conn = conn_from_dbpath_or_conn(conn=None, path_to_db=path)
+    with closing(conn) as conn_:
+        exps = experiments(conn=conn_)
 
-    datasets = sorted(
-        chain.from_iterable(exp.data_sets() for exp in experiments()),
-        key=attrgetter('run_id')
-    )
+        datasets = sorted(
+            chain.from_iterable(exp.data_sets() for exp in exps),
+            key=attrgetter('run_id')
+        )
 
-    # There is no need for checking whether ``stop`` is ``None`` because if
-    # it is the following is simply equivalent to ``datasets[start:]``
-    datasets = datasets[start:stop]
+        # There is no need for checking whether ``stop`` is ``None`` because if
+        # it is the following is simply equivalent to ``datasets[start:]``
+        datasets = datasets[start:stop]
 
-    overview = {ds.run_id: get_ds_info(ds, get_structure=get_structure)
-                for ds in datasets}
+        overview = {ds.run_id: get_ds_info(ds, get_structure=get_structure)
+                    for ds in datasets}
     return overview
 
 
@@ -286,7 +296,7 @@ class QCodesDSLoader(Node):
             path, runId = cast(Tuple[str, int], self._pathAndId)
 
             if self._dataset is None:
-                self._dataset = load_dataset_from(path, runId)
+                self._dataset = load_dataset_from(path, runId, read_only=True)
 
             if self._dataset.number_of_results > self.nLoadedRecords:
 
