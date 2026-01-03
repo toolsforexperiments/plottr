@@ -24,7 +24,7 @@ from typing_extensions import TypedDict
 from numpy import rint
 import pandas
 
-from plottr import QtCore, QtWidgets, Signal, Slot, QtGui, Flowchart
+from plottr import QtCore, QtWidgets, Signal, Slot, QtGui, Flowchart, QAction
 
 from .. import log as plottrlog
 from ..data.qcodes_dataset import (get_runs_from_db_as_dataframe,
@@ -112,7 +112,7 @@ class SortableTreeWidgetItem(QtWidgets.QTreeWidgetItem):
     as numbers instead of sorting them alphabetically.
     """
     def __init__(self, strings: Iterable[str]):
-        super().__init__(strings)
+        super().__init__(list(strings))
 
     def __lt__(self, other: QtWidgets.QTreeWidgetItem) -> bool:
         col = self.treeWidget().sortColumn()
@@ -158,16 +158,16 @@ class RunList(QtWidgets.QTreeWidget):
         copy_action = menu.addAction(copy_icon, "Copy")
 
         window = cast(QCodesDBInspector, self.window())
-        starAction: QtWidgets.QAction = window.starAction # type: ignore[has-type]
+        starAction: QAction = window.starAction # type: ignore[has-type]
 
         starAction.setText('Star' if current_tag_char != self.tag_dict['star'] else 'Unstar')
         menu.addAction(starAction)
 
-        crossAction: QtWidgets.QAction = window.crossAction # type: ignore[has-type]
+        crossAction: QAction = window.crossAction # type: ignore[has-type]
         crossAction.setText('Cross' if current_tag_char != self.tag_dict['cross'] else 'Uncross')
         menu.addAction(crossAction)
 
-        action = menu.exec_(self.mapToGlobal(position))
+        action = menu.exec(self.mapToGlobal(position))
         if action == copy_action:
             QtWidgets.QApplication.clipboard().setText(item.text(
                 model_index.column()))
@@ -382,25 +382,25 @@ class QCodesDBInspector(QtWidgets.QMainWindow):
         fileMenu = menu.addMenu('&File')
 
         # action: load db file
-        loadAction = QtWidgets.QAction('&Load', self)
+        loadAction = QAction('&Load', self)
         loadAction.setShortcut('Ctrl+L')
         loadAction.triggered.connect(self.loadDB)
         fileMenu.addAction(loadAction)
 
         # action: updates from the db file
-        refreshAction = QtWidgets.QAction('&Refresh', self)
+        refreshAction = QAction('&Refresh', self)
         refreshAction.setShortcut('R')
         refreshAction.triggered.connect(self.refreshDB)
         fileMenu.addAction(refreshAction)
 
         # action: star/unstar the selected run
-        self.starAction = QtWidgets.QAction()
+        self.starAction = QAction()
         self.starAction.setShortcut('Ctrl+Alt+S')
         self.starAction.triggered.connect(self.starSelectedRun)
         self.addAction(self.starAction)
 
         # action: cross/uncross the selected run
-        self.crossAction = QtWidgets.QAction()
+        self.crossAction = QAction()
         self.crossAction.setShortcut('Ctrl+Alt+X')
         self.crossAction.triggered.connect(self.crossSelectedRun)
         self.addAction(self.crossAction)
@@ -665,7 +665,7 @@ def main(dbPath: Optional[str], log_level: Union[int, str] = logging.WARNING) ->
     if (sys.flags.interactive != 1) or not hasattr(QtCore, 'PYQT_VERSION'):
         appinstance = QtWidgets.QApplication.instance()
         assert appinstance is not None
-        appinstance.exec_()
+        appinstance.exec()
 
 
 def script() -> None:

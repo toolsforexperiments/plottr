@@ -30,5 +30,5 @@ if __name__ == '__main__':
     module = importlib.import_module(full_module)
     func = getattr(module, func_name)
     app = App(func, port, None, extra_arguments)
-    sys.exit(application.exec_())
+    sys.exit(application.exec())
 

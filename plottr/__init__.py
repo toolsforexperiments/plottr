@@ -6,14 +6,35 @@ import os
 import sys
 import signal
 
+
+# Logic here: for mypy to work, we need to import the Qt modules to have the correct types/stubs.
+# For type checking we use PySide6, at runtime we use qtpy for backend abstraction.
+PYSIDE6 = False
+PYQT6 = False
 if TYPE_CHECKING:
-    from PyQt5 import QtCore, QtGui, QtWidgets
-    Signal = QtCore.pyqtSignal
-    Slot = QtCore.pyqtSlot
-else:
-    from qtpy import QtCore, QtGui, QtWidgets
+    from PySide6 import QtCore, QtGui, QtWidgets
     Signal = QtCore.Signal
     Slot = QtCore.Slot
+    # In Qt6, QAction and QActionGroup moved from QtWidgets to QtGui
+    QAction = QtGui.QAction
+    QActionGroup = QtGui.QActionGroup
+    API_NAME = 'PySide6'
+else:
+    import qtpy
+    from qtpy import QtCore, QtGui, QtWidgets, API_NAME
+
+    Signal = QtCore.Signal
+    Slot = QtCore.Slot
+    API_NAME = qtpy.API_NAME
+    PYSIDE6 = qtpy.PYSIDE6
+    PYQT6 = qtpy.PYQT6
+    # In Qt6, QAction and QActionGroup moved from QtWidgets to QtGui
+    if PYSIDE6 or PYQT6:
+        QAction = QtGui.QAction
+        QActionGroup = QtGui.QActionGroup
+    else:
+        QAction = QtWidgets.QAction
+        QActionGroup = QtWidgets.QActionGroup
 
 from pyqtgraph.flowchart import Flowchart as pgFlowchart, Node as pgNode
 Flowchart = pgFlowchart
@@ -32,7 +53,7 @@ def qtsleep(delay_sec: float) -> None:
     """sleep function that allows QT event processing in the background."""
     loop = QtCore.QEventLoop()
     QtCore.QTimer.singleShot(int(delay_sec * 1000), loop.quit)
-    loop.exec_()
+    loop.exec()
 
 
 def qtapp() -> QtWidgets.QApplication:

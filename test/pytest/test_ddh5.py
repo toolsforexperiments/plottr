@@ -7,6 +7,7 @@ from shutil import rmtree
 
 import numpy as np
 
+from build.lib.plottr import qtsleep
 from plottr.data import datadict as dd
 from plottr.data import datadict_storage as dds
 from plottr.node.tools import linearFlowchart
@@ -148,6 +149,10 @@ def test_loader_node(qtbot):
 
     with qtbot.waitSignal(node.loadingWorker.dataLoaded, timeout=1000) as blocker:
         node.filepath = str(FILEPATH)
+
+    # wait a bit to make sure the output is set.
+    qtsleep(0.1)
+
     out = fc.outputValues()['dataOut'].copy()
     out.pop('__title__')
     assert _clean_from_file(out) == data

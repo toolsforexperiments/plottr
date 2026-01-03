@@ -19,7 +19,7 @@ from pathlib import Path
 from typing import Dict, Union, Any, Callable, Tuple, Optional
 
 from traceback import print_exception
-from plottr import QtCore, QtWidgets, QtGui, Flowchart, Signal, Slot, log, qtapp, qtsleep, plottrPath
+from plottr import QtCore, QtWidgets, QtGui, Flowchart, Signal, Slot, log, qtapp, qtsleep, plottrPath, PYSIDE6
 from plottr.gui.widgets import PlotWindow
 
 
@@ -151,7 +151,7 @@ class App(QtCore.QObject):
         self.serverThread.started.connect(self.server.run)
         self.serverThread.start()
 
-    @Slot(object)
+    @Slot(object)  # type: ignore[arg-type]
     def onMessageReceived(self, message: Tuple[str, str, Any]) -> None:
         """
         Handles message reception and reply to the app. Emits the signal replyReady with the reply. The signal is
@@ -241,7 +241,7 @@ class ProcessMonitor(QtCore.QObject):
         self.processes: Dict[IdType, QtCore.QProcess] = {}
         self.checking = True
 
-    @Slot(object, object)
+    @Slot(object, object)  # type: ignore[arg-type]
     def onNewProcess(self, Id: IdType, process: QtCore.QProcess) -> None:
         """
         Slot used to add a new process to the ProcessMonitor.
@@ -268,10 +268,15 @@ class ProcessMonitor(QtCore.QObject):
             processesCopy = self.processes.copy()
             for Id, p in processesCopy.items():
                 state = p.state()
-                if state == 0:
+                if PYSIDE6 and state == QtCore.QProcess.ProcessState.NotRunning:
                     del self.processes[Id]
                     self.processTerminated.emit(Id)
-            qtsleep(0.01)
+                elif not PYSIDE6 and state == QtCore.QProcess.NotRunning:
+                    del self.processes[Id]
+                    self.processTerminated.emit(Id)
+                else:
+                    continue
+            qtsleep(0.05)
 
     @Slot()
     def onReadyStandardOutput(self) -> None:
@@ -329,7 +334,7 @@ class AppManager(QtWidgets.QWidget):
         self.procmonThread: Optional[QtCore.QThread] = QtCore.QThread(parent=self)
         self.procmon.moveToThread(self.procmonThread)
         self.newProcess.connect(self.procmon.onNewProcess)
-        self.procmon.processTerminated.connect(self.onProcessEneded)
+        self.procmon.processTerminated.connect(self.onProcessEnded)
         self.procmonThread.started.connect(self.procmon.run)
         self.procmonThread.start()
 
@@ -367,8 +372,8 @@ class AppManager(QtWidgets.QWidget):
         logger.warning(f'Id {Id} already exists')
         return False
 
-    @Slot(object)
-    def onProcessEneded(self, Id: IdType) -> None:
+    @Slot(object)  # type: ignore[arg-type]
+    def onProcessEnded(self, Id: IdType) -> None:
         """
         Gets triggered when the ProcessMonitor detects a process has been closed. Deletes the process from the internal
         dictionary.

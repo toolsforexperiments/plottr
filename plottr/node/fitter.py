@@ -97,7 +97,7 @@ class FittingGui(NodeWidget):
         self.input_options: Optional[FittingOptions] = None # fitting option in dataIn
         self.live_update = False
         self.dry_run = False
-        self.param_signals: List[QtCore.pyqtBoundSignal] = []
+        self.param_signals: List[Any] = []  # Signal instances
         self.fitting_modules = INITIAL_MODULES
         self.my_layout = QtWidgets.QGridLayout()
         self.setLayout(self.my_layout)
@@ -316,7 +316,7 @@ class FittingGui(NodeWidget):
         reloadInputOptButton = QtWidgets.QPushButton("Reload Input Option")
         grid.addWidget(reloadInputOptButton, 0, 3)
 
-        @Slot(QtCore.Qt.CheckState)
+        @Slot(QtCore.Qt.CheckState)  # type: ignore[arg-type]
         def setLiveUpdate(live: QtCore.Qt.CheckState) -> None:
             ''' connect/disconnects the changing signal of each fitting
             option to signalAllOptions slot

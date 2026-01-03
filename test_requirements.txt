@@ -2,6 +2,6 @@ qcodes
 pytest
 pytest-qt
 mypy==1.13.0
-PyQt5-stubs==5.15.6.0
+PySide6-stubs
 pandas-stubs
 watchdog

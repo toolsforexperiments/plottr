@@ -52,6 +52,7 @@ Tracker = "https://github.com/toolsforexperiments/plottr/issues"
 pyqt5 = ["PyQt5"]
 pyqt6 = ["PyQt6"]
 pyside2 = ["PySide2>=5.12"]
+pyside6 = ["PySide6>=6.0"]
 qcodes = ["qcodes>=0.54.1"]
 
 [project.scripts]
@@ -84,17 +85,25 @@ warn_unused_configs = true
 warn_redundant_casts = true
 no_implicit_optional = true
 disallow_untyped_defs = true
-plugins = "numpy.typing.mypy_plugin"
 show_error_codes = true
 enable_error_code = "ignore-without-code"
 
-# This module is auto generated so types
-# are hard to fix
+# This module is auto generated so types are hard to fix
 [[tool.mypy.overrides]]
 module = [
     "plottr.apps.ui.Monitr_UI",
 ]
 ignore_errors = true
+
+# Qt enum access patterns differ between PyQt5/qtpy and PySide6 type stubs.
+# At runtime, qtpy provides compatibility, but mypy sees PySide6 nested enums.
+# We disable attr-defined errors for plottr modules to allow old-style enum access
+# (e.g., Qt.DisplayRole instead of Qt.ItemDataRole.DisplayRole) which works at runtime.
+[[tool.mypy.overrides]]
+module = [
+    "plottr.*",
+]
+disable_error_code = ["attr-defined"]
 
 [[tool.mypy.overrides]]
 module = [

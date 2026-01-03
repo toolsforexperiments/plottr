@@ -742,9 +742,13 @@ class DataDictBase(dict):
             self._parent = parent
 
         def __getattribute__(self, __name: str) -> Any:
-            parent = super(DataDictBase._DataAccess, self).__getattribute__('_parent')
+            # this try/except block helps avoiding pickling/unpickling issues.
+            try:
+                parent = super(DataDictBase._DataAccess, self).__getattribute__('_parent')
+            except AttributeError:
+                parent = None
 
-            if __name in [k for k, _ in parent.data_items()]:
+            if parent is not None and __name in [k for k, _ in parent.data_items()]:
                 return parent.data_vals(__name)
             else:
                 return super(DataDictBase._DataAccess, self).__getattribute__(__name)

@@ -5,8 +5,12 @@ Script obtained from: https://doc-snapshots.qt.io/qtforpython-dev/examples/examp
 from typing import Any, List, Dict, Union, Optional
 from pathlib import Path
 
-from qtpy.QtCore import QAbstractItemModel, QModelIndex, QObject, Qt
-from qtpy.QtWidgets import QTreeView
+from .. import API_NAME as __binding__, QtCore, QtWidgets
+QAbstractItemModel = QtCore.QAbstractItemModel
+QModelIndex = QtCore.QModelIndex
+QObject = QtCore.QObject
+Qt = QtCore.Qt
+QTreeView = QtWidgets.QTreeView
 
 
 class TreeItem:
@@ -182,7 +186,7 @@ class JsonModel(QAbstractItemModel):
                 item = index.internalPointer()
                 item.value = str(value)
 
-                if __binding__ in ("PySide", "PyQt4"):  # type: ignore[name-defined]
+                if __binding__ in ("PySide", "PyQt5"):
                     self.dataChanged.emit(index, index)
                 else:
                     self.dataChanged.emit(index, index, [Qt.EditRole])
@@ -207,7 +211,7 @@ class JsonModel(QAbstractItemModel):
 
         return None
 
-    def index(self, row: int, column: int, parent: QModelIndex = QModelIndex()) -> QModelIndex:
+    def index(self, row: int, column: int, parent: QModelIndex = QModelIndex()) -> QModelIndex:  # type: ignore[override]
         """Override from QAbstractItemModel
 
         Return index according row, column and parent
@@ -245,7 +249,7 @@ class JsonModel(QAbstractItemModel):
 
         return self.createIndex(parentItem.row(), 0, parentItem)
 
-    def rowCount(self, parent: QModelIndex = QModelIndex()) -> int:
+    def rowCount(self, parent: QModelIndex = QModelIndex()) -> int:  # type: ignore[override]
         """Override from QAbstractItemModel
 
         Return row count from parent index
@@ -260,14 +264,14 @@ class JsonModel(QAbstractItemModel):
 
         return parentItem.childCount()
 
-    def columnCount(self, parent: QModelIndex = QModelIndex()) -> int:
+    def columnCount(self, parent: QModelIndex = QModelIndex()) -> int:  # type: ignore[override]
         """Override from QAbstractItemModel
 
         Return column number. For the model, it always return 2 columns
         """
         return 2
 
-    def flags(self, index: QModelIndex) -> Qt.ItemFlags:
+    def flags(self, index: QModelIndex) -> Qt.ItemFlag:  # type: ignore[override]
         """Override from QAbstractItemModel
 
         Return flags of index
