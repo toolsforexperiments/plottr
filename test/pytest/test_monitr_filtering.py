@@ -10,14 +10,10 @@ First version of filtering testing suite. For now the rules of filtering are:
         will be hidden, no matter if the match with anything else that is being filtered at the moment.
 """
 import os
-import sys
-import time
 import shutil
-import datetime
 import numpy as np
 
 from pathlib import Path
-from pprint import pprint
 from typing import Tuple, List
 
 from plottr.data.datadict import DataDict

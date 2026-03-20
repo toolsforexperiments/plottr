@@ -1,6 +1,6 @@
 from typing import Dict, Any, Callable, Optional, Type, cast
 
-from .. import QtGui, QtWidgets
+from .. import QtWidgets
 from .node import Node, NodeWidget, updateOption
 
 connectCallableType = Callable[['AutoNodeGuiTemplate', str, Dict[str, Any], bool], QtWidgets.QWidget]

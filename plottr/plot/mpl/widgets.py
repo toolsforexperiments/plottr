@@ -5,7 +5,6 @@
 import io
 from typing import Tuple, Optional, List, Dict
 
-from numpy import rint
 from matplotlib import rcParams
 from matplotlib.axes import Axes
 from matplotlib.figure import Figure

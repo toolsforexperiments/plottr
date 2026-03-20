@@ -2,9 +2,7 @@ from typing import Tuple
 import numpy as np
 
 
-from plottr.apps.autoplot import autoplot
-from plottr.plot.pyqtgraph.autoplot import AutoPlot
-from plottr.data.datadict import DataDict, MeshgridDataDict
+from plottr.data.datadict import MeshgridDataDict
 
 
 def oscillating_test_data(*specs: Tuple[float, float, int], amp=1, of=0):

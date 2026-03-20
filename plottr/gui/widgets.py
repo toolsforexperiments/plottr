@@ -6,8 +6,8 @@ Common GUI widgets that are re-used across plottr.
 from typing import Union, List, Tuple, Optional, Sequence, Dict, Any, Type, Generic, TypeVar
 
 from .tools import dictToTreeWidgetItems, dpiScalingFactor
-from plottr import QtGui, QtCore, Flowchart, QtWidgets, Signal, Slot
-from plottr.node import Node, linearFlowchart, NodeWidget, updateOption
+from plottr import QtGui, Flowchart, QtWidgets, Signal, Slot
+from plottr.node import Node, linearFlowchart
 from plottr.node.node import updateGuiQuietly, emitGuiUpdate
 from ..plot import PlotNode, PlotWidgetContainer, PlotWidget
 from .. import config_entry as getcfg

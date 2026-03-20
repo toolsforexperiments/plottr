@@ -20,7 +20,6 @@ from plottr import QtCore, QtWidgets, Signal
 from plottr import log as plottrlog
 from plottr.apps.autoplot import autoplot
 from plottr.data.datadict import DataDictBase, DataDict
-from plottr.plot.mpl.autoplot import AutoPlot as MPLAutoPlot
 from plottr.plot.pyqtgraph.autoplot import AutoPlot as PGAutoPlot
 from plottr.utils import testdata
 
