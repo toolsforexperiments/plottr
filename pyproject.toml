@@ -54,6 +54,16 @@ pyqt6 = ["PyQt6"]
 pyside2 = ["PySide2>=5.12"]
 qcodes = ["qcodes>=0.54.1"]
 
+[dependency-groups]
+test = [
+    "qcodes",
+    "pytest",
+    "pytest-qt",
+    "mypy==1.13.0",
+    "PyQt5-stubs==5.15.6.0",
+    "pandas-stubs",
+]
+
 [project.scripts]
 plottr-monitr = "plottr.apps.monitr:script"
 plottr-inspectr = "plottr.apps.inspectr:script"
