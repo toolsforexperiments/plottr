@@ -118,6 +118,43 @@ class DataDictBase(dict):
         return meta_name_to_key(name)
 
     @staticmethod
+    def _copy_field(field: Dict[str, Any], copy_values: bool = True,
+                    empty_values: bool = False) -> Dict[str, Any]:
+        """Create a copy of a data field dict with targeted copy semantics.
+
+        Always creates a new dict and a new 'axes' list (mutation-safe).
+        For 'values': copies the array if *copy_values* is True, shares the
+        reference if False, or sets to ``[]`` if *empty_values* is True.
+        Scalar keys (unit, label) are passed through (immutable strings).
+        Meta keys (``__name__``) are deep-copied (may be mutable).
+        All other keys are deep-copied for safety.
+        """
+        new_field: Dict[str, Any] = {}
+        for fk, fv in field.items():
+            if fk == 'values':
+                if empty_values:
+                    new_field[fk] = []
+                elif copy_values:
+                    # use numpy-optimized copy for arrays
+                    if isinstance(fv, (np.ndarray, np.ma.core.MaskedArray)):
+                        new_field[fk] = fv.copy()
+                    elif isinstance(fv, list):
+                        new_field[fk] = fv.copy()
+                    else:
+                        new_field[fk] = cp.deepcopy(fv)
+                else:
+                    new_field[fk] = fv  # shared reference
+            elif fk == 'axes':
+                new_field[fk] = list(fv)  # always new list
+            elif fk in ('unit', 'label'):
+                new_field[fk] = fv  # immutable strings
+            elif is_meta_key(fk):
+                new_field[fk] = cp.deepcopy(fv)  # may be mutable
+            else:
+                new_field[fk] = cp.deepcopy(fv)  # unknown keys: safe default
+        return new_field
+
+    @staticmethod
     def to_records(**data: Any) -> Dict[str, np.ndarray]:
         """Convert data to records that can be added to the ``DataDict``.
         All data is converted to np.array, and reshaped such that the first dimension of all resulting
@@ -344,7 +381,7 @@ class DataDictBase(dict):
         ret = self.__class__()
         for d in data:
             if copy:
-                ret[d] = cp.deepcopy(self[d])
+                ret[d] = self._copy_field(self[d], copy_values=True)
             else:
                 ret[d] = self[d]
 
@@ -426,29 +463,38 @@ class DataDictBase(dict):
             remove_data = []
 
         if self.validate():
-            s = self.__class__()
-            for n, v in self.data_items():
-                if n not in remove_data:
-                    v2 = v.copy()
-                    v2['values'] = []
-                    s[n] = cp.deepcopy(v2)
-                    if 'axes' in s[n]:
-                        for r in remove_data:
-                            if r in s[n]['axes']:
-                                i = s[n]['axes'].index(r)
-                                s[n]['axes'].pop(i)
-
-            if include_meta:
-                for n, v in self.meta_items():
-                    s.add_meta(n, v)
-            else:
-                s.clear_meta()
-
-            if same_type:
-                s = self.__class__(**s)
-
-            return s
+            return self._build_structure(
+                include_meta=include_meta, same_type=same_type,
+                remove_data=remove_data)
         return None
+
+    def _build_structure(self: T, include_meta: bool = True,
+                         same_type: bool = False,
+                         remove_data: Optional[List[str]] = None) -> T:
+        """Build a structure-only copy. Caller must ensure data is validated."""
+        if remove_data is None:
+            remove_data = []
+
+        s = self.__class__()
+        for n, v in self.data_items():
+            if n not in remove_data:
+                s[n] = self._copy_field(v, empty_values=True)
+                if 'axes' in s[n]:
+                    for r in remove_data:
+                        if r in s[n]['axes']:
+                            i = s[n]['axes'].index(r)
+                            s[n]['axes'].pop(i)
+
+        if include_meta:
+            for n, v in self.meta_items():
+                s.add_meta(n, cp.deepcopy(v))
+        else:
+            s.clear_meta()
+
+        if same_type:
+            s = self.__class__(**s)
+
+        return s
     
 
     def nbytes(self, name: Optional[str]=None) -> Optional[int]:
@@ -560,7 +606,7 @@ class DataDictBase(dict):
         """
         shapes = {}
         for k, v in self.data_items():
-            shapes[k] = np.array(self.data_vals(k)).shape
+            shapes[k] = np.shape(self.data_vals(k))
 
         return shapes
 
@@ -692,18 +738,25 @@ class DataDictBase(dict):
         self.validate()
         return self
 
-    def copy(self: T) -> T:
+    def copy(self: T, deep: bool = True) -> T:
         """
         Make a copy of the dataset.
 
+        :param deep: If ``True`` (default), all data arrays are independently
+            copied. The returned dataset is fully independent of the original.
+            If ``False``, the returned dataset shares data array references
+            with the original. Modifying array *contents* in the copy will
+            affect the original; *replacing* an array only affects the copy.
+            Field metadata (axes, unit, label) is always independently copied.
         :return: A copy of the dataset.
         """
-        logger.debug(f'copying a dataset with size {self.nbytes()}')
-        ret = self.structure()
-        assert ret is not None
+        ret = self.__class__()
+        for k, v in self.items():
+            if self._is_meta_key(k):
+                ret[k] = cp.deepcopy(v)
+            else:
+                ret[k] = self._copy_field(v, copy_values=deep)
 
-        for k, v in self.data_items():
-            ret[k]['values'] = self.data_vals(k).copy()
         return ret
 
     def astype(self: T, dtype: np.dtype) -> T:
@@ -728,7 +781,10 @@ class DataDictBase(dict):
         """
         for d, _ in self.data_items():
             arr = self.data_vals(d)
-            vals = np.ma.masked_where(num.is_invalid(arr), arr, copy=True)
+            invalid_mask = num.is_invalid(arr)
+            if not np.any(invalid_mask):
+                continue  # no invalid entries, skip masking
+            vals = np.ma.masked_where(invalid_mask, arr, copy=True)
             try:
                 vals.fill_value = np.nan
             except TypeError:
@@ -793,7 +849,7 @@ class DataDict(DataDictBase):
         """
 
         # FIXME: remove shape
-        s = misc.unwrap_optional(self.structure(add_shape=False))
+        s = self._build_structure()
         if DataDictBase.same_structure(self, newdata):
             for k, v in self.data_items():
                 val0 = self[k]['values']
@@ -843,7 +899,7 @@ class DataDict(DataDictBase):
 
         :param kw: one array per data field (none can be omitted).
         """
-        dd = misc.unwrap_optional(self.structure(same_type=True))
+        dd = self._build_structure(same_type=True)
         for name, _ in dd.data_items():
             if name not in kw:
                 kw[name] = None
@@ -925,7 +981,7 @@ class DataDict(DataDictBase):
         self.validate()
         if not self.is_expandable():
             raise ValueError('Data cannot be expanded.')
-        struct = misc.unwrap_optional(self.structure(add_shape=False))
+        struct = self._build_structure()
         ret = DataDict(**struct)
 
         if self.is_expanded():
@@ -1120,17 +1176,24 @@ class MeshgridDataDict(DataDictBase):
 
                         try:
                             if axis_data.shape[axis_num] > 1:
-                                steps = np.unique(np.sign(np.diff(axis_data, axis=axis_num)))
-                                
-                                # for incomplete data, there maybe nan steps -- we need to remove those, 
-                                # doesn't mean anything is wrong.
-                                steps = steps[~np.isnan(steps)]
-                                
-                                if 0 in steps:
-                                    msg += (f"Malformed data: {na} is expected to be {axis_num}th "
-                                            "axis but has no variation along that axis.\n")
-                                if steps.size > 1:
-                                    msg += (f"Malformed data: axis {na} is not monotonous.\n")
+                                d = np.diff(axis_data, axis=axis_num)
+
+                                # for incomplete data, there may be nan steps -- we need to
+                                # ignore those, doesn't mean anything is wrong.
+                                if np.issubdtype(d.dtype, np.floating):
+                                    nan_mask = np.isnan(d)
+                                    if np.all(nan_mask):
+                                        continue  # all NaN, can't check
+                                    valid = d[~nan_mask]
+                                else:
+                                    valid = d.ravel()
+
+                                if valid.size > 0:
+                                    if np.any(valid == 0):
+                                        msg += (f"Malformed data: {na} is expected to be {axis_num}th "
+                                                "axis but has no variation along that axis.\n")
+                                    if not (np.all(valid > 0) or np.all(valid < 0)):
+                                        msg += (f"Malformed data: axis {na} is not monotonous.\n")
                         
                         # can happen if we have bad shapes. but that should already have been caught.
                         except IndexError:
@@ -1214,7 +1277,7 @@ def _mesh_mean(data: MeshgridDataDict, ax: str) -> MeshgridDataDict:
     :return: averaged data
     """
     iax = data.axes().index(ax)
-    new_data = data.structure(remove_data=[ax])
+    new_data = data._build_structure(remove_data=[ax])
     assert isinstance(new_data, MeshgridDataDict)
 
     for d, v in data.data_items():
@@ -1237,7 +1300,7 @@ def _mesh_slice(data: MeshgridDataDict, **kwargs: Dict[str, Union[slice, int]]) 
     for ax, val in kwargs.items():
         i = data.axes().index(ax)
         slices[i] = val
-    ret = data.structure()
+    ret = data._build_structure()
     assert isinstance(ret, MeshgridDataDict)
 
     for d, _ in data.data_items():
@@ -1329,7 +1392,7 @@ def datadict_to_meshgrid(data: DataDict,
         inner_axis_order, target_shape = ret
 
     # construct new data
-    newdata = MeshgridDataDict(**misc.unwrap_optional(data.structure(add_shape=False)))
+    newdata = MeshgridDataDict(**data._build_structure())
     axlist = data.axes(data.dependents()[0])
 
     for k, v in data.data_items():
@@ -1356,7 +1419,7 @@ def meshgrid_to_datadict(data: MeshgridDataDict) -> DataDict:
     :param data: Input ``MeshgridDataDict``.
     :return: Flattened ``DataDict``.
     """
-    newdata = DataDict(**misc.unwrap_optional(data.structure(add_shape=False)))
+    newdata = DataDict(**data._build_structure())
     for k, v in data.data_items():
         val = v['values'].copy().reshape(-1)
         newdata[k]['values'] = val
@@ -1605,48 +1668,38 @@ def datasets_are_equal(a: DataDictBase, b: DataDictBase,
         return False
 
     if not ignore_meta:
-        # are all meta data of a also in b, and are they the same value?
-        for k, v in a.meta_items():
-            if k not in [kk for kk, vv in b.meta_items()]:
-                return False
-            elif b.meta_val(k) != v:
-                return False
-
-        # are all meta data of b also in a?
-        for k, v in b.meta_items():
-            if k not in [kk for kk, vv in a.meta_items()]:
+        a_meta = dict(a.meta_items())
+        b_meta = dict(b.meta_items())
+        if a_meta.keys() != b_meta.keys():
+            return False
+        for k, v in a_meta.items():
+            if b_meta[k] != v:
                 return False
 
-    # check all data fields in a
-    for dn, dv in a.data_items():
+    # check all data fields
+    a_fields = set(dn for dn, _ in a.data_items())
+    b_fields = set(dn for dn, _ in b.data_items())
+    if a_fields != b_fields:
+        return False
 
-        # are all fields also present in b?
-        if dn not in [dnn for dnn, dvv in b.data_items()]:
+    for dn in a_fields:
+        a_vals = a.data_vals(dn)
+        b_vals = b.data_vals(dn)
+
+        # fast shape check before expensive value comparison
+        if np.shape(a_vals) != np.shape(b_vals):
             return False
 
-        # check if data is equal
-        if not num.arrays_equal(
-                np.array(a.data_vals(dn)),
-                np.array(b.data_vals(dn)),
-        ):
-            return False
-
-        if not ignore_meta:
-            # check meta data
-            for k, v in a.meta_items(dn):
-                if k not in [kk for kk, vv in b.meta_items(dn)]:
-                    return False
-                elif v != b.meta_val(k, dn):
-                    return False
-
-    # only thing left to check is whether there are items in b but not a
-    for dn, dv in b.data_items():
-        if dn not in [dnn for dnn, dvv in a.data_items()]:
+        if not num.arrays_equal(np.asarray(a_vals), np.asarray(b_vals)):
             return False
 
         if not ignore_meta:
-            for k, v in b.meta_items(dn):
-                if k not in [kk for kk, vv in a.meta_items(dn)]:
+            a_fmeta = dict(a.meta_items(dn))
+            b_fmeta = dict(b.meta_items(dn))
+            if a_fmeta.keys() != b_fmeta.keys():
+                return False
+            for k, v in a_fmeta.items():
+                if v != b_fmeta[k]:
                     return False
 
     return True
