@@ -135,3 +135,6 @@ doc/_build/*
 
 # Macos
 .DS_Store
+
+.claude/
+.worktrees/
