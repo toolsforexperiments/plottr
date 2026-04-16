@@ -1178,17 +1178,17 @@ class MeshgridDataDict(DataDictBase):
 
                         try:
                             if axis_data.shape[axis_num] > 1:
-                                d = np.diff(axis_data, axis=axis_num)
+                                diffs: np.ndarray = np.diff(axis_data, axis=axis_num)
 
                                 # for incomplete data, there may be nan steps -- we need to
                                 # ignore those, doesn't mean anything is wrong.
-                                if np.issubdtype(d.dtype, np.floating):
-                                    nan_mask = np.isnan(d)
+                                if np.issubdtype(diffs.dtype, np.floating):
+                                    nan_mask = np.isnan(diffs)
                                     if np.all(nan_mask):
                                         continue  # all NaN, can't check
-                                    valid = d[~nan_mask]
+                                    valid: np.ndarray = diffs[~nan_mask]
                                 else:
-                                    valid = d.ravel()
+                                    valid = diffs.ravel()
 
                                 if valid.size > 0:
                                     if np.any(valid == 0):
