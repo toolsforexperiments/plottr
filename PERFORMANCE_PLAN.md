@@ -489,3 +489,225 @@ All optimizations implemented and tested. **173 tests pass** (0 failures).
 - `DataDictBase.copy(deep=True/False)` — `deep=False` shares array data (xarray convention)
 - `DataDictBase._build_structure()` — private helper that skips validation
 - `DataDictBase._copy_field()` — targeted field copy with per-key semantics
+
+---
+
+## Further Optimization Opportunities
+
+Additional performance improvements identified through comprehensive codebase analysis.
+Organized from highest to lowest impact.
+
+### Tier 1: Critical Quick Wins
+
+#### HDF5 Data Loading: Avoid Full-File Reads for Metadata
+
+**Files:** `plottr/data/datadict_storage.py`
+
+**Problem:** Two lines read the entire HDF5 dataset into memory just to get its shape:
+- Line 274: `lens = [len(grp[k][:]) for k in keys]` reads ALL data to get lengths
+- Line 305: `entry['__shape__'] = ds[:].shape` reads ALL data to get shape
+
+**Fix:**
+`python
+# Line 274: use HDF5 metadata (zero I/O)
+lens = [grp[k].shape[0] for k in keys]
+
+# Line 305: use HDF5 shape attribute
+entry['__shape__'] = ds.shape
+`
+
+**Impact:** 50-80% reduction in HDF5 load time for large files. Eliminates massive
+memory spikes when loading. This is a 1-line fix each.
+
+#### Node.process() Redundant structure() Call
+
+**File:** `plottr/node/node.py:282`
+
+**Problem:** `dstruct = dataIn.structure(add_shape=False)` is called on every
+pipeline update in every node. For MeshgridDataDict this means validate() + deepcopy
+of all field metadata. But the result is only stored for signal emission — the actual
+change detection at lines 293-308 uses axes/deps/type/shapes which are already computed
+at lines 279-281.
+
+**Fix:** Replace with a lazy approach — only compute structure when it's actually needed
+(i.e., when `_structChanged` is True):
+`python
+dstruct = None  # defer computation
+# ... change detection using axes/deps/type ...
+if _structChanged:
+    dstruct = dataIn.structure(add_shape=False)
+self.dataStructure = dstruct if dstruct is not None else self.dataStructure
+`
+
+**Impact:** Eliminates the single most expensive call in the pipeline hot path for
+steady-state operation (when structure doesn't change between updates). For 500K-element
+MeshgridDataDict: saves ~14ms per node per update.
+
+### Tier 2: High Impact
+
+#### Plot Complex Data: Replace deepcopy with Targeted Copy
+
+**File:** `plottr/plot/base.py:456, 488, 517`
+
+**Problem:** `_splitComplexData()` uses `deepcopy(re_plotItem)` to create Real/Imag or
+Mag/Phase split views. This deep-copies the entire PlotItem including array data references
+and all metadata. Called on every plot update for complex-valued data.
+
+**Fix:** PlotItem is a dataclass — use `dataclasses.replace()` or manual copy:
+`python
+from dataclasses import replace
+im_plotItem = replace(re_plotItem,
+    id=re_plotItem.id + 1,
+    data=list(re_plotItem.data),
+    labels=list(re_plotItem.labels) if re_plotItem.labels else None,
+)
+`
+
+**Impact:** 2-5x faster rendering for complex-valued plots.
+
+#### Signal Emission Overhead in Nodes
+
+**File:** `plottr/node/node.py:316-334`
+
+**Problem:** Up to 7 Qt signals are emitted per data update in each node. On first data
+arrival, ALL signals fire (lines 284-290). Each signal can trigger widget updates and
+downstream processing.
+
+**Opportunities:**
+- `dataFieldsChanged` (line 323) is redundant — it emits `daxes + ddeps` which
+  is just the union of `dataAxesChanged` and `dataDependentsChanged`
+- `newDataStructure` (line 330) carries structure+shapes+type, overlapping with
+  `dataStructureChanged` (line 329) + `dataShapesChanged` (line 334)
+
+**Fix (conservative):** Remove `dataFieldsChanged` and have listeners use
+`dataAxesChanged` + `dataDependentsChanged` instead. Connect `newDataStructure`
+only where both structure and shapes are needed together.
+
+**Fix (aggressive):** Coalesce all signals into a single `dataChanged(dict)` signal
+carrying change flags. Reduces signal/slot overhead from 7 to 1.
+
+#### largest_numtype() Flattens Entire Array
+
+**File:** `plottr/utils/num.py:28`
+
+**Problem:** `types = {type(a) for a in np.array(arr).flatten()}` iterates every
+element of the array as a Python object to collect types. For a 1M-element array,
+this creates 1M Python objects.
+
+**Fix:** Use numpy's dtype system directly:
+`python
+def largest_numtype(arr, include_integers=True):
+    arr = np.asarray(arr)
+    if np.issubdtype(arr.dtype, np.complexfloating):
+        return complex
+    if np.issubdtype(arr.dtype, np.floating):
+        return float
+    if include_integers and np.issubdtype(arr.dtype, np.integer):
+        return float  # promote to float for plotting
+    # Only fall back to element-scanning for object arrays
+    if arr.dtype == object:
+        types = {type(a) for a in arr.ravel() if a is not None}
+        # ... existing logic ...
+    return None
+`
+
+**Impact:** ~100x faster for numeric arrays (avoids Python-level iteration entirely).
+
+### Tier 3: Medium Impact
+
+#### is_invalid() Allocates Unnecessary Zero Array
+
+**File:** `plottr/utils/num.py:57-65`
+
+**Problem:** For non-float arrays, creates `np.zeros(a.shape, dtype=bool)` just to
+OR with the None check. The zeros contribute nothing.
+
+**Fix:**
+`python
+def is_invalid(a):
+    isnone = a == None
+    if a.dtype in FLOATTYPES:
+        return isnone | np.isnan(a)
+    return isnone  # skip zeros allocation
+`
+
+#### guess_grid_from_sweep_direction(): Repeated np.array() Calls
+
+**File:** `plottr/utils/num.py:236-242`
+
+**Problem:** `np.array(vals)` called 4 times on the same data inside a loop.
+
+**Fix:** Convert once at the top of the loop: `vals_arr = np.asarray(vals)`
+
+#### remove_invalid_entries(): O(n^2) np.append Pattern
+
+**File:** `plottr/data/datadict.py:1068-1086`
+
+**Problem:** Uses `np.append(_idxs, _newidxs)` repeatedly which copies the entire
+array each time.
+
+**Fix:** Collect indices in a Python list, concatenate once:
+`python
+_idxs_list = []
+# ... append to list ...
+_idxs = np.concatenate(_idxs_list) if _idxs_list else np.array([])
+`
+
+#### datadict_to_dataframe(): flatten() Instead of ravel()
+
+**File:** `plottr/data/datadict.py:1738, 1745`
+
+**Problem:** `.flatten()` always copies; `.ravel()` returns a view when possible.
+
+**Fix:** Use `.ravel()` since the result is consumed immediately by pandas.
+
+### Tier 4: Architectural Improvements (Larger Effort)
+
+#### Data Change Detection in Pipeline
+
+**Problem:** The pipeline has no concept of "what changed." Every update re-processes
+the entire data through every node. For live monitoring where data is appended
+incrementally, this means re-gridding, re-reducing, and re-plotting everything.
+
+**Opportunity:** Add lightweight change detection:
+- Track data version/hash at the DataDict level
+- Nodes check if their input actually changed before processing
+- For append-only updates, nodes could process only new data
+
+#### Fitter Node: No Memoization
+
+**File:** `plottr/node/fitter.py:624-650`
+
+**Problem:** The fitting algorithm runs on every `process()` call even if the data
+and fit parameters haven't changed. For complex models this can take 100ms-1s.
+
+**Fix:** Cache fit results keyed on (data hash, model, parameters).
+
+#### ScaleUnits: Redundant Per-Update Computation
+
+**File:** `plottr/node/scaleunits.py:129-135`
+
+**Problem:** `find_scale_and_prefix()` scans the full array (`np.nanmax(np.abs(data))`)
+for every field on every update.
+
+**Fix:** Cache the scale prefix and only recompute when the data range changes
+significantly (e.g., order of magnitude difference).
+
+#### Histogrammer: No Result Caching
+
+**File:** `plottr/node/histogram.py:132-217`
+
+**Problem:** Histogram recomputed on every update even when data, nbins, and axis
+haven't changed.
+
+**Fix:** Cache histogram results, invalidate only when inputs change.
+
+### Tier 5: xarray Consideration
+
+**Finding:** Plottr does NOT use xarray at all despite listing it as a dependency.
+xarray could theoretically provide lazy loading from HDF5, chunked computation, and
+better memory management. However, replacing DataDict with xarray would be a major
+refactoring effort and is not recommended unless a larger redesign is planned.
+
+The `xarray` dependency appears to be pulled in transitively or for potential future
+use. It could be made optional to reduce install footprint.
