@@ -1067,14 +1067,15 @@ class DataDict(DataDictBase):
                 datavals = self.data_vals(d)
                 rows = datavals.reshape(-1, int(np.prod(ishp[d])))
 
-            _idxs: np.ndarray = np.array([])
+            _idxs_parts: list = []
 
             # get indices of all rows that are fully None
             if len(ishp[d]) == 0:
                 _newidxs = np.atleast_1d(np.asarray(rows is None)).nonzero()[0]
             else:
                 _newidxs = np.atleast_1d(np.asarray(np.all(rows is None, axis=-1))).nonzero()[0]
-            _idxs = np.append(_idxs, _newidxs)
+            if _newidxs.size > 0:
+                _idxs_parts.append(_newidxs)
 
             # get indices for all rows that are fully NaN. works only
             # for some dtypes, so except TypeErrors.
@@ -1083,15 +1084,16 @@ class DataDict(DataDictBase):
                     _newidxs = np.where(np.isnan(rows))[0]
                 else:
                     _newidxs = np.where(np.all(np.isnan(rows), axis=-1))[0]
-                _idxs = np.append(_idxs, _newidxs)
+                if _newidxs.size > 0:
+                    _idxs_parts.append(_newidxs)
             except TypeError:
                 pass
 
+            _idxs = np.concatenate(_idxs_parts) if _idxs_parts else np.array([], dtype=int)
             idxs.append(_idxs)
 
         if len(idxs) > 0:
-            remove_idxs = reduce(np.intersect1d,
-                                 tuple(np.array(idxs).astype(int)))
+            remove_idxs = reduce(np.intersect1d, idxs)
             for k, v in self.data_items():
                 v['values'] = np.delete(v['values'], remove_idxs, axis=0)
 
@@ -1421,7 +1423,7 @@ def meshgrid_to_datadict(data: MeshgridDataDict) -> DataDict:
     """
     newdata = DataDict(**data._build_structure())
     for k, v in data.data_items():
-        val = v['values'].copy().reshape(-1)
+        val = v['values'].ravel().copy()
         newdata[k]['values'] = val
 
     newdata = newdata.sanitize()
@@ -1735,14 +1737,14 @@ def datadict_to_dataframe(data: DataDict) -> pd.DataFrame:
     # if the dimension of all variables are the same, directly flat the array
     if dimension_check:
         for key, value in data.data_items():
-            data_set[key] = (data.data_vals(key)).flatten()
+            data_set[key] = (data.data_vals(key)).ravel()
 
     # if the dimension is different between variables, match their dimension to the highest one
     else:
         for key, value in data.data_items():
             repeated_time = int(max_ele/np.size(data.data_vals(key)))
             value_array = np.repeat(data.data_vals(key), repeated_time)
-            data_set[key] = value_array.flatten('F')
+            data_set[key] = value_array.ravel(order='F')
 
     # convert organized data to DataFrame and return it
     return pd.DataFrame(data=data_set)

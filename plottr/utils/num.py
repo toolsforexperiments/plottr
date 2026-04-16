@@ -25,7 +25,26 @@ def largest_numtype(arr: np.ndarray, include_integers: bool = True) \
                              only integers in the the data.
     :return: type if possible. None if no numeric data in array.
     """
-    types = {type(a) for a in np.array(arr).flatten()}
+    arr = np.asarray(arr)
+
+    # Fast path: use numpy's dtype for homogeneous numeric arrays
+    if arr.size == 0:
+        return None
+    if arr.dtype != object:
+        if np.issubdtype(arr.dtype, np.complexfloating):
+            return arr.dtype.type
+        elif np.issubdtype(arr.dtype, np.floating):
+            return arr.dtype.type
+        elif np.issubdtype(arr.dtype, np.integer):
+            if include_integers:
+                return arr.dtype.type
+            else:
+                return float
+        else:
+            return None
+
+    # Slow path for object arrays: inspect element types
+    types = {type(a) for a in arr.ravel() if a is not None}
     curidx = -1
     if include_integers:
         ok_types = NUMTYPES
@@ -59,10 +78,8 @@ def is_invalid(a: np.ndarray) -> np.ndarray:
     # check for None
     isnone = a == None
     if a.dtype in FLOATTYPES:
-        isnan = np.isnan(a)
-    else:
-        isnan = np.zeros(a.shape, dtype=bool)
-    return isnone | isnan
+        return isnone | np.isnan(a)
+    return isnone
 
 
 def _are_invalid(a: np.ndarray, b: np.ndarray) -> np.ndarray:
@@ -233,13 +250,14 @@ def guess_grid_from_sweep_direction(**axes: np.ndarray) \
         raise ValueError("Empty input.")
 
     for name, vals in axes.items():
-        if len(np.array(vals).shape) > 1:
+        vals_arr = np.asarray(vals)
+        if vals_arr.ndim > 1:
             raise ValueError(
-                f"Expect 1-dimensional axis data, not {np.array(vals).shape}")
+                f"Expect 1-dimensional axis data, not {vals_arr.shape}")
         if size is None:
-            size = np.array(vals).size
+            size = vals_arr.size
         else:
-            if size != np.array(vals).size:
+            if size != vals_arr.size:
                 raise ValueError("Non-matching array sizes.")
 
         # first step: find repeating patterns in the data.

@@ -711,3 +711,33 @@ refactoring effort and is not recommended unless a larger redesign is planned.
 
 The `xarray` dependency appears to be pulled in transitively or for potential future
 use. It could be made optional to reduce install footprint.
+
+### Round 2 Execution Results
+
+All round 2 optimizations implemented and tested. **205 tests pass** (0 failures).
+
+#### Changes Made (Round 2)
+
+| File | Changes |
+|---|---|
+| `plottr/utils/num.py` | Rewrote `largest_numtype()` to use dtype (avoids element iteration); `is_invalid()` skips zero alloc for non-floats; `guess_grid_from_sweep_direction()` converts once with `np.asarray` |
+| `plottr/data/datadict.py` | Fixed O(n^2) `np.append` in `remove_invalid_entries()`; `meshgrid_to_datadict()` uses `ravel()`; `datadict_to_dataframe()` uses `ravel()` |
+| `plottr/node/node.py` | Deferred `structure()` call to only when structure changes |
+| `plottr/plot/base.py` | Replaced `deepcopy` with `dataclasses.replace` in `_splitComplexData()` |
+| `test/pytest/test_round2_optimizations.py` | 32 new tests |
+
+#### Benchmark (Round 2)
+
+| Benchmark | Before | After | Speedup |
+|---|---|---|---|
+| **largest_numtype (float 500k)** | 29.8 ms | 0.002 ms | **~15,000x** |
+| **largest_numtype (complex 500k)** | 31.9 ms | 0.001 ms | **~32,000x** |
+| **node_process (500k mesh)** | 7.42 ms | 0.15 ms | **50x** |
+| **to_dataframe (100k)** | 0.95 ms | 0.63 ms | **1.5x** |
+| **remove_invalid (10k)** | 0.073 ms | 0.050 ms | **1.5x** |
+| **is_invalid (int 500k)** | 16.5 ms | 15.0 ms | **1.1x** |
+
+#### Bugs Fixed (Round 2)
+
+- `remove_invalid_entries()` crashed with `ValueError` when dependents had different numbers of invalid entries (inhomogeneous `np.array(idxs)`). Fixed by using `np.concatenate`.
+- `largest_numtype()` on empty arrays previously returned `None` in all cases; behavior preserved via explicit empty check.
