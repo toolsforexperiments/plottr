@@ -769,3 +769,24 @@ Key observations:
 - Even small datasets see 1.1-1.3x improvement (reduced per-node overhead)
 - No regressions observed on any dataset
 - All 23 datasets produce the same output types before and after
+
+### Large Dataset Benchmark (Array ParamType, 15-61 MB per dataset)
+
+8 datasets using QCodes array paramtype (blob storage), benchmarked through
+the full plottr pipeline (Load -> DataSelector -> DataGridder -> XYSelector).
+
+**Pipeline total: 6,550 ms (before) -> 3,465 ms (after) = 1.89x overall speedup**
+
+| Dataset | Data Size | Pipeline Before | Pipeline After | Speedup |
+|---|---|---|---|---|
+| large_1d_3dep (2M pts, 3 deps) | 61 MB | 997 ms | 497 ms | **2.01x** |
+| large_1d_sweep (4M pts) | 61 MB | 1,923 ms | 971 ms | **1.98x** |
+| large_2d_wide (200x4000) | 18 MB | 702 ms | 360 ms | **1.95x** |
+| large_2d_interrupted (40% of 1000x800) | 18 MB | 314 ms | 162 ms | **1.94x** |
+| large_2d_2dep (500x1000, 2 deps) | 15 MB | 453 ms | 234 ms | **1.94x** |
+| large_2d_square (800x800) | 15 MB | 568 ms | 295 ms | **1.93x** |
+| large_3d_1dep (100x100x80) | 24 MB | 1,064 ms | 632 ms | **1.68x** |
+| large_3d_2dep (80x80x60, 2 deps) | 15 MB | 530 ms | 315 ms | **1.68x** |
+
+Loading times are unchanged (dominated by QCodes SQLite I/O). All speedup
+comes from the plottr pipeline processing (copy, validate, structure, gridding).
