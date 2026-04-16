@@ -741,3 +741,31 @@ All round 2 optimizations implemented and tested. **205 tests pass** (0 failures
 
 - `remove_invalid_entries()` crashed with `ValueError` when dependents had different numbers of invalid entries (inhomogeneous `np.array(idxs)`). Fixed by using `np.concatenate`.
 - `largest_numtype()` on empty arrays previously returned `None` in all cases; behavior preserved via explicit empty check.
+
+### Real Dataset Benchmark (23 QCodes Datasets, Before vs After)
+
+Full pipeline benchmark: Load from QCodes DB -> DataSelector -> DataGridder -> XYSelector.
+Measured on 23 real-world-shaped datasets (1D-3D, with/without shape metadata, complete/interrupted).
+
+**Pipeline total: 1478 ms (before) -> 1025 ms (after) = 1.44x overall speedup**
+
+| Dataset | Points | Pipeline Before | Pipeline After | Speedup |
+|---|---|---|---|---|
+| stability_diagram (500x400) | 200,000 | 199 ms | 110 ms | **1.81x** |
+| large_3d_scan (100x80x50) | 800,000 | 549 ms | 333 ms | **1.65x** |
+| field_spectroscopy (50x2000) | 100,000 | 96 ms | 64 ms | **1.50x** |
+| time_trace (100k) | 100,000 | 64 ms | 44 ms | **1.46x** |
+| spatial_map (50x40x30) | 60,000 | 100 ms | 70 ms | **1.42x** |
+| 3d_cal_noshape (8x6x5) | 240 | 29 ms | 23 ms | **1.30x** |
+| gate_sweep (100x80) | 8,000 | 31 ms | 25 ms | **1.25x** |
+| interrupted_sweep | 500 | 26 ms | 22 ms | **1.21x** |
+| t1_measurement (1D, no shape) | 1,500 | 24 ms | 20 ms | **1.20x** |
+| charge_stability_interrupted | 630 | 26 ms | 21 ms | **1.20x** |
+| two_tone_spectroscopy (20x30) | 600 | 25 ms | 22 ms | **1.16x** |
+| (remaining 12 datasets) | | | | 1.00-1.17x |
+
+Key observations:
+- Larger datasets benefit most (1.4-1.8x for 60k+ points)
+- Even small datasets see 1.1-1.3x improvement (reduced per-node overhead)
+- No regressions observed on any dataset
+- All 23 datasets produce the same output types before and after
