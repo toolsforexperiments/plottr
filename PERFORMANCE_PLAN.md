@@ -790,3 +790,49 @@ the full plottr pipeline (Load -> DataSelector -> DataGridder -> XYSelector).
 
 Loading times are unchanged (dominated by QCodes SQLite I/O). All speedup
 comes from the plottr pipeline processing (copy, validate, structure, gridding).
+
+### Improved Benchmark Methodology (v2)
+
+Previous benchmarks created a new flowchart per run, which always hit the "first data" code path.
+The v2 benchmark fixes this by measuring two scenarios:
+
+- **Cold start**: Create flowchart + process first data (opening a dataset for the first time)
+- **Steady state**: Re-process new data on an existing flowchart (live monitoring refresh)
+
+Method: 5 repeats, median timing, warmup run discarded, persistent flowchart for steady-state.
+
+#### Large Datasets (8 datasets, 15-61 MB each, array paramtype)
+
+|  | Cold Start |  | Steady State |  |
+|---|---|---|---|---|
+| **Totals** | 6,479 -> 3,449 ms | **1.88x** | 5,867 -> 3,312 ms | **1.77x** |
+
+| Dataset | MB | Cold Before | Cold After | Cold Spd | Steady Before | Steady After | Steady Spd |
+|---|---|---|---|---|---|---|---|
+| large_1d_sweep (4M pts) | 61 | 1,911 ms | 960 ms | **1.99x** | 1,865 ms | 1,031 ms | **1.81x** |
+| large_1d_3dep (2M, 3 deps) | 61 | 987 ms | 491 ms | **2.01x** | 949 ms | 511 ms | **1.86x** |
+| large_2d_square (800x800) | 15 | 567 ms | 294 ms | **1.93x** | 528 ms | 290 ms | **1.82x** |
+| large_2d_2dep (500x1000) | 15 | 448 ms | 237 ms | **1.89x** | 412 ms | 226 ms | **1.82x** |
+| large_3d_1dep (100x100x80) | 24 | 1,035 ms | 628 ms | **1.65x** | 798 ms | 503 ms | **1.59x** |
+| large_3d_2dep (80x80x60) | 15 | 525 ms | 320 ms | **1.64x** | 389 ms | 247 ms | **1.58x** |
+| large_2d_interrupted (40%) | 18 | 306 ms | 162 ms | **1.89x** | 273 ms | 147 ms | **1.86x** |
+| large_2d_wide (200x4000) | 18 | 701 ms | 357 ms | **1.96x** | 654 ms | 357 ms | **1.83x** |
+
+#### Small/Medium Datasets (23 datasets, <1 KB to 15 MB, numeric paramtype)
+
+|  | Cold Start |  | Steady State |  |
+|---|---|---|---|---|
+| **Totals** | 1,477 -> 1,036 ms | **1.43x** | 895 -> 529 ms | **1.69x** |
+
+Steady-state highlights (where the optimization shines most):
+
+| Dataset | Steady Before | Steady After | Speedup |
+|---|---|---|---|
+| interrupted_sweep | 5.9 ms | 2.8 ms | **2.11x** |
+| two_tone_spectroscopy | 6.1 ms | 2.9 ms | **2.10x** |
+| charge_stability_interrupted | 6.1 ms | 2.9 ms | **2.10x** |
+| ramsey_2d | 6.2 ms | 3.0 ms | **2.07x** |
+| qubit_spectroscopy | 7.8 ms | 3.8 ms | **2.05x** |
+| multi_measurement (3 deps) | 6.8 ms | 3.4 ms | **2.00x** |
+| stability_diagram (200K) | 176.7 ms | 93.8 ms | **1.88x** |
+| large_3d_scan (800K) | 421.8 ms | 261.1 ms | **1.62x** |
