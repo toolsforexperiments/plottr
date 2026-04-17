@@ -836,3 +836,54 @@ Steady-state highlights (where the optimization shines most):
 | multi_measurement (3 deps) | 6.8 ms | 3.4 ms | **2.00x** |
 | stability_diagram (200K) | 176.7 ms | 93.8 ms | **1.88x** |
 | large_3d_scan (800K) | 421.8 ms | 261.1 ms | **1.62x** |
+
+### Interactive Action Benchmark (simulated user actions, large datasets)
+
+Measures the time for real user interactions on a persistent flowchart
+(DataSelector -> DataGridder -> XYSelector -> SubtractAverage -> ScaleUnits).
+5 repeats, median timing, warmup discarded.
+
+#### Per-Node Speedups (averaged across all datasets)
+
+The node breakdown reveals where our optimizations had the most impact:
+
+| Node | Before | After | Speedup | What changed |
+|---|---|---|---|---|
+| **DataSelector** | 72-579 ms | 7-39 ms | **10-17x** | `largest_numtype()` now O(1), `copy()/extract()` optimized |
+| **SubtractAverage** | 2-202 ms | 0.1-9 ms | **6-29x** | `copy()` 15x faster, `mask_invalid()` skips clean data |
+| **ScaleUnits** | 2-258 ms | 0.1-37 ms | **7-15x** | `copy()` 15x faster |
+| **XYSelector** | 89-596 ms | 42-322 ms | **1.5-2.3x** | Removed cascading copy, deferred `structure()` |
+| **DataGridder** | 102-647 ms | 89-574 ms | **1.1-1.2x** | `copy=False` in `datadict_to_meshgrid` |
+
+**Key insight:** DataGridder dominates total time (50-60%) and got the least speedup (1.1x)
+because its cost is dominated by the actual gridding computation (`guess_shape`, `reshape`,
+`transpose`) -- not by copy/validate overhead. This is the next optimization frontier.
+
+#### Action Speedups
+
+| Action | Dataset | Before | After | Speedup |
+|---|---|---|---|---|
+| **toggle_subtract_avg** | 2d_square (15 MB) | 293 ms | 29 ms | **10.2x** |
+| **toggle_subtract_avg** | 2d_wide (18 MB) | 342 ms | 36 ms | **9.5x** |
+| **swap_xy_axes** | 2d_square (15 MB) | 662 ms | 196 ms | **3.4x** |
+| **swap_xy_axes** | 2d_wide (18 MB) | 790 ms | 241 ms | **3.3x** |
+| **switch_dependent** | 1d_3dep (61 MB) | 2287 ms | 977 ms | **2.3x** |
+| **data_refresh** | 2d_square (15 MB) | 697 ms | 304 ms | **2.3x** |
+| **data_refresh** | 1d_sweep (61 MB) | 2405 ms | 1107 ms | **2.2x** |
+| **slide_dimension** | 3d_1dep (24 MB) | 1891 ms | 1231 ms | **1.5x** |
+| **toggle_grid** | 3d_1dep (24 MB) | 1290 ms | 985 ms | **1.3x** |
+
+#### Where remaining time goes (optimization frontier)
+
+For the `large_2d_square` dataset (800x800, 15 MB) after optimization:
+
+- **DataGridder**: 177 ms (58%) -- gridding computation itself
+- **XYSelector**: 82 ms (27%) -- dimension reduction + reorder
+- **DataSelector**: 9 ms (3%) -- extraction
+- **ScaleUnits**: 9 ms (3%) -- prefix computation
+- **SubtractAverage**: 2 ms (1%) -- average subtraction
+- **Overhead**: ~25 ms (8%) -- flowchart propagation, signal emissions
+
+The gridding step (`guess_shape_from_datadict` + `datadict_to_meshgrid`) is now the
+dominant cost and is performing actual computation (not copy/validate overhead).
+Further optimization would need to target the gridding algorithm itself.
