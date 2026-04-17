@@ -887,3 +887,57 @@ For the `large_2d_square` dataset (800x800, 15 MB) after optimization:
 The gridding step (`guess_shape_from_datadict` + `datadict_to_meshgrid`) is now the
 dominant cost and is performing actual computation (not copy/validate overhead).
 Further optimization would need to target the gridding algorithm itself.
+
+### Round 3: DataGridder Optimization (`_find_switches`)
+
+**Root cause:** `_find_switches()` in `plottr/utils/num.py` was the dominant cost in the
+gridding pipeline. For 640K points it took 80ms per axis (160ms total for 2D).
+
+**What was slow:**
+- Called `is_invalid()` 3 times on the same data (3x O(N))
+- Created a `MaskedArray` just for subtraction (O(N) alloc)
+- Called `np.percentile()` twice with separate array filtering (2x O(N log N) sort)
+- Used Python list comprehension for switch filtering
+
+**Optimizations applied:**
+- Compute `is_invalid()` once, reuse the mask
+- Use direct numpy subtraction instead of MaskedArray (NaN propagates correctly)
+- Compute both percentiles in a single `np.percentile([lo, hi])` call (one sort)
+- Vectorized switch filtering with boolean mask instead of list comprehension
+- Use `np.nanmean` for sweep direction to handle NaN deltas
+- Fixed redundant `np.std()` call in `guess_grid_from_sweep_direction`
+
+**Per-function benchmark (800x800 dataset, 640K pts):**
+
+| Function | Before | After | Speedup |
+|---|---|---|---|
+| `_find_switches()` per axis | 80 ms | 31 ms | **2.6x** |
+| `datadict_to_meshgrid()` | 175 ms | 71 ms | **2.5x** |
+
+**Per-node impact (data_refresh action):**
+
+| Dataset | Grid Before | Grid After | Grid Spd | Total Before | Total After | Total Spd |
+|---|---|---|---|---|---|---|
+| large_1d_sweep (61 MB) | 574 ms | 243 ms | **2.4x** | 1107 ms | 792 ms | **1.4x** |
+| large_1d_3dep (61 MB) | 285 ms | 122 ms | **2.3x** | 547 ms | 386 ms | **1.4x** |
+| large_2d_square (15 MB) | 177 ms | 73 ms | **2.4x** | 304 ms | 199 ms | **1.5x** |
+| large_2d_2dep (15 MB) | 137 ms | 58 ms | **2.4x** | 238 ms | 156 ms | **1.5x** |
+| large_3d_1dep (24 MB) | 345 ms | 139 ms | **2.5x** | 497 ms | 292 ms | **1.7x** |
+| large_3d_2dep (15 MB) | 169 ms | 68 ms | **2.5x** | 250 ms | 142 ms | **1.8x** |
+| large_2d_interrupted (18 MB) | 89 ms | 38 ms | **2.3x** | 156 ms | 105 ms | **1.5x** |
+| large_2d_wide (18 MB) | 218 ms | 93 ms | **2.3x** | 375 ms | 249 ms | **1.5x** |
+
+**Cumulative speedup vs original master baseline (data_refresh):**
+
+| Dataset | Master Baseline | Fully Optimized | Cumulative Speedup |
+|---|---|---|---|
+| large_1d_sweep (61 MB) | 2405 ms | 792 ms | **3.0x** |
+| large_1d_3dep (61 MB) | 1217 ms | 386 ms | **3.2x** |
+| large_2d_square (15 MB) | 697 ms | 199 ms | **3.5x** |
+| large_2d_2dep (15 MB) | 526 ms | 156 ms | **3.4x** |
+| large_3d_1dep (24 MB) | 813 ms | 292 ms | **2.8x** |
+| large_3d_2dep (15 MB) | 405 ms | 142 ms | **2.9x** |
+| large_2d_interrupted (18 MB) | 355 ms | 105 ms | **3.4x** |
+| large_2d_wide (18 MB) | 828 ms | 249 ms | **3.3x** |
+
+62 new tests added in `test_gridder_comprehensive.py`.

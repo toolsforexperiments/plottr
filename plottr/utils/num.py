@@ -156,17 +156,29 @@ def array1d_to_meshgrid(arr: Union[List, np.ndarray],
 def _find_switches(arr: np.ndarray,
                    rth: float = 25,
                    ztol: float = 1e-15) -> np.ndarray:
-    arr_: np.ndarray = np.ma.MaskedArray(arr, is_invalid(arr))
-    deltas = arr_[1:] - arr_[:-1]
-    hi = np.percentile(arr[~is_invalid(arr)], 100.-rth)
-    lo = np.percentile(arr[~is_invalid(arr)], rth)
-    diff = np.abs(hi-lo)
+    # Compute invalid mask once, reuse everywhere
+    invalid = is_invalid(arr)
+    valid_mask = ~invalid
+
+    # Use np.diff directly — for entries adjacent to invalid values, the delta
+    # will be nan. We handle this by using nan-aware operations below.
+    deltas = arr[1:] - arr[:-1]
+
+    # Compute percentile range of valid data
+    valid_data = arr[valid_mask]
+    if valid_data.size == 0:
+        return np.array([])
+
+    lo, hi = np.percentile(valid_data, [rth, 100. - rth])
+    diff = np.abs(hi - lo)
 
     if not diff > ztol:
         return np.array([])
 
     # first step: suspected switches are where we have 'large' jumps in value.
-    switch_candidates = np.where(np.abs(deltas) >= diff)[0]
+    # Use nan-safe abs: nan deltas will produce nan >= diff which is False
+    abs_deltas = np.abs(deltas)
+    switch_candidates = np.where(abs_deltas >= diff)[0]
     switch_candidates = switch_candidates[switch_candidates > 0]
     if not len(switch_candidates) > 0:
         return np.array([])
@@ -174,15 +186,13 @@ def _find_switches(arr: np.ndarray,
     # importantly: switches have to opposite to the sweep direction.
     # we check the sweep direction by looking at the values prior to the
     # first suspected switch
-    sweep_direction = np.sign(np.mean(deltas[:switch_candidates[0]]))
+    sweep_direction = np.sign(np.nanmean(deltas[:switch_candidates[0]]))
 
     # real switches are then those where the delta is opposite to the sweep
-    # direction.
+    # direction. Vectorized filter instead of list comprehension.
     switch_candidate_vals = deltas[switch_candidates]
-    switches = [s for (s, v) in zip(switch_candidates, switch_candidate_vals)
-                if np.sign(v) == -sweep_direction]
-
-    return np.array(switches)
+    mask = np.sign(switch_candidate_vals) == -sweep_direction
+    return switch_candidates[mask]
 
 
 def find_direction_period(vals: np.ndarray, ignore_last: bool = False) \
@@ -283,7 +293,7 @@ def guess_grid_from_sweep_direction(**axes: np.ndarray) \
                 else:
                     if mean == 0:
                         mean = max(np.abs(vals.max()), np.abs(vals.min()))
-                    cost = 1./np.abs(np.std(vals)/mean)
+                    cost = 1./np.abs(std/mean)
                 sorting.append(size + cost)
         else:
             return None
