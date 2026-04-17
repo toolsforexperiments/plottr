@@ -941,3 +941,27 @@ gridding pipeline. For 640K points it took 80ms per axis (160ms total for 2D).
 | large_2d_wide (18 MB) | 828 ms | 249 ms | **3.3x** |
 
 62 new tests added in `test_gridder_comprehensive.py`.
+
+### Real Experimental Data Benchmark (P1386BB_00BE_datasets.db)
+
+Benchmark on actual experimental datasets from a quantum device measurement campaign.
+These are production datasets with real-world complexity (16-21 dependents, nested array
+data, 4D parameter spaces).
+
+| Run | Experiment | Data Size | Deps | Axes | Cold Before | Cold After | Cold Spd | Steady Before | Steady After | Steady Spd |
+|---|---|---|---|---|---|---|---|---|---|---|
+| 720 | **QDstability** | 223 MB | 16 | 2 | 636 ms | 179 ms | **3.56x** | 555 ms | 189 ms | **2.93x** |
+| 713 | **TopogapStage2** | 152 MB | 21 | 19 | 688 ms | 279 ms | **2.47x** | 439 ms | 161 ms | **2.73x** |
+| 716 | **TopogapStage2** | 152 MB | 21 | 19 | 690 ms | 280 ms | **2.47x** | 432 ms | 164 ms | **2.64x** |
+| 710 | **QDtuning** | 14 MB | 16 | 2 | 52 ms | 31 ms | **1.70x** | 31 ms | 11 ms | **2.73x** |
+| 1496 | GateSweepProtocol | <1 MB | 1 | 1 | 22 ms | 20 ms | 1.09x | 2.5 ms | 1.1 ms | **2.27x** |
+
+Per-node breakdown on QDstability (223 MB, 16 deps):
+- **DataSelector**: 218 ms -> 17 ms (**12.8x**) -- largest_numtype O(1), copy optimized
+- **DataGridder**: 33 ms -> 16 ms (**2.1x**) -- _find_switches optimized
+- **XYSelector**: 264 ms -> 126 ms (**2.1x**) -- cascading copy removed
+
+Per-node breakdown on TopogapStage2 (152 MB, 21 deps, 4D):
+- **DataSelector**: 214 ms -> 16 ms (**13.4x**)
+- **DataGridder**: 34 ms -> 17 ms (**2.0x**)
+- **XYSelector**: 164 ms -> 109 ms (**1.5x**)
