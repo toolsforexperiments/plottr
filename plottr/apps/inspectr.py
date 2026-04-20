@@ -484,6 +484,26 @@ class QCodesDBInspector(QtWidgets.QMainWindow):
         self.autoLaunchPlots.setToolTip(tt)
         self.toolbar.addWidget(self.autoLaunchPlots)
 
+        self.toolbar.addSeparator()
+
+        # toolbar item: plot backend selector
+        backendLabel = QtWidgets.QLabel(" Plot backend: ")
+        self.toolbar.addWidget(backendLabel)
+        self.plotBackendSelector = QtWidgets.QComboBox()
+        self.plotBackendSelector.addItems(['matplotlib', 'pyqtgraph'])
+        self.plotBackendSelector.setToolTip('Choose plotting backend for new plot windows')
+        if plotWidgetClass is not None:
+            # If a specific backend was passed in, select it
+            class_name = plotWidgetClass.__name__
+            if 'pyqtgraph' in class_name.lower() or 'PG' in class_name:
+                self.plotBackendSelector.setCurrentText('pyqtgraph')
+        self.plotBackendSelector.currentTextChanged.connect(self._onBackendChanged)
+        self.toolbar.addWidget(self.plotBackendSelector)
+        # Sync the class with the initial combo selection
+        self._onBackendChanged(self.plotBackendSelector.currentText())
+
+        self.toolbar.addSeparator()
+
         self.showOnlyStarAction = self.toolbar.addAction(RunList.tag_dict['star'])
         self.showOnlyStarAction.setToolTip('Show only starred runs')
         self.showOnlyStarAction.setCheckable(True)
@@ -760,6 +780,15 @@ class QCodesDBInspector(QtWidgets.QMainWindow):
             'window': win,
         }
         win.showTime()
+
+    @Slot(str)
+    def _onBackendChanged(self, backend: str) -> None:
+        if backend == 'pyqtgraph':
+            from plottr.plot.pyqtgraph.autoplot import AutoPlot as PGAutoPlot
+            self._plotWidgetClass = PGAutoPlot
+        else:
+            from plottr.plot.mpl.autoplot import AutoPlot as MPLAutoPlot
+            self._plotWidgetClass = MPLAutoPlot
 
     def setTag(self, item: QtWidgets.QTreeWidgetItem, tag: str) -> None:
         # set tag in the database
