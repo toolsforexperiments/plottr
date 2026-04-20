@@ -293,6 +293,10 @@ class RunInfo(QtWidgets.QTreeWidget):
         self.setHeaderLabels(['Key', 'Value'])
         self.setColumnCount(2)
 
+        # Smooth pixel-based scrolling so tall rows (e.g., long tracebacks)
+        # can be scrolled through without jumping to the next row.
+        self.setVerticalScrollMode(QtWidgets.QAbstractItemView.ScrollPerPixel)
+
         self._snapshotItem: Optional[QtWidgets.QTreeWidgetItem] = None
         self._snapshotData: Optional[dict] = None
         self._snapshotLoaded = False
@@ -323,7 +327,7 @@ class RunInfo(QtWidgets.QTreeWidget):
                     for child in dictToTreeWidgetItems(value):
                         item.addChild(child)
                 self.addTopLevelItem(item)
-                item.setExpanded(True)
+                item.setExpanded(False)
 
         for i in range(2):
             self.resizeColumnToContents(i)
