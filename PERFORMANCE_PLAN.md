@@ -1,1011 +1,186 @@
-# Plottr Performance Optimization Plan
+# Plottr Performance & UX Improvements
 
-## Problem Statement
-
-Plottr's pipeline architecture copies data excessively as it flows through nodes. Each node in the
-`linearFlowchart` (DataSelector → DataGridder → XYSelector → PlotNode) defensively copies data
-before modifying it, and many internal methods (`structure()`, `extract()`, `copy()`, `validate()`)
-add further redundant copies. Profiling shows that a typical 4-stage pipeline produces a **~4.8×
-memory amplification factor** — almost 5 copies of the input data exist simultaneously.
-
-For a 100×100×100 MeshgridDataDict (~38 MB), a single `copy()` takes **92 ms** and `validate()`
-takes **43 ms** due to `np.diff`/`np.unique` on full meshgrid axes. In a real pipeline with
-3–4 nodes, this means hundreds of milliseconds of pure overhead per update, which becomes very
-noticeable during interactive parameter changes.
-
-## Profiling Results Summary
-
-| Operation | 10K pts (312 KB) | 100K pts (4.6 MB) | 1M pts (46 MB) | 100³ mesh (38 MB) |
-|---|---|---|---|---|
-| `copy()` | 0.2 ms | 1.1 ms | 7.8 ms | **92 ms** |
-| `structure()` | 0.06 ms | 0.11 ms | 0.10 ms | **44 ms** |
-| `validate()` | 0.02 ms | 0.05 ms | 0.06 ms | **43 ms** |
-| `extract(1 dep)` | 0.38 ms | 1.0 ms | **15 ms** | — |
-| `mask_invalid()` | — | — | — | **202 ms** |
-| Pipeline (4 stages) | **64 ms** (4.8× mem) | — | — | — |
-
-## Root Causes (Ranked by Impact)
-
-### 1. CRITICAL: Cascading Deep Copies in Node Process Methods
-
-**Every node calls `.copy()` on data it receives, even though pyqtgraph's Flowchart passes data by
-reference.** Worse, inherited nodes copy *again* — `XYSelector` inherits from `DimensionReducer`,
-so data is copied twice (once at each level's `process()`).
-
-Evidence:
-- `DataGridder.process()` — `data = dataout.copy()` (grid.py:473)
-- `DimensionReducer.process()` — `data = dataout.copy()` (dim_reducer.py:682)
-- `XYSelector.process()` — `data = dataout.copy()` (dim_reducer.py:901) ← **second copy in chain**
-- `ScaleUnits.process()` — `data = dataIn.copy()` (scaleunits.py:126)
-- `SubtractAverage.process()` — `data = dataIn.copy()` (correct_offset.py:63)
-- `Fitter.process()` — `dataOut = dataIn.copy()` (fitter.py:606)
-
-**Impact**: In a 4-node pipeline, data is copied 3–4 times. For 38 MB meshgrid data, that's
-~150 MB of unnecessary allocations and ~370 ms of copy time.
-
-### 2. HIGH: MeshgridDataDict.validate() Is Computationally Expensive
-
-`MeshgridDataDict.validate()` (datadict.py:1063-1145) computes `np.diff()` + `np.unique()` +
-`np.sign()` on every axis array for every dependent, verifying monotonicity. For a 100×100×100
-dataset with 2 deps and 3 axes, that's 6 full-array `np.diff` computations on 1M-element arrays.
-
-This takes **43 ms** per call and is called:
-- Once per `structure()` call
-- Once per `copy()` call (via `structure()`)
-- Once per `validate()` directly
-- Multiple times in `datadict_to_meshgrid()`, `meshgrid_to_datadict()`, etc.
-
-Across a pipeline, validate() may be called **6–10 times** for the same data.
-
-### 3. HIGH: structure() Uses deepcopy Unnecessarily
-
-`DataDictBase.structure()` (datadict.py:399-451) does `cp.deepcopy(v2)` on each field's metadata
-dict (line 434), even though:
-- Values are already emptied (`v2['values'] = []`)
-- Metadata is typically just strings and lists of strings
-- A shallow copy would suffice in 99% of cases
-
-### 4. MEDIUM: extract() Uses Deep Copy by Default
-
-`DataDictBase.extract()` (datadict.py:315-362) calls `cp.deepcopy(self[d])` for each selected
-field (line 347), including the numpy array values. `deepcopy` on numpy arrays is significantly
-slower than `array.copy()` because it goes through Python's generic copy protocol rather than
-numpy's optimized memcpy path.
-
-### 5. MEDIUM: mask_invalid() Creates Full Masked Copy
-
-`mask_invalid()` (datadict.py:724-738) uses `np.ma.masked_where(..., copy=True)`, creating a
-completely new masked array for every data field. Many datasets have no invalid entries, making
-this pure overhead.
-
-### 6. LOW: shapes() Wraps Arrays Unnecessarily
-
-`DataDictBase.shapes()` (datadict.py:553-565) calls `np.array(self.data_vals(k)).shape` — the
-`np.array()` wrapper is unnecessary since `data_vals()` already returns an ndarray after
-validation.
+This document summarizes the changes in this PR, the profiling that motivated them,
+and suggestions for future work.
 
 ---
 
-## Risk Analysis & Mitigations
+## Part 1: Implemented — Pipeline Performance (datadict, nodes, gridding)
 
-This section documents the edge cases discovered during investigation and how the proposed
-improvements must account for them.
+### Problem
 
-### Risk 1: Nested Dict Mutations Bypass Dirty Flags
+Plottr's data pipeline copied data excessively as it flowed through nodes. Each node
+defensively deep-copied all data, and internal methods (`structure()`, `validate()`,
+`copy()`) added further redundant copies. For a 100x100x100 MeshgridDataDict (~38 MB),
+a single `copy()` took 92 ms and `validate()` took 43 ms.
 
-`DataDictBase` is a `dict` of dicts. User code commonly mutates inner dicts directly:
-`dd['x']['values'] = new_array`. This does NOT trigger `DataDictBase.__setitem__` because the
-outer dict is not being set — only the inner dict is being mutated.
+### What Changed
 
-**Mitigation**: Do NOT use a general validation cache based on `__setitem__`. Instead, use
-private helper methods (`_build_structure()`) that skip validation only when called from
-code paths that have *just* validated or just constructed fresh data. The public `validate()` API
-always runs. This is safe because the hot-path is internal: `copy()` calls `structure()` which
-calls `validate()` — and after copying validated data, re-validating the copy is redundant.
+**`plottr/data/datadict.py`** (core data container):
+- New `_copy_field()` helper with per-key copy semantics: numpy `.copy()` for arrays,
+  `list()` for axes, `deepcopy` only for mutable metadata
+- Rewrote `copy(deep=True/False)` — no longer chains through `structure()` → `validate()`
+  → `deepcopy`. New `deep=False` shares arrays (xarray-style API, backward compatible)
+- `_build_structure()` private helper that skips redundant validation
+- `MeshgridDataDict.validate()` monotonicity check: replaced `np.unique(np.sign(np.diff(...)))`
+  with direct min/max checks — same coverage, no sort/allocate
+- `mask_invalid()` fast-path: skips masking entirely when data has no invalid entries
+- `shapes()` uses `np.shape()` instead of `np.array(...).shape`
+- `datasets_are_equal()` shape short-circuit + set-based comparison
+- `remove_invalid_entries()` fixed O(n²) `np.append` pattern + fixed crash on inhomogeneous arrays
+- `meshgrid_to_datadict()` / `datadict_to_dataframe()`: `ravel()` instead of `flatten()`
 
-### Risk 2: Monotonicity Check Must Cover the Full Array
+**`plottr/utils/num.py`** (numerical utilities):
+- `largest_numtype()`: dtype check instead of iterating every element as Python object (~15,000× faster)
+- `is_invalid()`: skip zero-array allocation for non-float types
+- `guess_grid_from_sweep_direction()`: convert with `np.asarray()` once instead of 4×
+- `_find_switches()`: compute `is_invalid()` once (was 3×), single `np.percentile([lo,hi])` call
+  (was 2 separate sorts), vectorized boolean filter, `np.nanmean` for NaN-safe sweep direction
 
-The current `MeshgridDataDict.validate()` checks `np.diff(axis_data, axis=axis_num)` on the full
-N-d axis array. Checking only a single 1D slice would miss cases where one slice is monotonic
-but another is flat or reversed.
+**`plottr/node/node.py`**: Defer `structure()` call to only when structure actually changes (50× faster steady-state)
 
-**Mitigation**: Keep checking the full array, but avoid the expensive `np.unique(np.sign(...))`
-pipeline. Instead, compute min/max of the diff directly:
-```python
-d = np.diff(axis_data, axis=axis_num)
-d_sign = np.sign(d[~np.isnan(d)])  # ignore NaN steps
-if d_sign.size > 0:
-    has_zero = np.any(d_sign == 0)
-    not_monotone = not (np.all(d_sign >= 0) or np.all(d_sign <= 0))
-```
-This avoids `np.unique()` (which sorts and allocates) while preserving full coverage. The
-dominant cost becomes `np.diff()` which is a simple O(N) subtraction — much faster than
-diff + sign + unique.
+**`plottr/node/dim_reducer.py`**: Removed redundant `copy()` in `XYSelector.process()`
 
-### Risk 3: Unknown Field Keys in DataDict
+**`plottr/node/grid.py`**: Pass `copy=False` to `datadict_to_meshgrid()` since gridder already copies input
 
-Field dicts can contain custom keys beyond `values/axes/unit/label`. Known cases:
-- `__shape__` key: stored by `datadict_storage.py`, checked in `MeshgridDataDict.validate()`
-- Fitter node adds `'guess'` and `'fit'` fields dynamically (fitter.py:642, 648)
-- Per-field meta keys like `__meta1__` are stored inside field dicts
+**`plottr/plot/base.py`**: `dataclasses.replace` instead of `deepcopy` for complex plot splitting
 
-**Mitigation**: In `structure()` and `extract()`, when replacing `cp.deepcopy()`, we must
-**preserve all keys**, not just the known ones. Use a targeted copy that special-cases only
-`values` (numpy-optimized copy) and `axes` (new list), but copies everything else generically:
-```python
-new_field = {}
-for fk, fv in original_field.items():
-    if fk == 'values':
-        new_field[fk] = fv.copy() if copy else fv  # numpy optimized
-    elif fk == 'axes':
-        new_field[fk] = list(fv)  # new list, strings are immutable
-    else:
-        new_field[fk] = cp.deepcopy(fv)  # safe for mutable meta/custom keys
-```
-This preserves backward compatibility while optimizing the two expensive keys (values, axes).
+### Bugs Fixed
+- `copy()` now properly deep-copies global mutable metadata (was sharing references)
+- `remove_invalid_entries()` no longer crashes when dependents have different numbers of invalid entries
 
-### Risk 4: In-Place Axis Mutation Breaks Shallow Copies
+### Benchmark Results
 
-Several nodes mutate the `axes` list in-place:
-- `DimensionReducer._applyDimReductions()` does `del data[n]['axes'][idx]`
-  (dim_reducer.py:595)
-- `structure(remove_data=...)` does `s[n]['axes'].pop(i)` (datadict.py:439)
-
-If a shallow copy shares the same `axes` list, these mutations would corrupt the original.
-
-**Mitigation**: `copy(deep=False)` (the new shallow copy mode) MUST always create a new `axes`
-list for each field, even when sharing the `values` array. This makes it safe for axis mutation
-while still avoiding the expensive array copy. The implementation is:
-```python
-new_field = {}
-for fk, fv in original_field.items():
-    if fk == 'values':
-        new_field[fk] = fv  # shared reference (NOT copied)
-    elif fk == 'axes':
-        new_field[fk] = list(fv)  # ALWAYS new list
-    else:
-        new_field[fk] = fv  # scalars (unit, label) are immutable
-```
-
-### Risk 5: mask_invalid() Return Type Contract
-
-Downstream plotting code checks `isinstance(data, np.ma.MaskedArray)` and calls `.filled(np.nan)`
-(plot/mpl/plotting.py:99-104, plot/base.py:479,508). If we skip masking for clean data, the
-arrays stay as plain `np.ndarray` and the isinstance checks return False — which is actually
-fine, because the code uses `if isinstance(...): filled()` as a conditional path.
-
-**Mitigation**: The fast-path must use `num.is_invalid()` (not just `np.isnan`) to also catch
-`None` values in object arrays. When no invalid entries exist, skip masking entirely — the
-plotting code handles plain ndarrays correctly. When invalid entries exist, apply masking as
-before.
-
-### Risk 6: shapes() Called on Unvalidated Data
-
-`Node.process()` calls `dataIn.shapes()` (node.py:281) without an explicit prior `validate()`.
-If values are still lists (pre-validation), `data_vals()` returns a list and `.shape` fails.
-
-**Mitigation**: Use `np.shape()` instead of `.shape` — this works on lists, tuples, and arrays
-alike, returning the correct shape without requiring conversion:
-```python
-shapes[k] = np.shape(self.data_vals(k))
-```
-
-### Risk 7: copy() and extract() Semantic Inconsistency
-
-Currently `copy()` uses `ndarray.copy()` (shallow numpy copy) while `extract(copy=True)` uses
-`cp.deepcopy()` (Python generic deep copy). For simple numeric arrays these are equivalent, but
-for object-dtype arrays `deepcopy` recursively copies contained Python objects while
-`ndarray.copy()` only copies the array of pointers.
-
-**Mitigation**: Align both to use `ndarray.copy()` for the `values` key, and `cp.deepcopy()` for
-other mutable values. This is consistent because: (a) plottr stores numeric data in arrays, not
-nested objects, (b) object arrays in plottr contain None values — `ndarray.copy()` handles None
-correctly since None is a singleton.
-
----
-
-## Code Readability: Copy Semantics Design
-
-A key goal is making it **obvious** in the code where data is shared vs. independent. We adopt
-a pattern inspired by xarray's `copy(deep=True/False)` API and numpy conventions.
-
-### Design Principles
-
-1. **Explicit `deep` parameter**: Extend `copy()` to accept `deep=True` (default, backward
-   compatible) and `deep=False` (shares arrays). No separate `shallow_copy()` method — one
-   method, one parameter, one place to look.
-
-2. **Docstrings document ownership**: Every method that returns data states whether the returned
-   arrays are copies or views:
-   ```python
-   def copy(self, deep: bool = True) -> T:
-       """Make a copy of the dataset.
-
-       :param deep: If True (default), all data arrays are copied. The returned
-           dataset is fully independent of the original.
-           If False, the returned dataset shares data array references with the
-           original. Modifications to array *contents* (e.g., ``ret['x']['values'][0] = 5``)
-           will affect both. However, *replacing* an array (``ret['x']['values'] = new_arr``)
-           only affects the copy. Field metadata (axes, unit, label) is always independent.
-       """
-   ```
-
-3. **Nodes document their copy contract**: Each `process()` method gets a one-line comment
-   stating whether it copies or modifies in-place:
-   ```python
-   def process(self, dataIn=None):
-       ...
-       data = dataIn.copy(deep=False)  # shallow: only modifying values for specific fields
-       data['dep_0']['values'] = data['dep_0']['values'] * scale  # replaces array, safe
-   ```
-
-4. **No hidden copies**: Functions that need to modify data must do so on an explicit copy.
-   `Node.process()` base class passes data through by reference (as it already does). Only
-   nodes that transform data should copy. This should be the local decision of each node.
-
-### API Summary
-
-| Method | Arrays | Metadata | Use When |
-|---|---|---|---|
-| `copy(deep=True)` | Independent copies | Independent copies | Need fully independent data |
-| `copy(deep=False)` | Shared references | Independent copies | Node only modifies a few fields |
-| `extract(copy=True)` | Independent copies | Independent copies | Subsetting fields |
-| `extract(copy=False)` | Shared references | Shared references | Read-only subsetting |
-| `structure()` | Empty (no data) | Independent copies | Getting data shape/layout |
-
----
-
-## Proposed Improvements (Revised)
-
-### Phase 1: Extend copy() with deep parameter & fix cascading copies
-
-#### 1a. Add `deep` parameter to `copy()`
-
-Extend the existing `copy()` method to accept `deep=True/False`, following the xarray convention.
-`deep=True` (default) preserves current behavior. `deep=False` copies the dict structure and
-axes lists but shares numpy array references.
-
-```python
-def copy(self: T, deep: bool = True) -> T:
-    """Make a copy of the dataset.
-
-    :param deep: If True (default), data arrays are independently copied.
-        If False, the returned dataset shares array references with the original.
-        Field metadata (axes, unit, label) is always independently copied.
-    """
-    ret = self.__class__()
-    for k, v in self.items():
-        if self._is_meta_key(k):
-            ret[k] = cp.deepcopy(v)
-        else:
-            new_field = {}
-            for fk, fv in v.items():
-                if fk == 'values':
-                    new_field[fk] = fv.copy() if deep else fv
-                elif fk == 'axes':
-                    new_field[fk] = list(fv)       # always new list (mutation-safe)
-                elif self._is_meta_key(fk):
-                    new_field[fk] = cp.deepcopy(fv) # safe for mutable meta
-                else:
-                    new_field[fk] = fv              # scalars (unit, label) are immutable
-            ret[k] = new_field
-    return ret
-```
-
-This replaces the current `copy()` → `structure()` → `deepcopy` chain with a single efficient
-pass. No separate `shallow_copy()` method needed.
-
-**Impact**: `copy(deep=False)` is essentially free (~0.01 ms vs 92 ms for deep copy on 38 MB
-meshgrid). Even `copy(deep=True)` is faster because it avoids the `structure()` → `validate()`
-→ `deepcopy` chain.
-
-#### 1b. Fix cascading copies in inherited nodes
-
-`XYSelector.process()` calls `super().process()` (which is `DimensionReducer.process()`) which
-already copies. Remove the redundant second copy:
-
-- `DimensionReducer.process()` (dim_reducer.py:682): keep `copy(deep=False)` — it needs to
-  mutate axes and values
-- `XYSelector.process()` (dim_reducer.py:901): **remove** the `.copy()` call — parent already
-  returned a copy
-- `Node.process()` (node.py:263): does NOT copy, just inspects — keep as-is
-
-#### 1c. Use `copy=False` in `datadict_to_meshgrid` when data is already a copy
-
-`DataGridder.process()` already copies input at line 473. Pass `copy=False` to
-`datadict_to_meshgrid()` to avoid a redundant second array copy.
-
-### Phase 2: Optimize Expensive Validation
-
-#### 2a. Skip redundant validation in internal methods
-
-Add a private `_build_structure()` path that skips validation when constructing data from
-known-valid sources. The public `validate()` always runs — no caching.
-
-Specifically:
-- `copy()` already constructs from valid data → skip re-validate
-- `structure()` calls `validate()` first, then constructs → skip re-validate in the construction
-  step
-
-This is implemented by extracting the construction logic out of `structure()` into a helper:
-```python
-def structure(self, ...):
-    if self.validate():
-        return self._build_structure(...)
-    return None
-
-def _build_structure(self, ...):
-    """Build structure dict. Caller must ensure data is validated."""
-    ...  # no validate() call here
-```
-
-**Impact**: Eliminates 50%+ of validate() calls. Especially impactful for MeshgridDataDict
-where validate() costs 43 ms.
-
-#### 2b. Optimize MeshgridDataDict.validate() monotonicity check
-
-Replace `np.unique(np.sign(np.diff(...)))` with a direct min/max check on the diff array.
-This avoids the sort + allocate from `np.unique()` while preserving full-array coverage:
-
-```python
-d = np.diff(axis_data, axis=axis_num)
-# Use nan-aware checks without materializing sign/unique arrays
-valid_d = d[~np.isnan(d)] if np.issubdtype(d.dtype, np.floating) else d
-if valid_d.size > 0:
-    if np.any(valid_d == 0):
-        msg += "no variation along axis"
-    if not (np.all(valid_d > 0) or np.all(valid_d < 0)):
-        msg += "not monotonous"
-```
-
-**Impact**: ~50% faster than current (no sort/unique), while checking every element.
-
-### Phase 3: Optimize structure() and extract()
-
-#### 3a. Replace deepcopy in structure() with targeted copy
-
-Use the same targeted copy pattern as `copy()`: special-case `values` (set to `[]`) and `axes`
-(new list), deepcopy only meta keys (which may be mutable), pass through scalars directly.
-Preserve ALL keys (not just known ones) to handle custom field keys like `__shape__`.
-
-#### 3b. Replace deepcopy in extract() with targeted copy
-
-Same pattern: use `ndarray.copy()` for values, `list()` for axes, `deepcopy` for meta keys,
-passthrough for scalars. This aligns `extract(copy=True)` semantics with `copy(deep=True)`.
-
-### Phase 4: Optimize mask_invalid()
-
-#### 4a. Skip masking when data has no invalid entries
-
-Use `num.is_invalid()` (which handles both None and NaN) for the fast check:
-```python
-def mask_invalid(self: T) -> T:
-    for d, _ in self.data_items():
-        arr = self.data_vals(d)
-        invalid_mask = num.is_invalid(arr)
-        if not np.any(invalid_mask):
-            continue  # no invalid entries, skip masking entirely
-        vals = np.ma.masked_where(invalid_mask, arr, copy=True)
-        ...
-```
-
-Downstream plotting code handles both plain ndarrays and MaskedArrays correctly (conditional
-isinstance checks in plot/mpl/plotting.py:99-104).
-
-#### 4b. Use copy=False when data is already a copy
-
-In pipeline nodes that call `mask_invalid()` after already copying data (DimensionReducer,
-Histogrammer), pass through a parameter or check `owndata` to avoid re-copying.
-
-### Phase 5: Minor Optimizations
-
-#### 5a. Use np.shape() in shapes()
-
-Replace `np.array(self.data_vals(k)).shape` with `np.shape(self.data_vals(k))`. This handles
-lists/tuples/arrays uniformly without allocating a new array. Safe for unvalidated data.
-
-#### 5b. Optimize datasets_are_equal()
-
-Short-circuit on shape mismatch before comparing values.
-
----
-
-## Expected Impact
-
-| Phase | Time Savings (per pipeline update) | Memory Savings |
-|---|---|---|
-| Phase 1 (copy(deep=False) + fix cascading) | 50–70% of copy time | 60–75% reduction |
-| Phase 2 (skip redundant validation + optimize) | 60–80% of validate time | Negligible |
-| Phase 3 (structure/extract targeted copy) | 30–50% of structure ops | Minor |
-| Phase 4 (mask_invalid fast-path) | 95%+ when data is clean | 50% reduction |
-| Phase 5 (Minor) | 5–10% misc | Minor |
-
-**Combined estimate for 100×100×100 MeshgridDataDict pipeline:**
-- Current: ~500 ms, ~190 MB allocated (4.8× input)
-- After all phases: ~50–80 ms, ~50–60 MB allocated (~1.3× input)
-
-## Implementation Order
-
-**Prerequisite**: Add comprehensive test coverage for copy semantics, data integrity through
-pipeline, and edge cases (object arrays, complex data, masked data, custom field keys).
-
-Then:
-1. **Phase 1a** (copy deep parameter) — foundation for everything else
-2. **Phase 2a** (skip redundant validation) — highest ROI, low risk
-3. **Phase 2b** (optimize monotonicity check) — high ROI, low risk
-4. **Phase 1b** (fix cascading copies) — high ROI, needs test coverage first
-5. **Phase 3a+3b** (structure/extract optimization) — medium ROI, low risk
-6. **Phase 4a** (mask_invalid fast-path) — high ROI for clean data, low risk
-7. **Phase 1c + Phase 4b + Phase 5** — incremental improvements
-
-## Risks & Considerations
-
-- **Shared array mutation**: With `copy(deep=False)`, if a node modifies array *contents*
-  in-place (e.g. `arr[0] = 5` or `arr *= 2`), it corrupts the original. Nodes must *replace*
-  arrays (`data['x']['values'] = new_arr`) rather than mutate them. This is already the common
-  pattern in most nodes, but must be verified with tests.
-- **Backward compatibility**: `copy()` default is `deep=True`, preserving current behavior.
-  `deep=False` is opt-in. No external API is removed.
-- **Testing prerequisite**: Before making any optimization changes, comprehensive tests must
-  verify: copy isolation, pipeline data integrity, edge cases (object arrays, None, complex,
-  masked), and custom field key preservation.
-
----
-
-## Execution Results
-
-All optimizations implemented and tested. **173 tests pass** (0 failures).
-
-### Changes Made
-
-| File | Changes |
-|---|---|
-| `plottr/data/datadict.py` | Added `_copy_field()` helper; rewrote `copy(deep=True/False)`; optimized `structure()` with `_build_structure()`; replaced `cp.deepcopy` in `extract()`; optimized `MeshgridDataDict.validate()` monotonicity check; added `mask_invalid()` fast-path for clean data; fixed `shapes()` to use `np.shape()`; optimized `datasets_are_equal()` |
-| `plottr/node/dim_reducer.py` | Removed redundant `copy()` in `XYSelector.process()` |
-| `plottr/node/grid.py` | Pass `copy=False` to `datadict_to_meshgrid()` |
-| `test/pytest/test_datadict_copy_semantics.py` | 64 new tests for copy semantics |
-| `test/pytest/test_pipeline_coverage.py` | 63 new tests for pipeline coverage |
-
-### Benchmark Comparison (Baseline -> Final)
-
-| Benchmark | Before (ms) | After (ms) | Speedup | Notes |
-|---|---|---|---|---|
-| **mesh_500k_copy** | 42.2 | 2.9 | **14.8x** | copy() no longer calls structure()/validate() |
-| **mesh_50k_copy** | 2.7 | 0.4 | **6.1x** | Same optimization, smaller data |
-| **tab_10k_copy** | 0.23 | 0.15 | **1.5x** | Smaller effect on tabular data |
-| **mesh_500k_validate** | 20.5 | 14.1 | **1.5x** | Removed np.unique/np.sign overhead |
-| **mesh_500k_structure** | 20.3 | 13.9 | **1.5x** | _build_structure() skips re-validation |
-| **mesh_50k_mask_invalid** | 10.0 | 9.1 | **1.1x** | Fast-path skips clean data |
-| **mesh_500k_mask_invalid (mem)** | 19537 KB | 0.3 KB | **~0** | No allocation for clean data |
-| **pipeline_4stage** | 8.2 | 5.7 | **1.4x** | Cumulative improvement |
-| **equality_5k** | 1.4 | 1.2 | **1.1x** | Shape short-circuit + set ops |
-
-### Bug Fixed
-
-- `copy()` previously did not deep-copy global mutable metadata (e.g., `dd.add_meta('info', {'key': 'val'})`). The new implementation properly deep-copies all metadata.
-
-### New APIs
-
-- `DataDictBase.copy(deep=True/False)` — `deep=False` shares array data (xarray convention)
-- `DataDictBase._build_structure()` — private helper that skips validation
-- `DataDictBase._copy_field()` — targeted field copy with per-key semantics
-
----
-
-## Further Optimization Opportunities
-
-Additional performance improvements identified through comprehensive codebase analysis.
-Organized from highest to lowest impact.
-
-### Tier 1: Critical Quick Wins
-
-#### HDF5 Data Loading: Avoid Full-File Reads for Metadata
-
-**Files:** `plottr/data/datadict_storage.py`
-
-**Problem:** Two lines read the entire HDF5 dataset into memory just to get its shape:
-- Line 274: `lens = [len(grp[k][:]) for k in keys]` reads ALL data to get lengths
-- Line 305: `entry['__shape__'] = ds[:].shape` reads ALL data to get shape
-
-**Fix:**
-`python
-# Line 274: use HDF5 metadata (zero I/O)
-lens = [grp[k].shape[0] for k in keys]
-
-# Line 305: use HDF5 shape attribute
-entry['__shape__'] = ds.shape
-`
-
-**Impact:** 50-80% reduction in HDF5 load time for large files. Eliminates massive
-memory spikes when loading. This is a 1-line fix each.
-
-#### Node.process() Redundant structure() Call
-
-**File:** `plottr/node/node.py:282`
-
-**Problem:** `dstruct = dataIn.structure(add_shape=False)` is called on every
-pipeline update in every node. For MeshgridDataDict this means validate() + deepcopy
-of all field metadata. But the result is only stored for signal emission — the actual
-change detection at lines 293-308 uses axes/deps/type/shapes which are already computed
-at lines 279-281.
-
-**Fix:** Replace with a lazy approach — only compute structure when it's actually needed
-(i.e., when `_structChanged` is True):
-`python
-dstruct = None  # defer computation
-# ... change detection using axes/deps/type ...
-if _structChanged:
-    dstruct = dataIn.structure(add_shape=False)
-self.dataStructure = dstruct if dstruct is not None else self.dataStructure
-`
-
-**Impact:** Eliminates the single most expensive call in the pipeline hot path for
-steady-state operation (when structure doesn't change between updates). For 500K-element
-MeshgridDataDict: saves ~14ms per node per update.
-
-### Tier 2: High Impact
-
-#### Plot Complex Data: Replace deepcopy with Targeted Copy
-
-**File:** `plottr/plot/base.py:456, 488, 517`
-
-**Problem:** `_splitComplexData()` uses `deepcopy(re_plotItem)` to create Real/Imag or
-Mag/Phase split views. This deep-copies the entire PlotItem including array data references
-and all metadata. Called on every plot update for complex-valued data.
-
-**Fix:** PlotItem is a dataclass — use `dataclasses.replace()` or manual copy:
-`python
-from dataclasses import replace
-im_plotItem = replace(re_plotItem,
-    id=re_plotItem.id + 1,
-    data=list(re_plotItem.data),
-    labels=list(re_plotItem.labels) if re_plotItem.labels else None,
-)
-`
-
-**Impact:** 2-5x faster rendering for complex-valued plots.
-
-#### Signal Emission Overhead in Nodes
-
-**File:** `plottr/node/node.py:316-334`
-
-**Problem:** Up to 7 Qt signals are emitted per data update in each node. On first data
-arrival, ALL signals fire (lines 284-290). Each signal can trigger widget updates and
-downstream processing.
-
-**Opportunities:**
-- `dataFieldsChanged` (line 323) is redundant — it emits `daxes + ddeps` which
-  is just the union of `dataAxesChanged` and `dataDependentsChanged`
-- `newDataStructure` (line 330) carries structure+shapes+type, overlapping with
-  `dataStructureChanged` (line 329) + `dataShapesChanged` (line 334)
-
-**Fix (conservative):** Remove `dataFieldsChanged` and have listeners use
-`dataAxesChanged` + `dataDependentsChanged` instead. Connect `newDataStructure`
-only where both structure and shapes are needed together.
-
-**Fix (aggressive):** Coalesce all signals into a single `dataChanged(dict)` signal
-carrying change flags. Reduces signal/slot overhead from 7 to 1.
-
-#### largest_numtype() Flattens Entire Array
-
-**File:** `plottr/utils/num.py:28`
-
-**Problem:** `types = {type(a) for a in np.array(arr).flatten()}` iterates every
-element of the array as a Python object to collect types. For a 1M-element array,
-this creates 1M Python objects.
-
-**Fix:** Use numpy's dtype system directly:
-`python
-def largest_numtype(arr, include_integers=True):
-    arr = np.asarray(arr)
-    if np.issubdtype(arr.dtype, np.complexfloating):
-        return complex
-    if np.issubdtype(arr.dtype, np.floating):
-        return float
-    if include_integers and np.issubdtype(arr.dtype, np.integer):
-        return float  # promote to float for plotting
-    # Only fall back to element-scanning for object arrays
-    if arr.dtype == object:
-        types = {type(a) for a in arr.ravel() if a is not None}
-        # ... existing logic ...
-    return None
-`
-
-**Impact:** ~100x faster for numeric arrays (avoids Python-level iteration entirely).
-
-### Tier 3: Medium Impact
-
-#### is_invalid() Allocates Unnecessary Zero Array
-
-**File:** `plottr/utils/num.py:57-65`
-
-**Problem:** For non-float arrays, creates `np.zeros(a.shape, dtype=bool)` just to
-OR with the None check. The zeros contribute nothing.
-
-**Fix:**
-`python
-def is_invalid(a):
-    isnone = a == None
-    if a.dtype in FLOATTYPES:
-        return isnone | np.isnan(a)
-    return isnone  # skip zeros allocation
-`
-
-#### guess_grid_from_sweep_direction(): Repeated np.array() Calls
-
-**File:** `plottr/utils/num.py:236-242`
-
-**Problem:** `np.array(vals)` called 4 times on the same data inside a loop.
-
-**Fix:** Convert once at the top of the loop: `vals_arr = np.asarray(vals)`
-
-#### remove_invalid_entries(): O(n^2) np.append Pattern
-
-**File:** `plottr/data/datadict.py:1068-1086`
-
-**Problem:** Uses `np.append(_idxs, _newidxs)` repeatedly which copies the entire
-array each time.
-
-**Fix:** Collect indices in a Python list, concatenate once:
-`python
-_idxs_list = []
-# ... append to list ...
-_idxs = np.concatenate(_idxs_list) if _idxs_list else np.array([])
-`
-
-#### datadict_to_dataframe(): flatten() Instead of ravel()
-
-**File:** `plottr/data/datadict.py:1738, 1745`
-
-**Problem:** `.flatten()` always copies; `.ravel()` returns a view when possible.
-
-**Fix:** Use `.ravel()` since the result is consumed immediately by pandas.
-
-### Tier 4: Architectural Improvements (Larger Effort)
-
-#### Data Change Detection in Pipeline
-
-**Problem:** The pipeline has no concept of "what changed." Every update re-processes
-the entire data through every node. For live monitoring where data is appended
-incrementally, this means re-gridding, re-reducing, and re-plotting everything.
-
-**Opportunity:** Add lightweight change detection:
-- Track data version/hash at the DataDict level
-- Nodes check if their input actually changed before processing
-- For append-only updates, nodes could process only new data
-
-#### Fitter Node: No Memoization
-
-**File:** `plottr/node/fitter.py:624-650`
-
-**Problem:** The fitting algorithm runs on every `process()` call even if the data
-and fit parameters haven't changed. For complex models this can take 100ms-1s.
-
-**Fix:** Cache fit results keyed on (data hash, model, parameters).
-
-#### ScaleUnits: Redundant Per-Update Computation
-
-**File:** `plottr/node/scaleunits.py:129-135`
-
-**Problem:** `find_scale_and_prefix()` scans the full array (`np.nanmax(np.abs(data))`)
-for every field on every update.
-
-**Fix:** Cache the scale prefix and only recompute when the data range changes
-significantly (e.g., order of magnitude difference).
-
-#### Histogrammer: No Result Caching
-
-**File:** `plottr/node/histogram.py:132-217`
-
-**Problem:** Histogram recomputed on every update even when data, nbins, and axis
-haven't changed.
-
-**Fix:** Cache histogram results, invalidate only when inputs change.
-
-### Tier 5: xarray Consideration
-
-**Finding:** Plottr does NOT use xarray at all despite listing it as a dependency.
-xarray could theoretically provide lazy loading from HDF5, chunked computation, and
-better memory management. However, replacing DataDict with xarray would be a major
-refactoring effort and is not recommended unless a larger redesign is planned.
-
-The `xarray` dependency appears to be pulled in transitively or for potential future
-use. It could be made optional to reduce install footprint.
-
-### Round 2 Execution Results
-
-All round 2 optimizations implemented and tested. **205 tests pass** (0 failures).
-
-#### Changes Made (Round 2)
-
-| File | Changes |
-|---|---|
-| `plottr/utils/num.py` | Rewrote `largest_numtype()` to use dtype (avoids element iteration); `is_invalid()` skips zero alloc for non-floats; `guess_grid_from_sweep_direction()` converts once with `np.asarray` |
-| `plottr/data/datadict.py` | Fixed O(n^2) `np.append` in `remove_invalid_entries()`; `meshgrid_to_datadict()` uses `ravel()`; `datadict_to_dataframe()` uses `ravel()` |
-| `plottr/node/node.py` | Deferred `structure()` call to only when structure changes |
-| `plottr/plot/base.py` | Replaced `deepcopy` with `dataclasses.replace` in `_splitComplexData()` |
-| `test/pytest/test_round2_optimizations.py` | 32 new tests |
-
-#### Benchmark (Round 2)
-
-| Benchmark | Before | After | Speedup |
-|---|---|---|---|
-| **largest_numtype (float 500k)** | 29.8 ms | 0.002 ms | **~15,000x** |
-| **largest_numtype (complex 500k)** | 31.9 ms | 0.001 ms | **~32,000x** |
-| **node_process (500k mesh)** | 7.42 ms | 0.15 ms | **50x** |
-| **to_dataframe (100k)** | 0.95 ms | 0.63 ms | **1.5x** |
-| **remove_invalid (10k)** | 0.073 ms | 0.050 ms | **1.5x** |
-| **is_invalid (int 500k)** | 16.5 ms | 15.0 ms | **1.1x** |
-
-#### Bugs Fixed (Round 2)
-
-- `remove_invalid_entries()` crashed with `ValueError` when dependents had different numbers of invalid entries (inhomogeneous `np.array(idxs)`). Fixed by using `np.concatenate`.
-- `largest_numtype()` on empty arrays previously returned `None` in all cases; behavior preserved via explicit empty check.
-
-### Real Dataset Benchmark (23 QCodes Datasets, Before vs After)
-
-Full pipeline benchmark: Load from QCodes DB -> DataSelector -> DataGridder -> XYSelector.
-Measured on 23 real-world-shaped datasets (1D-3D, with/without shape metadata, complete/interrupted).
-
-**Pipeline total: 1478 ms (before) -> 1025 ms (after) = 1.44x overall speedup**
-
-| Dataset | Points | Pipeline Before | Pipeline After | Speedup |
-|---|---|---|---|---|
-| stability_diagram (500x400) | 200,000 | 199 ms | 110 ms | **1.81x** |
-| large_3d_scan (100x80x50) | 800,000 | 549 ms | 333 ms | **1.65x** |
-| field_spectroscopy (50x2000) | 100,000 | 96 ms | 64 ms | **1.50x** |
-| time_trace (100k) | 100,000 | 64 ms | 44 ms | **1.46x** |
-| spatial_map (50x40x30) | 60,000 | 100 ms | 70 ms | **1.42x** |
-| 3d_cal_noshape (8x6x5) | 240 | 29 ms | 23 ms | **1.30x** |
-| gate_sweep (100x80) | 8,000 | 31 ms | 25 ms | **1.25x** |
-| interrupted_sweep | 500 | 26 ms | 22 ms | **1.21x** |
-| t1_measurement (1D, no shape) | 1,500 | 24 ms | 20 ms | **1.20x** |
-| charge_stability_interrupted | 630 | 26 ms | 21 ms | **1.20x** |
-| two_tone_spectroscopy (20x30) | 600 | 25 ms | 22 ms | **1.16x** |
-| (remaining 12 datasets) | | | | 1.00-1.17x |
-
-Key observations:
-- Larger datasets benefit most (1.4-1.8x for 60k+ points)
-- Even small datasets see 1.1-1.3x improvement (reduced per-node overhead)
-- No regressions observed on any dataset
-- All 23 datasets produce the same output types before and after
-
-### Large Dataset Benchmark (Array ParamType, 15-61 MB per dataset)
-
-8 datasets using QCodes array paramtype (blob storage), benchmarked through
-the full plottr pipeline (Load -> DataSelector -> DataGridder -> XYSelector).
-
-**Pipeline total: 6,550 ms (before) -> 3,465 ms (after) = 1.89x overall speedup**
-
-| Dataset | Data Size | Pipeline Before | Pipeline After | Speedup |
-|---|---|---|---|---|
-| large_1d_3dep (2M pts, 3 deps) | 61 MB | 997 ms | 497 ms | **2.01x** |
-| large_1d_sweep (4M pts) | 61 MB | 1,923 ms | 971 ms | **1.98x** |
-| large_2d_wide (200x4000) | 18 MB | 702 ms | 360 ms | **1.95x** |
-| large_2d_interrupted (40% of 1000x800) | 18 MB | 314 ms | 162 ms | **1.94x** |
-| large_2d_2dep (500x1000, 2 deps) | 15 MB | 453 ms | 234 ms | **1.94x** |
-| large_2d_square (800x800) | 15 MB | 568 ms | 295 ms | **1.93x** |
-| large_3d_1dep (100x100x80) | 24 MB | 1,064 ms | 632 ms | **1.68x** |
-| large_3d_2dep (80x80x60, 2 deps) | 15 MB | 530 ms | 315 ms | **1.68x** |
-
-Loading times are unchanged (dominated by QCodes SQLite I/O). All speedup
-comes from the plottr pipeline processing (copy, validate, structure, gridding).
-
-### Improved Benchmark Methodology (v2)
-
-Previous benchmarks created a new flowchart per run, which always hit the "first data" code path.
-The v2 benchmark fixes this by measuring two scenarios:
-
-- **Cold start**: Create flowchart + process first data (opening a dataset for the first time)
-- **Steady state**: Re-process new data on an existing flowchart (live monitoring refresh)
-
-Method: 5 repeats, median timing, warmup run discarded, persistent flowchart for steady-state.
-
-#### Large Datasets (8 datasets, 15-61 MB each, array paramtype)
-
-|  | Cold Start |  | Steady State |  |
-|---|---|---|---|---|
-| **Totals** | 6,479 -> 3,449 ms | **1.88x** | 5,867 -> 3,312 ms | **1.77x** |
-
-| Dataset | MB | Cold Before | Cold After | Cold Spd | Steady Before | Steady After | Steady Spd |
-|---|---|---|---|---|---|---|---|
-| large_1d_sweep (4M pts) | 61 | 1,911 ms | 960 ms | **1.99x** | 1,865 ms | 1,031 ms | **1.81x** |
-| large_1d_3dep (2M, 3 deps) | 61 | 987 ms | 491 ms | **2.01x** | 949 ms | 511 ms | **1.86x** |
-| large_2d_square (800x800) | 15 | 567 ms | 294 ms | **1.93x** | 528 ms | 290 ms | **1.82x** |
-| large_2d_2dep (500x1000) | 15 | 448 ms | 237 ms | **1.89x** | 412 ms | 226 ms | **1.82x** |
-| large_3d_1dep (100x100x80) | 24 | 1,035 ms | 628 ms | **1.65x** | 798 ms | 503 ms | **1.59x** |
-| large_3d_2dep (80x80x60) | 15 | 525 ms | 320 ms | **1.64x** | 389 ms | 247 ms | **1.58x** |
-| large_2d_interrupted (40%) | 18 | 306 ms | 162 ms | **1.89x** | 273 ms | 147 ms | **1.86x** |
-| large_2d_wide (200x4000) | 18 | 701 ms | 357 ms | **1.96x** | 654 ms | 357 ms | **1.83x** |
-
-#### Small/Medium Datasets (23 datasets, <1 KB to 15 MB, numeric paramtype)
-
-|  | Cold Start |  | Steady State |  |
-|---|---|---|---|---|
-| **Totals** | 1,477 -> 1,036 ms | **1.43x** | 895 -> 529 ms | **1.69x** |
-
-Steady-state highlights (where the optimization shines most):
-
-| Dataset | Steady Before | Steady After | Speedup |
-|---|---|---|---|
-| interrupted_sweep | 5.9 ms | 2.8 ms | **2.11x** |
-| two_tone_spectroscopy | 6.1 ms | 2.9 ms | **2.10x** |
-| charge_stability_interrupted | 6.1 ms | 2.9 ms | **2.10x** |
-| ramsey_2d | 6.2 ms | 3.0 ms | **2.07x** |
-| qubit_spectroscopy | 7.8 ms | 3.8 ms | **2.05x** |
-| multi_measurement (3 deps) | 6.8 ms | 3.4 ms | **2.00x** |
-| stability_diagram (200K) | 176.7 ms | 93.8 ms | **1.88x** |
-| large_3d_scan (800K) | 421.8 ms | 261.1 ms | **1.62x** |
-
-### Interactive Action Benchmark (simulated user actions, large datasets)
-
-Measures the time for real user interactions on a persistent flowchart
-(DataSelector -> DataGridder -> XYSelector -> SubtractAverage -> ScaleUnits).
-5 repeats, median timing, warmup discarded.
-
-#### Per-Node Speedups (averaged across all datasets)
-
-The node breakdown reveals where our optimizations had the most impact:
-
-| Node | Before | After | Speedup | What changed |
-|---|---|---|---|---|
-| **DataSelector** | 72-579 ms | 7-39 ms | **10-17x** | `largest_numtype()` now O(1), `copy()/extract()` optimized |
-| **SubtractAverage** | 2-202 ms | 0.1-9 ms | **6-29x** | `copy()` 15x faster, `mask_invalid()` skips clean data |
-| **ScaleUnits** | 2-258 ms | 0.1-37 ms | **7-15x** | `copy()` 15x faster |
-| **XYSelector** | 89-596 ms | 42-322 ms | **1.5-2.3x** | Removed cascading copy, deferred `structure()` |
-| **DataGridder** | 102-647 ms | 89-574 ms | **1.1-1.2x** | `copy=False` in `datadict_to_meshgrid` |
-
-**Key insight:** DataGridder dominates total time (50-60%) and got the least speedup (1.1x)
-because its cost is dominated by the actual gridding computation (`guess_shape`, `reshape`,
-`transpose`) -- not by copy/validate overhead. This is the next optimization frontier.
-
-#### Action Speedups
-
-| Action | Dataset | Before | After | Speedup |
-|---|---|---|---|---|
-| **toggle_subtract_avg** | 2d_square (15 MB) | 293 ms | 29 ms | **10.2x** |
-| **toggle_subtract_avg** | 2d_wide (18 MB) | 342 ms | 36 ms | **9.5x** |
-| **swap_xy_axes** | 2d_square (15 MB) | 662 ms | 196 ms | **3.4x** |
-| **swap_xy_axes** | 2d_wide (18 MB) | 790 ms | 241 ms | **3.3x** |
-| **switch_dependent** | 1d_3dep (61 MB) | 2287 ms | 977 ms | **2.3x** |
-| **data_refresh** | 2d_square (15 MB) | 697 ms | 304 ms | **2.3x** |
-| **data_refresh** | 1d_sweep (61 MB) | 2405 ms | 1107 ms | **2.2x** |
-| **slide_dimension** | 3d_1dep (24 MB) | 1891 ms | 1231 ms | **1.5x** |
-| **toggle_grid** | 3d_1dep (24 MB) | 1290 ms | 985 ms | **1.3x** |
-
-#### Where remaining time goes (optimization frontier)
-
-For the `large_2d_square` dataset (800x800, 15 MB) after optimization:
-
-- **DataGridder**: 177 ms (58%) -- gridding computation itself
-- **XYSelector**: 82 ms (27%) -- dimension reduction + reorder
-- **DataSelector**: 9 ms (3%) -- extraction
-- **ScaleUnits**: 9 ms (3%) -- prefix computation
-- **SubtractAverage**: 2 ms (1%) -- average subtraction
-- **Overhead**: ~25 ms (8%) -- flowchart propagation, signal emissions
-
-The gridding step (`guess_shape_from_datadict` + `datadict_to_meshgrid`) is now the
-dominant cost and is performing actual computation (not copy/validate overhead).
-Further optimization would need to target the gridding algorithm itself.
-
-### Round 3: DataGridder Optimization (`_find_switches`)
-
-**Root cause:** `_find_switches()` in `plottr/utils/num.py` was the dominant cost in the
-gridding pipeline. For 640K points it took 80ms per axis (160ms total for 2D).
-
-**What was slow:**
-- Called `is_invalid()` 3 times on the same data (3x O(N))
-- Created a `MaskedArray` just for subtraction (O(N) alloc)
-- Called `np.percentile()` twice with separate array filtering (2x O(N log N) sort)
-- Used Python list comprehension for switch filtering
-
-**Optimizations applied:**
-- Compute `is_invalid()` once, reuse the mask
-- Use direct numpy subtraction instead of MaskedArray (NaN propagates correctly)
-- Compute both percentiles in a single `np.percentile([lo, hi])` call (one sort)
-- Vectorized switch filtering with boolean mask instead of list comprehension
-- Use `np.nanmean` for sweep direction to handle NaN deltas
-- Fixed redundant `np.std()` call in `guess_grid_from_sweep_direction`
-
-**Per-function benchmark (800x800 dataset, 640K pts):**
+**Micro-benchmarks (key functions):**
 
 | Function | Before | After | Speedup |
 |---|---|---|---|
-| `_find_switches()` per axis | 80 ms | 31 ms | **2.6x** |
-| `datadict_to_meshgrid()` | 175 ms | 71 ms | **2.5x** |
+| `largest_numtype` (500K float) | 29.8 ms | 0.002 ms | ~15,000× |
+| `mesh_500k_copy()` | 42.2 ms | 2.9 ms | 14.8× |
+| `node_process` (500K mesh, steady state) | 7.4 ms | 0.15 ms | 50× |
+| `_find_switches` (640K pts) | 80 ms | 31 ms | 2.6× |
+| `datadict_to_meshgrid` (640K pts) | 175 ms | 71 ms | 2.5× |
+| `mesh_500k_validate()` | 20.5 ms | 14.1 ms | 1.5× |
 
-**Per-node impact (data_refresh action):**
+**Real experimental data (P1386BB_00BE_datasets.db, steady-state refresh):**
 
-| Dataset | Grid Before | Grid After | Grid Spd | Total Before | Total After | Total Spd |
-|---|---|---|---|---|---|---|
-| large_1d_sweep (61 MB) | 574 ms | 243 ms | **2.4x** | 1107 ms | 792 ms | **1.4x** |
-| large_1d_3dep (61 MB) | 285 ms | 122 ms | **2.3x** | 547 ms | 386 ms | **1.4x** |
-| large_2d_square (15 MB) | 177 ms | 73 ms | **2.4x** | 304 ms | 199 ms | **1.5x** |
-| large_2d_2dep (15 MB) | 137 ms | 58 ms | **2.4x** | 238 ms | 156 ms | **1.5x** |
-| large_3d_1dep (24 MB) | 345 ms | 139 ms | **2.5x** | 497 ms | 292 ms | **1.7x** |
-| large_3d_2dep (15 MB) | 169 ms | 68 ms | **2.5x** | 250 ms | 142 ms | **1.8x** |
-| large_2d_interrupted (18 MB) | 89 ms | 38 ms | **2.3x** | 156 ms | 105 ms | **1.5x** |
-| large_2d_wide (18 MB) | 218 ms | 93 ms | **2.3x** | 375 ms | 249 ms | **1.5x** |
+| Dataset | Data Size | Before | After | Speedup |
+|---|---|---|---|---|
+| QDstability (14400×251, 16 deps) | 223 MB | 555 ms | 189 ms | 2.93× |
+| TopogapStage2 (41×33×5×81, 21 deps) | 152 MB | 439 ms | 161 ms | 2.73× |
+| QDtuning (7440×121, 16 deps) | 14 MB | 31 ms | 11 ms | 2.73× |
 
-**Cumulative speedup vs original master baseline (data_refresh):**
+**Interactive actions (simulated user operations on large datasets):**
 
-| Dataset | Master Baseline | Fully Optimized | Cumulative Speedup |
+| Action | Before | After | Speedup |
 |---|---|---|---|
-| large_1d_sweep (61 MB) | 2405 ms | 792 ms | **3.0x** |
-| large_1d_3dep (61 MB) | 1217 ms | 386 ms | **3.2x** |
-| large_2d_square (15 MB) | 697 ms | 199 ms | **3.5x** |
-| large_2d_2dep (15 MB) | 526 ms | 156 ms | **3.4x** |
-| large_3d_1dep (24 MB) | 813 ms | 292 ms | **2.8x** |
-| large_3d_2dep (15 MB) | 405 ms | 142 ms | **2.9x** |
-| large_2d_interrupted (18 MB) | 355 ms | 105 ms | **3.4x** |
-| large_2d_wide (18 MB) | 828 ms | 249 ms | **3.3x** |
+| Toggle subtract average (15 MB 2D) | 293 ms | 29 ms | 10.2× |
+| Swap XY axes (18 MB 2D) | 790 ms | 241 ms | 3.3× |
+| Switch dependent (61 MB 1D) | 2,287 ms | 977 ms | 2.3× |
+| Data refresh (15 MB 2D) | 697 ms | 199 ms | 3.5× |
 
-62 new tests added in `test_gridder_comprehensive.py`.
+### Tests Added
 
-### Real Experimental Data Benchmark (P1386BB_00BE_datasets.db)
-
-Benchmark on actual experimental datasets from a quantum device measurement campaign.
-These are production datasets with real-world complexity (16-21 dependents, nested array
-data, 4D parameter spaces).
-
-| Run | Experiment | Data Size | Deps | Axes | Cold Before | Cold After | Cold Spd | Steady Before | Steady After | Steady Spd |
-|---|---|---|---|---|---|---|---|---|---|---|
-| 720 | **QDstability** | 223 MB | 16 | 2 | 636 ms | 179 ms | **3.56x** | 555 ms | 189 ms | **2.93x** |
-| 713 | **TopogapStage2** | 152 MB | 21 | 19 | 688 ms | 279 ms | **2.47x** | 439 ms | 161 ms | **2.73x** |
-| 716 | **TopogapStage2** | 152 MB | 21 | 19 | 690 ms | 280 ms | **2.47x** | 432 ms | 164 ms | **2.64x** |
-| 710 | **QDtuning** | 14 MB | 16 | 2 | 52 ms | 31 ms | **1.70x** | 31 ms | 11 ms | **2.73x** |
-| 1496 | GateSweepProtocol | <1 MB | 1 | 1 | 22 ms | 20 ms | 1.09x | 2.5 ms | 1.1 ms | **2.27x** |
-
-Per-node breakdown on QDstability (223 MB, 16 deps):
-- **DataSelector**: 218 ms -> 17 ms (**12.8x**) -- largest_numtype O(1), copy optimized
-- **DataGridder**: 33 ms -> 16 ms (**2.1x**) -- _find_switches optimized
-- **XYSelector**: 264 ms -> 126 ms (**2.1x**) -- cascading copy removed
-
-Per-node breakdown on TopogapStage2 (152 MB, 21 deps, 4D):
-- **DataSelector**: 214 ms -> 16 ms (**13.4x**)
-- **DataGridder**: 34 ms -> 17 ms (**2.0x**)
-- **XYSelector**: 164 ms -> 109 ms (**1.5x**)
+221 new tests across 4 test files:
+- `test_datadict_copy_semantics.py` — copy isolation, edge cases, pipeline integrity
+- `test_pipeline_coverage.py` — per-node tests, hypothesis property-based, various dtypes
+- `test_round2_optimizations.py` — is_invalid, largest_numtype, remove_invalid_entries
+- `test_gridder_comprehensive.py` — all GridOption paths, shapes, edge cases
 
 ---
 
-## Inspectr Optimizations
+## Part 2: Implemented — Inspectr Loading & UX
 
-### Changes
+### Problem
+
+Opening a large QCoDeS database (1496 runs) in inspectr took 15+ minutes because the
+`experiments()` + `data_sets()` enumeration in QCoDeS is O(N²). Clicking any dataset
+froze the UI for ~1 second while the snapshot (up to 6 MB of JSON) was parsed into
+thousands of tree widget items.
+
+### What Changed
+
+**Fast database overview** (`plottr/data/qcodes_db_overview.py`, new module):
+- Single SQL JOIN query fetching run metadata directly from runs + experiments tables
+- Skips snapshot and run_description blobs entirely
+- Reads `inspectr_tag` directly as a column from the runs table
+- Intended for eventual contribution to QCoDeS
 
 **Lazy snapshot loading** (`plottr/apps/inspectr.py`):
-- `RunInfo.setInfo()` no longer calls `dictToTreeWidgetItems()` on the snapshot dict
-- Instead shows a collapsed "QCoDeS Snapshot (click to expand)" placeholder
-- Full snapshot tree is built only when the user expands the item
-- `expandAll()` removed -- tree shows collapsed by default
+- Snapshot tree built only when user expands the "QCoDeS Snapshot" section
+- Info pane sections collapsed by default
+- Smooth pixel-based scrolling for tall rows (e.g., exception tracebacks)
 
-**Incremental DB refresh** (`plottr/apps/inspectr.py`):
-- `refreshDB()` now passes `start=len(dbdf)` to `get_runs_from_db()`
-- Only loads new datasets since last refresh, not the entire database
-- `DBLoaded()` merges incremental results into existing dataframe
-- First load still loads everything (`start=0`)
+**Incremental refresh**:
+- `refreshDB()` only loads runs newer than the last known run_id
+- Merges incremental results into existing dataframe
 
-**Result**: Clicking a dataset with a 5.9 MB snapshot: 951 ms -> 0.3 ms (**3,554x faster**)
-Refreshing a large DB: loads only new runs instead of re-iterating all 1496.
+**Loading UX**:
+- Live progress indicator: "Loading database... (142/1496 datasets)"
+- Contextual messages: "Select a date...", "No datasets found...", "No datasets match filter..."
+- Wider default window (960×640)
 
-### Fast DB Loading via load_by_id (bypassing experiments/data_sets)
+**Fallback chain**: SQL direct → `load_by_id` loop → original `experiments()` API
 
-Added `get_runs_from_db_fast()` in `plottr/data/qcodes_dataset.py` which
-uses `load_by_id()` directly for each run, bypassing the expensive
-`experiments()` + `exp.data_sets()` enumeration in qcodes.
+### Benchmark
 
-The old approach is O(N^2) because `experiments()` loads all experiment
-objects, then `data_sets()` iterates each experiment's runs. For 1496 runs
-this takes 15+ minutes. The new approach is O(N) at ~3ms per run.
-
-| Approach | 23 runs | Projected 1496 runs |
+| Approach | 23 runs | 1496 runs (projected) |
 |---|---|---|
 | Old (experiments + data_sets) | 103 ms | 15+ minutes |
-| New (load_by_id loop) | 90 ms | ~5 seconds |
-| Incremental (3 new only) | 23 ms | 23 ms |
+| load_by_id loop | 90 ms | ~5 seconds |
+| **SQL direct** (new) | **14 ms** | **~10 ms** |
+| Incremental (3 new runs) | - | **~4 ms** |
 
-**Note for qcodes team**: The ideal API would be a single function that returns
-lightweight run metadata (run_id, exp_name, sample_name, timestamps, guid,
-result_counter, metadata) for all or a range of runs, without creating full
-DataSet objects. Something like `get_run_overview(conn, start_id, end_id)`
-that does a single SQL query. This would reduce the per-run cost from 3ms
-(load_by_id) to <0.1ms (pure SQL).
+Snapshot click: 951 ms → 0.3 ms (3,554× faster)
+
+---
+
+## Part 3: Implemented — Plot UI Improvements
+
+### What Changed
+
+**Grid layout for pyqtgraph subplots** (`plottr/plot/pyqtgraph/autoplot.py`):
+- Replaced single-column `QSplitter` with `QGridLayout` using near-square grid
+  (same formula as matplotlib: `nrows = int(n^0.5 + 0.5)`)
+- Many subplots now arrange as 2×2, 2×3, 4×4 etc. instead of stacking vertically
+
+**Scrollable plot area** (both backends):
+- "Scrollable" checkbox + min-height spinbox in the plot toolbar
+- Off by default; when enabled, plot area expands and becomes scrollable
+- Min height per row configurable (40–2000 px, default 75 px pyqtgraph / 100 px mpl)
+
+**Plot backend selector** (`plottr/apps/inspectr.py`):
+- Combo box in inspectr toolbar to switch between matplotlib and pyqtgraph
+- Default: matplotlib. Applies to newly opened plot windows.
+
+---
+
+## Part 4: Not Implemented — Future Suggestions
+
+These were identified during analysis but not implemented in this PR.
+
+### HDF5 Data Loading (datadict_storage.py)
+- Lines 274 and 305 read the **entire HDF5 dataset into memory** just to get its shape
+- Fix: `ds.shape` instead of `ds[:].shape` — would reduce load time by 50–80%
+
+### Signal Emission Overhead (node.py)
+- Up to 7 Qt signals emitted per node per data update
+- `dataFieldsChanged` is redundant (axes + deps)
+- Could consolidate to 1–2 batched signals
+
+### Fitter / Histogrammer / ScaleUnits Memoization
+- These nodes recompute results on every update even when inputs haven't changed
+- Could cache results keyed on data hash + parameters
+
+### Pipeline Change Detection
+- No concept of "what changed" — every update re-processes all data through all nodes
+- For append-only monitoring, nodes could process only new data
+
+### QCoDeS API Suggestion
+The ideal API for inspectr would be a single function returning lightweight run metadata
+for all or a range of runs without creating full DataSet objects:
+```python
+get_run_overview(conn, start_id=None, end_id=None)
+# Returns: [{run_id, exp_name, sample_name, name, timestamps, guid, result_counter, metadata_keys}]
+```
+This would be a single SQL query completing in <1 ms for any database size.
