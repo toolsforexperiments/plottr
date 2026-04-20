@@ -20,6 +20,7 @@ from pyqtgraph import mkPen
 from plottr import QtWidgets, QtCore, Signal, Slot, \
     config_entry as getcfg
 from plottr.data.datadict import DataDictBase
+from plottr.utils.latex import latex_to_html
 from .plots import Plot, PlotWithColorbar, PlotBase
 from ..base import AutoFigureMaker as BaseFM, PlotDataType, \
     PlotItem, ComplexRepresentation, determinePlotDataType, \
@@ -208,17 +209,17 @@ class FigureMaker(BaseFM):
         # label the x axis if there's only one x label
         if isinstance(subPlot, Plot):
             if len(set(labels[0])) == 1:
-                subPlot.plot.setLabel("bottom", labels[0][0])
+                subPlot.plot.setLabel("bottom", latex_to_html(labels[0][0]))
 
         if isinstance(subPlot, PlotWithColorbar):
             if len(set(labels[0])) == 1:
-                subPlot.plot.setLabel("bottom", labels[0][0])
+                subPlot.plot.setLabel("bottom", latex_to_html(labels[0][0]))
 
             if len(set(labels[1])) == 1:
-                subPlot.plot.setLabel('left', labels[1][0])
+                subPlot.plot.setLabel('left', latex_to_html(labels[1][0]))
 
             if len(set(labels[2])) == 1:
-                subPlot.colorbar.setLabel('left', labels[2][0])
+                subPlot.colorbar.setLabel('left', latex_to_html(labels[2][0]))
 
     def plot(self, plotItem: PlotItem) -> None:
         """Plot the given item."""
