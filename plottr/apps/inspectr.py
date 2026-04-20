@@ -143,6 +143,25 @@ class RunList(QtWidgets.QTreeWidget):
         self.itemSelectionChanged.connect(self.selectRun)
         self.itemActivated.connect(self.activateRun)
 
+        # Overlay label for status messages
+        self._overlayLabel = QtWidgets.QLabel(self.viewport())
+        self._overlayLabel.setAlignment(QtCore.Qt.AlignCenter)
+        self._overlayLabel.setWordWrap(True)
+        self._overlayLabel.setStyleSheet(
+            "color: gray; font-size: 13pt; padding: 40px;"
+        )
+        self._overlayLabel.setAttribute(QtCore.Qt.WA_TransparentForMouseEvents)
+        self.setOverlayText("Select a date on the left to browse datasets.")
+
+    def setOverlayText(self, text: str) -> None:
+        """Show a centered overlay message. Pass empty string to hide."""
+        self._overlayLabel.setText(text)
+        self._overlayLabel.setVisible(bool(text))
+
+    def resizeEvent(self, event: QtGui.QResizeEvent) -> None:
+        super().resizeEvent(event)
+        self._overlayLabel.setGeometry(self.viewport().rect())
+
         self.setContextMenuPolicy(QtCore.Qt.CustomContextMenu)
         self.customContextMenuRequested.connect(self.showContextMenu)
 
@@ -190,21 +209,27 @@ class RunList(QtWidgets.QTreeWidget):
 
     def setRuns(self, selection: Mapping[int, Mapping[str, str]], show_only_star: bool, show_also_cross: bool) -> None:
         self.clear()
+        self.setOverlayText('')
 
         # disable sorting before inserting values to avoid performance hit
         self.setSortingEnabled(False)
 
+        count = 0
         for runId, record in selection.items():
             tag = record.get('inspectr_tag', '')
             if show_only_star and tag == '':
                 continue
             elif show_also_cross or tag != 'cross':
                 self.addRun(runId, **record)
+                count += 1
 
         self.setSortingEnabled(True)
 
         for i in range(len(self.cols)):
             self.resizeColumnToContents(i)
+
+        if count == 0:
+            self.setOverlayText("No datasets match the current filter.")
 
     def updateRuns(self, selection: Mapping[int, Mapping[str, str]]) -> None:
 
@@ -347,6 +372,7 @@ class LoadDBProcess(QtCore.QObject):
     Supports incremental loading via ``start_run_id``.
     """
     dbdfLoaded = Signal(object)
+    progressUpdated = Signal(int, int)  # (current, total)
     pathSet = Signal()
 
     def __init__(self) -> None:
@@ -361,13 +387,19 @@ class LoadDBProcess(QtCore.QObject):
 
     def loadDB(self) -> None:
         assert self.path is not None
-        overview = get_runs_from_db_fast(self.path,
-                                         start_run_id=self.start_run_id)
+        overview = get_runs_from_db_fast(
+            self.path,
+            start_run_id=self.start_run_id,
+            progress_callback=self._onProgress,
+        )
         if overview:
             dbdf = pandas.DataFrame.from_dict(overview, orient='index')
         else:
             dbdf = pandas.DataFrame()
         self.dbdfLoaded.emit(dbdf)
+
+    def _onProgress(self, current: int, total: int) -> None:
+        self.progressUpdated.emit(current, total)
 
 
 class QCodesDBInspector(QtWidgets.QMainWindow):
@@ -498,6 +530,7 @@ class QCodesDBInspector(QtWidgets.QMainWindow):
         self.loadDBProcess.pathSet.connect(self.loadDBThread.start)
         self.loadDBProcess.dbdfLoaded.connect(self.DBLoaded)
         self.loadDBProcess.dbdfLoaded.connect(self.loadDBThread.quit)
+        self.loadDBProcess.progressUpdated.connect(self.onLoadProgress)
         self.loadDBThread.started.connect(self.loadDBProcess.loadDB)
 
         ### connect signals/slots
@@ -568,11 +601,19 @@ class QCodesDBInspector(QtWidgets.QMainWindow):
 
         if self.filepath is not None:
             if not self.loadDBThread.isRunning():
+                self.runList.setOverlayText("Loading database...")
                 self.loadDBProcess.setPath(self.filepath, start_run_id=1)
+
+    @Slot(int, int)
+    def onLoadProgress(self, current: int, total: int) -> None:
+        self.runList.setOverlayText(
+            f"Loading database... ({current}/{total} datasets)")
 
     def DBLoaded(self, dbdf: pandas.DataFrame) -> None:
         if dbdf.size == 0 and self.dbdf is not None:
             LOGGER.debug('DB reloaded with no new data. Skipping update.')
+            self.runList.setOverlayText(
+                "Select a date on the left to browse datasets.")
             return None
 
         if self.latestRunId is not None and self.dbdf is not None and dbdf.size > 0:
@@ -591,6 +632,14 @@ class QCodesDBInspector(QtWidgets.QMainWindow):
         self.dbdfUpdated.emit()
         self.dateList.sendSelectedDates()
         LOGGER.debug('DB loaded/refreshed')
+
+        # Set appropriate overlay text
+        if self.dbdf is None or self.dbdf.size == 0:
+            self.runList.setOverlayText(
+                "No datasets found in this database.")
+        elif len(self._selected_dates) == 0:
+            self.runList.setOverlayText(
+                "Select a date on the left to browse datasets.")
 
         if self.latestRunId is not None and self.dbdf is not None and self.dbdf.size > 0:
             idxs = self.dbdf.index.values
@@ -672,6 +721,8 @@ class QCodesDBInspector(QtWidgets.QMainWindow):
         else:
             self._selected_dates = ()
             self.runList.clear()
+            self.runList.setOverlayText(
+                "Select a date on the left to browse datasets.")
 
     @Slot(int)
     def setRunSelection(self, runId: int) -> None:

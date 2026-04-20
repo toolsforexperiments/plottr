@@ -244,6 +244,7 @@ def _ds_to_info_dict(ds: 'DataSetProtocol') -> DataSetInfoDict:
 
 def get_runs_from_db_fast(path: str,
                           start_run_id: int = 1,
+                          progress_callback: Optional[Any] = None,
                           ) -> Dict[int, DataSetInfoDict]:
     """Fast alternative to ``get_runs_from_db`` that avoids the expensive
     ``experiments()`` + ``data_sets()`` enumeration.
@@ -254,6 +255,7 @@ def get_runs_from_db_fast(path: str,
     :param path: path to the qcodes .db file.
     :param start_run_id: first run_id to load (inclusive). Use for incremental
         loading: pass the last known run_id + 1 to load only new runs.
+    :param progress_callback: optional callable(current, total) for progress.
     :returns: dictionary mapping run_id to dataset info.
     """
     initialise_or_create_database_at(path)
@@ -269,12 +271,16 @@ def get_runs_from_db_fast(path: str,
         if last is None:
             return overview
 
-        for run_id in range(start_run_id, last + 1):
+        total = last - start_run_id + 1
+        for i, run_id in enumerate(range(start_run_id, last + 1)):
             try:
                 ds = load_by_id(run_id, conn=conn_)
                 overview[run_id] = _ds_to_info_dict(ds)
             except Exception:
                 pass  # skip missing/corrupt runs
+
+            if progress_callback is not None and (i % 10 == 0 or i == total - 1):
+                progress_callback(i + 1, total)
 
     return overview
 
