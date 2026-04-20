@@ -633,11 +633,11 @@ class QCodesDBInspector(QtWidgets.QMainWindow):
         self.dateList.sendSelectedDates()
         LOGGER.debug('DB loaded/refreshed')
 
-        # Set appropriate overlay text
+        # Set appropriate overlay text after loading completes
         if self.dbdf is None or self.dbdf.size == 0:
             self.runList.setOverlayText(
                 "No datasets found in this database.")
-        elif len(self._selected_dates) == 0:
+        elif self.runList.topLevelItemCount() == 0:
             self.runList.setOverlayText(
                 "Select a date on the left to browse datasets.")
 
