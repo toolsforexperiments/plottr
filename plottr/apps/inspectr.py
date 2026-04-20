@@ -41,6 +41,31 @@ __license__ = 'MIT'
 
 LOGGER = plottrlog.getLogger('plottr.apps.inspectr')
 
+#: Hint text shown in the run list when no date is selected.
+_SELECT_DATE_HINT = "Select a date on the left to browse datasets."
+
+#: Mapping of display names to plot widget classes for the backend selector.
+#: Populated lazily on first access.
+_PLOT_BACKENDS: Dict[str, type] = {}
+
+
+def _get_plot_backends() -> Dict[str, type]:
+    """Lazily populate and return the backend mapping."""
+    if not _PLOT_BACKENDS:
+        from plottr.plot.mpl.autoplot import AutoPlot as MPLAutoPlot
+        from plottr.plot.pyqtgraph.autoplot import AutoPlot as PGAutoPlot
+        _PLOT_BACKENDS['matplotlib'] = MPLAutoPlot
+        _PLOT_BACKENDS['pyqtgraph'] = PGAutoPlot
+    return _PLOT_BACKENDS
+
+
+def _backend_name_for_class(cls: Optional[type]) -> Optional[str]:
+    """Return the display name for a plot widget class, or None if unknown."""
+    for name, backend_cls in _get_plot_backends().items():
+        if backend_cls is cls:
+            return name
+    return None
+
 
 ### Database inspector tool
 
@@ -152,7 +177,7 @@ class RunList(QtWidgets.QTreeWidget):
             "color: gray; font-size: 13pt; padding: 40px;"
         )
         self._overlayLabel.setAttribute(QtCore.Qt.WA_TransparentForMouseEvents)
-        self.setOverlayText("Select a date on the left to browse datasets.")
+        self.setOverlayText(_SELECT_DATE_HINT)
 
     def setOverlayText(self, text: str) -> None:
         """Show a centered overlay message. Pass empty string to hide."""
@@ -510,13 +535,18 @@ class QCodesDBInspector(QtWidgets.QMainWindow):
         backendLabel = QtWidgets.QLabel(" Plot backend: ")
         self.toolbar.addWidget(backendLabel)
         self.plotBackendSelector = QtWidgets.QComboBox()
-        self.plotBackendSelector.addItems(['matplotlib', 'pyqtgraph'])
+        backends = _get_plot_backends()
+        self.plotBackendSelector.addItems(list(backends.keys()))
         self.plotBackendSelector.setToolTip('Choose plotting backend for new plot windows')
         if plotWidgetClass is not None:
-            # If a specific backend was passed in, select it
-            class_name = plotWidgetClass.__name__
-            if 'pyqtgraph' in class_name.lower() or 'PG' in class_name:
-                self.plotBackendSelector.setCurrentText('pyqtgraph')
+            known_name = _backend_name_for_class(plotWidgetClass)
+            if known_name is not None:
+                self.plotBackendSelector.setCurrentText(known_name)
+            else:
+                # Unknown class: add it to the selector with its class name
+                label = plotWidgetClass.__name__
+                self.plotBackendSelector.addItem(label)
+                self.plotBackendSelector.setCurrentText(label)
         self.plotBackendSelector.currentTextChanged.connect(self._onBackendChanged)
         self.toolbar.addWidget(self.plotBackendSelector)
         # Sync the class with the initial combo selection
@@ -657,7 +687,7 @@ class QCodesDBInspector(QtWidgets.QMainWindow):
         if dbdf.size == 0 and self.dbdf is not None:
             LOGGER.debug('DB reloaded with no new data. Skipping update.')
             self.runList.setOverlayText(
-                "Select a date on the left to browse datasets.")
+                _SELECT_DATE_HINT)
             return None
 
         if self.latestRunId is not None and self.dbdf is not None and dbdf.size > 0:
@@ -683,7 +713,7 @@ class QCodesDBInspector(QtWidgets.QMainWindow):
                 "No datasets found in this database.")
         elif self.runList.topLevelItemCount() == 0:
             self.runList.setOverlayText(
-                "Select a date on the left to browse datasets.")
+                _SELECT_DATE_HINT)
 
         if self.latestRunId is not None and self.dbdf is not None and self.dbdf.size > 0:
             idxs = self.dbdf.index.values
@@ -766,7 +796,7 @@ class QCodesDBInspector(QtWidgets.QMainWindow):
             self._selected_dates = ()
             self.runList.clear()
             self.runList.setOverlayText(
-                "Select a date on the left to browse datasets.")
+                _SELECT_DATE_HINT)
 
     @Slot(int)
     def setRunSelection(self, runId: int) -> None:
@@ -803,12 +833,8 @@ class QCodesDBInspector(QtWidgets.QMainWindow):
 
     @Slot(str)
     def _onBackendChanged(self, backend: str) -> None:
-        if backend == 'pyqtgraph':
-            from plottr.plot.pyqtgraph.autoplot import AutoPlot as PGAutoPlot
-            self._plotWidgetClass = PGAutoPlot
-        else:
-            from plottr.plot.mpl.autoplot import AutoPlot as MPLAutoPlot
-            self._plotWidgetClass = MPLAutoPlot
+        backends = _get_plot_backends()
+        self._plotWidgetClass = backends.get(backend, self._plotWidgetClass)
 
     def setTag(self, item: QtWidgets.QTreeWidgetItem, tag: str) -> None:
         # set tag in the database
