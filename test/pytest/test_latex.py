@@ -55,9 +55,6 @@ class TestSubscripts:
     def test_braced_multi(self):
         assert latex_to_html(r'I_{DS}') == 'I<sub>DS</sub>'
 
-    def test_single_char(self):
-        assert latex_to_html(r'x_0') == 'x<sub>0</sub>'
-
     def test_mixed(self):
         result = latex_to_html(r'V_{SD}')
         assert '<sub>' in result
@@ -67,9 +64,6 @@ class TestSubscripts:
 class TestSuperscripts:
     def test_braced(self):
         assert latex_to_html(r'x^{2}') == 'x<sup>2</sup>'
-
-    def test_single_char(self):
-        assert latex_to_html(r'x^2') == 'x<sup>2</sup>'
 
     def test_braced_text(self):
         result = latex_to_html(r'e^{i\pi}')
@@ -116,13 +110,30 @@ class TestPassthrough:
     def test_with_parens(self):
         assert latex_to_html('amplitude (V)') == 'amplitude (V)'
 
+    def test_plain_underscore(self):
+        """Plain underscores (no braces) should NOT become subscripts."""
+        assert latex_to_html('gate_voltage') == 'gate_voltage'
+
+    def test_multiple_underscores(self):
+        assert latex_to_html('my_long_variable_name') == 'my_long_variable_name'
+
+    def test_snake_case_with_numbers(self):
+        assert latex_to_html('channel_1_amplitude') == 'channel_1_amplitude'
+
+    def test_plain_caret(self):
+        """Plain carets (no braces) in non-LaTeX strings pass through."""
+        assert latex_to_html('x^2') == 'x^2'
+
+    def test_plain_underscore_single(self):
+        assert latex_to_html('x_0') == 'x_0'
+
 
 class TestRealWorldLabels:
     """Labels commonly seen in quantum physics experiments."""
 
     def test_conductance(self):
         result = latex_to_html(r'g_{11}')
-        assert '<sub>' in result or '\u2081' in result  # HTML or Unicode sub
+        assert '<sub>' in result and '11' in result
 
     def test_gate_voltage(self):
         result = latex_to_html(r'V_{gate}')
@@ -155,10 +166,7 @@ class TestHypothesis:
                    min_size=0, max_size=50))
     @settings(max_examples=100)
     def test_plain_text_passthrough(self, text):
-        """Text without LaTeX commands should pass through mostly unchanged."""
+        """Text without LaTeX indicators should pass through unchanged."""
         result = latex_to_html(text)
-        # Without backslash, underscore, caret, or dollar, text should
-        # be largely preserved (unicodeit may convert some symbols like -)
-        if '\\' not in text and '_' not in text and '^' not in text and '$' not in text:
-            # Allow unicodeit to change some characters (e.g., - to −)
-            assert len(result) == len(text)
+        # Without backslash-letter, $, _{, or ^{, text is returned as-is.
+        assert result == text
