@@ -17,7 +17,7 @@ import time
 import sys
 import argparse
 import logging
-from typing import Optional, Sequence, List, Dict, Iterable, Union, cast, Tuple, Mapping
+from typing import Any, Optional, Sequence, List, Dict, Iterable, Union, cast, Tuple, Mapping
 
 from typing_extensions import TypedDict
 
@@ -30,6 +30,7 @@ from .. import log as plottrlog
 from ..data.qcodes_dataset import (get_runs_from_db_as_dataframe,
                                    get_runs_from_db, get_runs_from_db_fast,
                                    get_ds_structure, load_dataset_from)
+from ..data.qcodes_db_overview import get_db_overview
 from plottr.gui.widgets import MonitorIntervalInput, FormLayoutWrapper, dictToTreeWidgetItems
 
 from .autoplot import autoplotQcodesDataset, QCAutoPlotMainWindow
@@ -371,13 +372,16 @@ class LoadDBProcess(QtCore.QObject):
     It's good to have this in a separate thread because it can be a bit slow
     for large databases.
 
-    Uses ``get_runs_from_db_fast`` which loads datasets via ``load_by_id``
-    directly, bypassing the slow ``experiments()`` + ``data_sets()`` enumeration.
-    Supports incremental loading via ``start_run_id``.
+    Uses ``get_db_overview`` (direct SQL) by default for maximum speed.
+    Falls back to ``get_runs_from_db_fast`` (qcodes public API) if the
+    SQL approach fails.
     """
     dbdfLoaded = Signal(object)
     progressUpdated = Signal(int, int)  # (current, total)
     pathSet = Signal()
+
+    #: If True, use direct SQL queries (fast). If False, use qcodes API.
+    use_fast_sql: bool = True
 
     def __init__(self) -> None:
         super().__init__()
@@ -391,11 +395,27 @@ class LoadDBProcess(QtCore.QObject):
 
     def loadDB(self) -> None:
         assert self.path is not None
-        overview = get_runs_from_db_fast(
-            self.path,
-            start_run_id=self.start_run_id,
-            progress_callback=self._onProgress,
-        )
+
+        overview: Optional[Dict[int, Any]] = None
+        if self.use_fast_sql:
+            try:
+                # start_run_id uses > comparison, so subtract 1 for inclusive
+                overview = get_db_overview(
+                    self.path,
+                    start_run_id=self.start_run_id - 1,
+                )
+            except Exception as e:
+                LOGGER.warning(f"Fast SQL overview failed, falling back to "
+                               f"qcodes API: {e}")
+                overview = None
+
+        if overview is None:
+            overview = get_runs_from_db_fast(
+                self.path,
+                start_run_id=self.start_run_id,
+                progress_callback=self._onProgress,
+            )
+
         if overview:
             dbdf = pandas.DataFrame.from_dict(overview, orient='index')
         else:
@@ -542,8 +562,8 @@ class QCodesDBInspector(QtWidgets.QMainWindow):
         self.addAction(self.crossAction)
 
         # sizing
-        scaledSize = int(640 * rint(self.logicalDpiX() / 96.0))
-        self.resize(scaledSize, scaledSize)
+        scaledDpi = rint(self.logicalDpiX() / 96.0)
+        self.resize(int(960 * scaledDpi), int(640 * scaledDpi))
 
         ### Thread workers
 
