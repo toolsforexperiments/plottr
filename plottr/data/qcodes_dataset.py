@@ -17,6 +17,7 @@ import pandas as pd
 from qcodes.dataset.data_set import load_by_id
 from qcodes.dataset.experiment_container import experiments
 from qcodes.dataset.sqlite.database import conn_from_dbpath_or_conn, initialise_or_create_database_at
+from qcodes.dataset.sqlite.queries import get_last_run
 
 from .datadict import DataDictBase, DataDict, combine_datadicts
 from ..node.node import Node, updateOption
@@ -220,6 +221,62 @@ def get_runs_from_db_as_dataframe(path: str) -> pd.DataFrame:
     overview = get_runs_from_db(path)
     df = pd.DataFrame.from_dict(overview, orient='index')
     return df
+
+
+def _ds_to_info_dict(ds: 'DataSetProtocol') -> DataSetInfoDict:
+    """Extract inspectr-relevant info from a dataset without loading data or snapshot."""
+    _start = ds.run_timestamp()
+    _complete = ds.completed_timestamp()
+    return DataSetInfoDict(
+        experiment=ds.exp_name,
+        sample=ds.sample_name,
+        name=ds.name,
+        started_date=_start[:10] if _start else '',
+        started_time=_start[11:] if _start else '',
+        completed_date=_complete[:10] if _complete else '',
+        completed_time=_complete[11:] if _complete else '',
+        structure=None,
+        records=ds.number_of_results,
+        guid=ds.guid,
+        inspectr_tag=ds.metadata.get('inspectr_tag', ''),
+    )
+
+
+def get_runs_from_db_fast(path: str,
+                          start_run_id: int = 1,
+                          ) -> Dict[int, DataSetInfoDict]:
+    """Fast alternative to ``get_runs_from_db`` that avoids the expensive
+    ``experiments()`` + ``data_sets()`` enumeration.
+
+    Uses ``load_by_id`` directly for each run_id, which is O(1) per run
+    instead of O(N) for the experiment/dataset iteration approach.
+
+    :param path: path to the qcodes .db file.
+    :param start_run_id: first run_id to load (inclusive). Use for incremental
+        loading: pass the last known run_id + 1 to load only new runs.
+    :returns: dictionary mapping run_id to dataset info.
+    """
+    initialise_or_create_database_at(path)
+    read_only = sys.version_info >= (3, 11)
+    conn_kw: Dict[str, Any] = {'conn': None, 'path_to_db': path}
+    if read_only:
+        conn_kw['read_only'] = True
+    conn = conn_from_dbpath_or_conn(**conn_kw)
+
+    overview: Dict[int, DataSetInfoDict] = {}
+    with closing(conn) as conn_:
+        last = get_last_run(conn_)
+        if last is None:
+            return overview
+
+        for run_id in range(start_run_id, last + 1):
+            try:
+                ds = load_by_id(run_id, conn=conn_)
+                overview[run_id] = _ds_to_info_dict(ds)
+            except Exception:
+                pass  # skip missing/corrupt runs
+
+    return overview
 
 
 # Extracting data

@@ -28,7 +28,7 @@ from plottr import QtCore, QtWidgets, Signal, Slot, QtGui, Flowchart
 
 from .. import log as plottrlog
 from ..data.qcodes_dataset import (get_runs_from_db_as_dataframe,
-                                   get_runs_from_db,
+                                   get_runs_from_db, get_runs_from_db_fast,
                                    get_ds_structure, load_dataset_from)
 from plottr.gui.widgets import MonitorIntervalInput, FormLayoutWrapper, dictToTreeWidgetItems
 
@@ -342,8 +342,9 @@ class LoadDBProcess(QtCore.QObject):
     It's good to have this in a separate thread because it can be a bit slow
     for large databases.
 
-    Supports incremental loading: when ``start`` is set, only loads runs
-    with index >= start, then emits the partial dataframe for merging.
+    Uses ``get_runs_from_db_fast`` which loads datasets via ``load_by_id``
+    directly, bypassing the slow ``experiments()`` + ``data_sets()`` enumeration.
+    Supports incremental loading via ``start_run_id``.
     """
     dbdfLoaded = Signal(object)
     pathSet = Signal()
@@ -351,17 +352,17 @@ class LoadDBProcess(QtCore.QObject):
     def __init__(self) -> None:
         super().__init__()
         self.path: Optional[str] = None
-        self.start: int = 0
+        self.start_run_id: int = 1
 
-    def setPath(self, path: str, start: int = 0) -> None:
+    def setPath(self, path: str, start_run_id: int = 1) -> None:
         self.path = path
-        self.start = start
+        self.start_run_id = start_run_id
         self.pathSet.emit()
 
     def loadDB(self) -> None:
         assert self.path is not None
-        overview = get_runs_from_db(self.path, start=self.start,
-                                    get_structure=False)
+        overview = get_runs_from_db_fast(self.path,
+                                         start_run_id=self.start_run_id)
         if overview:
             dbdf = pandas.DataFrame.from_dict(overview, orient='index')
         else:
@@ -567,7 +568,7 @@ class QCodesDBInspector(QtWidgets.QMainWindow):
 
         if self.filepath is not None:
             if not self.loadDBThread.isRunning():
-                self.loadDBProcess.setPath(self.filepath, start=0)
+                self.loadDBProcess.setPath(self.filepath, start_run_id=1)
 
     def DBLoaded(self, dbdf: pandas.DataFrame) -> None:
         if dbdf.size == 0 and self.dbdf is not None:
@@ -621,12 +622,10 @@ class QCodesDBInspector(QtWidgets.QMainWindow):
                 self.latestRunId = -1
 
             # Incremental refresh: only load runs newer than what we have.
-            # The start parameter indexes into the sorted list of runs, so we
-            # use the count of runs we already have as the start offset.
-            start = len(self.dbdf) if self.dbdf is not None and self.dbdf.size > 0 else 0
+            start_run_id = self.latestRunId + 1 if self.latestRunId is not None and self.latestRunId > 0 else 1
             if self.filepath is not None:
                 if not self.loadDBThread.isRunning():
-                    self.loadDBProcess.setPath(self.filepath, start=start)
+                    self.loadDBProcess.setPath(self.filepath, start_run_id=start_run_id)
 
     @Slot(float)
     def setMonitorInterval(self, val: float) -> None:

@@ -986,3 +986,26 @@ Per-node breakdown on TopogapStage2 (152 MB, 21 deps, 4D):
 
 **Result**: Clicking a dataset with a 5.9 MB snapshot: 951 ms -> 0.3 ms (**3,554x faster**)
 Refreshing a large DB: loads only new runs instead of re-iterating all 1496.
+
+### Fast DB Loading via load_by_id (bypassing experiments/data_sets)
+
+Added `get_runs_from_db_fast()` in `plottr/data/qcodes_dataset.py` which
+uses `load_by_id()` directly for each run, bypassing the expensive
+`experiments()` + `exp.data_sets()` enumeration in qcodes.
+
+The old approach is O(N^2) because `experiments()` loads all experiment
+objects, then `data_sets()` iterates each experiment's runs. For 1496 runs
+this takes 15+ minutes. The new approach is O(N) at ~3ms per run.
+
+| Approach | 23 runs | Projected 1496 runs |
+|---|---|---|
+| Old (experiments + data_sets) | 103 ms | 15+ minutes |
+| New (load_by_id loop) | 90 ms | ~5 seconds |
+| Incremental (3 new only) | 23 ms | 23 ms |
+
+**Note for qcodes team**: The ideal API would be a single function that returns
+lightweight run metadata (run_id, exp_name, sample_name, timestamps, guid,
+result_counter, metadata) for all or a range of runs, without creating full
+DataSet objects. Something like `get_run_overview(conn, start_id, end_id)`
+that does a single SQL query. This would reduce the per-run cost from 3ms
+(load_by_id) to <0.1ms (pure SQL).
