@@ -231,8 +231,20 @@ class AutoPlotToolBar(QtWidgets.QToolBar):
         self.addSeparator()
         self.scrollableAction = self.addAction('Scrollable')
         self.scrollableAction.setCheckable(True)
-        self.scrollableAction.setChecked(True)
+        self.scrollableAction.setChecked(False)
         self.scrollableAction.setToolTip('Enable scrollable plot area for many subplots')
+
+        self.minHeightSpin = QtWidgets.QSpinBox()
+        self.minHeightSpin.setRange(40, 2000)
+        self.minHeightSpin.setValue(100)
+        self.minHeightSpin.setSuffix(" px")
+        self.minHeightSpin.setToolTip("Minimum height per subplot row")
+        self.minHeightSpin.setEnabled(False)
+        self.addWidget(self.minHeightSpin)
+
+        self.scrollableAction.triggered.connect(
+            lambda: self.minHeightSpin.setEnabled(self.scrollableAction.isChecked())
+        )
 
         self._currentPlotType = PlotType.empty
         self._currentlyAllowedPlotTypes: Tuple[PlotType, ...] = ()
@@ -376,6 +388,9 @@ class AutoPlot(MPLPlotWidget):
         self.plotOptionsToolBar.scrollableAction.triggered.connect(
             self._scrollableFromToolBar
         )
+        self.plotOptionsToolBar.minHeightSpin.editingFinished.connect(
+            self._scrollableFromToolBar
+        )
 
         scaling = dpiScalingFactor(self)
         iconSize = int(36 + 8*(scaling - 1))
@@ -486,7 +501,8 @@ class AutoPlot(MPLPlotWidget):
         scrollable = self.plotOptionsToolBar.scrollableAction.isChecked()
         if scrollable and nSubPlots > 2:
             nrows = int(nSubPlots ** 0.5 + 0.5)
-            self.plot.setMinimumHeight(max(nrows * 100, 400))
+            min_h = self.plotOptionsToolBar.minHeightSpin.value()
+            self.plot.setMinimumHeight(max(nrows * min_h, 400))
         else:
             self.plot.setMinimumHeight(0)
 

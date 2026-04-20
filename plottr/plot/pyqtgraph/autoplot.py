@@ -45,6 +45,7 @@ class FigureWidget(QtWidgets.QWidget):
         super().__init__(parent=parent)
 
         self.subPlots: List[PlotBase] = []
+        self._minPlotHeight: int = 75
 
         self.title = QtWidgets.QLabel(parent=self)
         self.title.setAlignment(QtCore.Qt.AlignHCenter)
@@ -77,17 +78,18 @@ class FigureWidget(QtWidgets.QWidget):
         self.subPlots.append(plot)
         # Don't add to layout yet — _arrangeGrid() is called after all plots are added
 
-    def _arrangeGrid(self) -> None:
+    def _arrangeGrid(self, min_plot_height: Optional[int] = None) -> None:
         """Arrange subplots on a near-square grid, matching matplotlib's layout."""
         n = len(self.subPlots)
         if n == 0:
             return
 
+        if min_plot_height is None:
+            min_plot_height = self._minPlotHeight
+
         nrows = max(1, int(n ** 0.5 + 0.5))
         ncols = max(1, int(np.ceil(n / nrows)))
 
-        # Set a minimum height per plot so they don't get too squished
-        min_plot_height = 75
         self._gridWidget.setMinimumHeight(nrows * min_plot_height)
 
         for i, plot in enumerate(self.subPlots):
@@ -370,6 +372,7 @@ class AutoPlot(PlotWidget):
             self.figConfig.figSaved.connect(self.onfigSaved)
 
         self.fmWidget.setScrollable(self.figOptions.scrollablePlots)
+        self.fmWidget._minPlotHeight = self.figOptions.minPlotHeight
 
         if self.data.has_meta('title'):
             self.fmWidget.setTitle(self.data.meta_val('title'))
@@ -451,7 +454,10 @@ class FigureOptions:
     imagData: bool = False
 
     #: whether to enable scrollable plot area (useful for many subplots)
-    scrollablePlots: bool = True
+    scrollablePlots: bool = False
+
+    #: minimum height per subplot row in pixels (when scrollable)
+    minPlotHeight: int = 75
 
 
 class FigureConfigToolBar(QtWidgets.QToolBar):
@@ -494,6 +500,23 @@ class FigureConfigToolBar(QtWidgets.QToolBar):
         scrollablePlots.triggered.connect(
             lambda: self._setOption('scrollablePlots',
                                     scrollablePlots.isChecked())
+        )
+
+        self._minHeightSpin = QtWidgets.QSpinBox()
+        self._minHeightSpin.setRange(40, 2000)
+        self._minHeightSpin.setValue(self.options.minPlotHeight)
+        self._minHeightSpin.setSuffix(" px")
+        self._minHeightSpin.setToolTip("Minimum height per subplot row")
+        self._minHeightSpin.setEnabled(self.options.scrollablePlots)
+        self._minHeightSpin.editingFinished.connect(
+            lambda: self._setOption('minPlotHeight',
+                                    self._minHeightSpin.value())
+        )
+        self.addWidget(self._minHeightSpin)
+
+        # Keep spinbox enabled state in sync with scrollable toggle
+        scrollablePlots.triggered.connect(
+            lambda: self._minHeightSpin.setEnabled(scrollablePlots.isChecked())
         )
 
         complexOptions = QtWidgets.QMenu(parent=self)
