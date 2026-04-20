@@ -965,3 +965,24 @@ Per-node breakdown on TopogapStage2 (152 MB, 21 deps, 4D):
 - **DataSelector**: 214 ms -> 16 ms (**13.4x**)
 - **DataGridder**: 34 ms -> 17 ms (**2.0x**)
 - **XYSelector**: 164 ms -> 109 ms (**1.5x**)
+
+---
+
+## Inspectr Optimizations
+
+### Changes
+
+**Lazy snapshot loading** (`plottr/apps/inspectr.py`):
+- `RunInfo.setInfo()` no longer calls `dictToTreeWidgetItems()` on the snapshot dict
+- Instead shows a collapsed "QCoDeS Snapshot (click to expand)" placeholder
+- Full snapshot tree is built only when the user expands the item
+- `expandAll()` removed -- tree shows collapsed by default
+
+**Incremental DB refresh** (`plottr/apps/inspectr.py`):
+- `refreshDB()` now passes `start=len(dbdf)` to `get_runs_from_db()`
+- Only loads new datasets since last refresh, not the entire database
+- `DBLoaded()` merges incremental results into existing dataframe
+- First load still loads everything (`start=0`)
+
+**Result**: Clicking a dataset with a 5.9 MB snapshot: 951 ms -> 0.3 ms (**3,554x faster**)
+Refreshing a large DB: loads only new runs instead of re-iterating all 1496.

@@ -28,6 +28,7 @@ from plottr import QtCore, QtWidgets, Signal, Slot, QtGui, Flowchart
 
 from .. import log as plottrlog
 from ..data.qcodes_dataset import (get_runs_from_db_as_dataframe,
+                                   get_runs_from_db,
                                    get_ds_structure, load_dataset_from)
 from plottr.gui.widgets import MonitorIntervalInput, FormLayoutWrapper, dictToTreeWidgetItems
 
@@ -252,7 +253,14 @@ class RunInfo(QtWidgets.QTreeWidget):
 
     When sending information in form of a dictionary, it will create
     a tree view of that dictionary and display that.
+
+    Snapshot data is loaded lazily: a placeholder item is shown, and the full
+    snapshot tree is built only when the user expands it.
     """
+
+    #: Signal emitted when the snapshot section needs to be loaded.
+    #: Argument is the QTreeWidgetItem to populate.
+    _snapshotRequested = Signal(object)
 
     def __init__(self, parent: Optional[QtWidgets.QWidget] = None):
         super().__init__(parent)
@@ -260,16 +268,70 @@ class RunInfo(QtWidgets.QTreeWidget):
         self.setHeaderLabels(['Key', 'Value'])
         self.setColumnCount(2)
 
+        self._snapshotItem: Optional[QtWidgets.QTreeWidgetItem] = None
+        self._snapshotData: Optional[dict] = None
+        self._snapshotLoaded = False
+
+        self.itemExpanded.connect(self._onItemExpanded)
+
     @Slot(dict)
     def setInfo(self, infoDict: Dict[str, Union[dict, str]]) -> None:
         self.clear()
+        self._snapshotItem = None
+        self._snapshotData = None
+        self._snapshotLoaded = False
 
-        items = dictToTreeWidgetItems(infoDict)
-        for item in items:
-            self.addTopLevelItem(item)
-            item.setExpanded(True)
+        for key, value in infoDict.items():
+            if key == 'QCoDeS Snapshot':
+                # Create a placeholder for the snapshot — don't build the tree yet
+                self._snapshotItem = QtWidgets.QTreeWidgetItem([key, '(click to expand)'])
+                # Add a dummy child so the expand arrow appears
+                self._snapshotItem.addChild(QtWidgets.QTreeWidgetItem(['(loading...)', '']))
+                self._snapshotData = value if isinstance(value, dict) else None
+                self.addTopLevelItem(self._snapshotItem)
+                self._snapshotItem.setExpanded(False)
+            else:
+                if not isinstance(value, dict):
+                    item = QtWidgets.QTreeWidgetItem([str(key), str(value)])
+                else:
+                    item = QtWidgets.QTreeWidgetItem([key, ''])
+                    for child in dictToTreeWidgetItems(value):
+                        item.addChild(child)
+                self.addTopLevelItem(item)
+                item.setExpanded(True)
 
-        self.expandAll()
+        for i in range(2):
+            self.resizeColumnToContents(i)
+
+    @Slot(QtWidgets.QTreeWidgetItem)
+    def _onItemExpanded(self, item: QtWidgets.QTreeWidgetItem) -> None:
+        if item is self._snapshotItem and not self._snapshotLoaded:
+            self._loadSnapshot()
+
+    def _loadSnapshot(self) -> None:
+        """Replace the placeholder with the actual snapshot tree."""
+        if self._snapshotItem is None:
+            return
+
+        self._snapshotLoaded = True
+        snap_data = self._snapshotData
+
+        # Remove placeholder children
+        self._snapshotItem.takeChildren()
+
+        if snap_data is None:
+            self._snapshotItem.setText(1, '(no snapshot)')
+            return
+
+        self._snapshotItem.setText(1, '')
+
+        if isinstance(snap_data, dict):
+            for child in dictToTreeWidgetItems(snap_data):
+                self._snapshotItem.addChild(child)
+        else:
+            self._snapshotItem.addChild(
+                QtWidgets.QTreeWidgetItem([str(snap_data), '']))
+
         for i in range(2):
             self.resizeColumnToContents(i)
 
@@ -279,16 +341,31 @@ class LoadDBProcess(QtCore.QObject):
     Worker object for getting a qcodes db overview as pandas dataframe.
     It's good to have this in a separate thread because it can be a bit slow
     for large databases.
+
+    Supports incremental loading: when ``start`` is set, only loads runs
+    with index >= start, then emits the partial dataframe for merging.
     """
     dbdfLoaded = Signal(object)
     pathSet = Signal()
 
-    def setPath(self, path: str) -> None:
+    def __init__(self) -> None:
+        super().__init__()
+        self.path: Optional[str] = None
+        self.start: int = 0
+
+    def setPath(self, path: str, start: int = 0) -> None:
         self.path = path
+        self.start = start
         self.pathSet.emit()
 
     def loadDB(self) -> None:
-        dbdf = get_runs_from_db_as_dataframe(self.path)
+        assert self.path is not None
+        overview = get_runs_from_db(self.path, start=self.start,
+                                    get_structure=False)
+        if overview:
+            dbdf = pandas.DataFrame.from_dict(overview, orient='index')
+        else:
+            dbdf = pandas.DataFrame()
         self.dbdfLoaded.emit(dbdf)
 
 
@@ -306,11 +383,13 @@ class QCodesDBInspector(QtWidgets.QMainWindow):
     _sendInfo = Signal(dict)
 
     def __init__(self, parent: Optional[QtWidgets.QWidget] = None,
-                 dbPath: Optional[str] = None):
+                 dbPath: Optional[str] = None,
+                 plotWidgetClass: Optional[type] = None):
         """Constructor for :class:`QCodesDBInspector`."""
         super().__init__(parent)
 
         self._plotWindows: Dict[int, WindowDict] = {}
+        self._plotWidgetClass = plotWidgetClass
 
         self.filepath = dbPath
         self.dbdf: Optional[pandas.DataFrame] = None
@@ -488,18 +567,31 @@ class QCodesDBInspector(QtWidgets.QMainWindow):
 
         if self.filepath is not None:
             if not self.loadDBThread.isRunning():
-                self.loadDBProcess.setPath(self.filepath)
+                self.loadDBProcess.setPath(self.filepath, start=0)
 
     def DBLoaded(self, dbdf: pandas.DataFrame) -> None:
-        if self.dbdf is not None and dbdf.equals(self.dbdf):
-            LOGGER.debug('DB reloaded with no changes. Skipping update')
+        if dbdf.size == 0 and self.dbdf is not None:
+            LOGGER.debug('DB reloaded with no new data. Skipping update.')
             return None
-        self.dbdf = dbdf
+
+        if self.latestRunId is not None and self.dbdf is not None and dbdf.size > 0:
+            # Incremental load: merge new rows into existing dataframe
+            # Update existing rows (e.g., completed_date may have changed)
+            for idx in dbdf.index:
+                if idx in self.dbdf.index:
+                    self.dbdf.loc[idx] = dbdf.loc[idx]
+                else:
+                    self.dbdf = pandas.concat([self.dbdf, dbdf.loc[[idx]]])
+        elif dbdf.size > 0:
+            self.dbdf = dbdf
+        else:
+            self.dbdf = dbdf
+
         self.dbdfUpdated.emit()
         self.dateList.sendSelectedDates()
-        LOGGER.debug('DB reloaded')
+        LOGGER.debug('DB loaded/refreshed')
 
-        if self.latestRunId is not None:
+        if self.latestRunId is not None and self.dbdf is not None and self.dbdf.size > 0:
             idxs = self.dbdf.index.values
             newIdxs = idxs[idxs > self.latestRunId]
 
@@ -524,11 +616,17 @@ class QCodesDBInspector(QtWidgets.QMainWindow):
             if self.loadDBThread.isRunning():
                 return
             if self.dbdf is not None and self.dbdf.size > 0:
-                self.latestRunId = self.dbdf.index.values.max()
+                self.latestRunId = int(self.dbdf.index.values.max())
             else:
                 self.latestRunId = -1
 
-            self.loadFullDB()
+            # Incremental refresh: only load runs newer than what we have.
+            # The start parameter indexes into the sorted list of runs, so we
+            # use the count of runs we already have as the start offset.
+            start = len(self.dbdf) if self.dbdf is not None and self.dbdf.size > 0 else 0
+            if self.filepath is not None:
+                if not self.loadDBThread.isRunning():
+                    self.loadDBProcess.setPath(self.filepath, start=start)
 
     @Slot(float)
     def setMonitorInterval(self, val: float) -> None:
@@ -599,7 +697,10 @@ class QCodesDBInspector(QtWidgets.QMainWindow):
     @Slot(int)
     def plotRun(self, runId: int) -> None:
         assert self.filepath is not None
-        fc, win = autoplotQcodesDataset(pathAndId=(self.filepath, runId))
+        fc, win = autoplotQcodesDataset(
+            pathAndId=(self.filepath, runId),
+            plotWidgetClass=self._plotWidgetClass,
+        )
         self._plotWindows[runId] = {
             'flowchart': fc,
             'window': win,
@@ -650,16 +751,18 @@ class WindowDict(TypedDict):
     window: QCAutoPlotMainWindow
 
 
-def inspectr(dbPath: Optional[str] = None) -> QCodesDBInspector:
-    win = QCodesDBInspector(dbPath=dbPath)
+def inspectr(dbPath: Optional[str] = None,
+             plotWidgetClass: Optional[type] = None) -> QCodesDBInspector:
+    win = QCodesDBInspector(dbPath=dbPath, plotWidgetClass=plotWidgetClass)
     return win
 
 
-def main(dbPath: Optional[str], log_level: Union[int, str] = logging.WARNING) -> None:
+def main(dbPath: Optional[str], log_level: Union[int, str] = logging.WARNING,
+         plotWidgetClass: Optional[type] = None) -> None:
     app = QtWidgets.QApplication([])
     plottrlog.enableStreamHandler(True, log_level)
 
-    win = inspectr(dbPath=dbPath)
+    win = inspectr(dbPath=dbPath, plotWidgetClass=plotWidgetClass)
     win.show()
 
     if (sys.flags.interactive != 1) or not hasattr(QtCore, 'PYQT_VERSION'):
@@ -677,3 +780,19 @@ def script() -> None:
                         default="WARNING")
     args = parser.parse_args()
     main(args.dbpath, args.console_log_level)
+
+
+def script_pyqtgraph() -> None:
+    """Entry point for inspectr using the pyqtgraph plotting backend."""
+    from plottr.plot.pyqtgraph.autoplot import AutoPlot as PGAutoPlot
+
+    parser = argparse.ArgumentParser(
+        description='inspectr -- sifting through qcodes data (pyqtgraph backend).'
+    )
+    parser.add_argument('--dbpath', help='path to qcodes .db file',
+                        default=None)
+    parser.add_argument("--console-log-level",
+                        choices=("ERROR", "WARNING", "INFO", "DEBUG"),
+                        default="WARNING")
+    args = parser.parse_args()
+    main(args.dbpath, args.console_log_level, plotWidgetClass=PGAutoPlot)
