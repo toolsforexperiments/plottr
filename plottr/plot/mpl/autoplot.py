@@ -228,6 +228,12 @@ class AutoPlotToolBar(QtWidgets.QToolBar):
             ComplexRepresentation.magAndPhase: self.plotMagPhase
         })
 
+        self.addSeparator()
+        self.scrollableAction = self.addAction('Scrollable')
+        self.scrollableAction.setCheckable(True)
+        self.scrollableAction.setChecked(True)
+        self.scrollableAction.setToolTip('Enable scrollable plot area for many subplots')
+
         self._currentPlotType = PlotType.empty
         self._currentlyAllowedPlotTypes: Tuple[PlotType, ...] = ()
 
@@ -367,6 +373,9 @@ class AutoPlot(MPLPlotWidget):
         self.plotOptionsToolBar.complexRepresentationSelected.connect(
             self._complexPreferenceFromToolBar
         )
+        self.plotOptionsToolBar.scrollableAction.triggered.connect(
+            self._scrollableFromToolBar
+        )
 
         scaling = dpiScalingFactor(self)
         iconSize = int(36 + 8*(scaling - 1))
@@ -436,6 +445,12 @@ class AutoPlot(MPLPlotWidget):
             self.complexRepresentation = complexRepresentation
             self._plotData()
 
+    @Slot()
+    def _scrollableFromToolBar(self) -> None:
+        scrollable = self.plotOptionsToolBar.scrollableAction.isChecked()
+        self.setScrollable(scrollable)
+        self._plotData()
+
     def _plotData(self) -> None:
         """Plot the data using previously determined data and plot types."""
 
@@ -464,6 +479,16 @@ class AutoPlot(MPLPlotWidget):
                     labels=[str(self.data.label(n)) for n in indeps] + [str(self.data.label(dn))],
                     plotDataType=self.plotDataType,
                     **kw)
+
+            nSubPlots = fm.nSubPlots()
+
+        # Set canvas minimum height for scrollable mode
+        scrollable = self.plotOptionsToolBar.scrollableAction.isChecked()
+        if scrollable and nSubPlots > 2:
+            nrows = int(nSubPlots ** 0.5 + 0.5)
+            self.plot.setMinimumHeight(max(nrows * 250, 400))
+        else:
+            self.plot.setMinimumHeight(0)
 
         self.setMeta(self.data)
         self.updatePlot()

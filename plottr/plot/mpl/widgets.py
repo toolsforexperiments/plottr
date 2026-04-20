@@ -159,10 +159,27 @@ class MPLPlotWidget(PlotWidget):
         self.addMplBarOptions()
         defaultIconSize = int(16 * dpiScalingFactor(self))
         self.mplBar.setIconSize(QtCore.QSize(defaultIconSize, defaultIconSize))
+
+        #: scroll area for the canvas (enabled by default)
+        self._scrollArea = QtWidgets.QScrollArea()
+        self._scrollArea.setWidgetResizable(True)
+        self._scrollArea.setWidget(self.plot)
+
         layout = QtWidgets.QVBoxLayout(self)
-        layout.addWidget(self.plot)
+        layout.addWidget(self._scrollArea)
         layout.addWidget(self.mplBar)
         self.setLayout(layout)
+
+        self._scrollable = True
+
+    def setScrollable(self, scrollable: bool) -> None:
+        """Enable or disable scrollable canvas for many subplots."""
+        self._scrollable = scrollable
+        if scrollable:
+            self._scrollArea.setWidgetResizable(True)
+        else:
+            self._scrollArea.setWidgetResizable(True)
+            self.plot.setMinimumHeight(0)
 
     def setMeta(self, data: DataDictBase) -> None:
         """Add meta info contained in the data to the figure.

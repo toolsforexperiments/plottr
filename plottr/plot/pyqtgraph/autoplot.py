@@ -87,13 +87,27 @@ class FigureWidget(QtWidgets.QWidget):
         ncols = max(1, int(np.ceil(n / nrows)))
 
         # Set a minimum height per plot so they don't get too squished
-        min_plot_height = 250
+        min_plot_height = 75
         self._gridWidget.setMinimumHeight(nrows * min_plot_height)
 
         for i, plot in enumerate(self.subPlots):
             row = i // ncols
             col = i % ncols
             self._gridLayout.addWidget(plot, row, col)
+
+    def setScrollable(self, scrollable: bool) -> None:
+        """Enable or disable scroll area around the plot grid."""
+        if scrollable:
+            self._scrollArea.setWidgetResizable(True)
+            self._gridWidget.setMinimumHeight(0)
+            # Re-apply grid min height if we have plots
+            if self.subPlots:
+                n = len(self.subPlots)
+                nrows = max(1, int(n ** 0.5 + 0.5))
+                self._gridWidget.setMinimumHeight(nrows * 75)
+        else:
+            self._scrollArea.setWidgetResizable(True)
+            self._gridWidget.setMinimumHeight(0)
 
     def clearAllPlots(self) -> None:
         """Clear all plot contents."""
@@ -355,6 +369,8 @@ class AutoPlot(PlotWidget):
             self.figConfig.figCopied.connect(self.onfigCopied)
             self.figConfig.figSaved.connect(self.onfigSaved)
 
+        self.fmWidget.setScrollable(self.figOptions.scrollablePlots)
+
         if self.data.has_meta('title'):
             self.fmWidget.setTitle(self.data.meta_val('title'))
             self.title = self.data.meta_val('title')
@@ -434,6 +450,9 @@ class FigureOptions:
     #: whether the dependent data contains any instance of imaginary data
     imagData: bool = False
 
+    #: whether to enable scrollable plot area (useful for many subplots)
+    scrollablePlots: bool = True
+
 
 class FigureConfigToolBar(QtWidgets.QToolBar):
     """Simple toolbar to configure the figure."""
@@ -467,6 +486,16 @@ class FigureConfigToolBar(QtWidgets.QToolBar):
             lambda: self._setOption('combineLinePlots',
                                     combineLinePlots.isChecked())
         )
+
+        scrollablePlots = self.addAction("Scrollable")
+        scrollablePlots.setCheckable(True)
+        scrollablePlots.setChecked(self.options.scrollablePlots)
+        scrollablePlots.setToolTip("Enable scrollable plot area for many subplots")
+        scrollablePlots.triggered.connect(
+            lambda: self._setOption('scrollablePlots',
+                                    scrollablePlots.isChecked())
+        )
+
         complexOptions = QtWidgets.QMenu(parent=self)
         complexGroup = QtWidgets.QActionGroup(complexOptions)
         complexGroup.setExclusive(True)
