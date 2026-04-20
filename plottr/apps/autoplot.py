@@ -301,7 +301,8 @@ class QCAutoPlotMainWindow(AutoPlotMainWindow):
 
 
 def autoplotQcodesDataset(log: bool = False,
-                          pathAndId: Union[Tuple[str, int], None] = None) \
+                          pathAndId: Union[Tuple[str, int], None] = None,
+                          plotWidgetClass: Optional[Type[PlotWidget]] = None) \
         -> Tuple[Flowchart, QCAutoPlotMainWindow]:
     """
     Sets up a simple flowchart consisting of a data selector,
@@ -331,7 +332,8 @@ def autoplotQcodesDataset(log: bool = False,
     win = QCAutoPlotMainWindow(fc, pathAndId=pathAndId,
                                widgetOptions=widgetOptions,
                                monitor=True,
-                               loaderName='Data loader')
+                               loaderName='Data loader',
+                               plotWidgetClass=plotWidgetClass)
     win.show()
 
     return fc, win
