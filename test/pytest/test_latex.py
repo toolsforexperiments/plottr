@@ -50,37 +50,31 @@ class TestSubscripts:
         assert latex_to_html(r'V_{gate}') == 'V<sub>gate</sub>'
 
     def test_braced_numbers(self):
-        # unicodeit converts numeric subscripts to Unicode (g₁₁)
-        result = latex_to_html(r'g_{11}')
-        assert 'g' in result and '1' in result.replace('\u2081', '1')
+        assert latex_to_html(r'g_{11}') == 'g<sub>11</sub>'
 
     def test_braced_multi(self):
-        result = latex_to_html(r'I_{DS}')
-        assert 'I' in result and 'DS' in result
+        assert latex_to_html(r'I_{DS}') == 'I<sub>DS</sub>'
 
     def test_single_char(self):
-        result = latex_to_html(r'x_0')
-        # May be Unicode subscript ₀ or HTML <sub>0</sub>
-        assert 'x' in result and ('0' in result or '\u2080' in result)
+        assert latex_to_html(r'x_0') == 'x<sub>0</sub>'
 
     def test_mixed(self):
         result = latex_to_html(r'V_{SD}')
+        assert '<sub>' in result
         assert 'SD' in result
 
 
 class TestSuperscripts:
     def test_braced(self):
-        result = latex_to_html(r'x^{2}')
-        # unicodeit converts ^{2} to Unicode superscript ²
-        assert 'x' in result and ('2' in result or '\u00b2' in result)
+        assert latex_to_html(r'x^{2}') == 'x<sup>2</sup>'
 
     def test_single_char(self):
-        result = latex_to_html(r'x^2')
-        assert 'x' in result and ('2' in result or '\u00b2' in result)
+        assert latex_to_html(r'x^2') == 'x<sup>2</sup>'
 
     def test_braced_text(self):
         result = latex_to_html(r'e^{i\pi}')
-        assert 'e' in result and '\u03c0' in result
+        assert '<sup>' in result
+        assert '\u03c0' in result
 
 
 class TestFractions:

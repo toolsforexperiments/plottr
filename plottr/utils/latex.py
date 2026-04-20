@@ -38,7 +38,7 @@ def latex_to_html(text: str) -> str:
     # Strip dollar-sign math delimiters
     s = re.sub(r'\$([^$]*)\$', r'\1', s)
 
-    # Convert \frac{a}{b} -> a/b (before unicodeit, which doesn't handle it)
+    # Convert \frac{a}{b} -> a/b
     s = re.sub(r'\\frac\{([^}]*)\}\{([^}]*)\}', r'\1/\2', s)
 
     # Convert \sqrt{x} -> √x
@@ -47,21 +47,17 @@ def latex_to_html(text: str) -> str:
     # Convert \overline{x} -> x̅, \bar{x} -> x̅
     s = re.sub(r'\\(?:overline|bar)\{([^}]*)\}', '\\1\u0305', s)
 
-    # Apply unicodeit for Greek letters and math symbols
-    s = unicodeit.replace(s)
-
-    # Convert remaining subscripts: _{...} -> <sub>...</sub>
-    # Must come after unicodeit (which handles single-char numeric subscripts)
+    # Convert subscripts and superscripts to HTML BEFORE unicodeit,
+    # so unicodeit doesn't turn them into Unicode sub/superscript chars.
+    # Braced: _{...} -> <sub>...</sub>, ^{...} -> <sup>...</sup>
     s = re.sub(r'_\{([^}]*)\}', r'<sub>\1</sub>', s)
-    # Single character subscript without braces (only if not already converted)
-    s = re.sub(r'_([a-zA-Z0-9])', r'<sub>\1</sub>', s)
-
-    # Convert remaining superscripts: ^{...} -> <sup>...</sup>
     s = re.sub(r'\^\{([^}]*)\}', r'<sup>\1</sup>', s)
-    # Single character superscript without braces
+    # Single character: _x -> <sub>x</sub>, ^x -> <sup>x</sup>
+    s = re.sub(r'_([a-zA-Z0-9])', r'<sub>\1</sub>', s)
     s = re.sub(r'\^([a-zA-Z0-9])', r'<sup>\1</sup>', s)
 
-    # Clean up any remaining backslashes from unrecognized commands
-    # (leave them as-is — better to show \foo than nothing)
+    # Apply unicodeit for Greek letters and math symbols.
+    # Runs after sub/sup conversion so it processes content inside tags too.
+    s = unicodeit.replace(s)
 
     return s
