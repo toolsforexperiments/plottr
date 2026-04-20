@@ -170,15 +170,9 @@ class MPLPlotWidget(PlotWidget):
         layout.addWidget(self.mplBar)
         self.setLayout(layout)
 
-        self._scrollable = True
-
     def setScrollable(self, scrollable: bool) -> None:
         """Enable or disable scrollable canvas for many subplots."""
-        self._scrollable = scrollable
-        if scrollable:
-            self._scrollArea.setWidgetResizable(True)
-        else:
-            self._scrollArea.setWidgetResizable(True)
+        if not scrollable:
             self.plot.setMinimumHeight(0)
 
     def setMeta(self, data: DataDictBase) -> None:

@@ -10,13 +10,15 @@ enumeration.
 stable QCoDeS database schema (runs + experiments tables) which has not changed
 across many QCoDeS versions.
 """
+import sys
 import time
-import sqlite3
 import logging
 from contextlib import closing
 from typing import Dict, Optional, Tuple
 
 from typing_extensions import TypedDict
+
+from qcodes.dataset.sqlite.database import conn_from_dbpath_or_conn
 
 logger = logging.getLogger(__name__)
 
@@ -67,11 +69,10 @@ def get_db_overview(db_path: str,
     """
     overview: Dict[int, RunOverviewDict] = {}
 
-    try:
-        conn = sqlite3.connect(f'file:{db_path}?mode=ro', uri=True)
-    except sqlite3.OperationalError:
-        # Fallback for older sqlite versions without URI support
-        conn = sqlite3.connect(db_path)
+    if sys.version_info >= (3, 11):
+        conn = conn_from_dbpath_or_conn(conn=None, path_to_db=db_path, read_only=True)
+    else:
+        conn = conn_from_dbpath_or_conn(conn=None, path_to_db=db_path)
 
     with closing(conn) as c:
         # Check which ad-hoc metadata columns exist in the runs table.
@@ -79,7 +80,7 @@ def get_db_overview(db_path: str,
         try:
             col_info = c.execute('PRAGMA table_info(runs)').fetchall()
             col_names = {col[1] for col in col_info}
-        except sqlite3.OperationalError:
+        except Exception:
             col_names = set()
 
         has_inspectr_tag = 'inspectr_tag' in col_names
@@ -99,7 +100,7 @@ def get_db_overview(db_path: str,
 
         try:
             rows = c.execute(query, (start_run_id,)).fetchall()
-        except sqlite3.OperationalError as e:
+        except Exception as e:
             logger.warning(f"Could not query database overview: {e}")
             return overview
 
@@ -124,18 +125,3 @@ def get_db_overview(db_path: str,
             )
 
     return overview
-
-
-def get_last_run_id(db_path: str) -> Optional[int]:
-    """Get the highest run_id in the database, or None if empty."""
-    try:
-        conn = sqlite3.connect(f'file:{db_path}?mode=ro', uri=True)
-    except sqlite3.OperationalError:
-        conn = sqlite3.connect(db_path)
-
-    with closing(conn) as c:
-        try:
-            row = c.execute("SELECT MAX(run_id) FROM runs").fetchone()
-            return row[0] if row else None
-        except sqlite3.OperationalError:
-            return None

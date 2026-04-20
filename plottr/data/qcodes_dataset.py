@@ -6,6 +6,7 @@ Dealing with qcodes dataset (the database) data in plottr.
 import os
 import sys
 from contextlib import closing
+from datetime import datetime
 from itertools import chain
 from operator import attrgetter
 from typing import Dict, List, Set, Union, TYPE_CHECKING, Any, Tuple, Optional, cast
@@ -41,6 +42,24 @@ def _get_names_of_standalone_parameters(paramspecs: List['ParamSpec']
     used_independents = set(d for spec in paramspecs for d in spec.depends_on_)
     standalones = all_independents.difference(used_independents)
     return standalones
+
+
+def _split_timestamp(ts: Optional[str]) -> Tuple[str, str]:
+    """Split a qcodes timestamp string into (date, time) components.
+
+    Uses datetime parsing instead of string slicing for robustness.
+
+    :param ts: timestamp string as returned by ``ds.run_timestamp()``
+        (typically ``"YYYY-MM-DD HH:MM:SS"``), or None.
+    :returns: (date_str, time_str) or ('', '') if ts is None or unparsable.
+    """
+    if ts is None:
+        return '', ''
+    try:
+        dt = datetime.fromisoformat(ts)
+        return dt.strftime('%Y-%m-%d'), dt.strftime('%H:%M:%S')
+    except (ValueError, TypeError):
+        return '', ''
 
 
 class IndependentParameterDict(TypedDict):
@@ -126,20 +145,10 @@ def get_ds_info(ds: 'DataSetProtocol', get_structure: bool = True) -> DataSetInf
     as well (key is `structure' then).
     """
     _complete_ts = ds.completed_timestamp()
-    if _complete_ts is not None:
-        completed_date = _complete_ts[:10]
-        completed_time = _complete_ts[11:]
-    else:
-        completed_date = ''
-        completed_time = ''
+    completed_date, completed_time = _split_timestamp(_complete_ts)
 
     _start_ts = ds.run_timestamp()
-    if _start_ts is not None:
-        started_date = _start_ts[:10]
-        started_time = _start_ts[11:]
-    else:
-        started_date = ''
-        started_time = ''
+    started_date, started_time = _split_timestamp(_start_ts)
 
     if get_structure:
         structure: Optional[DataSetStructureDict] = get_ds_structure(ds)
@@ -225,16 +234,16 @@ def get_runs_from_db_as_dataframe(path: str) -> pd.DataFrame:
 
 def _ds_to_info_dict(ds: 'DataSetProtocol') -> DataSetInfoDict:
     """Extract inspectr-relevant info from a dataset without loading data or snapshot."""
-    _start = ds.run_timestamp()
-    _complete = ds.completed_timestamp()
+    started_date, started_time = _split_timestamp(ds.run_timestamp())
+    completed_date, completed_time = _split_timestamp(ds.completed_timestamp())
     return DataSetInfoDict(
         experiment=ds.exp_name,
         sample=ds.sample_name,
         name=ds.name,
-        started_date=_start[:10] if _start else '',
-        started_time=_start[11:] if _start else '',
-        completed_date=_complete[:10] if _complete else '',
-        completed_time=_complete[11:] if _complete else '',
+        started_date=started_date,
+        started_time=started_time,
+        completed_date=completed_date,
+        completed_time=completed_time,
         structure=None,
         records=ds.number_of_results,
         guid=ds.guid,
@@ -258,12 +267,10 @@ def get_runs_from_db_fast(path: str,
     :param progress_callback: optional callable(current, total) for progress.
     :returns: dictionary mapping run_id to dataset info.
     """
-    initialise_or_create_database_at(path)
-    read_only = sys.version_info >= (3, 11)
-    conn_kw: Dict[str, Any] = {'conn': None, 'path_to_db': path}
-    if read_only:
-        conn_kw['read_only'] = True
-    conn = conn_from_dbpath_or_conn(**conn_kw)
+    if sys.version_info >= (3, 11):
+        conn = conn_from_dbpath_or_conn(conn=None, path_to_db=path, read_only=True)
+    else:
+        conn = conn_from_dbpath_or_conn(conn=None, path_to_db=path)
 
     overview: Dict[int, DataSetInfoDict] = {}
     with closing(conn) as conn_:
