@@ -486,7 +486,7 @@ class AutoPlot(MPLPlotWidget):
         scrollable = self.plotOptionsToolBar.scrollableAction.isChecked()
         if scrollable and nSubPlots > 2:
             nrows = int(nSubPlots ** 0.5 + 0.5)
-            self.plot.setMinimumHeight(max(nrows * 250, 400))
+            self.plot.setMinimumHeight(max(nrows * 100, 400))
         else:
             self.plot.setMinimumHeight(0)
 
