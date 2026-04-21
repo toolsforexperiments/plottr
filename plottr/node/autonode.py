@@ -59,7 +59,7 @@ class AutoNodeGui(AutoNodeGuiTemplate):
     def addOption(self, name: str, specs: Dict[str, Any], confirm: bool) -> None:
         optionType = specs.get('type', None)
         widget = None
-        func = self.widgetConnection.get(optionType)  # type: ignore[arg-type]
+        func = self.widgetConnection.get(optionType, None)  # type: ignore[arg-type]
         if func is not None:
             widget = func(self, name, specs, confirm)
         layout = cast(QtWidgets.QFormLayout, self.layout())
