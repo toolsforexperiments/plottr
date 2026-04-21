@@ -1475,7 +1475,7 @@ def combine_datadicts(*dicts: DataDict) -> Union[DataDictBase, DataDict]:
     #   by earlier mismatches)
 
     ret = None
-    rettype = None
+    rettype: type = type(dicts[0]) if dicts else DataDictBase
 
     for d in dicts:
         if ret is None:

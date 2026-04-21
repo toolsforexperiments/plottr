@@ -122,7 +122,7 @@ class FigureMaker(BaseFM):
         assert len(plotItem.data) == 2
         lbl = plotItem.labels[-1] if isinstance(plotItem.labels, list) and len(plotItem.labels) > 0 else ''
         x, y = plotItem.data
-        return axes[0].plot(x, y, label=lbl, **plotItem.plotOptions)
+        return axes[0].plot(x, y, label=lbl, **(plotItem.plotOptions or {}))
 
     def plotImage(self, plotItem: PlotItem) -> Optional[ScalarMappable]:
         assert len(plotItem.data) == 3
