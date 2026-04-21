@@ -1475,7 +1475,7 @@ def combine_datadicts(*dicts: DataDict) -> Union[DataDictBase, DataDict]:
     #   by earlier mismatches)
 
     ret = None
-    rettype: type = type(dicts[0]) if dicts else DataDictBase
+    rettype: Optional[type] = None
 
     for d in dicts:
         if ret is None:
@@ -1491,6 +1491,7 @@ def combine_datadicts(*dicts: DataDict) -> Union[DataDictBase, DataDict]:
                     rettype = DataDictBase
             else:
                 rettype = DataDictBase
+            assert rettype is not None
             ret = rettype(**ret)
 
             # First, parse the axes in the to-be-added ddict.

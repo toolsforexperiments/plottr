@@ -80,7 +80,7 @@ build_py = "versioningit.cmdclass.build_py"
 [tool.mypy]
 strict_optional = true
 show_column_numbers = true
-warn_unused_ignores = false
+warn_unused_ignores = true
 warn_unused_configs = true
 warn_redundant_casts = true
 no_implicit_optional = true
@@ -108,6 +108,16 @@ module = [
     "unicodeit",
 ]
 ignore_missing_imports = true
+
+# These modules contain type: ignore comments that are needed by
+# PyQt5-stubs (CI) but unused with PyQt6 (or vice versa).
+[[tool.mypy.overrides]]
+module = [
+    "plottr.apps.inspectr",
+    "plottr.node.autonode",
+    "plottr.node.scaleunits",
+]
+warn_unused_ignores = false
 
 [tool.versioningit]
 default-version = "0.0"
