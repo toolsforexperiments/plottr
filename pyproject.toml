@@ -103,7 +103,6 @@ module = [
     "lmfit",
     "matplotlib.*",
     "pyqtgraph.*",
-    "qcodes.utils.plotting",
     "xhistogram.*",
     "ruamel.*",
     "unicodeit",

@@ -2,10 +2,12 @@ from enum import Enum, unique
 from typing import Optional, Dict
 
 try:
-    from qcodes.utils.plotting import find_scale_and_prefix
+    from qcodes.plotting.axis_labels import find_scale_and_prefix
 except ImportError:
-    # fallback for qcodes < 0.21
-    from plottr.utils.find_scale_and_prefix import find_scale_and_prefix
+    try:
+        from qcodes.utils.plotting import find_scale_and_prefix  # type: ignore[import-not-found, no-redef]
+    except ImportError:
+        from plottr.utils.find_scale_and_prefix import find_scale_and_prefix  # type: ignore[no-redef]
 
 from plottr import QtWidgets, Signal, Slot
 from plottr.node import Node, NodeWidget, updateOption
