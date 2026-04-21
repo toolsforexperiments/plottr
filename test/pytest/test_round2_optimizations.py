@@ -7,7 +7,6 @@ complex plot splitting, flatten->ravel.
 """
 import numpy as np
 import pytest
-from copy import deepcopy
 
 from plottr.data.datadict import (
     DataDict, MeshgridDataDict, meshgrid_to_datadict, datadict_to_dataframe,

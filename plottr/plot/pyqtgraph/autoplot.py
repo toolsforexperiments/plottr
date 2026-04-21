@@ -93,6 +93,10 @@ class FigureWidget(QtWidgets.QWidget):
 
         self._gridWidget.setMinimumHeight(nrows * min_plot_height)
 
+        # Remove existing items before re-adding to avoid stale layout entries
+        while self._gridLayout.count():
+            self._gridLayout.takeAt(0)
+
         for i, plot in enumerate(self.subPlots):
             row = i // ncols
             col = i % ncols
@@ -102,13 +106,15 @@ class FigureWidget(QtWidgets.QWidget):
         """Enable or disable scroll area around the plot grid."""
         if scrollable:
             self._scrollArea.setWidgetResizable(True)
-            self._gridWidget.setMinimumHeight(0)
             # Re-apply grid min height if we have plots
             if self.subPlots:
                 n = len(self.subPlots)
                 nrows = max(1, int(n ** 0.5 + 0.5))
-                self._gridWidget.setMinimumHeight(nrows * 75)
+                self._gridWidget.setMinimumHeight(nrows * self._minPlotHeight)
+            else:
+                self._gridWidget.setMinimumHeight(0)
         else:
+            # Disable scrolling: widget resizes with the scroll area
             self._scrollArea.setWidgetResizable(True)
             self._gridWidget.setMinimumHeight(0)
 

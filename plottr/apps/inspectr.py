@@ -179,6 +179,9 @@ class RunList(QtWidgets.QTreeWidget):
         self._overlayLabel.setAttribute(QtCore.Qt.WA_TransparentForMouseEvents)
         self.setOverlayText(_SELECT_DATE_HINT)
 
+        self.setContextMenuPolicy(QtCore.Qt.CustomContextMenu)
+        self.customContextMenuRequested.connect(self.showContextMenu)
+
     def setOverlayText(self, text: str) -> None:
         """Show a centered overlay message. Pass empty string to hide."""
         self._overlayLabel.setText(text)
@@ -187,9 +190,6 @@ class RunList(QtWidgets.QTreeWidget):
     def resizeEvent(self, event: QtGui.QResizeEvent) -> None:
         super().resizeEvent(event)
         self._overlayLabel.setGeometry(self.viewport().rect())
-
-        self.setContextMenuPolicy(QtCore.Qt.CustomContextMenu)
-        self.customContextMenuRequested.connect(self.showContextMenu)
 
     @Slot(QtCore.QPoint)
     def showContextMenu(self, position: QtCore.QPoint) -> None:
@@ -692,12 +692,14 @@ class QCodesDBInspector(QtWidgets.QMainWindow):
 
         if self.latestRunId is not None and self.dbdf is not None and dbdf.size > 0:
             # Incremental load: merge new rows into existing dataframe
+            existing_mask = dbdf.index.isin(self.dbdf.index)
             # Update existing rows (e.g., completed_date may have changed)
-            for idx in dbdf.index:
-                if idx in self.dbdf.index:
-                    self.dbdf.loc[idx] = dbdf.loc[idx]
-                else:
-                    self.dbdf = pandas.concat([self.dbdf, dbdf.loc[[idx]]])
+            if existing_mask.any():
+                self.dbdf.update(dbdf.loc[existing_mask])
+            # Append all truly-new rows in a single concat
+            new_rows = dbdf.loc[~existing_mask]
+            if not new_rows.empty:
+                self.dbdf = pandas.concat([self.dbdf, new_rows])
         elif dbdf.size > 0:
             self.dbdf = dbdf
         else:
