@@ -74,12 +74,25 @@ def _are_equal(a: np.ndarray, b: np.ndarray) -> np.ndarray:
 
 
 def is_invalid(a: np.ndarray) -> np.ndarray:
-    # really use == None to do an element wise
-    # check for None
-    isnone = a == None
-    if a.dtype in FLOATTYPES:
-        return isnone | np.isnan(a)
-    return isnone
+    """Check element-wise for invalid entries (None or NaN).
+
+    For numeric dtypes (int, float, complex), only NaN is checked —
+    numeric arrays can never contain None.
+    For object arrays, also checks for None.
+    """
+    if a.dtype.kind in ('f', 'c'):
+        # float or complex: None is impossible, only NaN
+        return np.isnan(a)
+    elif a.dtype.kind in ('i', 'u', 'b'):
+        # integer, unsigned, bool: can never be invalid
+        return np.zeros(a.shape, dtype=bool)
+    else:
+        # object arrays: check for None and NaN
+        isnone = a == None  # noqa: E711 — element-wise check
+        try:
+            return isnone | np.isnan(a)
+        except (TypeError, ValueError):
+            return isnone
 
 
 def _are_invalid(a: np.ndarray, b: np.ndarray) -> np.ndarray:
