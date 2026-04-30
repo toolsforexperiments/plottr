@@ -266,10 +266,31 @@ comparison. This adds ~24 ms per pipeline trigger (12 ms per node, 2 nodes).
 **Fix**: Override `eq()` on DataDictBase to do a cheap identity or shape check
 instead of element-wise comparison, or set terminal values without comparison.
 
-### Suggested Priority
+### Suggested Priority (remaining)
 
-1. **Fix `is_invalid()`** — 5 minutes of work, saves ~90 ms per gridding operation
-2. **Default to `metadataShape`** when shapes available — avoids 122 ms gridding entirely
-3. **Cache loaded DataDict** for completed datasets — avoids 999 ms reload
+Items 1, 2, and 6 have been implemented. Remaining potential improvements:
+
+1. ~~**Fix `is_invalid()`**~~ ✅ Done — 44x faster (44.6ms → 1.0ms)
+2. ~~**Default to `metadataShape`**~~ ✅ Done — avoids 122ms gridding when shape metadata exists
+3. **Cache loaded DataDict** for completed datasets — avoids 999 ms reload on each refresh
 4. **Override pyqtgraph `eq()`** for DataDictBase — saves ~24 ms per pipeline trigger
 5. **Lazy complex splitting** — compute mag/phase only when needed by the plot backend
+6. ~~**Fix mpl double-replot**~~ ✅ Done — ~20% faster mpl steady-state (919ms → 754ms)
+7. **Matplotlib artist-level updates** — Instead of `fig.clear()` + full recreation on every
+   `setData()`, reuse existing Line2D/QuadMesh/colorbar artists and update their data.
+   The pyqtgraph backend already does this via `clearWidget=False`; bringing the same
+   pattern to mpl could reduce steady-state replot from ~750ms to ~200ms.
+
+### Backend Comparison After Optimizations (963×1001 complex128)
+
+| Operation | matplotlib | pyqtgraph |
+|---|---|---|
+| First plot | 1,428 ms | 175 ms |
+| Steady replot | 754 ms | 80 ms |
+| Complex real | 394 ms | 118 ms |
+| Complex realAndImag | 687 ms | 114 ms |
+| Complex magAndPhase | 730 ms | 108 ms |
+
+The pyqtgraph backend is ~10x faster for steady-state replots because it reuses
+plot widget objects when only data changes. The matplotlib backend's remaining
+cost is dominated by `fig.clear()` + subplot/artist recreation + agg rendering.
