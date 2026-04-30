@@ -408,8 +408,15 @@ class AutoPlot(MPLPlotWidget):
         """
         super().setData(data)
         self.plotDataType = determinePlotDataType(data)
-        self._processPlotTypeOptions()
-        self._processComplexTypeOptions()
+        # Block toolbar signals while updating options to avoid double-replot.
+        # _processPlotTypeOptions/Complex emit signals that trigger _plotData
+        # via toolbar slots — we only want one _plotData call at the end.
+        self.plotOptionsToolBar.blockSignals(True)
+        try:
+            self._processPlotTypeOptions()
+            self._processComplexTypeOptions()
+        finally:
+            self.plotOptionsToolBar.blockSignals(False)
         self._plotData()
 
     def _processPlotTypeOptions(self) -> None:

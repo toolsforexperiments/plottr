@@ -523,20 +523,18 @@ class DataDictBase(dict):
         :param name: Name of the data field.
         :return: Labelled name.
         """
-        if self.validate():
-            if name not in self:
-                raise ValueError("No field '{}' present.".format(name))
-            
-            if self[name]['label'] != '':
-                n = self[name]['label']
-            else:
-                n = name
+        if name not in self:
+            raise ValueError("No field '{}' present.".format(name))
 
-            if self[name]['unit'] != '':
-                n += ' ({})'.format(self[name]['unit'])
+        if self[name]['label'] != '':
+            n = self[name]['label']
+        else:
+            n = name
 
-            return n
-        return None
+        if self[name]['unit'] != '':
+            n += ' ({})'.format(self[name]['unit'])
+
+        return n
 
     def axes_are_compatible(self) -> bool:
         """
