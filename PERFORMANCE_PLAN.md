@@ -184,3 +184,92 @@ get_run_overview(conn, start_id=None, end_id=None)
 # Returns: [{run_id, exp_name, sample_name, name, timestamps, guid, result_counter, metadata_keys}]
 ```
 This would be a single SQL query completing in <1 ms for any database size.
+
+---
+
+## Part 5: Profiling with Real Data (963×1001 complex RF measurement)
+
+Profiled using dataset `d2712e0a-0c00-0012-0000-019dc443d6e4` (downloaded via `qdwsdk`):
+a 963×1001 complex128 2D gate-gate sweep (Vrf_6 vs plunger and depletion gate voltages).
+Device: L1033AA_00BE_Mv22v3, ~12.5 MB on disk, ~15 MB in memory as complex128.
+
+### Timing Summary
+
+| Operation | Time (ms) | Notes |
+|---|---|---|
+| `ds_to_datadict` (first call) | 2,588 | 1,500 ms is xarray/cf_xarray import (one-time) |
+| `ds_to_datadict` (steady state) | 999 | qcodes SQLite → numpy deserialization |
+| `datadict_to_meshgrid` | 122 | `guess_grid_from_sweep_direction` dominates |
+| Pipeline steady state (sel+grid) | 51 | Per re-trigger with same data |
+| Switch dependent variable | 172 | selector + gridding + pyqtgraph `eq()` |
+| Complex: real only | 8.5 | `copy()` + `.real.copy()` |
+| Complex: real+imag | 11.6 | `copy()` + `.real` + `.imag` |
+| Complex: mag+phase | 30.8 | `copy()` + `np.abs()` + `np.angle()` |
+| `copy()` deep | 5.1 | Already fast after our optimization |
+| `copy()` shallow | 0.1 | Zero-copy array sharing |
+| `validate()` | 0.2 | Already fast |
+| `structure()` | 0.4 | Already fast |
+| `is_invalid()` on 963k complex | 44.6 | **`a == None` comparison is 44× slower than `np.isnan`** |
+| `np.isnan()` on 963k complex | 1.0 | What `is_invalid` should use for numeric dtypes |
+
+### Bottleneck Analysis
+
+#### 1. `is_invalid()` — 44× slower than needed (LOW-HANGING FRUIT)
+
+The current implementation does `a == None` for all arrays, which triggers Python object
+comparison on every element. For numeric arrays (float/complex), this is always `False`
+and is pure waste. Replacing with `np.isnan()` directly for numeric dtypes would cut
+`is_invalid` from 44.6 ms → ~1 ms.
+
+This cascades through `_find_switches()` (which calls `is_invalid` on each 963k-element
+axis), making `datadict_to_meshgrid` ~90 ms faster.
+
+**Fix**: In `is_invalid()`, check dtype first — if it's a numeric type, skip the `== None`
+check entirely and return just `np.isnan(a)`.
+
+#### 2. `ds_to_datadict()` — 999 ms steady state (MEDIUM EFFORT)
+
+The qcodes `DataSetCacheDeferred` loads data via xarray round-trip. The actual SQLite
+read + numpy deserialization (`_convert_array` → `numpy.read_array` → `ast.literal_eval`
+for headers) takes ~1 second for 963k × 3 parameters.
+
+This is largely inside qcodes, so fixes would be upstream. However, plottr could:
+- Cache the loaded DataDict and skip reload when the dataset hasn't changed
+- Use `load_by_id(...).cache.data()` directly instead of going through `ds_to_datadict`
+  which re-wraps the data
+- For completed datasets (known from metadata), cache the DataDict permanently
+
+#### 3. `datadict_to_meshgrid` with `guessShape` — 122 ms (AVOIDABLE)
+
+When shape metadata exists in the QCodes `RunDescriber` (this dataset has
+`shapes={'rf_wrapper_ch6_Vrf_6': (1001, 1001)}`), the gridder should use
+`GridOption.metadataShape` and skip the expensive `guess_grid_from_sweep_direction`.
+
+The autoplot code already does this (`autoplot.py:298`), but the grid widget default
+is `noGrid`, so if the user starts from the widget rather than autoplot, they get
+`guessShape` which runs the full sweep-direction analysis on every re-trigger.
+
+**Fix**: Default the grid widget to `metadataShape` when shape metadata is available.
+
+#### 4. `np.abs()` + `np.angle()` for complex mag+phase — 30.8 ms (INHERENT)
+
+This is inherent computational cost for computing magnitude and phase of 963k complex128
+values. Not much to optimize here, but could be deferred (only compute when the plot
+backend actually needs to render).
+
+#### 5. pyqtgraph `Terminal.setValue` → `eq()` — 12 ms per node (MEDIUM)
+
+pyqtgraph's flowchart compares old and new terminal values using a recursive `eq()`
+function. For large DataDicts this recurses into all arrays and does element-wise
+comparison. This adds ~24 ms per pipeline trigger (12 ms per node, 2 nodes).
+
+**Fix**: Override `eq()` on DataDictBase to do a cheap identity or shape check
+instead of element-wise comparison, or set terminal values without comparison.
+
+### Suggested Priority
+
+1. **Fix `is_invalid()`** — 5 minutes of work, saves ~90 ms per gridding operation
+2. **Default to `metadataShape`** when shapes available — avoids 122 ms gridding entirely
+3. **Cache loaded DataDict** for completed datasets — avoids 999 ms reload
+4. **Override pyqtgraph `eq()`** for DataDictBase — saves ~24 ms per pipeline trigger
+5. **Lazy complex splitting** — compute mag/phase only when needed by the plot backend
