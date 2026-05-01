@@ -138,10 +138,8 @@ class DataSelectionWidget(QtWidgets.QTreeWidget):
         enabled = [n for n, w in self.dataItems.items() if not w.isDisabled()]
         self.setBatchSelectedData(enabled)
 
-    def deselectAll(self) -> None:
-        """Clear selection. Selects the first dependent to ensure the plot
-        always has something to display (pyqtgraph flowchart does not
-        propagate empty selection downstream)."""
+    def selectFirst(self) -> None:
+        """Select only the first dependent (default view)."""
         deps = list(self.dataItems.keys())
         self.setBatchSelectedData(deps[:1] if deps else [])
 

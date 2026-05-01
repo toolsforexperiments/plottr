@@ -109,13 +109,13 @@ class TestSelectionButtons:
         w.selectAll()
         assert set(w.getSelectedData()) == set(dd.dependents())
 
-    def test_deselect_all_selects_first(self, qtbot):
-        """deselectAll should select only the first dependent (always keep one)."""
+    def test_select_first(self, qtbot):
+        """selectFirst should select only the first dependent."""
         from plottr.gui.data_display import DataSelectionWidget
         w = DataSelectionWidget(); qtbot.addWidget(w)
         dd = self._mixed(); w.setData(dd, dd.shapes())
         w.selectAll()
-        w.deselectAll()
+        w.selectFirst()
         selected = w.getSelectedData()
         assert len(selected) == 1
         assert selected[0] == dd.dependents()[0]
