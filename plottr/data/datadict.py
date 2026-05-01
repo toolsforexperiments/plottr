@@ -1409,8 +1409,8 @@ def combine_datadicts(*dicts: DataDict) -> Union[DataDictBase, DataDict]:
     #   axes in the return can be separated even if they match (caused
     #   by earlier mismatches)
 
-    ret = None
-    rettype = None
+    ret: Union[DataDictBase, None] = None
+    rettype: Union[type[DataDictBase], None] = None
 
     for d in dicts:
         if ret is None:
@@ -1418,14 +1418,14 @@ def combine_datadicts(*dicts: DataDict) -> Union[DataDictBase, DataDict]:
             rettype = type(d)
 
         else:
-
             # if we don't have a well defined number of records anymore,
             # need to revert the type to DataDictBase
-            if hasattr(d, 'nrecords') and hasattr(ret, 'nrecords'):
+            if hasattr(d, "nrecords") and hasattr(ret, "nrecords"):
                 if d.nrecords() != ret.nrecords():
                     rettype = DataDictBase
             else:
                 rettype = DataDictBase
+            assert rettype is not None
             ret = rettype(**ret)
 
             # First, parse the axes in the to-be-added ddict.
