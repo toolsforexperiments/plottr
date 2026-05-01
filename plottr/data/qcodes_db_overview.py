@@ -91,7 +91,7 @@ def get_db_overview(db_path: str,
         query = f"""
             SELECT r.run_id, e.name, e.sample_name, r.name,
                    r.run_timestamp, r.completed_timestamp,
-                   r.result_counter, r.guid{tag_col}
+                   r.result_counter, r.guid, r.result_table_name{tag_col}
             FROM runs r
             JOIN experiments e ON r.exp_id = e.exp_id
             WHERE r.run_id > ?
@@ -104,11 +104,34 @@ def get_db_overview(db_path: str,
             logger.warning(f"Could not query database overview: {e}")
             return overview
 
+        # Build a map of actual row counts from each results table.
+        # result_counter in the runs table counts INSERT calls, not data points.
+        # For array paramtype one INSERT can contain thousands of data points,
+        # so result_counter can be much smaller than the real data point count.
+        # We query the actual row count from each results table.
+        results_tables: set[str] = set()
+        for row in rows:
+            tbl = row[8]  # result_table_name
+            if tbl:
+                results_tables.add(tbl)
+        row_counts: dict[str, int] = {}
+        for tbl in results_tables:
+            try:
+                cnt = c.execute(
+                    f'SELECT COUNT(*) FROM "{tbl}"'
+                ).fetchone()
+                row_counts[tbl] = cnt[0] if cnt else 0
+            except Exception:
+                pass  # table may not exist (e.g., qdwsdk downloads)
+
+        tag_col_idx = 9 if has_inspectr_tag else -1
         for row in rows:
             run_id = row[0]
             started_date, started_time = _format_timestamp(row[4])
             completed_date, completed_time = _format_timestamp(row[5])
-            tag = row[8] if has_inspectr_tag and len(row) > 8 and row[8] else ''
+            tag = row[tag_col_idx] if tag_col_idx > 0 and len(row) > tag_col_idx and row[tag_col_idx] else ''
+            result_table = row[8] or ''
+            records = row_counts.get(result_table, row[6] or 0)
 
             overview[run_id] = RunOverviewDict(
                 run_id=run_id,
@@ -119,7 +142,7 @@ def get_db_overview(db_path: str,
                 started_time=started_time,
                 completed_date=completed_date,
                 completed_time=completed_time,
-                records=row[6] or 0,
+                records=records,
                 guid=row[7] or '',
                 inspectr_tag=tag,
             )
