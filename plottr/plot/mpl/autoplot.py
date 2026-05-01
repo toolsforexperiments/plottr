@@ -153,6 +153,9 @@ class AutoPlotToolBar(QtWidgets.QToolBar):
     #: signal emitted when the complex data option has been changed
     complexRepresentationSelected = Signal(ComplexRepresentation)
 
+    #: signal emitted when the colormap has been changed
+    cmapChanged = Signal(str)
+
     def __init__(self, name: str, parent: Optional[QtWidgets.QWidget] = None):
         """Constructor for :class:`AutoPlotToolBar`"""
 
@@ -246,12 +249,50 @@ class AutoPlotToolBar(QtWidgets.QToolBar):
             lambda: self.minHeightSpin.setEnabled(self.scrollableAction.isChecked())
         )
 
+        # Colormap selector
+        self.addSeparator()
+        self._cmapLabel = QtWidgets.QLabel(" Colormap: ")
+        self.addWidget(self._cmapLabel)
+        self.cmapCombo = QtWidgets.QComboBox()
+        self.cmapCombo.setToolTip("Select colormap for 2D plots")
+        self.cmapCombo.setSizeAdjustPolicy(
+            QtWidgets.QComboBox.AdjustToContents)
+        self._populateColormaps()
+        self.addWidget(self.cmapCombo)
+
+        #: signal emitted when the colormap has been changed
+        self.cmapCombo.currentTextChanged.connect(self._onCmapChanged)
+
         self._currentPlotType = PlotType.empty
         self._currentlyAllowedPlotTypes: Tuple[PlotType, ...] = ()
 
         self._currentComplex = ComplexRepresentation.realAndImag
         self.ComplexActions[self._currentComplex].setChecked(True)
         self._currentlyAllowedComplexTypes: Tuple[ComplexRepresentation, ...] = ()
+
+    def _populateColormaps(self) -> None:
+        """Fill the colormap combo box with matplotlib's available colormaps."""
+        import matplotlib as mpl
+        # Curated list of popular colormaps first, then all others
+        popular = ['viridis', 'magma', 'inferno', 'plasma', 'cividis',
+                   'coolwarm', 'RdBu_r', 'RdYlBu_r', 'Spectral_r',
+                   'hot', 'bone', 'gray']
+        all_cmaps = sorted(mpl.colormaps())
+        # Put popular ones first, then the rest (no duplicates)
+        ordered = [c for c in popular if c in all_cmaps]
+        ordered += [c for c in all_cmaps if c not in ordered and not c.endswith('_r')]
+        self.cmapCombo.addItems(ordered)
+        # Set current to the matplotlib default
+        default = mpl.rcParams.get('image.cmap', 'viridis')
+        idx = self.cmapCombo.findText(default)
+        if idx >= 0:
+            self.cmapCombo.setCurrentIndex(idx)
+
+    def _onCmapChanged(self, name: str) -> None:
+        """Update the matplotlib RC param and signal a replot."""
+        import matplotlib as mpl
+        mpl.rcParams['image.cmap'] = name
+        self.cmapChanged.emit(name)
 
     def selectPlotType(self, plotType: PlotType) -> None:
         """makes sure that the selected `plotType` is active (checked), all
@@ -392,6 +433,7 @@ class AutoPlot(MPLPlotWidget):
         self.plotOptionsToolBar.minHeightSpin.editingFinished.connect(
             self._scrollableFromToolBar
         )
+        self.plotOptionsToolBar.cmapChanged.connect(self._cmapFromToolBar)
 
         scaling = dpiScalingFactor(self)
         iconSize = int(36 + 8*(scaling - 1))
@@ -470,6 +512,11 @@ class AutoPlot(MPLPlotWidget):
             self.complexRepresentation = complexRepresentation
             if not self._inSetData:
                 self._plotData()
+
+    @Slot(str)
+    def _cmapFromToolBar(self, _cmap: str) -> None:
+        if not self._inSetData:
+            self._plotData()
 
     @Slot()
     def _scrollableFromToolBar(self) -> None:
