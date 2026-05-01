@@ -11,6 +11,7 @@ from .node import Node, NodeWidget, updateOption
 from ..data.datadict import DataDictBase, DataDict
 from ..gui.data_display import DataSelectionWidget
 from plottr.icons import get_dataColumnsIcon
+from .. import QtWidgets
 from ..utils import num
 
 __author__ = 'Wolfgang Pfaff'
@@ -36,6 +37,55 @@ class DataDisplayWidget(NodeWidget):
         self.widget.dataSelectionMade.connect(
             lambda x: self.signalOption('selectedData'))
 
+        # Selection buttons
+        btnLayout = QtWidgets.QHBoxLayout()
+        btnLayout.setContentsMargins(0, 0, 0, 0)
+        btnLayout.setSpacing(4)
+
+        self._selectAllBtn = QtWidgets.QPushButton("Select all")
+        self._selectAllBtn.clicked.connect(self._onSelectAll)
+        btnLayout.addWidget(self._selectAllBtn)
+
+        self._selectFirstBtn = QtWidgets.QPushButton("Select first only")
+        self._selectFirstBtn.clicked.connect(self._onSelectFirst)
+        btnLayout.addWidget(self._selectFirstBtn)
+
+        self._select1dBtn = QtWidgets.QPushButton("Select all 1D")
+        self._select1dBtn.clicked.connect(self._onSelect1D)
+        btnLayout.addWidget(self._select1dBtn)
+
+        self._select2dBtn = QtWidgets.QPushButton("Select all 2D")
+        self._select2dBtn.clicked.connect(self._onSelect2D)
+        btnLayout.addWidget(self._select2dBtn)
+
+        btnLayout.addStretch()
+
+        layout = self.layout()
+        assert isinstance(layout, QtWidgets.QVBoxLayout)
+        layout.addLayout(btnLayout)
+
+    def _onSelectAll(self) -> None:
+        assert self.widget is not None
+        self.widget.selectAll()
+
+    def _onSelectFirst(self) -> None:
+        assert self.widget is not None
+        self.widget.selectFirst()
+
+    def _onSelect1D(self) -> None:
+        assert self.widget is not None
+        self.widget.selectByNdims(1)
+
+    def _onSelect2D(self) -> None:
+        assert self.widget is not None
+        self.widget.selectByNdims(2)
+
+    def _updateDimButtons(self) -> None:
+        """Show/hide 1D/2D buttons based on what dimensions exist in the data."""
+        assert self.widget is not None
+        self._select1dBtn.setVisible(self.widget.has_dependents_with_ndims(1))
+        self._select2dBtn.setVisible(self.widget.has_dependents_with_ndims(2))
+
     def setSelected(self, vals: Sequence[str]) -> None:
         assert self.widget is not None
         self.widget.setSelectedData(vals)
@@ -49,6 +99,7 @@ class DataDisplayWidget(NodeWidget):
                 shapes: Dict[str, Tuple[int, ...]], _: Any) -> None:
         assert self.widget is not None
         self.widget.setData(structure, shapes)
+        self._updateDimButtons()
 
     def setShape(self, shapes: Dict[str, Tuple[int, ...]]) -> None:
         assert self.widget is not None

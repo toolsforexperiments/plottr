@@ -25,7 +25,26 @@ def largest_numtype(arr: np.ndarray, include_integers: bool = True) \
                              only integers in the the data.
     :return: type if possible. None if no numeric data in array.
     """
-    types = {type(a) for a in np.array(arr).flatten()}
+    arr = np.asarray(arr)
+
+    # Fast path: use numpy's dtype for homogeneous numeric arrays
+    if arr.size == 0:
+        return None
+    if arr.dtype != object:
+        if np.issubdtype(arr.dtype, np.complexfloating):
+            return arr.dtype.type
+        elif np.issubdtype(arr.dtype, np.floating):
+            return arr.dtype.type
+        elif np.issubdtype(arr.dtype, np.integer):
+            if include_integers:
+                return arr.dtype.type
+            else:
+                return float
+        else:
+            return None
+
+    # Slow path for object arrays: inspect element types
+    types = {type(a) for a in arr.ravel() if a is not None}
     curidx = -1
     if include_integers:
         ok_types = NUMTYPES
@@ -55,14 +74,25 @@ def _are_equal(a: np.ndarray, b: np.ndarray) -> np.ndarray:
 
 
 def is_invalid(a: np.ndarray) -> np.ndarray:
-    # really use == None to do an element wise
-    # check for None
-    isnone = a == None
-    if a.dtype in FLOATTYPES:
-        isnan = np.isnan(a)
+    """Check element-wise for invalid entries (None or NaN).
+
+    For numeric dtypes (int, float, complex), only NaN is checked —
+    numeric arrays can never contain None.
+    For object arrays, also checks for None.
+    """
+    if a.dtype.kind in ('f', 'c'):
+        # float or complex: None is impossible, only NaN
+        return np.isnan(a)
+    elif a.dtype.kind in ('i', 'u', 'b'):
+        # integer, unsigned, bool: can never be invalid
+        return np.zeros(a.shape, dtype=bool)
     else:
-        isnan = np.zeros(a.shape, dtype=bool)
-    return isnone | isnan
+        # object arrays: check for None and NaN
+        isnone = a == None  # noqa: E711 — element-wise check
+        try:
+            return isnone | np.isnan(a)
+        except (TypeError, ValueError):
+            return isnone
 
 
 def _are_invalid(a: np.ndarray, b: np.ndarray) -> np.ndarray:
@@ -139,17 +169,29 @@ def array1d_to_meshgrid(arr: Union[List, np.ndarray],
 def _find_switches(arr: np.ndarray,
                    rth: float = 25,
                    ztol: float = 1e-15) -> np.ndarray:
-    arr_: np.ndarray = np.ma.MaskedArray(arr, is_invalid(arr))
-    deltas = arr_[1:] - arr_[:-1]
-    hi = np.percentile(arr[~is_invalid(arr)], 100.-rth)
-    lo = np.percentile(arr[~is_invalid(arr)], rth)
-    diff = np.abs(hi-lo)
+    # Compute invalid mask once, reuse everywhere
+    invalid = is_invalid(arr)
+    valid_mask = ~invalid
+
+    # Use np.diff directly — for entries adjacent to invalid values, the delta
+    # will be nan. We handle this by using nan-aware operations below.
+    deltas = arr[1:] - arr[:-1]
+
+    # Compute percentile range of valid data
+    valid_data = arr[valid_mask]
+    if valid_data.size == 0:
+        return np.array([])
+
+    lo, hi = np.percentile(valid_data, [rth, 100. - rth])
+    diff = np.abs(hi - lo)
 
     if not diff > ztol:
         return np.array([])
 
     # first step: suspected switches are where we have 'large' jumps in value.
-    switch_candidates = np.where(np.abs(deltas) >= diff)[0]
+    # Use nan-safe abs: nan deltas will produce nan >= diff which is False
+    abs_deltas = np.abs(deltas)
+    switch_candidates = np.where(abs_deltas >= diff)[0]
     switch_candidates = switch_candidates[switch_candidates > 0]
     if not len(switch_candidates) > 0:
         return np.array([])
@@ -157,15 +199,13 @@ def _find_switches(arr: np.ndarray,
     # importantly: switches have to opposite to the sweep direction.
     # we check the sweep direction by looking at the values prior to the
     # first suspected switch
-    sweep_direction = np.sign(np.mean(deltas[:switch_candidates[0]]))
+    sweep_direction = np.sign(np.nanmean(deltas[:switch_candidates[0]]))
 
     # real switches are then those where the delta is opposite to the sweep
-    # direction.
+    # direction. Vectorized filter instead of list comprehension.
     switch_candidate_vals = deltas[switch_candidates]
-    switches = [s for (s, v) in zip(switch_candidates, switch_candidate_vals)
-                if np.sign(v) == -sweep_direction]
-
-    return np.array(switches)
+    mask = np.sign(switch_candidate_vals) == -sweep_direction
+    return switch_candidates[mask]
 
 
 def find_direction_period(vals: np.ndarray, ignore_last: bool = False) \
@@ -233,13 +273,14 @@ def guess_grid_from_sweep_direction(**axes: np.ndarray) \
         raise ValueError("Empty input.")
 
     for name, vals in axes.items():
-        if len(np.array(vals).shape) > 1:
+        vals_arr = np.asarray(vals)
+        if vals_arr.ndim > 1:
             raise ValueError(
-                f"Expect 1-dimensional axis data, not {np.array(vals).shape}")
+                f"Expect 1-dimensional axis data, not {vals_arr.shape}")
         if size is None:
-            size = np.array(vals).size
+            size = vals_arr.size
         else:
-            if size != np.array(vals).size:
+            if size != vals_arr.size:
                 raise ValueError("Non-matching array sizes.")
 
         # first step: find repeating patterns in the data.
@@ -265,7 +306,7 @@ def guess_grid_from_sweep_direction(**axes: np.ndarray) \
                 else:
                     if mean == 0:
                         mean = max(np.abs(vals.max()), np.abs(vals.min()))
-                    cost = 1./np.abs(np.std(vals)/mean)
+                    cost = 1./np.abs(std/mean)
                 sorting.append(size + cost)
         else:
             return None

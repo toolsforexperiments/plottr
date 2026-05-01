@@ -35,6 +35,7 @@ dependencies = [
     "psutil",
     "watchdog",
     "pyzmq",
+    "unicodeit>=0.7.5",
 ]
 dynamic = ["version"]
 
@@ -102,9 +103,19 @@ module = [
     "matplotlib.*",
     "pyqtgraph.*",
     "xhistogram.*",
-    "ruamel.*"
+    "ruamel.*",
+    "unicodeit",
 ]
 ignore_missing_imports = true
+
+# These modules contain type: ignore comments that may be unused
+# depending on the Qt stubs version installed.
+[[tool.mypy.overrides]]
+module = [
+    "plottr.node.autonode",
+    "plottr.node.scaleunits",
+]
+warn_unused_ignores = false
 
 [tool.versioningit]
 default-version = "0.0"

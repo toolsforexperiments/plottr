@@ -1,6 +1,7 @@
 qcodes
 pytest
 pytest-qt
+hypothesis
 mypy==1.20.2
 PyQt5-stubs==5.15.6.0
 pandas-stubs

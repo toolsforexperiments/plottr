@@ -5,7 +5,7 @@ Everything in here is independent of actual plotting backend, and does not conta
 
 from collections import OrderedDict
 from copy import deepcopy
-from dataclasses import dataclass
+from dataclasses import dataclass, replace as dc_replace
 from enum import Enum, unique, auto
 from types import TracebackType
 from typing import Dict, List, Type, Tuple, Optional, Any, \
@@ -453,7 +453,9 @@ class AutoFigureMaker:
                 re_label, im_label = label + ' (Real)', label + ' (Imag)'
 
             re_plotItem = plotItem
-            im_plotItem = deepcopy(re_plotItem)
+            im_plotItem = dc_replace(re_plotItem,
+                                     data=list(re_plotItem.data),
+                                     labels=list(re_plotItem.labels) if re_plotItem.labels else None)
 
             re_plotItem.data[-1] = re_data
             im_plotItem.data[-1] = im_data
@@ -485,7 +487,9 @@ class AutoFigureMaker:
                 mag_label, phase_label = label + ' 20*log10(Mag)', label + ' (Phase)'
 
             mag_plotItem = plotItem
-            phase_plotItem = deepcopy(mag_plotItem)
+            phase_plotItem = dc_replace(mag_plotItem,
+                                        data=list(mag_plotItem.data),
+                                        labels=list(mag_plotItem.labels) if mag_plotItem.labels else None)
 
             mag_plotItem.data[-1] = mag_data
             phase_plotItem.data[-1] = phase_data
@@ -514,7 +518,9 @@ class AutoFigureMaker:
                 mag_label, phase_label = label + ' (Mag)', label + ' (Phase)'
 
             mag_plotItem = plotItem
-            phase_plotItem = deepcopy(mag_plotItem)
+            phase_plotItem = dc_replace(mag_plotItem,
+                                        data=list(mag_plotItem.data),
+                                        labels=list(mag_plotItem.labels) if mag_plotItem.labels else None)
 
             mag_plotItem.data[-1] = mag_data
             phase_plotItem.data[-1] = phase_data

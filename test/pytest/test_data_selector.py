@@ -83,3 +83,91 @@ def test_incompatible_sets(qtbot):
 
     node.selectedData = data.dependents()[1]
     assert fc.output()['dataOut'].dependents() == [data.dependents()[1]]
+
+
+# -- Selection buttons (select all, deselect, 1D, 2D) --
+
+class TestSelectionButtons:
+    """Verify Select All / Deselect / 1D / 2D in DataSelectionWidget."""
+
+    @staticmethod
+    def _mixed():
+        from plottr.data.datadict import DataDictBase
+        return DataDictBase(
+            trace1d=dict(values=np.arange(10.0), axes=['x']),
+            trace1d_b=dict(values=np.arange(10.0), axes=['x']),
+            x=dict(values=np.arange(10.0)),
+            map2d=dict(values=np.arange(20.0), axes=['x', 'y']),
+            map2d_b=dict(values=np.arange(20.0), axes=['x', 'y']),
+            y=dict(values=np.arange(20.0)),
+        )
+
+    def test_select_all(self, qtbot):
+        from plottr.gui.data_display import DataSelectionWidget
+        w = DataSelectionWidget(); qtbot.addWidget(w)
+        dd = self._mixed(); w.setData(dd, dd.shapes())
+        w.selectAll()
+        assert set(w.getSelectedData()) == set(dd.dependents())
+
+    def test_select_first(self, qtbot):
+        """selectFirst should select only the first dependent."""
+        from plottr.gui.data_display import DataSelectionWidget
+        w = DataSelectionWidget(); qtbot.addWidget(w)
+        dd = self._mixed(); w.setData(dd, dd.shapes())
+        w.selectAll()
+        w.selectFirst()
+        selected = w.getSelectedData()
+        assert len(selected) == 1
+        assert selected[0] == dd.dependents()[0]
+
+    def test_select_1d(self, qtbot):
+        from plottr.gui.data_display import DataSelectionWidget
+        w = DataSelectionWidget(); qtbot.addWidget(w)
+        dd = self._mixed(); w.setData(dd, dd.shapes())
+        w.selectByNdims(1)
+        sel = w.getSelectedData()
+        assert 'trace1d' in sel and 'trace1d_b' in sel
+        assert 'map2d' not in sel
+
+    def test_select_2d(self, qtbot):
+        from plottr.gui.data_display import DataSelectionWidget
+        w = DataSelectionWidget(); qtbot.addWidget(w)
+        dd = self._mixed(); w.setData(dd, dd.shapes())
+        w.selectByNdims(2)
+        sel = w.getSelectedData()
+        assert 'map2d' in sel and 'map2d_b' in sel
+        assert 'trace1d' not in sel
+
+    def test_select_resets_previous(self, qtbot):
+        from plottr.gui.data_display import DataSelectionWidget
+        w = DataSelectionWidget(); qtbot.addWidget(w)
+        dd = self._mixed(); w.setData(dd, dd.shapes())
+        w.selectAll()
+        w.selectByNdims(1)
+        for name in w.getSelectedData():
+            assert len(dd.axes(name)) == 1
+
+    def test_has_dependents_with_ndims(self, qtbot):
+        from plottr.gui.data_display import DataSelectionWidget
+        w = DataSelectionWidget(); qtbot.addWidget(w)
+        dd = self._mixed(); w.setData(dd, dd.shapes())
+        assert w.has_dependents_with_ndims(1)
+        assert w.has_dependents_with_ndims(2)
+        assert not w.has_dependents_with_ndims(3)
+
+    def test_batch_emits_single_signal(self, qtbot):
+        from plottr.gui.data_display import DataSelectionWidget
+        w = DataSelectionWidget(); qtbot.addWidget(w)
+        dd = self._mixed(); w.setData(dd, dd.shapes())
+        count = [0]
+        w.dataSelectionMade.connect(lambda _: count.__setitem__(0, count[0] + 1))
+        w.selectAll()
+        assert count[0] == 1
+
+    def test_empty_dataset(self, qtbot):
+        from plottr.gui.data_display import DataSelectionWidget
+        from plottr.data.datadict import DataDictBase
+        w = DataSelectionWidget(); qtbot.addWidget(w)
+        w.setData(DataDictBase(), {})
+        w.selectAll()
+        assert w.getSelectedData() == []

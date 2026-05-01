@@ -482,16 +482,18 @@ class DataGridder(Node[DataGridderNodeWidget]):
                 if method is GridOption.noGrid:
                     dout = data.expand()
                 elif method is GridOption.guessShape:
-                    dout = dd.datadict_to_meshgrid(data)
+                    dout = dd.datadict_to_meshgrid(data, copy=False)
                 elif method is GridOption.specifyShape:
                     dout = dd.datadict_to_meshgrid(
                         data, target_shape=opts['shape'],
                         inner_axis_order=order,
+                        copy=False,
                     )
                 elif method is GridOption.metadataShape:
                     try:
                         dout = dd.datadict_to_meshgrid(
-                            data, use_existing_shape=True
+                            data, use_existing_shape=True,
+                            copy=False,
                         )
                     except ValueError as err:
                         if "Malformed data" in str(err):
@@ -499,7 +501,7 @@ class DataGridder(Node[DataGridderNodeWidget]):
                                 "Shape/Setpoint order does"
                                 " not match data. Falling back to guessing shape"
                                 )
-                            dout = dd.datadict_to_meshgrid(data)
+                            dout = dd.datadict_to_meshgrid(data, copy=False)
                         else:
                             raise err
             except GriddingError:

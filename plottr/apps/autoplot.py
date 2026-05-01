@@ -7,7 +7,6 @@ import os
 import time
 import argparse
 from typing import Union, Tuple, Optional, Type, List, Any, Type
-from packaging import version
 
 from .. import QtCore, Flowchart, Signal, Slot, QtWidgets, QtGui
 from .. import log as plottrlog
@@ -249,7 +248,10 @@ class AutoPlotMainWindow(PlotWindow):
 
         try:
             self.fc.nodes()['Data selection'].selectedData = selected
-            self.fc.nodes()['Grid'].grid = GridOption.guessShape, {}
+            if data.meta_val('qcodes_shape') is not None:
+                self.fc.nodes()['Grid'].grid = GridOption.metadataShape, {}
+            else:
+                self.fc.nodes()['Grid'].grid = GridOption.guessShape, {}
             self.fc.nodes()['Dimension assignment'].dimensionRoles = drs
         # FIXME: this is maybe a bit excessive, but trying to set all the defaults
         #   like this can result in many types of errors.
@@ -291,17 +293,12 @@ class QCAutoPlotMainWindow(AutoPlotMainWindow):
 
     def setDefaults(self, data: DataDictBase) -> None:
         super().setDefaults(data)
-        import qcodes as qc
-        qcodes_support = (version.parse(qc.__version__) >=
-                          version.parse("0.20.0"))
-        if data.meta_val('qcodes_shape') is not None and qcodes_support:
-            self.fc.nodes()['Grid'].grid = GridOption.metadataShape, {}
-        else:
-            self.fc.nodes()['Grid'].grid = GridOption.guessShape, {}
+
 
 
 def autoplotQcodesDataset(log: bool = False,
-                          pathAndId: Union[Tuple[str, int], None] = None) \
+                          pathAndId: Union[Tuple[str, int], None] = None,
+                          plotWidgetClass: Optional[Type[PlotWidget]] = None) \
         -> Tuple[Flowchart, QCAutoPlotMainWindow]:
     """
     Sets up a simple flowchart consisting of a data selector,
@@ -331,7 +328,8 @@ def autoplotQcodesDataset(log: bool = False,
     win = QCAutoPlotMainWindow(fc, pathAndId=pathAndId,
                                widgetOptions=widgetOptions,
                                monitor=True,
-                               loaderName='Data loader')
+                               loaderName='Data loader',
+                               plotWidgetClass=plotWidgetClass)
     win.show()
 
     return fc, win
