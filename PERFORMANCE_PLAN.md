@@ -62,7 +62,7 @@ a single `copy()` took 92 ms and `validate()` took 43 ms.
 | `datadict_to_meshgrid` (640K pts) | 175 ms | 71 ms | 2.5× |
 | `mesh_500k_validate()` | 20.5 ms | 14.1 ms | 1.5× |
 
-**Real experimental data (P1386BB_00BE_datasets.db, steady-state refresh):**
+**Real experimental data (large qcodes database, steady-state refresh):**
 
 | Dataset | Data Size | Before | After | Speedup |
 |---|---|---|---|---|
@@ -189,9 +189,8 @@ This would be a single SQL query completing in <1 ms for any database size.
 
 ## Part 5: Profiling with Real Data (963×1001 complex RF measurement)
 
-Profiled using dataset `d2712e0a-0c00-0012-0000-019dc443d6e4` (downloaded via `qdwsdk`):
-a 963×1001 complex128 2D gate-gate sweep (Vrf_6 vs plunger and depletion gate voltages).
-Device: L1033AA_00BE_Mv22v3, ~12.5 MB on disk, ~15 MB in memory as complex128.
+Profiled using a real 963×1001 complex128 2D gate-gate sweep measurement
+(~12.5 MB on disk, ~15 MB in memory as complex128).
 
 ### Timing Summary
 

@@ -119,24 +119,20 @@ class TestAxisOrientation:
 class TestRecordsCounter:
     """Verify records counter shows actual data point count."""
 
-    def test_records_from_db_overview_counts_result_rows(self):
+    def test_records_from_db_overview_counts_result_rows(self, tmp_path):
         """The fast SQL overview should count rows from the results table,
         not just use result_counter (which counts INSERT calls, not data points)."""
         pytest.importorskip("qcodes")
-        import pathlib
-        db_path = pathlib.Path("test_data/test_datasets.db")
-        if not db_path.exists():
-            pytest.skip("test_datasets.db not available")
-        
         from plottr.data.qcodes_db_overview import get_db_overview
         import sqlite3
-        
-        overview = get_db_overview(str(db_path.resolve()))
-        conn = sqlite3.connect(str(db_path.resolve()))
-        
-        # For each run with a results table, the overview records count
-        # should match the actual row count in the results table.
-        for run_id, info in list(overview.items())[:5]:
+
+        db_path = str(tmp_path / "test.db")
+        _make_qcodes_db_with_runs(db_path, n_runs=3)
+
+        overview = get_db_overview(db_path)
+        conn = sqlite3.connect(db_path)
+
+        for run_id, info in overview.items():
             row = conn.execute(
                 "SELECT result_table_name FROM runs WHERE run_id=?",
                 (run_id,)
@@ -152,20 +148,24 @@ class TestRecordsCounter:
                     f"Run {run_id}: overview records={info['records']}, actual rows={actual_rows}"
         conn.close()
 
-    def test_records_fallback_when_no_results_table(self):
-        """When results table doesn't exist (e.g. qdwsdk), fall back to result_counter."""
+    def test_records_from_shapes_when_no_results_table(self, tmp_path):
+        """When results table doesn't exist, records should be computed
+        from run_description shapes."""
         pytest.importorskip("qcodes")
-        import pathlib
-        db_path = pathlib.Path("test_data/downloaded_dataset.db")
-        if not db_path.exists():
-            pytest.skip("downloaded_dataset.db not available")
-        
-        from plottr.data.qcodes_db_overview import get_db_overview
-        
-        overview = get_db_overview(str(db_path.resolve()))
-        # Should not crash, and should return some value (even if it's result_counter)
-        assert 1 in overview
-        assert isinstance(overview[1]['records'], int)
+        from plottr.data.qcodes_db_overview import _records_from_run_description
+        import json
+
+        # Simulate a run_description with shapes
+        desc = json.dumps({"version": 3, "shapes": {"dep1": [100, 50]}})
+        assert _records_from_run_description(desc) == 5000
+
+        # No shapes key
+        desc2 = json.dumps({"version": 3})
+        assert _records_from_run_description(desc2) == 0
+
+        # Empty / None
+        assert _records_from_run_description(None) == 0
+        assert _records_from_run_description("") == 0
 
 
 def _make_qcodes_db_with_runs(db_path: str, n_runs: int = 1):
