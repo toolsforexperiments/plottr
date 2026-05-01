@@ -1,9 +1,6 @@
 """Tests for plot backend regressions — axis orientation, aspect ratio,
 complex modes, records counter, and dataset refresh."""
 import os
-import sys
-import tempfile
-import time
 import numpy as np
 import pytest
 
