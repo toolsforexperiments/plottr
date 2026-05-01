@@ -318,7 +318,10 @@ def test_update_qcloader(qtbot, empty_db_path):
 
 def _make_qcodes_db_with_runs(db_path: str, n_runs: int = 1) -> str:
     """Helper: create a QCodes DB with n_runs simple numeric datasets."""
-    from qcodes.parameters import ParamSpecBase
+    try:
+        from qcodes.parameters import ParamSpecBase
+    except ImportError:
+        from qcodes.dataset.descriptions.param_spec import ParamSpecBase
     from qcodes.dataset.descriptions.dependencies import InterDependencies_
 
     initialise_or_create_database_at(db_path)
@@ -386,7 +389,10 @@ class TestDatasetRefresh:
     def test_incremental_overview(self, tmp_path):
         """get_db_overview with start_run_id should find newly added runs."""
         from plottr.data.qcodes_db_overview import get_db_overview
-        from qcodes.parameters import ParamSpecBase
+        try:
+            from qcodes.parameters import ParamSpecBase
+        except ImportError:
+            from qcodes.dataset.descriptions.param_spec import ParamSpecBase
         from qcodes.dataset.descriptions.dependencies import InterDependencies_
 
         db_path = str(tmp_path / "test.db")
@@ -414,7 +420,10 @@ class TestDatasetRefresh:
         import os
         os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
         from plottr.apps.inspectr import QCodesDBInspector
-        from qcodes.parameters import ParamSpecBase
+        try:
+            from qcodes.parameters import ParamSpecBase
+        except ImportError:
+            from qcodes.dataset.descriptions.param_spec import ParamSpecBase
         from qcodes.dataset.descriptions.dependencies import InterDependencies_
 
         db_path = str(tmp_path / "test.db")
