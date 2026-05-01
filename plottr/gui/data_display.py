@@ -30,6 +30,10 @@ class DataSelectionWidget(QtWidgets.QTreeWidget):
         self.setSelectionMode(self.MultiSelection)
         self.itemSelectionChanged.connect(self.emitSelection)
 
+    def _ndims(self, name: str) -> int:
+        """Return the number of independent axes for a dependent field."""
+        return len(self._dataStructure.axes(name))
+
     def _makeItem(self, name: str) -> QtWidgets.QTreeWidgetItem:
         shape = self._dataShapes.get(name, tuple())
         label = f"{self._dataStructure.label(name)}"
@@ -107,9 +111,38 @@ class DataSelectionWidget(QtWidgets.QTreeWidget):
         return ret
 
     def setSelectedData(self, vals: List[str]) -> None:
-        """select all given items, uncheck all others."""
+        """select all given items, uncheck all others.
+        Emits a single selection signal after all items are updated."""
+        self.blockSignals(True)
         for n, w in self.dataItems.items():
             w.setSelected(n in vals)
+        self.blockSignals(False)
+        self.emitSelection()
+
+    def selectAll(self) -> None:
+        """Select all enabled dependent fields. Single signal emission."""
+        enabled = [n for n, w in self.dataItems.items() if not w.isDisabled()]
+        self.setSelectedData(enabled)
+
+    def deselectAll(self) -> None:
+        """Deselect all fields. Single signal emission."""
+        self.setSelectedData([])
+
+    def selectByNdims(self, ndims: int) -> None:
+        """Select all dependents with exactly *ndims* independent axes.
+        Resets any existing selection. Single signal emission."""
+        matching = [n for n in self._dataStructure.dependents()
+                    if self._ndims(n) == ndims
+                    and n in self.dataItems
+                    and not self.dataItems[n].isDisabled()]
+        self.setSelectedData(matching)
+
+    def has_dependents_with_ndims(self, ndims: int) -> bool:
+        """Check if the dataset has any dependent with exactly *ndims* axes."""
+        for n in self._dataStructure.dependents():
+            if self._ndims(n) == ndims:
+                return True
+        return False
 
     def emitSelection(self) -> None:
         """emit the signal ``selectionChanged`` with the current selection"""

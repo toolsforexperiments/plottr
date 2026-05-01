@@ -9,7 +9,7 @@ import pytest
 
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
-from plottr.data.datadict import MeshgridDataDict, DataDict, datadict_to_meshgrid
+from plottr.data.datadict import MeshgridDataDict, DataDict, DataDictBase, datadict_to_meshgrid
 
 
 def make_asymmetric_meshgrid():
@@ -355,3 +355,144 @@ class TestComplexMode1D:
         assert len(result) == 2
         np.testing.assert_array_almost_equal(result[0].data[-1], np.abs(z))
         np.testing.assert_array_almost_equal(result[1].data[-1], np.angle(z))
+
+
+class TestSelectionButtons:
+    """Verify Select All / Deselect / 1D / 2D buttons in DataSelectionWidget."""
+
+    def _make_mixed_dataset(self):
+        """Dataset with 1D and 2D dependents."""
+        dd = DataDictBase(
+            trace1d=dict(values=np.arange(10.0), axes=['x']),
+            trace1d_b=dict(values=np.arange(10.0), axes=['x']),
+            x=dict(values=np.arange(10.0)),
+            map2d=dict(values=np.arange(20.0), axes=['x', 'y']),
+            map2d_b=dict(values=np.arange(20.0), axes=['x', 'y']),
+            y=dict(values=np.arange(20.0)),
+        )
+        return dd
+
+    def test_select_all(self, qtbot):
+        """Select All selects all dependents."""
+        from plottr.gui.data_display import DataSelectionWidget
+        w = DataSelectionWidget()
+        qtbot.addWidget(w)
+        dd = self._make_mixed_dataset()
+        w.setData(dd, dd.shapes())
+
+        w.selectAll()
+        selected = w.getSelectedData()
+        assert set(selected) == set(dd.dependents())
+
+    def test_deselect_all(self, qtbot):
+        """Deselect All clears selection."""
+        from plottr.gui.data_display import DataSelectionWidget
+        w = DataSelectionWidget()
+        qtbot.addWidget(w)
+        dd = self._make_mixed_dataset()
+        w.setData(dd, dd.shapes())
+
+        w.selectAll()
+        assert len(w.getSelectedData()) > 0
+        w.deselectAll()
+        assert w.getSelectedData() == []
+
+    def test_select_1d(self, qtbot):
+        """Select 1D selects only 1D dependents."""
+        from plottr.gui.data_display import DataSelectionWidget
+        w = DataSelectionWidget()
+        qtbot.addWidget(w)
+        dd = self._make_mixed_dataset()
+        w.setData(dd, dd.shapes())
+
+        w.selectByNdims(1)
+        selected = w.getSelectedData()
+        for name in selected:
+            assert len(dd.axes(name)) == 1, f"{name} is not 1D"
+        # Should have both 1D traces
+        assert 'trace1d' in selected
+        assert 'trace1d_b' in selected
+        # Should NOT have 2D maps
+        assert 'map2d' not in selected
+        assert 'map2d_b' not in selected
+
+    def test_select_2d(self, qtbot):
+        """Select 2D selects only 2D dependents."""
+        from plottr.gui.data_display import DataSelectionWidget
+        w = DataSelectionWidget()
+        qtbot.addWidget(w)
+        dd = self._make_mixed_dataset()
+        w.setData(dd, dd.shapes())
+
+        w.selectByNdims(2)
+        selected = w.getSelectedData()
+        for name in selected:
+            assert len(dd.axes(name)) == 2, f"{name} is not 2D"
+        assert 'map2d' in selected
+        assert 'map2d_b' in selected
+        assert 'trace1d' not in selected
+
+    def test_select_resets_previous(self, qtbot):
+        """Select 1D/2D resets any existing selection."""
+        from plottr.gui.data_display import DataSelectionWidget
+        w = DataSelectionWidget()
+        qtbot.addWidget(w)
+        dd = self._make_mixed_dataset()
+        w.setData(dd, dd.shapes())
+
+        w.selectAll()
+        assert len(w.getSelectedData()) == len(dd.dependents())
+        w.selectByNdims(1)
+        selected = w.getSelectedData()
+        # Should ONLY have 1D, not 2D from previous selectAll
+        for name in selected:
+            assert len(dd.axes(name)) == 1
+
+    def test_has_dependents_with_ndims(self, qtbot):
+        """has_dependents_with_ndims correctly reports dimensions."""
+        from plottr.gui.data_display import DataSelectionWidget
+        w = DataSelectionWidget()
+        qtbot.addWidget(w)
+        dd = self._make_mixed_dataset()
+        w.setData(dd, dd.shapes())
+
+        assert w.has_dependents_with_ndims(1)
+        assert w.has_dependents_with_ndims(2)
+        assert not w.has_dependents_with_ndims(3)
+
+    def test_only_1d_dataset(self, qtbot):
+        """Dataset with only 1D deps: 2D button should report no 2D."""
+        from plottr.gui.data_display import DataSelectionWidget
+        w = DataSelectionWidget()
+        qtbot.addWidget(w)
+        dd = DataDictBase(
+            y=dict(values=np.arange(10.0), axes=['x']),
+            x=dict(values=np.arange(10.0)),
+        )
+        w.setData(dd, dd.shapes())
+
+        assert w.has_dependents_with_ndims(1)
+        assert not w.has_dependents_with_ndims(2)
+
+    def test_batch_selection_emits_single_signal(self, qtbot):
+        """Batch selection should emit only one signal, not per-item."""
+        from plottr.gui.data_display import DataSelectionWidget
+        w = DataSelectionWidget()
+        qtbot.addWidget(w)
+        dd = self._make_mixed_dataset()
+        w.setData(dd, dd.shapes())
+
+        signal_count = [0]
+        w.dataSelectionMade.connect(lambda _: signal_count.__setitem__(0, signal_count[0] + 1))
+
+        w.selectAll()
+        assert signal_count[0] == 1, f"Expected 1 signal, got {signal_count[0]}"
+
+    def test_select_all_on_empty_dataset(self, qtbot):
+        """Select All on empty dataset should not crash."""
+        from plottr.gui.data_display import DataSelectionWidget
+        w = DataSelectionWidget()
+        qtbot.addWidget(w)
+        w.setData(DataDictBase(), {})
+        w.selectAll()
+        assert w.getSelectedData() == []

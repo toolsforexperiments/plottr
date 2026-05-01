@@ -526,13 +526,14 @@ class DataDictBase(dict):
         if name not in self:
             raise ValueError("No field '{}' present.".format(name))
 
-        if self[name]['label'] != '':
-            n = self[name]['label']
-        else:
+        field = self[name]
+        n = field.get('label', '') or name
+        if n == '':
             n = name
 
-        if self[name]['unit'] != '':
-            n += ' ({})'.format(self[name]['unit'])
+        unit = field.get('unit', '')
+        if unit:
+            n += ' ({})'.format(unit)
 
         return n
 
