@@ -7,7 +7,7 @@ import sys
 import numpy as np
 import pyqtgraph as pg
 
-from plottr import QtWidgets, QtGui, QtCore
+from plottr import QtWidgets, QtCore
 from plottr.gui.tools import widgetDialog
 
 pg.setConfigOption('background', 'w')

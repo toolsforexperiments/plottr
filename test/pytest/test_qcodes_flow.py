@@ -4,7 +4,6 @@ import qcodes as qc
 from numpy.testing import assert_array_equal
 
 
-from plottr.data.datadict import DataDict
 from plottr.node.tools import linearFlowchart
 from plottr.data.qcodes_dataset import QCodesDSLoader
 from plottr.node.data_selector import DataSelector

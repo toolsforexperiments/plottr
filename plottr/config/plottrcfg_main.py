@@ -1,5 +1,4 @@
 from matplotlib.rcsetup import cycler
-from plottr.plot.pyqtgraph.autoplot import AutoPlot as PGAutoPlot
 from plottr.plot.mpl.autoplot import AutoPlot as MPLAutoPlot
 
 config = {

@@ -19,7 +19,7 @@ from pathlib import Path
 from typing import Dict, Union, Any, Callable, Tuple, Optional
 
 from traceback import print_exception
-from plottr import QtCore, QtWidgets, QtGui, Flowchart, Signal, Slot, log, qtapp, qtsleep, plottrPath
+from plottr import QtCore, QtWidgets, QtGui, Flowchart, Signal, Slot, log, qtsleep, plottrPath
 from plottr.gui.widgets import PlotWindow
 
 

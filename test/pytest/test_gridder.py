@@ -1,9 +1,8 @@
 import numpy as np
 
-from plottr.data.datadict import MeshgridDataDict, DataDict
+from plottr.data.datadict import DataDict
 from plottr.node.tools import linearFlowchart
 from plottr.node.grid import DataGridder, GridOption
-from plottr.utils import testdata
 from plottr.utils import num
 
 

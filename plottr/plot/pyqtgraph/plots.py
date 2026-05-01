@@ -1,7 +1,7 @@
 """Convenience tools for generating ``pyqtgraph`` plots that can
 be used in plottr's automatic plotting framework."""
 
-from typing import Optional, Tuple, NoReturn
+from typing import Optional, Tuple
 
 import numpy as np
 import pyqtgraph as pg
