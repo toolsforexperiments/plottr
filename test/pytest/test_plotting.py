@@ -61,7 +61,8 @@ class TestAxisOrientation:
         plot = PlotWithColorbar()
         qtbot.addWidget(plot)
         plot.setImage(xx, yy, zz)
-        assert plot.img.image.shape == (5, 3)
+        # z is transposed for display: input (5, 3) → ImageItem (3, 5)
+        assert plot.img.image.shape == (3, 5)
 
     def test_pyqtgraph_image_rect(self, qtbot):
         from plottr.plot.pyqtgraph.plots import PlotWithColorbar
@@ -85,7 +86,7 @@ class TestAxisOrientation:
         plot = PlotWithColorbar()
         qtbot.addWidget(plot)
         plot.setImage(xx, yy, zz)
-        assert plot.img.image.shape == (5, 3)
+        assert plot.img.image.shape == (3, 5)  # transposed
 
     def test_mpl_and_pyqtgraph_consistency(self, qtbot):
         _, xx, yy, zz = _make_asymmetric_meshgrid()

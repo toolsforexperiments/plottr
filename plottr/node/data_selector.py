@@ -46,10 +46,6 @@ class DataDisplayWidget(NodeWidget):
         self._selectAllBtn.clicked.connect(self._onSelectAll)
         btnLayout.addWidget(self._selectAllBtn)
 
-        self._deselectAllBtn = QtWidgets.QPushButton("Deselect all")
-        self._deselectAllBtn.clicked.connect(self._onDeselectAll)
-        btnLayout.addWidget(self._deselectAllBtn)
-
         self._select1dBtn = QtWidgets.QPushButton("Select all 1D")
         self._select1dBtn.clicked.connect(self._onSelect1D)
         btnLayout.addWidget(self._select1dBtn)
@@ -67,10 +63,6 @@ class DataDisplayWidget(NodeWidget):
     def _onSelectAll(self) -> None:
         assert self.widget is not None
         self.widget.selectAll()
-
-    def _onDeselectAll(self) -> None:
-        assert self.widget is not None
-        self.widget.deselectAll()
 
     def _onSelect1D(self) -> None:
         assert self.widget is not None

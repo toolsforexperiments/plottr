@@ -139,8 +139,11 @@ class DataSelectionWidget(QtWidgets.QTreeWidget):
         self.setBatchSelectedData(enabled)
 
     def deselectAll(self) -> None:
-        """Deselect all fields. Single signal emission."""
-        self.setBatchSelectedData([])
+        """Clear selection. Selects the first dependent to ensure the plot
+        always has something to display (pyqtgraph flowchart does not
+        propagate empty selection downstream)."""
+        deps = list(self.dataItems.keys())
+        self.setBatchSelectedData(deps[:1] if deps else [])
 
     def selectByNdims(self, ndims: int) -> None:
         """Select all dependents with exactly *ndims* independent axes.
