@@ -108,11 +108,10 @@ module = [
 ]
 ignore_missing_imports = true
 
-# These modules contain type: ignore comments that are needed by
-# PyQt5-stubs (CI) but unused with PyQt6 (or vice versa).
+# These modules contain type: ignore comments that may be unused
+# depending on the Qt stubs version installed.
 [[tool.mypy.overrides]]
 module = [
-    "plottr.apps.inspectr",
     "plottr.node.autonode",
     "plottr.node.scaleunits",
 ]
