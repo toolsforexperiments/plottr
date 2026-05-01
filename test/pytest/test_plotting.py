@@ -66,7 +66,7 @@ class TestAxisOrientation:
 
     def test_pyqtgraph_image_rect(self, qtbot):
         from plottr.plot.pyqtgraph.plots import PlotWithColorbar
-        from PyQt6 import QtCore
+        from plottr import QtCore
         _, xx, yy, zz = _make_asymmetric_meshgrid()
         plot = PlotWithColorbar()
         qtbot.addWidget(plot)
@@ -300,7 +300,7 @@ class TestPyqtgraphComplexModes:
         actions = toolbar.actions()
         for a in actions:
             widget = toolbar.widgetForAction(a)
-            if isinstance(widget, __import__('PyQt6').QtWidgets.QToolButton):
+            if isinstance(widget, __import__('plottr').QtWidgets.QToolButton):
                 menu = widget.menu()
                 if menu is not None:
                     return [ma.text() for ma in menu.actions()]
