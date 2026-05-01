@@ -312,3 +312,135 @@ def test_update_qcloader(qtbot, empty_db_path):
     #         break
     #     check()
     # check()
+
+
+# -- Records counter tests (qcodes_db_overview) --
+
+def _make_qcodes_db_with_runs(db_path: str, n_runs: int = 1) -> str:
+    """Helper: create a QCodes DB with n_runs simple numeric datasets."""
+    from qcodes.parameters import ParamSpecBase
+    from qcodes.dataset.descriptions.dependencies import InterDependencies_
+
+    initialise_or_create_database_at(db_path)
+    exp = load_or_create_experiment("test_exp", sample_name="test_sample")
+    p_x = ParamSpecBase("x", "numeric")
+    p_y = ParamSpecBase("y", "numeric")
+    interdeps = InterDependencies_(dependencies={p_y: (p_x,)})
+
+    for r in range(n_runs):
+        ds = qc.new_data_set(f"run_{r + 1}")
+        ds.set_interdependencies(interdeps)
+        ds.mark_started()
+        for i in range(10):
+            ds.add_results([{p_x.name: float(i), p_y.name: float(i ** 2)}])
+        ds.mark_completed()
+    return db_path
+
+
+class TestRecordsCounter:
+    """Verify records counter shows actual data point count."""
+
+    def test_counts_result_rows(self, tmp_path):
+        """Overview should count rows from the results table."""
+        import sqlite3
+        from plottr.data.qcodes_db_overview import get_db_overview
+
+        db_path = str(tmp_path / "test.db")
+        _make_qcodes_db_with_runs(db_path, n_runs=3)
+        overview = get_db_overview(db_path)
+        conn = sqlite3.connect(db_path)
+
+        for run_id, info in overview.items():
+            row = conn.execute(
+                "SELECT result_table_name FROM runs WHERE run_id=?",
+                (run_id,)
+            ).fetchone()
+            if row and row[0]:
+                try:
+                    actual = conn.execute(
+                        f'SELECT COUNT(*) FROM "{row[0]}"'
+                    ).fetchone()[0]
+                except Exception:
+                    continue
+                assert info['records'] == actual, \
+                    f"Run {run_id}: overview={info['records']}, actual={actual}"
+        conn.close()
+
+    def test_records_from_shapes(self):
+        """Shape info in run_description should produce correct count."""
+        import json
+        from plottr.data.qcodes_db_overview import _records_from_run_description
+
+        desc = json.dumps({"version": 3, "shapes": {"dep1": [100, 50]}})
+        assert _records_from_run_description(desc) == 5000
+        assert _records_from_run_description(json.dumps({"version": 3})) == 0
+        assert _records_from_run_description(None) == 0
+        assert _records_from_run_description("") == 0
+
+
+# -- Dataset refresh tests (inspectr incremental load) --
+
+class TestDatasetRefresh:
+    """Verify incremental DB refresh detects new runs."""
+
+    def test_incremental_overview(self, tmp_path):
+        """get_db_overview with start_run_id should find newly added runs."""
+        from plottr.data.qcodes_db_overview import get_db_overview
+        from qcodes.parameters import ParamSpecBase
+        from qcodes.dataset.descriptions.dependencies import InterDependencies_
+
+        db_path = str(tmp_path / "test.db")
+        _make_qcodes_db_with_runs(db_path, n_runs=2)
+
+        assert set(get_db_overview(db_path).keys()) == {1, 2}
+        assert len(get_db_overview(db_path, start_run_id=2)) == 0
+
+        # Add a third run
+        initialise_or_create_database_at(db_path)
+        exp = load_or_create_experiment("test_exp2", sample_name="s2")
+        p_x = ParamSpecBase("x", "numeric")
+        p_y = ParamSpecBase("y", "numeric")
+        interdeps = InterDependencies_(dependencies={p_y: (p_x,)})
+        ds = qc.new_data_set("run_3")
+        ds.set_interdependencies(interdeps)
+        ds.mark_started()
+        ds.add_results([{p_x.name: 1.0, p_y.name: 2.0}])
+        ds.mark_completed()
+
+        assert 3 in get_db_overview(db_path, start_run_id=2)
+
+    def test_inspectr_refresh(self, qtbot, tmp_path):
+        """QCodesDBInspector.refreshDB should detect new runs."""
+        import os
+        os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
+        from plottr.apps.inspectr import QCodesDBInspector
+        from qcodes.parameters import ParamSpecBase
+        from qcodes.dataset.descriptions.dependencies import InterDependencies_
+
+        db_path = str(tmp_path / "test.db")
+        _make_qcodes_db_with_runs(db_path, n_runs=1)
+
+        inspector = QCodesDBInspector(dbPath=db_path)
+        qtbot.addWidget(inspector)
+
+        def initial_load_done():
+            return inspector.dbdf is not None and inspector.dbdf.size > 0
+        qtbot.waitUntil(initial_load_done, timeout=5000)
+        assert list(inspector.dbdf.index) == [1]
+
+        # Add run 2
+        initialise_or_create_database_at(db_path)
+        p_x = ParamSpecBase("x", "numeric")
+        p_y = ParamSpecBase("y", "numeric")
+        interdeps = InterDependencies_(dependencies={p_y: (p_x,)})
+        ds = qc.new_data_set("run_2")
+        ds.set_interdependencies(interdeps)
+        ds.mark_started()
+        ds.add_results([{p_x.name: 1.0, p_y.name: 2.0}])
+        ds.mark_completed()
+
+        inspector.refreshDB()
+        def refresh_done():
+            return (inspector.dbdf is not None and 2 in inspector.dbdf.index)
+        qtbot.waitUntil(refresh_done, timeout=5000)
+        assert 2 in inspector.dbdf.index

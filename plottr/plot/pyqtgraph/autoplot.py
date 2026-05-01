@@ -82,7 +82,19 @@ class FigureWidget(QtWidgets.QWidget):
     def _arrangeGrid(self, min_plot_height: Optional[int] = None) -> None:
         """Arrange subplots on a near-square grid, matching matplotlib's layout."""
         n = len(self.subPlots)
+
+        # Remove existing items before re-adding to avoid stale layout entries
+        while self._gridLayout.count():
+            self._gridLayout.takeAt(0)
+
+        # Reset all row/column stretches from previous arrangement
+        for r in range(self._gridLayout.rowCount()):
+            self._gridLayout.setRowStretch(r, 0)
+        for c in range(self._gridLayout.columnCount()):
+            self._gridLayout.setColumnStretch(c, 0)
+
         if n == 0:
+            self._gridWidget.setMinimumHeight(0)
             return
 
         if min_plot_height is None:
@@ -92,10 +104,6 @@ class FigureWidget(QtWidgets.QWidget):
         ncols = max(1, int(np.ceil(n / nrows)))
 
         self._gridWidget.setMinimumHeight(nrows * min_plot_height)
-
-        # Remove existing items before re-adding to avoid stale layout entries
-        while self._gridLayout.count():
-            self._gridLayout.takeAt(0)
 
         for i, plot in enumerate(self.subPlots):
             row = i // ncols

@@ -370,6 +370,7 @@ class AutoPlot(MPLPlotWidget):
 
         self.plotDataType = PlotDataType.unknown
         self.plotType = PlotType.empty
+        self._inSetData = False
 
         # The default complex behavior is set here.
         self.complexRepresentation = ComplexRepresentation.realAndImag
@@ -408,15 +409,12 @@ class AutoPlot(MPLPlotWidget):
         """
         super().setData(data)
         self.plotDataType = determinePlotDataType(data)
-        # Block toolbar signals while updating options to avoid double-replot.
-        # _processPlotTypeOptions/Complex emit signals that trigger _plotData
-        # via toolbar slots — we only want one _plotData call at the end.
-        self.plotOptionsToolBar.blockSignals(True)
-        try:
-            self._processPlotTypeOptions()
-            self._processComplexTypeOptions()
-        finally:
-            self.plotOptionsToolBar.blockSignals(False)
+        # Flag to suppress redundant _plotData calls from toolbar signals
+        # triggered by _processPlotTypeOptions / _processComplexTypeOptions.
+        self._inSetData = True
+        self._processPlotTypeOptions()
+        self._processComplexTypeOptions()
+        self._inSetData = False
         self._plotData()
 
     def _processPlotTypeOptions(self) -> None:
@@ -459,13 +457,15 @@ class AutoPlot(MPLPlotWidget):
     def _plotTypeFromToolBar(self, plotType: PlotType) -> None:
         if plotType is not self.plotType:
             self.plotType = plotType
-            self._plotData()
+            if not self._inSetData:
+                self._plotData()
 
     @Slot(ComplexRepresentation)
     def _complexPreferenceFromToolBar(self, complexRepresentation: ComplexRepresentation) -> None:
         if complexRepresentation is not self.complexRepresentation:
             self.complexRepresentation = complexRepresentation
-            self._plotData()
+            if not self._inSetData:
+                self._plotData()
 
     @Slot()
     def _scrollableFromToolBar(self) -> None:
