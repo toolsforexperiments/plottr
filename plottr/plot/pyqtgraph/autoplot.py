@@ -352,6 +352,9 @@ class AutoPlot(PlotWidget):
         """
         super().setData(data)
         if self.data is None:
+            if self.fmWidget is not None:
+                self.fmWidget.deleteAllPlots()
+                self.fmWidget._arrangeGrid()
             return
 
         fmKwargs = {}  # {'widget': self.fmWidget}

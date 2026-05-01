@@ -36,6 +36,7 @@ class PlotBase(QtWidgets.QWidget):
 
         #: ``pyqtgraph`` plot item
         self.plot: pg.PlotItem = self.graphicsLayout.addPlot()
+        self.setMinimumSize(40, 40)
 
     def clearPlot(self) -> None:
         """Clear all plot contents (but do not delete plot elements, like axis

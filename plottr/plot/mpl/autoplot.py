@@ -408,6 +408,10 @@ class AutoPlot(MPLPlotWidget):
         :param data: input data
         """
         super().setData(data)
+        if data is None:
+            self.plot.fig.clear()
+            self.updatePlot()
+            return
         self.plotDataType = determinePlotDataType(data)
         # Flag to suppress redundant _plotData calls from toolbar signals
         # triggered by _processPlotTypeOptions / _processComplexTypeOptions.
