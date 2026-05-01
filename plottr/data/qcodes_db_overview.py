@@ -10,6 +10,7 @@ enumeration.
 stable QCoDeS database schema (runs + experiments tables) which has not changed
 across many QCoDeS versions.
 """
+import json
 import sys
 import time
 import logging
@@ -21,6 +22,37 @@ from typing_extensions import TypedDict
 from qcodes.dataset.sqlite.database import conn_from_dbpath_or_conn
 
 logger = logging.getLogger(__name__)
+
+
+def _records_from_run_description(run_description_json: Optional[str]) -> int:
+    """Extract record count from run_description shapes field.
+
+    QCoDeS run_description may contain a ``shapes`` dict mapping dependent
+    parameter names to their shape tuples.  The total data-point count is the
+    product of shape dimensions summed across all parameter trees — matching
+    the semantics of ``DataSet.number_of_results``.
+    """
+    if not run_description_json:
+        return 0
+    try:
+        desc = json.loads(run_description_json)
+        shapes = desc.get('shapes')
+        if not shapes:
+            return 0
+        total = 0
+        for shape in shapes.values():
+            if isinstance(shape, (list, tuple)) and len(shape) > 0:
+                n = 1
+                for dim in shape:
+                    n *= dim
+                # Each parameter tree contributes n_values * n_params_in_tree
+                # But shapes only has dependent params, and number_of_results
+                # counts all values including axes. For display purposes,
+                # the product of the shape is the most useful number.
+                total += n
+        return total
+    except (json.JSONDecodeError, TypeError, KeyError):
+        return 0
 
 
 class RunOverviewDict(TypedDict):
@@ -86,12 +118,14 @@ def get_db_overview(db_path: str,
         has_inspectr_tag = 'inspectr_tag' in col_names
 
         # Build query: include inspectr_tag column if it exists.
-        # Deliberately excludes snapshot and run_description (large blobs).
+        # Includes run_description to extract shape info for record count.
+        # Deliberately excludes snapshot (large blob).
         tag_col = ", r.inspectr_tag" if has_inspectr_tag else ""
         query = f"""
             SELECT r.run_id, e.name, e.sample_name, r.name,
                    r.run_timestamp, r.completed_timestamp,
-                   r.result_counter, r.guid, r.result_table_name{tag_col}
+                   r.result_counter, r.guid, r.result_table_name,
+                   r.run_description{tag_col}
             FROM runs r
             JOIN experiments e ON r.exp_id = e.exp_id
             WHERE r.run_id > ?
@@ -108,7 +142,6 @@ def get_db_overview(db_path: str,
         # result_counter in the runs table counts INSERT calls, not data points.
         # For array paramtype one INSERT can contain thousands of data points,
         # so result_counter can be much smaller than the real data point count.
-        # We query the actual row count from each results table.
         results_tables: set[str] = set()
         for row in rows:
             tbl = row[8]  # result_table_name
@@ -124,14 +157,21 @@ def get_db_overview(db_path: str,
             except Exception:
                 pass  # table may not exist (e.g., qdwsdk downloads)
 
-        tag_col_idx = 9 if has_inspectr_tag else -1
+        tag_col_idx = 10 if has_inspectr_tag else -1
         for row in rows:
             run_id = row[0]
             started_date, started_time = _format_timestamp(row[4])
             completed_date, completed_time = _format_timestamp(row[5])
             tag = row[tag_col_idx] if tag_col_idx > 0 and len(row) > tag_col_idx and row[tag_col_idx] else ''
             result_table = row[8] or ''
-            records = row_counts.get(result_table, row[6] or 0)
+
+            # Determine record count: prefer results table row count,
+            # then try shape info from run_description, then result_counter.
+            records = row_counts.get(result_table, 0)
+            if records == 0:
+                records = _records_from_run_description(row[9])
+            if records == 0:
+                records = row[6] or 0
 
             overview[run_id] = RunOverviewDict(
                 run_id=run_id,

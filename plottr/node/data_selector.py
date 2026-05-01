@@ -61,8 +61,8 @@ class DataDisplayWidget(NodeWidget):
         btnLayout.addStretch()
 
         layout = self.layout()
-        assert layout is not None
-        layout.addItem(btnLayout)
+        assert isinstance(layout, QtWidgets.QVBoxLayout)
+        layout.addLayout(btnLayout)
 
     def _onSelectAll(self) -> None:
         assert self.widget is not None

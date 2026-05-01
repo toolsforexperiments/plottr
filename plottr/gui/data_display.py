@@ -26,6 +26,7 @@ class DataSelectionWidget(QtWidgets.QTreeWidget):
         self._dataStructure = DataDictBase()
         self._dataShapes: Dict[str, Tuple[int, ...]] = {}
         self._readonly = readonly
+        self._batchUpdate = False
 
         self.setSelectionMode(self.MultiSelection)
         self.itemSelectionChanged.connect(self.emitSelection)
@@ -111,22 +112,35 @@ class DataSelectionWidget(QtWidgets.QTreeWidget):
         return ret
 
     def setSelectedData(self, vals: List[str]) -> None:
-        """select all given items, uncheck all others.
-        Emits a single selection signal after all items are updated."""
-        self.blockSignals(True)
+        """select all given items, uncheck all others."""
         for n, w in self.dataItems.items():
             w.setSelected(n in vals)
-        self.blockSignals(False)
-        self.emitSelection()
+
+    def setBatchSelectedData(self, vals: List[str]) -> None:
+        """Batch-select items with a single signal emission.
+
+        Used by select-all / 1D / 2D buttons to avoid per-item replot.
+        """
+        if self._batchUpdate:
+            return
+        self._batchUpdate = True
+        try:
+            self.blockSignals(True)
+            for n, w in self.dataItems.items():
+                w.setSelected(n in vals)
+            self.blockSignals(False)
+            self.dataSelectionMade.emit(self.getSelectedData())
+        finally:
+            self._batchUpdate = False
 
     def selectAll(self) -> None:
         """Select all enabled dependent fields. Single signal emission."""
         enabled = [n for n, w in self.dataItems.items() if not w.isDisabled()]
-        self.setSelectedData(enabled)
+        self.setBatchSelectedData(enabled)
 
     def deselectAll(self) -> None:
         """Deselect all fields. Single signal emission."""
-        self.setSelectedData([])
+        self.setBatchSelectedData([])
 
     def selectByNdims(self, ndims: int) -> None:
         """Select all dependents with exactly *ndims* independent axes.
@@ -135,7 +149,7 @@ class DataSelectionWidget(QtWidgets.QTreeWidget):
                     if self._ndims(n) == ndims
                     and n in self.dataItems
                     and not self.dataItems[n].isDisabled()]
-        self.setSelectedData(matching)
+        self.setBatchSelectedData(matching)
 
     def has_dependents_with_ndims(self, ndims: int) -> bool:
         """Check if the dataset has any dependent with exactly *ndims* axes."""
