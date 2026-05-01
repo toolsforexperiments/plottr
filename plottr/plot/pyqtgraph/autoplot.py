@@ -102,6 +102,12 @@ class FigureWidget(QtWidgets.QWidget):
             col = i % ncols
             self._gridLayout.addWidget(plot, row, col)
 
+        # Set equal stretch so all rows/columns get the same space
+        for r in range(nrows):
+            self._gridLayout.setRowStretch(r, 1)
+        for c in range(ncols):
+            self._gridLayout.setColumnStretch(c, 1)
+
     def setScrollable(self, scrollable: bool) -> None:
         """Enable or disable scroll area around the plot grid."""
         if scrollable:
@@ -387,6 +393,7 @@ class AutoPlot(PlotWidget):
 
         #update FigOptions numAxes and imagData
         self.figOptions.numAxes = len(inds)
+        self.figOptions.imagData = False
 
         #define imagData for single and multiple value data
         for val in dvals:
