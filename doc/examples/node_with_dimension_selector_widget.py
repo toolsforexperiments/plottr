@@ -10,9 +10,8 @@ This example does the following:
 from typing import List, Optional
 from pprint import pprint
 
-import numpy as np
 
-from plottr import QtCore, QtWidgets, Signal, Slot
+from plottr import QtWidgets
 from plottr.data import DataDict
 from plottr.node.node import Node, NodeWidget, updateOption, updateGuiQuietly
 from plottr.node.tools import linearFlowchart

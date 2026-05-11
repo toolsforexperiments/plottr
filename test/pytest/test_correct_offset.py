@@ -1,6 +1,6 @@
 import numpy as np
 
-from plottr.data.datadict import MeshgridDataDict, DataDict
+from plottr.data.datadict import MeshgridDataDict
 from plottr.node.tools import linearFlowchart
 from plottr.node.filter.correct_offset import SubtractAverage
 from plottr.utils import num

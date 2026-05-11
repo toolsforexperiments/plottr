@@ -1,11 +1,9 @@
 """plottr.monitr -- a GUI tool for monitoring data files."""
 
-import copy
 import sys
 import os
 import argparse
 import time
-import importlib
 
 # Uncomment the next 2 lines if the app suddenly crash with no error.
 # import cgitb
@@ -17,7 +15,6 @@ import pprint
 import json
 from enum import Enum, auto
 from pathlib import Path
-from multiprocessing import Process
 from typing import (
     List,
     Optional,
@@ -25,7 +22,6 @@ from typing import (
     Any,
     Union,
     Generator,
-    Iterable,
     Tuple,
     Sequence,
     cast,
@@ -35,14 +31,12 @@ from itertools import cycle
 
 from watchdog.events import FileSystemEvent, FileSystemMovedEvent
 
-from .. import log as plottrlog
 from .. import QtCore, QtWidgets, Signal, Slot, QtGui, plottrPath
 from .. import config_entry as getcfg
 from ..plot.mpl.autoplot import AutoPlot as MPLAutoPlot
 from ..plot.pyqtgraph.autoplot import AutoPlot as PGAutoPlot
-from ..data.datadict_storage import all_datadicts_from_hdf5, datadict_from_hdf5
+from ..data.datadict_storage import datadict_from_hdf5
 from ..data.datadict import DataDict
-from ..utils.misc import unwrap_optional
 from ..apps.watchdog_classes import WatcherClient
 from ..gui.widgets import Collapsible
 from .json_viewer import JsonModel, JsonTreeView

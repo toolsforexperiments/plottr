@@ -5,7 +5,6 @@ A node and widget for subselecting from a dataset.
 """
 from typing import List, Tuple, Dict, Any, Sequence, Optional
 
-import numpy as np
 
 from .node import Node, NodeWidget, updateOption
 from ..data.datadict import DataDictBase, DataDict

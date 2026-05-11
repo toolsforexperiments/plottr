@@ -12,11 +12,7 @@ ipy.magic("matplotlib qt")
 from typing import Tuple
 
 import numpy as np
-from matplotlib import pyplot as plt
-from xhistogram.core import histogram
 
-from plottr.data.datadict import datadict_to_meshgrid
-from plottr.node.tools import linearFlowchart
 from plottr import Flowchart, QtCore
 from plottr.data import DataDict
 from plottr.apps.autoplot import AutoPlotMainWindow

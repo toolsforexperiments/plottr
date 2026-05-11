@@ -12,7 +12,7 @@ from typing import Any, Union, Tuple, Dict, Optional, Type, List, Callable, Type
 
 from .. import NodeBase
 from .. import QtGui, QtCore, Signal, Slot, QtWidgets
-from ..data.datadict import DataDictBase, MeshgridDataDict
+from ..data.datadict import DataDictBase
 from .. import log
 
 __author__ = 'Wolfgang Pfaff'

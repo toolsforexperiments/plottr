@@ -3,7 +3,6 @@
 Testing scripts for GUI elements for data display.
 """
 
-from plottr import QtWidgets
 from plottr.gui.tools import widgetDialog
 from plottr.gui.data_display import DataSelectionWidget
 from plottr.utils import testdata

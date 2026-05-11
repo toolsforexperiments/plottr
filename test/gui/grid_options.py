@@ -3,7 +3,6 @@
 Testing Widgets for the gridding node.
 """
 
-from plottr import QtGui
 from plottr.data.datadict import datadict_to_meshgrid
 from plottr.gui.tools import widgetDialog
 from plottr.node.grid import GridOptionWidget, ShapeSpecificationWidget, DataGridder, GridOption

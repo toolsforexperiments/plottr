@@ -1,5 +1,5 @@
 import os
-from plottr import QtGui, QtCore, plottrPath
+from plottr import QtGui, plottrPath
 
 gfxPath = os.path.join(plottrPath, 'resource', 'gfx')
 

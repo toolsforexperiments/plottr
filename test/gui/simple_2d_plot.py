@@ -3,7 +3,7 @@ import time
 
 from plottr import QtWidgets
 from plottr import log
-from plottr.data.datadict import DataDict, datadict_to_meshgrid
+from plottr.data.datadict import datadict_to_meshgrid
 from plottr.utils import testdata
 from plottr.gui import PlotWindow
 from plottr.plot.mpl import AutoPlot

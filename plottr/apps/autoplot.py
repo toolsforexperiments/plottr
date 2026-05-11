@@ -10,12 +10,11 @@ from typing import Union, Tuple, Optional, Type, List, Any, Type
 from packaging import version
 
 from .. import QtCore, Flowchart, Signal, Slot, QtWidgets, QtGui
-from .. import log as plottrlog
 from ..data.datadict import DataDictBase
 from ..data.datadict_storage import DDH5Loader
 from ..data.qcodes_dataset import QCodesDSLoader
 from ..gui import PlotWindow
-from ..gui.widgets import MonitorIntervalInput, SnapshotWidget
+from ..gui.widgets import MonitorIntervalInput
 from ..node.data_selector import DataSelector
 from ..node.dim_reducer import XYSelector
 from ..node.filter.correct_offset import SubtractAverage
