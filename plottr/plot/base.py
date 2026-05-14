@@ -9,17 +9,50 @@ from dataclasses import dataclass
 from enum import Enum, unique, auto
 from types import TracebackType
 from typing import Dict, List, Type, Tuple, Optional, Any, \
-    OrderedDict as OrderedDictType, Union
+    OrderedDict as OrderedDictType, Union, cast
 
 import numpy as np
 
-from .. import Signal, Flowchart, QtWidgets
+from .. import Signal, Flowchart, QtCore, QtWidgets
 from ..data.datadict import DataDictBase, DataDict, MeshgridDataDict
 from ..node import Node, linearFlowchart
 from ..utils import LabeledOptions
 
 __author__ = 'Wolfgang Pfaff'
 __license__ = 'MIT'
+
+
+class ClipboardMessageMixin:
+    """
+    Mixin for widgets that show a transient clipboard-feedback message
+    and revert to a hint message after a short timeout.
+
+    Subclasses must inherit from a ``QObject``, implement ``_displayMessage``
+    to render the text, and call ``_initClipboardMessage`` once in ``__init__``.
+    """
+
+    CLIPBOARD_MESSAGE_DURATION_MS = 1500
+    CLIPBOARD_HINT_MESSAGE = "Click on plot to copy coordinates"
+
+    def _initClipboardMessage(self) -> None:
+        self.clipboardMessageActive = False
+        # cast: subclasses are guaranteed to be QObjects (see docstring), but
+        # the mixin can't inherit from QObject without breaking Qt-binding portability.
+        self.clipboardResetTimer = QtCore.QTimer(cast(QtCore.QObject, self))
+        self.clipboardResetTimer.setSingleShot(True)
+        self.clipboardResetTimer.timeout.connect(self.clearClipboardMessage)
+
+    def _displayMessage(self, message: str) -> None:
+        raise NotImplementedError
+
+    def showClipboardMessage(self, message: str) -> None:
+        self.clipboardMessageActive = True
+        self._displayMessage(message)
+        self.clipboardResetTimer.start(self.CLIPBOARD_MESSAGE_DURATION_MS)
+
+    def clearClipboardMessage(self) -> None:
+        self.clipboardMessageActive = False
+        self._displayMessage(self.CLIPBOARD_HINT_MESSAGE)
 
 
 class PlotNode(Node):
