@@ -15,7 +15,7 @@ from matplotlib.backends.backend_qt5agg import (
 )
 from matplotlib.text import Text
 
-from plottr import QtWidgets, QtGui, QtCore, config as plottrconfig
+from plottr import QtWidgets, QtGui, QtCore, Signal, config as plottrconfig
 from plottr.data.datadict import DataDictBase
 from plottr.gui.tools import widgetDialog, dpiScalingFactor
 from ..base import PlotWidget, PlotWidgetContainer
@@ -61,7 +61,7 @@ class MPLPlot(FCanvas):
     """
 
     #: Signal(str) -- emitted when content is copied to the clipboard, with a message describing what was copied.
-    clipboardCopied = QtCore.Signal(str)
+    clipboardCopied = Signal(str)
 
     def __init__(self, parent: Optional[QtWidgets.QWidget] = None,
                  width: float = 4.0, height: float = 3.0, dpi: int = 150,
