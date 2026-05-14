@@ -21,6 +21,36 @@ from plottr.gui.tools import widgetDialog, dpiScalingFactor
 from ..base import PlotWidget, PlotWidgetContainer
 
 
+class MPLNavBar(NavBar):
+    """
+    Toolbar subclass that shows a hint when the mouse is outside the axes
+    and can pin a clipboard confirmation message, so hovering won't overwrite it
+    for a few seconds to make the message visible.
+    """
+
+    def __init__(self, canvas: FCanvas, parent: QtWidgets.QWidget):
+        self.clipboardMessageActive = False
+        self.hintMessage = "Click on plot to copy coordinates"
+        super().__init__(canvas, parent)
+        self.clipboardResetTimer = QtCore.QTimer(self)
+        self.clipboardResetTimer.setSingleShot(True)
+        self.clipboardResetTimer.timeout.connect(self.clearClipboardMessage)
+
+    def set_message(self, s: str) -> None:
+        if self.clipboardMessageActive:
+            return
+        super().set_message(s if s else self.hintMessage)
+
+    def showClipboardMessage(self, message: str) -> None:
+        self.clipboardMessageActive = True
+        super().set_message(message)
+        self.clipboardResetTimer.start(1500)
+
+    def clearClipboardMessage(self) -> None:
+        self.clipboardMessageActive = False
+        super().set_message(self.hintMessage)
+
+
 class MPLPlot(FCanvas):
     """
     This is the basic matplotlib canvas widget we are using for matplotlib
@@ -29,6 +59,9 @@ class MPLPlot(FCanvas):
     that comes with matplotlib (and which we inherit).
     It can be used as any QT widget.
     """
+
+    #: Signal(str) -- emitted when content is copied to the clipboard, with a message describing what was copied.
+    clipboardCopied = QtCore.Signal(str)
 
     def __init__(self, parent: Optional[QtWidgets.QWidget] = None,
                  width: float = 4.0, height: float = 3.0, dpi: int = 150,
@@ -117,12 +150,14 @@ class MPLPlot(FCanvas):
         clipboard = QtWidgets.QApplication.clipboard()
         clipboard.setImage(QtGui.QImage.fromData(buf.getvalue()))
         buf.close()
+        self.clipboardCopied.emit("Figure copied to clipboard")
 
     def metaToClipboard(self) -> None:
         clipboard = QtWidgets.QApplication.clipboard()
         meta_info_string = "\n".join(f"{k}: {v}"
                                      for k, v in self._meta_info.items())
         clipboard.setText(meta_info_string)
+        self.clipboardCopied.emit("Meta copied to clipboard")
 
     def coordinateToClipboard(self, event: Event) -> None:
         if isinstance(event, LocationEvent):
@@ -130,8 +165,7 @@ class MPLPlot(FCanvas):
             if event.xdata is not None and event.ydata is not None:
                 coord_info_string = '({:.8g}, {:.8g})'.format(event.xdata, event.ydata)
                 clipboard.setText(coord_info_string)
-            else:
-                pass
+                self.clipboardCopied.emit(f"Copied {coord_info_string} to clipboard")
 
     def setFigureTitle(self, title: str) -> None:
         """Add a title to the figure."""
@@ -163,7 +197,7 @@ class MPLPlotWidget(PlotWidget):
         self.plot = MPLPlot()
 
         #: the matplotlib toolbar
-        self.mplBar = NavBar(self.plot, self)
+        self.mplBar = MPLNavBar(self.plot, self)
 
         self.addMplBarOptions()
         defaultIconSize = int(16 * dpiScalingFactor(self))
@@ -171,6 +205,7 @@ class MPLPlotWidget(PlotWidget):
         layout = QtWidgets.QVBoxLayout(self)
         layout.addWidget(self.plot)
         layout.addWidget(self.mplBar)
+
         self.setLayout(layout)
         self.addPlotOptions()
 
@@ -206,10 +241,12 @@ class MPLPlotWidget(PlotWidget):
         self.mplBar.addSeparator()
         self.mplBar.addAction('Copy Figure', self.plot.toClipboard)
         self.mplBar.addAction('Copy Meta', self.plot.metaToClipboard)
-    
+
     def addPlotOptions(self) -> None:
         """Add options for copying coordinates to the clipboard"""
         self.plot.mpl_connect('button_press_event', self.plot.coordinateToClipboard)
+        self.plot.clipboardCopied.connect(self.mplBar.showClipboardMessage)
+        self.mplBar.clearClipboardMessage()
 
 
 def figureDialog() -> Tuple[Figure, QtWidgets.QDialog]:
@@ -219,4 +256,3 @@ def figureDialog() -> Tuple[Figure, QtWidgets.QDialog]:
     """
     widget = MPLPlotWidget()
     return widget.plot.fig, widgetDialog(widget)
-
