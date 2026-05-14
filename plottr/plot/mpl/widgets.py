@@ -8,7 +8,7 @@ from typing import Tuple, Optional, List, Dict
 from matplotlib import rcParams
 from matplotlib.axes import Axes
 from matplotlib.figure import Figure
-from matplotlib.backend_bases import LocationEvent, Event
+from matplotlib.backend_bases import LocationEvent, MouseButton, Event
 from matplotlib.backends.backend_qt5agg import (
     FigureCanvasQTAgg as FCanvas,
     NavigationToolbar2QT as NavBar,
@@ -18,10 +18,10 @@ from matplotlib.text import Text
 from plottr import QtWidgets, QtGui, QtCore, Signal, config as plottrconfig
 from plottr.data.datadict import DataDictBase
 from plottr.gui.tools import widgetDialog, dpiScalingFactor
-from ..base import PlotWidget, PlotWidgetContainer
+from ..base import PlotWidget, PlotWidgetContainer, ClipboardMessageMixin
 
 
-class MPLNavBar(NavBar):
+class MPLNavBar(ClipboardMessageMixin, NavBar):
     """
     Toolbar subclass that shows a hint when the mouse is outside the axes
     and can pin a clipboard confirmation message, so hovering won't overwrite it
@@ -29,26 +29,16 @@ class MPLNavBar(NavBar):
     """
 
     def __init__(self, canvas: FCanvas, parent: QtWidgets.QWidget):
-        self.clipboardMessageActive = False
-        self.hintMessage = "Click on plot to copy coordinates"
         super().__init__(canvas, parent)
-        self.clipboardResetTimer = QtCore.QTimer(self)
-        self.clipboardResetTimer.setSingleShot(True)
-        self.clipboardResetTimer.timeout.connect(self.clearClipboardMessage)
+        self._initClipboardMessage()
 
     def set_message(self, s: str) -> None:
         if self.clipboardMessageActive:
             return
-        super().set_message(s if s else self.hintMessage)
+        NavBar.set_message(self, s if s else self.CLIPBOARD_HINT_MESSAGE)
 
-    def showClipboardMessage(self, message: str) -> None:
-        self.clipboardMessageActive = True
-        super().set_message(message)
-        self.clipboardResetTimer.start(1500)
-
-    def clearClipboardMessage(self) -> None:
-        self.clipboardMessageActive = False
-        super().set_message(self.hintMessage)
+    def _displayMessage(self, message: str) -> None:
+        NavBar.set_message(self, message)
 
 
 class MPLPlot(FCanvas):
@@ -161,6 +151,8 @@ class MPLPlot(FCanvas):
 
     def coordinateToClipboard(self, event: Event) -> None:
         if isinstance(event, LocationEvent):
+            if getattr(event, 'button', None) != MouseButton.LEFT:
+                return
             clipboard = QtWidgets.QApplication.clipboard()
             if event.xdata is not None and event.ydata is not None:
                 coord_info_string = '({:.8g}, {:.8g})'.format(event.xdata, event.ydata)

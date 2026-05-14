@@ -23,7 +23,7 @@ from plottr.data.datadict import DataDictBase
 from .plots import Plot, PlotWithColorbar, PlotBase
 from ..base import AutoFigureMaker as BaseFM, PlotDataType, \
     PlotItem, ComplexRepresentation, determinePlotDataType, \
-    PlotWidgetContainer, PlotWidget
+    PlotWidgetContainer, PlotWidget, ClipboardMessageMixin
 
 logger = logging.getLogger(__name__)
 
@@ -249,7 +249,7 @@ class FigureMaker(BaseFM):
         subPlot.setScatter2d(*plotItem.data)
 
 
-class AutoPlot(PlotWidget):
+class AutoPlot(ClipboardMessageMixin, PlotWidget):
     """Widget for automatic plotting with pyqtgraph.
 
     Uses :class:`.FigureMaker` to produce subplots.
@@ -271,15 +271,10 @@ class AutoPlot(PlotWidget):
         layout.setContentsMargins(0, 0, 0, 0)
         layout.setSpacing(0)
 
-        self.statusLabel = QtWidgets.QLabel("Click on plot to copy coordinates")
+        self._initClipboardMessage()
+        self.statusLabel = QtWidgets.QLabel(self.CLIPBOARD_HINT_MESSAGE)
         self.statusLabel.setAlignment(QtCore.Qt.AlignCenter)
         self.statusLabel.setStyleSheet("color: gray;")
-
-        self.clipboardMessageActive = False
-        self.hintMessage = "Click on plot to copy coordinates"
-        self.clipboardResetTimer = QtCore.QTimer(self)
-        self.clipboardResetTimer.setSingleShot(True)
-        self.clipboardResetTimer.timeout.connect(self.clearClipboardMessage)
 
         self.setLayout(layout)
         self.setMinimumSize(*getcfg('main', 'pyqtgraph', 'minimum_plot_size',
@@ -371,18 +366,12 @@ class AutoPlot(PlotWidget):
     def _refreshPlot(self) -> None:
         self._plotData()
 
-    def showClipboardMessage(self, message: str) -> None:
-        self.clipboardMessageActive = True
+    def _displayMessage(self, message: str) -> None:
         self.statusLabel.setText(message)
-        self.clipboardResetTimer.start(1500)
-
-    def clearClipboardMessage(self) -> None:
-        self.clipboardMessageActive = False
-        self.statusLabel.setText(self.hintMessage)
 
     def setStatusMessage(self, message: str) -> None:
         if not self.clipboardMessageActive:
-            self.statusLabel.setText(message if message else self.hintMessage)
+            self.statusLabel.setText(message if message else self.CLIPBOARD_HINT_MESSAGE)
 
     def _connectPlotEvents(self, subplot: PlotBase) -> None:
         subplot.plot.scene().sigMouseMoved.connect(
@@ -402,6 +391,8 @@ class AutoPlot(PlotWidget):
             self.setStatusMessage('')
 
     def _onPlotClicked(self, subplot: PlotBase, event: Any) -> None:
+        if event.button() != QtCore.Qt.LeftButton:
+            return
         vb = subplot.plot.getViewBox()
         local = vb.mapFromScene(event.scenePos())
         if vb.boundingRect().contains(local):
