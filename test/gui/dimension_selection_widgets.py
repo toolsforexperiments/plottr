@@ -1,9 +1,7 @@
-import argparse
-from typing import Tuple
 
 from plottr import QtWidgets
 from plottr.data.datadict import str2dd
-from plottr.gui.widgets import AxisSelector, DependentSelector, DimensionSelector, \
+from plottr.gui.widgets import DimensionSelector, \
     MultiDimensionSelector
 from plottr.gui.tools import widgetDialog
 

@@ -9,7 +9,7 @@ from typing import Tuple, Dict, Any, List, Optional, Sequence, cast
 
 from typing_extensions import TypedDict
 
-from plottr import QtGui, Signal, Slot, QtWidgets
+from plottr import Signal, Slot, QtWidgets
 from .node import Node, NodeWidget, updateOption, updateGuiFromNode
 from ..data import datadict as dd
 from ..data.datadict import DataDict, MeshgridDataDict, DataDictBase, GriddingError

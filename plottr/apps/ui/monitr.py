@@ -1,7 +1,5 @@
 import os
-from enum import Enum
-from typing import List, Any, Optional, Dict, Sequence, Union
-from pprint import pprint
+from typing import List, Optional, Dict, Sequence, Union
 
 from plottr import QtCore, QtGui, QtWidgets, Slot, Signal
 from plottr.data.datadict import DataDict

@@ -7,9 +7,8 @@ import zmq
 
 from plottr.data.datadict import DataDictBase, DataDict
 from plottr.data.datadict_storage import datadict_to_hdf5
-from plottr import QtWidgets, QtCore, plottrPath
 from plottr.apps.appmanager import AppManager
-from plottr import qtapp, qtsleep
+from plottr import qtsleep
 
 # Module where the launching function lives.
 MODULE = 'plottr.apps.autoplot'

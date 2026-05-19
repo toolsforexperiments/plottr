@@ -1,19 +1,15 @@
 import sys
-import os
 import pkgutil
-import importlib
-from importlib import reload, import_module
-import warnings
-from typing import Dict, Optional, Type, Callable, Tuple, Any, List, Union
+from importlib import import_module
+from typing import Dict, Optional, Type, Tuple, Any, List, Union
 import inspect
 from dataclasses import dataclass
 import numbers
 from types import ModuleType
 
-import lmfit
 from lmfit import Parameter as lmParameter, Parameters as lmParameters
 
-from plottr import QtGui, QtCore, Slot, Signal, QtWidgets
+from plottr import QtCore, Slot, Signal, QtWidgets
 from plottr.analyzer import fitters
 from plottr.analyzer.fitters.fitter_base import Fit, FitResult
 

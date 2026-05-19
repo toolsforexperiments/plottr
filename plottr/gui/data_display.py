@@ -3,9 +3,9 @@
 UI elements for inspecting data structure and content.
 """
 
-from typing import Union, List, Tuple, Dict, Any, Optional
+from typing import List, Tuple, Dict, Any, Optional
 
-from .. import QtCore, QtWidgets, Signal, Slot
+from .. import QtWidgets, Signal, Slot
 from ..data.datadict import DataDictBase
 
 

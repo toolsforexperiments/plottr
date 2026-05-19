@@ -6,7 +6,7 @@
 #
 # WARNING! All changes made in this file will be lost!
 
-from plottr import QtCore, QtGui, QtWidgets
+from plottr import QtCore, QtWidgets
 
 class Ui_MainWindow(object):
     def setupUi(self, MainWindow: QtWidgets.QMainWindow) -> None:

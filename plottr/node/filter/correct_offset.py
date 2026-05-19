@@ -1,4 +1,4 @@
-from typing import Sequence, Optional, Dict
+from typing import Optional, Dict
 
 import numpy as np
 
