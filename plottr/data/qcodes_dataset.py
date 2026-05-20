@@ -298,13 +298,18 @@ def ds_to_datadicts(ds: 'DataSetProtocol') -> Dict[str, DataDict]:
     """
     Make DataDicts from a qcodes DataSet.
 
+    Parameters whose values are not present in the dataset's cache (e.g.,
+    when the underlying ``.nc`` file is missing or the dataset is metadata
+    only) are skipped rather than raising ``KeyError``.  This lets callers
+    handle "no data" gracefully (e.g., showing an empty plot or a status
+    message) instead of crashing.
+
     :param ds: qcodes dataset
-    :returns: dictionary with one item per dependent.
+    :returns: dictionary with one item per dependent that has data.
               key: name of the dependent
-              value: DataDict containing that dependent and its
-                     axes.
+              value: DataDict containing that dependent and its axes.
     """
-    ret = {}
+    ret: Dict[str, DataDict] = {}
     has_cache = hasattr(ds, 'cache')
     if has_cache:
         pdata = ds.cache.data()
@@ -312,15 +317,25 @@ def ds_to_datadicts(ds: 'DataSetProtocol') -> Dict[str, DataDict]:
         # qcodes < 0.17
         pdata = ds.get_parameter_data()
     for p, spec in ds.paramspecs.items():
-        if spec.depends_on != '':
-            axes = spec.depends_on_
-            data = dict()
-            data[p] = dict(unit=spec.unit, label=spec.label, axes=axes, values=pdata[p][p])
-            for ax in axes:
-                axspec = ds.paramspecs[ax]
-                data[ax] = dict(unit=axspec.unit, label=axspec.label, values=pdata[p][ax])
-            ret[p] = DataDict(**data)
-            ret[p].validate()
+        if spec.depends_on == '':
+            continue
+        # Skip dependents whose parameter tree isn't present in the cache
+        # (typically: metadata-only datasets whose .nc data file is missing).
+        if p not in pdata or p not in pdata[p]:
+            continue
+        axes = spec.depends_on_
+        # Skip if any required axis values are also missing
+        if any(ax not in pdata[p] for ax in axes):
+            continue
+        data: Dict[str, Any] = {}
+        data[p] = dict(unit=spec.unit, label=spec.label, axes=axes,
+                       values=pdata[p][p])
+        for ax in axes:
+            axspec = ds.paramspecs[ax]
+            data[ax] = dict(unit=axspec.unit, label=axspec.label,
+                            values=pdata[p][ax])
+        ret[p] = DataDict(**data)
+        ret[p].validate()
 
     return ret
 

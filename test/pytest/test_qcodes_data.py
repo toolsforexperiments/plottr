@@ -597,3 +597,96 @@ class TestBackendPersistence:
         inspector.plotBackendSelector.setCurrentText("matplotlib")
         assert _load_saved_backend() == "matplotlib"
 
+
+class TestNoDataAvailable:
+    """Verify that opening a dataset with no actual data
+    (e.g., metadata-only DB where the .nc file is missing)
+    shows a clear status message instead of an empty window."""
+
+    def _make_dataset_without_data(self, db_path: str) -> int:
+        """Create a qcodes dataset whose data file is then deleted,
+        leaving a metadata-only entry in the SQLite DB."""
+        import os
+        try:
+            from qcodes.parameters import ParamSpecBase
+        except ImportError:
+            from qcodes.dataset.descriptions.param_spec import ParamSpecBase
+        from qcodes.dataset.descriptions.dependencies import InterDependencies_
+
+        initialise_or_create_database_at(db_path)
+        load_or_create_experiment("metadata_only_exp", sample_name="s")
+        p_x = ParamSpecBase("x", "numeric")
+        p_y = ParamSpecBase("y", "numeric")
+        interdeps = InterDependencies_(dependencies={p_y: (p_x,)})
+
+        ds = qc.new_data_set("metadata_only_run")
+        ds.set_interdependencies(interdeps)
+        ds.mark_started()
+        # Don't add any results, mark as completed
+        ds.mark_completed()
+        run_id = ds.run_id
+
+        # Force a reload — load_dataset_from will see number_of_results == 0
+        return run_id
+
+    def test_ds_to_datadicts_skips_missing_params(self, tmp_path):
+        """ds_to_datadicts should not raise KeyError when cache is empty
+        or missing parameters (e.g., when the .nc data file is missing
+        for a metadata-only DB)."""
+        from plottr.data.qcodes_dataset import ds_to_datadicts
+        from qcodes.dataset.data_set import load_by_id
+        from unittest.mock import patch
+
+        db_path = str(tmp_path / "test.db")
+        run_id = self._make_dataset_without_data(db_path)
+        ds = load_by_id(run_id)
+
+        # Simulate: .nc file missing → cache.data() returns {}.
+        # Should NOT raise KeyError; should return empty dict (no
+        # dependent params have data to report).
+        with patch.object(ds.cache, 'data', return_value={}):
+            result = ds_to_datadicts(ds)
+        assert result == {}
+
+    def test_ds_to_datadicts_skips_partial_data(self, tmp_path):
+        """ds_to_datadicts should skip dependents whose tree is missing
+        from the cache, rather than crashing."""
+        from plottr.data.qcodes_dataset import ds_to_datadicts
+        from qcodes.dataset.data_set import load_by_id
+        from unittest.mock import patch
+        import numpy as np
+
+        db_path = str(tmp_path / "test.db")
+        run_id = self._make_dataset_without_data(db_path)
+        ds = load_by_id(run_id)
+
+        # Cache says we have x (independent) but no 'y' tree → 'y' should
+        # be silently skipped without raising KeyError.
+        partial = {'x': {'x': np.array([1.0, 2.0])}}
+        with patch.object(ds.cache, 'data', return_value=partial):
+            result = ds_to_datadicts(ds)
+        # 'y' is the only dependent and has no data → empty result
+        assert result == {}
+
+    def test_autoplot_shows_status_for_empty_dataset(
+        self, qtbot, tmp_path
+    ):
+        """QCAutoPlotMainWindow should show a status bar message when
+        the dataset has no data, instead of leaving an empty window
+        with no explanation."""
+        import os
+        os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
+        from plottr.apps.autoplot import autoplotQcodesDataset
+
+        db_path = str(tmp_path / "test.db")
+        run_id = self._make_dataset_without_data(db_path)
+
+        fc, win = autoplotQcodesDataset(pathAndId=(db_path, run_id))
+        qtbot.addWidget(win)
+
+        status = win.statusBar().currentMessage()
+        assert "No data available" in status
+        assert str(run_id) in status
+        win.close()
+
+

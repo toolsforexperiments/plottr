@@ -289,6 +289,19 @@ class QCAutoPlotMainWindow(AutoPlotMainWindow):
         if self.loaderNode is not None and self.loaderNode.nLoadedRecords > 0:
             self.setDefaults(self.loaderNode.outputValues()['dataOut'])
             self._initialized = True
+        elif self.loaderNode is not None and pathAndId is not None:
+            # Loader ran but produced no data — most commonly because the
+            # dataset's .nc data file is missing (metadata-only DB) or the
+            # dataset really has no results yet.  Show a clear status bar
+            # message instead of leaving the user with an empty window.
+            ds = getattr(self.loaderNode, '_dataset', None)
+            if ds is not None and ds.number_of_results == 0:
+                msg = (
+                    f"No data available for run {pathAndId[1]} "
+                    f"(GUID: {ds.guid}). The dataset's data file may be "
+                    f"missing or the dataset is empty."
+                )
+                self.statusBar().showMessage(msg)
 
     def setDefaults(self, data: DataDictBase) -> None:
         super().setDefaults(data)
