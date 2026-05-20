@@ -48,6 +48,13 @@ _SELECT_DATE_HINT = "Select a date on the left to browse datasets."
 #: Populated lazily on first access.
 _PLOT_BACKENDS: Dict[str, type] = {}
 
+#: Organization and application names used by QSettings to persist per-user
+#: preferences (selected plot backend, etc.). QSettings picks an OS-native
+#: storage location (registry on Windows, plist on macOS, ini on Linux).
+_QSETTINGS_ORG = 'plottr'
+_QSETTINGS_APP = 'inspectr'
+_BACKEND_SETTING_KEY = 'plotBackend'
+
 
 def _get_plot_backends() -> Dict[str, type]:
     """Lazily populate and return the backend mapping."""
@@ -65,6 +72,25 @@ def _backend_name_for_class(cls: Optional[type]) -> Optional[str]:
         if backend_cls is cls:
             return name
     return None
+
+
+def _load_saved_backend() -> Optional[str]:
+    """Read the previously-saved backend choice from QSettings.
+
+    :return: backend name (e.g. 'matplotlib', 'pyqtgraph'), or None if no
+        setting saved or the saved value is not a recognised backend.
+    """
+    settings = QtCore.QSettings(_QSETTINGS_ORG, _QSETTINGS_APP)
+    saved = settings.value(_BACKEND_SETTING_KEY)
+    if isinstance(saved, str) and saved in _get_plot_backends():
+        return saved
+    return None
+
+
+def _save_backend_choice(backend: str) -> None:
+    """Persist the user's backend choice for future inspectr launches."""
+    settings = QtCore.QSettings(_QSETTINGS_ORG, _QSETTINGS_APP)
+    settings.setValue(_BACKEND_SETTING_KEY, backend)
 
 
 ### Database inspector tool
@@ -475,6 +501,15 @@ class QCodesDBInspector(QtWidgets.QMainWindow):
         super().__init__(parent)
 
         self._plotWindows: Dict[int, WindowDict] = {}
+
+        # If no explicit backend class is requested, fall back to whatever
+        # the user picked the last time they used inspectr (persisted via
+        # QSettings). Falling back to None lets downstream code use the
+        # plottr-wide default.
+        if plotWidgetClass is None:
+            saved_name = _load_saved_backend()
+            if saved_name is not None:
+                plotWidgetClass = _get_plot_backends().get(saved_name)
         self._plotWidgetClass = plotWidgetClass
 
         self.filepath = dbPath
@@ -742,19 +777,28 @@ class QCodesDBInspector(QtWidgets.QMainWindow):
     ### reloading the db
     @Slot()
     def refreshDB(self) -> None:
-        if self.filepath is not None:
-            if self.loadDBThread.isRunning():
-                return
-            if self.dbdf is not None and self.dbdf.size > 0:
-                self.latestRunId = int(self.dbdf.index.values.max())
-            else:
-                self.latestRunId = -1
+        """Re-read the database to pick up new runs AND updates to existing
+        runs (e.g., records count growing as an incomplete dataset is filled).
 
-            # Incremental refresh: only load runs newer than what we have.
-            start_run_id = self.latestRunId + 1 if self.latestRunId is not None and self.latestRunId > 0 else 1
-            if self.filepath is not None:
-                if not self.loadDBThread.isRunning():
-                    self.loadDBProcess.setPath(self.filepath, start_run_id=start_run_id)
+        Always does a full re-read because incremental loading (start_run_id >
+        latestRunId) would miss updates to incomplete datasets whose row
+        already exists in the dbdf. The full re-read is fast (single SQL JOIN
+        ~10ms even for 1500 runs), so the incremental optimization isn't
+        worth the correctness cost.
+        """
+        if self.filepath is None or self.loadDBThread.isRunning():
+            return
+
+        # Remember the latest run_id so DBLoaded knows to merge rather than
+        # replace (preserves existing UI state like selection/expand state).
+        if self.dbdf is not None and self.dbdf.size > 0:
+            self.latestRunId = int(self.dbdf.index.values.max())
+        else:
+            self.latestRunId = -1
+
+        # Full re-read so updates to existing runs (records counter, completed
+        # timestamp) are picked up.
+        self.loadDBProcess.setPath(self.filepath, start_run_id=1)
 
     @Slot(float)
     def setMonitorInterval(self, val: float) -> None:
@@ -840,7 +884,12 @@ class QCodesDBInspector(QtWidgets.QMainWindow):
     @Slot(str)
     def _onBackendChanged(self, backend: str) -> None:
         backends = _get_plot_backends()
-        self._plotWidgetClass = backends.get(backend, self._plotWidgetClass)
+        if backend in backends:
+            self._plotWidgetClass = backends[backend]
+            # Persist the user's choice for next launch
+            _save_backend_choice(backend)
+        else:
+            self._plotWidgetClass = backends.get(backend, self._plotWidgetClass)
 
     def setTag(self, item: QtWidgets.QTreeWidgetItem, tag: str) -> None:
         # set tag in the database

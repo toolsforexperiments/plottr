@@ -453,3 +453,147 @@ class TestDatasetRefresh:
             return (inspector.dbdf is not None and 2 in inspector.dbdf.index)
         qtbot.waitUntil(refresh_done, timeout=5000)
         assert 2 in inspector.dbdf.index
+
+    def test_inspectr_refresh_updates_records_for_incomplete(
+        self, qtbot, tmp_path
+    ):
+        """refreshDB should update records counter for incomplete datasets.
+
+        This was a regression: incremental refresh only loaded NEW runs,
+        so existing rows' records counter stayed stale.
+        """
+        import os
+        os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
+        from plottr.apps.inspectr import QCodesDBInspector
+        try:
+            from qcodes.parameters import ParamSpecBase
+        except ImportError:
+            from qcodes.dataset.descriptions.param_spec import ParamSpecBase
+        from qcodes.dataset.descriptions.dependencies import InterDependencies_
+
+        db_path = str(tmp_path / "test.db")
+        initialise_or_create_database_at(db_path)
+        load_or_create_experiment("exp", sample_name="s")
+        p_x = ParamSpecBase("x", "numeric")
+        p_y = ParamSpecBase("y", "numeric")
+        interdeps = InterDependencies_(dependencies={p_y: (p_x,)})
+
+        # Start an INCOMPLETE dataset with 5 results
+        ds = qc.new_data_set("incomplete")
+        ds.set_interdependencies(interdeps)
+        ds.mark_started()
+        for i in range(5):
+            ds.add_results([{p_x.name: float(i), p_y.name: float(i ** 2)}])
+
+        inspector = QCodesDBInspector(dbPath=db_path)
+        qtbot.addWidget(inspector)
+        qtbot.waitUntil(
+            lambda: inspector.dbdf is not None and 1 in inspector.dbdf.index,
+            timeout=5000
+        )
+        initial = int(inspector.dbdf.loc[1, 'records'])
+        assert initial == 5
+
+        # Add more results to the same dataset (still incomplete)
+        for i in range(5, 25):
+            ds.add_results([{p_x.name: float(i), p_y.name: float(i ** 2)}])
+
+        # Refresh should pick up the new records count
+        inspector.refreshDB()
+        qtbot.waitUntil(
+            lambda: int(inspector.dbdf.loc[1, 'records']) == 25,
+            timeout=5000
+        )
+        assert int(inspector.dbdf.loc[1, 'records']) == 25
+        ds.mark_completed()
+
+
+class TestBackendPersistence:
+    """Verify that the chosen plot backend is remembered across launches."""
+
+    @pytest.fixture(autouse=True)
+    def _clear_qsettings(self):
+        """Use an isolated QSettings store for each test so we don't pollute
+        the user's real preferences."""
+        from plottr import QtCore
+        from plottr.apps.inspectr import (
+            _QSETTINGS_ORG, _QSETTINGS_APP, _BACKEND_SETTING_KEY,
+        )
+        # Force INI format in a temp scope so the test is isolated
+        QtCore.QCoreApplication.setOrganizationName("plottr-test")
+        QtCore.QCoreApplication.setApplicationName("inspectr-test")
+        settings = QtCore.QSettings(_QSETTINGS_ORG, _QSETTINGS_APP)
+        settings.remove(_BACKEND_SETTING_KEY)
+        yield
+        settings.remove(_BACKEND_SETTING_KEY)
+
+    def test_save_and_load_backend_choice(self):
+        """Saved backend should be returned by _load_saved_backend."""
+        from plottr.apps.inspectr import (
+            _load_saved_backend, _save_backend_choice,
+        )
+        assert _load_saved_backend() is None
+        _save_backend_choice("pyqtgraph")
+        assert _load_saved_backend() == "pyqtgraph"
+        _save_backend_choice("matplotlib")
+        assert _load_saved_backend() == "matplotlib"
+
+    def test_unknown_backend_returns_none(self):
+        """Invalid saved value should not be returned."""
+        from plottr import QtCore
+        from plottr.apps.inspectr import (
+            _load_saved_backend, _QSETTINGS_ORG, _QSETTINGS_APP,
+            _BACKEND_SETTING_KEY,
+        )
+        settings = QtCore.QSettings(_QSETTINGS_ORG, _QSETTINGS_APP)
+        settings.setValue(_BACKEND_SETTING_KEY, "not-a-backend")
+        assert _load_saved_backend() is None
+
+    def test_inspectr_uses_saved_backend_on_launch(self, qtbot, tmp_path):
+        """If no plotWidgetClass is passed, inspectr should pick up the
+        previously saved backend."""
+        import os
+        os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
+        from plottr.apps.inspectr import (
+            QCodesDBInspector, _save_backend_choice, _get_plot_backends,
+        )
+
+        db_path = str(tmp_path / "test.db")
+        _make_qcodes_db_with_runs(db_path, n_runs=1)
+
+        # Simulate a previous run having selected pyqtgraph
+        _save_backend_choice("pyqtgraph")
+
+        inspector = QCodesDBInspector(dbPath=db_path)
+        qtbot.addWidget(inspector)
+        expected_cls = _get_plot_backends()["pyqtgraph"]
+        assert inspector._plotWidgetClass is expected_cls
+        # Wait for background load to complete cleanly before teardown
+        qtbot.waitUntil(
+            lambda: not inspector.loadDBThread.isRunning(), timeout=5000
+        )
+
+    def test_changing_backend_persists_choice(self, qtbot, tmp_path):
+        """Changing the toolbar combo box should save the new choice."""
+        import os
+        os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
+        from plottr.apps.inspectr import (
+            QCodesDBInspector, _load_saved_backend,
+        )
+
+        db_path = str(tmp_path / "test.db")
+        _make_qcodes_db_with_runs(db_path, n_runs=1)
+
+        inspector = QCodesDBInspector(dbPath=db_path)
+        qtbot.addWidget(inspector)
+        # Wait for initial load to settle
+        qtbot.waitUntil(
+            lambda: not inspector.loadDBThread.isRunning(), timeout=5000
+        )
+
+        inspector.plotBackendSelector.setCurrentText("pyqtgraph")
+        assert _load_saved_backend() == "pyqtgraph"
+
+        inspector.plotBackendSelector.setCurrentText("matplotlib")
+        assert _load_saved_backend() == "matplotlib"
+
