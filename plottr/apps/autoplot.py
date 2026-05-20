@@ -324,12 +324,19 @@ class QCAutoPlotMainWindow(AutoPlotMainWindow):
         elif self.loaderNode is not None and pathAndId is not None:
             # Loader ran but produced no data — most commonly because the
             # dataset's .nc data file is missing (metadata-only DB) or the
-            # dataset really has no results yet.  Show a clear status bar
-            # message instead of leaving the user with an empty window.
+            # dataset really has no results yet.
             ds = getattr(self.loaderNode, '_dataset', None)
             if ds is not None and not ds.number_of_results:
                 msg = _no_data_message(ds, pathAndId[1])
                 self.statusBar().showMessage(msg)
+                # Also show the message prominently in the central plot area
+                lbl = QtWidgets.QLabel(msg)
+                lbl.setAlignment(QtCore.Qt.AlignCenter)
+                lbl.setWordWrap(True)
+                lbl.setStyleSheet(
+                    "color: gray; font-size: 13pt; padding: 40px;"
+                )
+                self.plot.layout().addWidget(lbl)
 
     def setDefaults(self, data: DataDictBase) -> None:
         super().setDefaults(data)

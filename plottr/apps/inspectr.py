@@ -705,10 +705,13 @@ class QCodesDBInspector(QtWidgets.QMainWindow):
             self.loadFullDB(path=path)
 
     def loadFullDB(self, path: Optional[str] = None) -> None:
-        if path is not None and path != self.filepath:
-            self.filepath = path
+        if path is not None and path == self.filepath:
+            # Same file already loaded — nothing to do.
+            return
 
-            # makes sure we treat a newly loaded file fresh and not as a
+        if path is not None:
+            self.filepath = path
+            # Makes sure we treat a newly loaded file fresh and not as a
             # refreshed one.
             self.latestRunId = None
 
