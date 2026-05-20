@@ -36,6 +36,38 @@ __license__ = 'MIT'
 LOGGER = logging.getLogger('plottr.apps.autoplot')
 
 
+def _no_data_message(ds: Any, run_id: int) -> str:
+    """Build a user-facing message explaining why a dataset has no data.
+
+    Checks the dataset's ``export_info`` for missing ``.nc`` files and
+    includes the expected path(s) so the user knows what to look for.
+    """
+    parts = [f"No data available for run {run_id}"]
+    try:
+        parts.append(f"(GUID: {ds.guid})")
+    except Exception:
+        pass
+
+    missing_files: List[str] = []
+    try:
+        ei = ds.export_info
+        if ei is not None and hasattr(ei, 'export_paths'):
+            for _fmt, path in ei.export_paths.items():
+                paths = path if isinstance(path, list) else [path]
+                for p in paths:
+                    if not os.path.exists(p):
+                        missing_files.append(p)
+    except Exception:
+        pass
+
+    if missing_files:
+        parts.append("— data file(s) not found: " + ", ".join(missing_files))
+    else:
+        parts.append("— the dataset may be empty or still running.")
+
+    return " ".join(parts)
+
+
 def autoplot(inputData: Union[None, DataDictBase] = None,
              plotWidgetClass: Optional[Type[PlotWidget]] = None) \
         -> Tuple[Flowchart, 'AutoPlotMainWindow']:
@@ -295,12 +327,8 @@ class QCAutoPlotMainWindow(AutoPlotMainWindow):
             # dataset really has no results yet.  Show a clear status bar
             # message instead of leaving the user with an empty window.
             ds = getattr(self.loaderNode, '_dataset', None)
-            if ds is not None and ds.number_of_results == 0:
-                msg = (
-                    f"No data available for run {pathAndId[1]} "
-                    f"(GUID: {ds.guid}). The dataset's data file may be "
-                    f"missing or the dataset is empty."
-                )
+            if ds is not None and not ds.number_of_results:
+                msg = _no_data_message(ds, pathAndId[1])
                 self.statusBar().showMessage(msg)
 
     def setDefaults(self, data: DataDictBase) -> None:

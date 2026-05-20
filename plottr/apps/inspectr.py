@@ -714,6 +714,9 @@ class QCodesDBInspector(QtWidgets.QMainWindow):
 
         if self.filepath is not None:
             if not self.loadDBThread.isRunning():
+                # Clear stale run list items so the overlay text is not
+                # shown on top of old data from a previous load.
+                self.runList.clear()
                 self.runList.setOverlayText("Loading database...")
                 self.loadDBProcess.setPath(self.filepath, start_run_id=1)
 
