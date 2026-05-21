@@ -707,10 +707,15 @@ class QCodesDBInspector(QtWidgets.QMainWindow):
     def loadFullDB(self, path: Optional[str] = None) -> None:
         if path is not None:
             self.filepath = path
-            self.latestRunId = None
 
         if self.filepath is not None:
             if not self.loadDBThread.isRunning():
+                # Reset to "just opened" state: clear all UI and cached data
+                # so the user sees a clean loading experience regardless of
+                # whether this is a new file or a reload of the same file.
+                self.latestRunId = None
+                self.dbdf = None
+                self.dateList.clear()
                 self.runList.clear()
                 self.runList.setOverlayText("Loading database...")
                 self.loadDBProcess.setPath(self.filepath, start_run_id=1)

@@ -454,6 +454,49 @@ class TestDatasetRefresh:
         qtbot.waitUntil(refresh_done, timeout=5000)
         assert 2 in inspector.dbdf.index
 
+    def test_loadFullDB_resets_ui_on_reload(self, qtbot, tmp_path):
+        """Reloading the same DB file should clear date list, run list,
+        and dbdf — same as loading a fresh file."""
+        import os
+        os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
+        from plottr.apps.inspectr import QCodesDBInspector
+
+        db_path = str(tmp_path / "test.db")
+        _make_qcodes_db_with_runs(db_path, n_runs=3)
+
+        inspector = QCodesDBInspector(dbPath=db_path)
+        qtbot.addWidget(inspector)
+        qtbot.waitUntil(
+            lambda: inspector.dbdf is not None and inspector.dbdf.size > 0,
+            timeout=5000,
+        )
+        # Select a date so the run list is populated
+        if inspector.dateList.count() > 0:
+            inspector.dateList.item(0).setSelected(True)
+        qtbot.waitUntil(
+            lambda: inspector.runList.topLevelItemCount() > 0,
+            timeout=5000,
+        )
+        assert inspector.runList.topLevelItemCount() > 0
+
+        # Reload the same file
+        inspector.loadFullDB(db_path)
+
+        # Immediately after loadFullDB: UI should be cleared
+        assert inspector.dbdf is None, "dbdf should be reset to None"
+        assert inspector.dateList.count() == 0, "date list should be empty"
+        assert inspector.runList.topLevelItemCount() == 0, \
+            "run list should be empty during reload"
+
+        # Wait for reload to complete
+        qtbot.waitUntil(
+            lambda: inspector.dbdf is not None and inspector.dbdf.size > 0,
+            timeout=5000,
+        )
+        # After reload: data is back but run list shows hint (no date selected)
+        assert inspector.dbdf is not None
+        assert inspector.dateList.count() > 0
+
     def test_inspectr_refresh_updates_records_for_incomplete(
         self, qtbot, tmp_path
     ):
