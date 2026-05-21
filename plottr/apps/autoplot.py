@@ -329,14 +329,21 @@ class QCAutoPlotMainWindow(AutoPlotMainWindow):
             if ds is not None and not ds.number_of_results:
                 msg = _no_data_message(ds, pathAndId[1])
                 self.statusBar().showMessage(msg)
-                # Also show the message prominently in the central plot area
-                lbl = QtWidgets.QLabel(msg)
-                lbl.setAlignment(QtCore.Qt.AlignCenter)
-                lbl.setWordWrap(True)
-                lbl.setStyleSheet(
-                    "color: gray; font-size: 13pt; padding: 40px;"
+                # Show message at the top of the window for visibility
+                banner = QtWidgets.QLabel(msg)
+                banner.setWordWrap(True)
+                banner.setStyleSheet(
+                    "background-color: #fff3cd; color: #856404;"
+                    "border: 1px solid #ffc107; border-radius: 4px;"
+                    "padding: 8px; font-size: 11pt;"
                 )
-                self.plot.layout().addWidget(lbl)
+                wrapper = QtWidgets.QWidget()
+                layout = QtWidgets.QVBoxLayout(wrapper)
+                layout.setContentsMargins(0, 0, 0, 0)
+                layout.setSpacing(0)
+                layout.addWidget(banner)
+                layout.addWidget(self.plot)
+                self.setCentralWidget(wrapper)
 
     def setDefaults(self, data: DataDictBase) -> None:
         super().setDefaults(data)
