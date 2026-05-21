@@ -155,7 +155,7 @@ def get_db_overview(db_path: str,
                 ).fetchone()
                 row_counts[tbl] = cnt[0] if cnt else 0
             except Exception:
-                pass  # table may not exist (e.g., qdwsdk downloads)
+                pass  # table may not exist
 
         tag_col_idx = 10 if has_inspectr_tag else -1
         for row in rows:
@@ -164,12 +164,22 @@ def get_db_overview(db_path: str,
             completed_date, completed_time = _format_timestamp(row[5])
             tag = row[tag_col_idx] if tag_col_idx > 0 and len(row) > tag_col_idx and row[tag_col_idx] else ''
             result_table = row[8] or ''
+            is_completed = row[5] is not None and row[5] != 0
 
-            # Determine record count: prefer results table row count,
-            # then try shape info from run_description, then result_counter.
-            records = row_counts.get(result_table, 0)
-            if records == 0:
+            # Determine record count.
+            # For completed datasets: prefer shape metadata (authoritative
+            # final count) over results table rows.
+            # For active (incomplete) datasets: prefer results table rows
+            # (live count that grows as data is added).
+            # Fall back to result_counter if nothing else is available.
+            if is_completed:
                 records = _records_from_run_description(row[9])
+                if records == 0:
+                    records = row_counts.get(result_table, 0)
+            else:
+                records = row_counts.get(result_table, 0)
+                if records == 0:
+                    records = _records_from_run_description(row[9])
             if records == 0:
                 records = row[6] or 0
 

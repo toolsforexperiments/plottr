@@ -441,11 +441,9 @@ class LoadDBProcess(QtCore.QObject):
     def __init__(self) -> None:
         super().__init__()
         self.path: Optional[str] = None
-        self.start_run_id: int = 1
 
-    def setPath(self, path: str, start_run_id: int = 1) -> None:
+    def setPath(self, path: str) -> None:
         self.path = path
-        self.start_run_id = start_run_id
         self.pathSet.emit()
 
     def loadDB(self) -> None:
@@ -454,11 +452,7 @@ class LoadDBProcess(QtCore.QObject):
         overview: Optional[Dict[int, Any]] = None
         if self.use_fast_sql:
             try:
-                # start_run_id uses > comparison, so subtract 1 for inclusive
-                overview = get_db_overview(
-                    self.path,
-                    start_run_id=self.start_run_id - 1,
-                )
+                overview = get_db_overview(self.path)
             except Exception as e:
                 LOGGER.warning(f"Fast SQL overview failed, falling back to "
                                f"qcodes API: {e}")
@@ -467,7 +461,6 @@ class LoadDBProcess(QtCore.QObject):
         if overview is None:
             overview = get_runs_from_db_fast(
                 self.path,
-                start_run_id=self.start_run_id,
                 progress_callback=self._onProgress,
             )
 
@@ -718,7 +711,7 @@ class QCodesDBInspector(QtWidgets.QMainWindow):
                 self.dateList.clear()
                 self.runList.clear()
                 self.runList.setOverlayText("Loading database...")
-                self.loadDBProcess.setPath(self.filepath, start_run_id=1)
+                self.loadDBProcess.setPath(self.filepath)
 
     @Slot(int, int)
     def onLoadProgress(self, current: int, total: int) -> None:
@@ -742,8 +735,6 @@ class QCodesDBInspector(QtWidgets.QMainWindow):
             new_rows = dbdf.loc[~existing_mask]
             if not new_rows.empty:
                 self.dbdf = pandas.concat([self.dbdf, new_rows])
-        elif dbdf.size > 0:
-            self.dbdf = dbdf
         else:
             self.dbdf = dbdf
 
@@ -783,11 +774,7 @@ class QCodesDBInspector(QtWidgets.QMainWindow):
         """Re-read the database to pick up new runs AND updates to existing
         runs (e.g., records count growing as an incomplete dataset is filled).
 
-        Always does a full re-read because incremental loading (start_run_id >
-        latestRunId) would miss updates to incomplete datasets whose row
-        already exists in the dbdf. The full re-read is fast (single SQL JOIN
-        ~10ms even for 1500 runs), so the incremental optimization isn't
-        worth the correctness cost.
+        Always does a full re-read which is fast at the moment.
         """
         if self.filepath is None or self.loadDBThread.isRunning():
             return
@@ -799,9 +786,7 @@ class QCodesDBInspector(QtWidgets.QMainWindow):
         else:
             self.latestRunId = -1
 
-        # Full re-read so updates to existing runs (records counter, completed
-        # timestamp) are picked up.
-        self.loadDBProcess.setPath(self.filepath, start_run_id=1)
+        self.loadDBProcess.setPath(self.filepath)
 
     @Slot(float)
     def setMonitorInterval(self, val: float) -> None:
@@ -968,18 +953,3 @@ def script() -> None:
     args = parser.parse_args()
     main(args.dbpath, args.console_log_level)
 
-
-def script_pyqtgraph() -> None:
-    """Entry point for inspectr using the pyqtgraph plotting backend."""
-    from plottr.plot.pyqtgraph.autoplot import AutoPlot as PGAutoPlot
-
-    parser = argparse.ArgumentParser(
-        description='inspectr -- sifting through qcodes data (pyqtgraph backend).'
-    )
-    parser.add_argument('--dbpath', help='path to qcodes .db file',
-                        default=None)
-    parser.add_argument("--console-log-level",
-                        choices=("ERROR", "WARNING", "INFO", "DEBUG"),
-                        default="WARNING")
-    args = parser.parse_args()
-    main(args.dbpath, args.console_log_level, plotWidgetClass=PGAutoPlot)

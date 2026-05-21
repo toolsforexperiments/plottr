@@ -279,6 +279,26 @@ def get_runs_from_db_fast(path: str,
             return overview
 
         total = last - start_run_id + 1
+
+        # Use tqdm (if available) for smart progress update frequency.
+        # tqdm's mininterval prevents flooding the callback on fast iterations.
+        _last_callback_n = [0]
+        def _tqdm_callback(pbar: Any) -> None:
+            if progress_callback is not None and pbar.n != _last_callback_n[0]:
+                _last_callback_n[0] = pbar.n
+                progress_callback(pbar.n, pbar.total)
+
+        try:
+            from tqdm import tqdm  # type: ignore[import-untyped]
+            pbar = tqdm(
+                range(start_run_id, last + 1), total=total,
+                desc="Loading datasets", disable=True, mininterval=0.3,
+            )
+            use_tqdm = True
+        except ImportError:
+            pbar = None
+            use_tqdm = False
+
         for i, run_id in enumerate(range(start_run_id, last + 1)):
             try:
                 ds = load_by_id(run_id, conn=conn_)
@@ -286,8 +306,14 @@ def get_runs_from_db_fast(path: str,
             except Exception:
                 pass  # skip missing/corrupt runs
 
-            if progress_callback is not None and (i % 10 == 0 or i == total - 1):
+            if use_tqdm and pbar is not None:
+                pbar.update(1)
+                _tqdm_callback(pbar)
+            elif progress_callback is not None and (i % 10 == 0 or i == total - 1):
                 progress_callback(i + 1, total)
+
+        if use_tqdm and pbar is not None:
+            pbar.close()
 
     return overview
 

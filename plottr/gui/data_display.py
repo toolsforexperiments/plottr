@@ -132,6 +132,7 @@ class DataSelectionWidget(QtWidgets.QTreeWidget):
             self.dataSelectionMade.emit(self.getSelectedData())
         finally:
             self._batchUpdate = False
+            self.blockSignals(False)
 
     def selectAll(self) -> None:
         """Select all enabled dependent fields. Single signal emission."""

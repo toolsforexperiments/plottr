@@ -36,36 +36,37 @@ __license__ = 'MIT'
 LOGGER = logging.getLogger('plottr.apps.autoplot')
 
 
-def _no_data_message(ds: Any, run_id: int) -> str:
+def _no_data_message(ds: Any) -> str:
     """Build a user-facing message explaining why a dataset has no data.
 
-    Checks the dataset's ``export_info`` for missing ``.nc`` files and
-    includes the expected path(s) so the user knows what to look for.
+    Uses dataset state (running/pristine) and export_info to provide
+    a specific, actionable message.
     """
-    parts = [f"No data available for run {run_id}"]
-    try:
-        parts.append(f"(GUID: {ds.guid})")
-    except Exception:
-        pass
+    run_id = getattr(ds, 'run_id', '?')
+    guid = getattr(ds, 'guid', '')
+    header = f"No data available for run {run_id}"
+    if guid:
+        header += f" (GUID: {guid})"
 
+    # Check if the dataset is still being filled
+    if getattr(ds, 'running', False):
+        return f"{header} — dataset has started but does not contain data yet."
+
+    # Check for missing exported data files
     missing_files: List[str] = []
     try:
         ei = ds.export_info
         if ei is not None and hasattr(ei, 'export_paths'):
             for _fmt, path in ei.export_paths.items():
-                paths = path if isinstance(path, list) else [path]
-                for p in paths:
-                    if not os.path.exists(p):
-                        missing_files.append(p)
+                if not os.path.exists(path):
+                    missing_files.append(path)
     except Exception:
         pass
 
     if missing_files:
-        parts.append("— data file(s) not found: " + ", ".join(missing_files))
-    else:
-        parts.append("— the dataset may be empty or still running.")
+        return f"{header} — data file(s) not found: " + ", ".join(missing_files)
 
-    return " ".join(parts)
+    return f"{header} — the dataset does not seem to have data to plot."
 
 
 def autoplot(inputData: Union[None, DataDictBase] = None,
@@ -365,21 +366,12 @@ class QCAutoPlotMainWindow(AutoPlotMainWindow):
             self.setDefaults(self.loaderNode.outputValues()['dataOut'])
             self._initialized = True
         elif self.loaderNode is not None and pathAndId is not None:
-            # Loader ran but produced no data — most commonly because the
-            # dataset's .nc data file is missing (metadata-only DB) or the
-            # dataset really has no results yet.
             ds = getattr(self.loaderNode, '_dataset', None)
             if ds is not None and not ds.number_of_results:
-                self.showWarningBanner(
-                    _no_data_message(ds, pathAndId[1])
-                )
-
-    def setDefaults(self, data: DataDictBase) -> None:
-        super().setDefaults(data)
+                self.showWarningBanner(_no_data_message(ds))
 
     def refreshData(self) -> None:
         super().refreshData()
-        # Once data arrives, remove the warning banner if it was shown
         if (self._warningBanner is not None
                 and self.loaderNode is not None
                 and self.loaderNode.nLoadedRecords > 0):
