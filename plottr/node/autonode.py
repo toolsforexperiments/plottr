@@ -64,6 +64,7 @@ class AutoNodeGui(AutoNodeGuiTemplate):
             if optionType in self.widgetConnection.keys()
             else None
         )
+
         if func is not None:
             widget = func(self, name, specs, confirm)
         layout = cast(QtWidgets.QFormLayout, self.layout())

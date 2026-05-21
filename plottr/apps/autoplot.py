@@ -7,7 +7,6 @@ import os
 import time
 import argparse
 from typing import Union, Tuple, Optional, Type, List, Any, Type
-from packaging import version
 
 from .. import QtCore, Flowchart, Signal, Slot, QtWidgets, QtGui
 from ..data.datadict import DataDictBase
@@ -35,6 +34,38 @@ __license__ = 'MIT'
 # TODO: * separate logging window
 
 LOGGER = logging.getLogger('plottr.apps.autoplot')
+
+
+def _no_data_message(ds: Any, run_id: int) -> str:
+    """Build a user-facing message explaining why a dataset has no data.
+
+    Checks the dataset's ``export_info`` for missing ``.nc`` files and
+    includes the expected path(s) so the user knows what to look for.
+    """
+    parts = [f"No data available for run {run_id}"]
+    try:
+        parts.append(f"(GUID: {ds.guid})")
+    except Exception:
+        pass
+
+    missing_files: List[str] = []
+    try:
+        ei = ds.export_info
+        if ei is not None and hasattr(ei, 'export_paths'):
+            for _fmt, path in ei.export_paths.items():
+                paths = path if isinstance(path, list) else [path]
+                for p in paths:
+                    if not os.path.exists(p):
+                        missing_files.append(p)
+    except Exception:
+        pass
+
+    if missing_files:
+        parts.append("— data file(s) not found: " + ", ".join(missing_files))
+    else:
+        parts.append("— the dataset may be empty or still running.")
+
+    return " ".join(parts)
 
 
 def autoplot(inputData: Union[None, DataDictBase] = None,
@@ -146,6 +177,10 @@ class AutoPlotMainWindow(PlotWindow):
         # is processed
         self._initialized = False
 
+        # Warning/info banner shown above the plot area (e.g. missing data)
+        self._warningBanner: Optional[QtWidgets.QLabel] = None
+        self._warningWrapper: Optional[QtWidgets.QWidget] = None
+
         windowTitle = "Plottr | Autoplot"
         self.setWindowTitle(windowTitle)
 
@@ -204,6 +239,45 @@ class AutoPlotMainWindow(PlotWindow):
         if data is not None:
             self.setDefaults(self.loaderNode.outputValues()['dataOut'])
 
+    def showWarningBanner(self, msg: str) -> None:
+        """Show a prominent warning banner at the top of the window.
+
+        The banner is displayed above the plot area with selectable text.
+        Call :meth:`removeWarningBanner` to dismiss it.
+        """
+        self.removeWarningBanner()
+        self.statusBar().showMessage(msg)
+        banner = QtWidgets.QLabel(msg)
+        banner.setWordWrap(True)
+        banner.setTextInteractionFlags(
+            QtCore.Qt.TextSelectableByMouse
+            | QtCore.Qt.TextSelectableByKeyboard
+        )
+        banner.setCursor(QtGui.QCursor(QtCore.Qt.IBeamCursor))
+        banner.setStyleSheet(
+            "background-color: #fff3cd; color: #856404;"
+            "border: 1px solid #ffc107; border-radius: 4px;"
+            "padding: 8px; font-size: 11pt;"
+        )
+        wrapper = QtWidgets.QWidget()
+        layout = QtWidgets.QVBoxLayout(wrapper)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(0)
+        layout.addWidget(banner)
+        layout.addWidget(self.plot)
+        self.setCentralWidget(wrapper)
+        self._warningBanner = banner
+        self._warningWrapper = wrapper
+
+    def removeWarningBanner(self) -> None:
+        """Remove the warning banner, restoring the plot as central widget."""
+        if self._warningBanner is not None:
+            self._warningBanner.deleteLater()
+            self._warningBanner = None
+            self.setCentralWidget(self.plot)
+            self._warningWrapper = None
+            self.statusBar().clearMessage()
+
     @Slot()
     def refreshData(self) -> None:
         """
@@ -248,7 +322,10 @@ class AutoPlotMainWindow(PlotWindow):
 
         try:
             self.fc.nodes()['Data selection'].selectedData = selected
-            self.fc.nodes()['Grid'].grid = GridOption.guessShape, {}
+            if data.meta_val('qcodes_shape') is not None:
+                self.fc.nodes()['Grid'].grid = GridOption.metadataShape, {}
+            else:
+                self.fc.nodes()['Grid'].grid = GridOption.guessShape, {}
             self.fc.nodes()['Dimension assignment'].dimensionRoles = drs
         # FIXME: this is maybe a bit excessive, but trying to set all the defaults
         #   like this can result in many types of errors.
@@ -287,20 +364,32 @@ class QCAutoPlotMainWindow(AutoPlotMainWindow):
         if self.loaderNode is not None and self.loaderNode.nLoadedRecords > 0:
             self.setDefaults(self.loaderNode.outputValues()['dataOut'])
             self._initialized = True
+        elif self.loaderNode is not None and pathAndId is not None:
+            # Loader ran but produced no data — most commonly because the
+            # dataset's .nc data file is missing (metadata-only DB) or the
+            # dataset really has no results yet.
+            ds = getattr(self.loaderNode, '_dataset', None)
+            if ds is not None and not ds.number_of_results:
+                self.showWarningBanner(
+                    _no_data_message(ds, pathAndId[1])
+                )
 
     def setDefaults(self, data: DataDictBase) -> None:
         super().setDefaults(data)
-        import qcodes as qc
-        qcodes_support = (version.parse(qc.__version__) >=
-                          version.parse("0.20.0"))
-        if data.meta_val('qcodes_shape') is not None and qcodes_support:
-            self.fc.nodes()['Grid'].grid = GridOption.metadataShape, {}
-        else:
-            self.fc.nodes()['Grid'].grid = GridOption.guessShape, {}
+
+    def refreshData(self) -> None:
+        super().refreshData()
+        # Once data arrives, remove the warning banner if it was shown
+        if (self._warningBanner is not None
+                and self.loaderNode is not None
+                and self.loaderNode.nLoadedRecords > 0):
+            self.removeWarningBanner()
+
 
 
 def autoplotQcodesDataset(log: bool = False,
-                          pathAndId: Union[Tuple[str, int], None] = None) \
+                          pathAndId: Union[Tuple[str, int], None] = None,
+                          plotWidgetClass: Optional[Type[PlotWidget]] = None) \
         -> Tuple[Flowchart, QCAutoPlotMainWindow]:
     """
     Sets up a simple flowchart consisting of a data selector,
@@ -330,7 +419,8 @@ def autoplotQcodesDataset(log: bool = False,
     win = QCAutoPlotMainWindow(fc, pathAndId=pathAndId,
                                widgetOptions=widgetOptions,
                                monitor=True,
-                               loaderName='Data loader')
+                               loaderName='Data loader',
+                               plotWidgetClass=plotWidgetClass)
     win.show()
 
     return fc, win

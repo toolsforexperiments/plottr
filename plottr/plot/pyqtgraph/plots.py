@@ -36,6 +36,7 @@ class PlotBase(QtWidgets.QWidget):
 
         #: ``pyqtgraph`` plot item
         self.plot: pg.PlotItem = self.graphicsLayout.addPlot()
+        self.setMinimumSize(40, 40)
 
     def clearPlot(self) -> None:
         """Clear all plot contents (but do not delete plot elements, like axis
@@ -113,7 +114,10 @@ class PlotWithColorbar(PlotBase):
 
         self.img = pg.ImageItem()
         self.plot.addItem(self.img)
-        self.img.setImage(z)
+        # Transpose z to match matplotlib convention: the first axis of the
+        # meshgrid (labeled on bottom/x) maps to the horizontal display axis.
+        # pyqtgraph ImageItem displays array[col, row], so z.T is needed.
+        self.img.setImage(z.T)
         self.img.setRect(QtCore.QRectF(x.min(), y.min(), x.max() - x.min(), y.max() - y.min()))
 
         self.colorbar.setImageItem(self.img)

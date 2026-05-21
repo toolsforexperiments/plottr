@@ -898,7 +898,7 @@ class XYSelector(DimensionReducer):
             return None
         dataout = data['dataOut']
         assert dataout is not None
-        data = dataout.copy()
+        data = dataout  # parent DimensionReducer.process() already copied
 
         if self._xyAxes[0] is not None and self._xyAxes[1] is not None:
             _kw = {self._xyAxes[0]: 0, self._xyAxes[1]: 1}
