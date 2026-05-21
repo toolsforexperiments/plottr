@@ -332,6 +332,11 @@ class QCAutoPlotMainWindow(AutoPlotMainWindow):
                 # Show message at the top of the window for visibility
                 banner = QtWidgets.QLabel(msg)
                 banner.setWordWrap(True)
+                banner.setTextInteractionFlags(
+                    QtCore.Qt.TextSelectableByMouse
+                    | QtCore.Qt.TextSelectableByKeyboard
+                )
+                banner.setCursor(QtGui.QCursor(QtCore.Qt.IBeamCursor))
                 banner.setStyleSheet(
                     "background-color: #fff3cd; color: #856404;"
                     "border: 1px solid #ffc107; border-radius: 4px;"
