@@ -177,6 +177,10 @@ class AutoPlotMainWindow(PlotWindow):
         # is processed
         self._initialized = False
 
+        # Warning/info banner shown above the plot area (e.g. missing data)
+        self._warningBanner: Optional[QtWidgets.QLabel] = None
+        self._warningWrapper: Optional[QtWidgets.QWidget] = None
+
         windowTitle = "Plottr | Autoplot"
         self.setWindowTitle(windowTitle)
 
@@ -234,6 +238,45 @@ class AutoPlotMainWindow(PlotWindow):
         data = self.loaderNode.outputValues()['dataOut']
         if data is not None:
             self.setDefaults(self.loaderNode.outputValues()['dataOut'])
+
+    def showWarningBanner(self, msg: str) -> None:
+        """Show a prominent warning banner at the top of the window.
+
+        The banner is displayed above the plot area with selectable text.
+        Call :meth:`removeWarningBanner` to dismiss it.
+        """
+        self.removeWarningBanner()
+        self.statusBar().showMessage(msg)
+        banner = QtWidgets.QLabel(msg)
+        banner.setWordWrap(True)
+        banner.setTextInteractionFlags(
+            QtCore.Qt.TextSelectableByMouse
+            | QtCore.Qt.TextSelectableByKeyboard
+        )
+        banner.setCursor(QtGui.QCursor(QtCore.Qt.IBeamCursor))
+        banner.setStyleSheet(
+            "background-color: #fff3cd; color: #856404;"
+            "border: 1px solid #ffc107; border-radius: 4px;"
+            "padding: 8px; font-size: 11pt;"
+        )
+        wrapper = QtWidgets.QWidget()
+        layout = QtWidgets.QVBoxLayout(wrapper)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(0)
+        layout.addWidget(banner)
+        layout.addWidget(self.plot)
+        self.setCentralWidget(wrapper)
+        self._warningBanner = banner
+        self._warningWrapper = wrapper
+
+    def removeWarningBanner(self) -> None:
+        """Remove the warning banner, restoring the plot as central widget."""
+        if self._warningBanner is not None:
+            self._warningBanner.deleteLater()
+            self._warningBanner = None
+            self.setCentralWidget(self.plot)
+            self._warningWrapper = None
+            self.statusBar().clearMessage()
 
     @Slot()
     def refreshData(self) -> None:
@@ -307,8 +350,6 @@ class QCAutoPlotMainWindow(AutoPlotMainWindow):
                  pathAndId: Optional[Tuple[str, int]] = None, **kw: Any):
 
         super().__init__(fc, parent, **kw)
-        self._noDataBanner: Optional[QtWidgets.QLabel] = None
-        self._noDataWrapper: Optional[QtWidgets.QWidget] = None
 
         windowTitle = "Plottr | QCoDeS autoplot"
         if pathAndId is not None:
@@ -329,55 +370,20 @@ class QCAutoPlotMainWindow(AutoPlotMainWindow):
             # dataset really has no results yet.
             ds = getattr(self.loaderNode, '_dataset', None)
             if ds is not None and not ds.number_of_results:
-                self._showNoDataBanner(
+                self.showWarningBanner(
                     _no_data_message(ds, pathAndId[1])
                 )
-
-    def _showNoDataBanner(self, msg: str) -> None:
-        """Show a prominent warning banner at the top of the window."""
-        self.statusBar().showMessage(msg)
-        banner = QtWidgets.QLabel(msg)
-        banner.setWordWrap(True)
-        banner.setTextInteractionFlags(
-            QtCore.Qt.TextSelectableByMouse
-            | QtCore.Qt.TextSelectableByKeyboard
-        )
-        banner.setCursor(QtGui.QCursor(QtCore.Qt.IBeamCursor))
-        banner.setStyleSheet(
-            "background-color: #fff3cd; color: #856404;"
-            "border: 1px solid #ffc107; border-radius: 4px;"
-            "padding: 8px; font-size: 11pt;"
-        )
-        wrapper = QtWidgets.QWidget()
-        layout = QtWidgets.QVBoxLayout(wrapper)
-        layout.setContentsMargins(0, 0, 0, 0)
-        layout.setSpacing(0)
-        layout.addWidget(banner)
-        layout.addWidget(self.plot)
-        self.setCentralWidget(wrapper)
-        self._noDataBanner = banner
-        self._noDataWrapper = wrapper
-
-    def _removeNoDataBanner(self) -> None:
-        """Remove the no-data banner, restoring the plot as central widget."""
-        if self._noDataBanner is not None:
-            self._noDataBanner.deleteLater()
-            self._noDataBanner = None
-            # Reparent plot back to be the direct central widget
-            self.setCentralWidget(self.plot)
-            self._noDataWrapper = None
-            self.statusBar().clearMessage()
 
     def setDefaults(self, data: DataDictBase) -> None:
         super().setDefaults(data)
 
     def refreshData(self) -> None:
         super().refreshData()
-        # Once data arrives, remove the "no data" banner if it was shown
-        if (self._noDataBanner is not None
+        # Once data arrives, remove the warning banner if it was shown
+        if (self._warningBanner is not None
                 and self.loaderNode is not None
                 and self.loaderNode.nLoadedRecords > 0):
-            self._removeNoDataBanner()
+            self.removeWarningBanner()
 
 
 
