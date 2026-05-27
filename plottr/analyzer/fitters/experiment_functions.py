@@ -1,8 +1,7 @@
-from typing import Tuple, Any, Optional, Union, Dict, List
+from typing import Tuple, Any, Union, Dict
 
 import numpy as np
-import lmfit
-from plottr.analyzer.fitters.fitter_base  import Fit, FitResult
+from plottr.analyzer.fitters.fitter_base  import Fit
 
 
 class T1_Decay(Fit):

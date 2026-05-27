@@ -1,60 +1,61 @@
 """plottr.monitr -- a GUI tool for monitoring data files."""
 
+import sys
+import os
 import argparse
 import copy
 import importlib
-import json
-import logging
-import os
-import pprint
-import re
-import sys
 import time
-from enum import Enum, auto
-from functools import partial
-from itertools import cycle
-from multiprocessing import Process
-from pathlib import Path
-from typing import (
-    Any,
-    Dict,
-    Generator,
-    Iterable,
-    List,
-    Optional,
-    Sequence,
-    Tuple,
-    Union,
-    cast,
-)
-
-from watchdog.events import FileSystemEvent, FileSystemMovedEvent
-
-from .. import QtCore, QtGui, QtWidgets, Signal, Slot
-from .. import config_entry as getcfg
-from .. import log as plottrlog
-from .. import plottrPath
-from ..apps.watchdog_classes import WatcherClient
-from ..data.datadict import DataDict
-from ..data.datadict_storage import all_datadicts_from_hdf5, datadict_from_hdf5
-from ..gui.widgets import Collapsible
-from ..icons import get_completeIcon as get_complete_icon
-from ..icons import get_imageIcon as get_img_icon
-from ..icons import get_interruptedIcon as get_interrupted_icon
-from ..icons import get_jsonIcon as get_json_icon
-from ..icons import get_mdIcon as get_md_icon
-from ..icons import get_starIcon as get_star_icon
-from ..icons import get_trashIcon as get_trash_icon
-from ..plot.mpl.autoplot import AutoPlot as MPLAutoPlot
-from ..plot.pyqtgraph.autoplot import AutoPlot as PGAutoPlot
-from ..utils.misc import unwrap_optional
-from .appmanager import AppManager
-from .json_viewer import JsonModel, JsonTreeView
 
 # Uncomment the next 2 lines if the app suddenly crash with no error.
 # import cgitb
 # cgitb.enable(format = 'text')
 
+import logging
+import re
+import pprint
+import json
+from enum import Enum, auto
+from multiprocessing import Process
+from pathlib import Path
+from typing import (
+    List,
+    Optional,
+    Dict,
+    Any,
+    Union,
+    Generator,
+    Iterable,
+    Tuple,
+    Sequence,
+    cast,
+)
+from functools import partial
+from itertools import cycle
+
+from watchdog.events import FileSystemEvent, FileSystemMovedEvent
+
+from .. import QtCore, QtWidgets, Signal, Slot, QtGui, plottrPath
+from .. import config_entry as getcfg
+from .. import log as plottrlog
+from ..plot.mpl.autoplot import AutoPlot as MPLAutoPlot
+from ..plot.pyqtgraph.autoplot import AutoPlot as PGAutoPlot
+from ..data.datadict_storage import all_datadicts_from_hdf5, datadict_from_hdf5
+from ..data.datadict import DataDict
+from ..apps.watchdog_classes import WatcherClient
+from ..gui.widgets import Collapsible
+from .json_viewer import JsonModel, JsonTreeView
+from ..icons import (
+    get_starIcon as get_star_icon,
+    get_trashIcon as get_trash_icon,
+    get_completeIcon as get_complete_icon,
+    get_interruptedIcon as get_interrupted_icon,
+    get_imageIcon as get_img_icon,
+    get_jsonIcon as get_json_icon,
+    get_mdIcon as get_md_icon,
+)
+from ..utils.misc import unwrap_optional
+from .appmanager import AppManager
 
 TIMESTRFORMAT = "%Y-%m-%dT%H%M%S"
 
@@ -63,6 +64,7 @@ AUTOPLOTMODULE = "plottr.apps.autoplot"
 
 # Function that the app manager should run to open a new app.
 AUTOPLOTFUNC = "autoplotDDH5App"
+
 
 LOGGER = logging.getLogger("plottr.apps.monitr")
 
@@ -155,7 +157,6 @@ class ContentType(Enum):
 
 
 class SupportedDataTypes:
-
     valid_types = [".ddh5", ".md", ".json", ".py"]
 
     @classmethod
@@ -650,10 +651,8 @@ class FileModel(QtGui.QStandardItemModel):
         path = Path(str(event.src_path))
         # If a folder is created, it will be added when a data file will be created.
         if not path.is_dir() and not any(part.startswith(".") for part in path.parts):
-
             # If the file created is a lock, we ignore it.
             if not is_file_lock(path):
-
                 # Every folder that is currently in the tree will be in the main dictionary.
                 if path.parent in self.main_dictionary:
                     parent = self.main_dictionary[path.parent]
@@ -715,7 +714,6 @@ class FileModel(QtGui.QStandardItemModel):
             if path.parent in self.main_dictionary:
                 # If the file created is a lock, we ignore it.
                 if not is_file_lock(path):
-
                     parent = self.main_dictionary[path.parent]
                     if path in parent.files:
                         # Checks if the file is a data file.
@@ -922,16 +920,13 @@ class FileModel(QtGui.QStandardItemModel):
         path = Path(str(event.src_path))
 
         if path.parent in self.main_dictionary:
-
             # If the file created is a lock, we ignore it.
             if not is_file_lock(path):
-
                 parent = self.main_dictionary[path.parent]
                 # If the folder is not currently being selected I don't care about modifications.
                 if self.currently_selected_folder is not None and _is_relative_to(
                     parent.path, self.currently_selected_folder
                 ):
-
                     # If im expecting this update, ignore it.
                     if path in self.modified_exceptions:
                         self.modified_exceptions.remove(path)
@@ -1124,7 +1119,6 @@ class FileModel(QtGui.QStandardItemModel):
 
 
 class SortFilterProxyModel(QtCore.QSortFilterProxyModel):
-
     # Signal() -- Emitted before filtering is going to happen.
     filter_incoming = Signal()
 
@@ -3043,7 +3037,6 @@ class TagCreator(QtWidgets.QLineEdit):
 
 
 class IconLabel(QtWidgets.QLabel):
-
     def __init__(
         self, movie: QtGui.QMovie, size: Optional[int] = None, *args: Any, **kwargs: Any
     ):
@@ -3434,7 +3427,6 @@ class Monitr(QtWidgets.QMainWindow):
         """
         # Check that the folder passed is a dataset.
         if self.current_selected_folder in self.model.main_dictionary:
-
             # If it's the first time, create the right side scroll area and add it to the splitter.
             if self.scroll_area is None:
                 self.scroll_area = VerticalScrollArea()
@@ -3581,7 +3573,7 @@ class Monitr(QtWidgets.QMainWindow):
         """
         self.header_label = QtWidgets.QLabel(parent=self.right_side_dummy_widget)
         self.header_label.setWordWrap(True)
-        text = f'<h1><u>{self.current_selected_folder.name.replace("_", " ")}</n></h1>'
+        text = f"<h1><u>{self.current_selected_folder.name.replace('_', ' ')}</n></h1>"
         self.header_label.setText(text)
         self.right_side_layout.addWidget(self.header_label)
 
@@ -3735,7 +3727,6 @@ class Monitr(QtWidgets.QMainWindow):
 
         for file, name, file_type in files_data:
             if file_type == ContentType.json:
-
                 expand = False
                 if file in self.collapsed_state_dictionary:
                     expand = self.collapsed_state_dictionary[file]
@@ -3909,8 +3900,7 @@ def script() -> int:
         "--refresh_interval",
         default=2,
         type=float,
-        help="interval at which to look for changes in the "
-        "monitored path (in seconds)",
+        help="interval at which to look for changes in the monitored path (in seconds)",
     )
     args = parser.parse_args()
 

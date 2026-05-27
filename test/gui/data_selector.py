@@ -1,4 +1,4 @@
-from plottr import QtGui, QtWidgets
+from plottr import QtWidgets
 from plottr.gui.tools import widgetDialog
 from plottr.node.data_selector import DataSelector
 from plottr.node.tools import linearFlowchart

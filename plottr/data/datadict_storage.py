@@ -23,11 +23,10 @@ import numpy as np
 import h5py
 
 from qcodes.utils import NumpyJSONEncoder
-from plottr import QtGui, Signal, Slot, QtWidgets, QtCore
+from plottr import Signal, Slot, QtWidgets, QtCore
 
 from ..node import (
-    Node, NodeWidget, updateOption, updateGuiFromNode,
-    emitGuiUpdate,
+    Node, NodeWidget, updateOption,
 )
 
 from .datadict import DataDict, is_meta_key, DataDictBase

@@ -1,6 +1,6 @@
 from typing import Dict, Any, Callable, Optional, Type, cast
 
-from .. import QtGui, QtWidgets
+from .. import QtWidgets
 from .node import Node, NodeWidget, updateOption
 
 connectCallableType = Callable[['AutoNodeGuiTemplate', str, Dict[str, Any], bool], QtWidgets.QWidget]
@@ -44,22 +44,26 @@ def connectFloatSpinbox(
 
 
 class AutoNodeGui(AutoNodeGuiTemplate):
-
     widgetConnection = {
         int: connectIntegerSpinbox,
         float: connectFloatSpinbox,
     }
 
-    def __init__(self, parent: Optional[QtWidgets.QWidget] = None,
-                 node: Optional[Node] = None):
+    def __init__(
+        self, parent: Optional[QtWidgets.QWidget] = None, node: Optional[Node] = None
+    ):
         super().__init__(parent)
         layout = QtWidgets.QFormLayout()
         self.setLayout(layout)
 
     def addOption(self, name: str, specs: Dict[str, Any], confirm: bool) -> None:
-        optionType = specs.get('type', None)
+        optionType: type | None = specs.get("type", None)
         widget = None
-        func = self.widgetConnection.get(optionType, None)
+        func = (
+            self.widgetConnection[optionType]
+            if optionType in self.widgetConnection.keys()
+            else None
+        )
         if func is not None:
             widget = func(self, name, specs, confirm)
         layout = cast(QtWidgets.QFormLayout, self.layout())

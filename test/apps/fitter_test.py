@@ -4,8 +4,8 @@ Testing how to make a custom app with gui.
 import numpy as np
 import lmfit
 
-from plottr import QtGui, QtWidgets
-from plottr.data.datadict import DataDictBase, MeshgridDataDict
+from plottr import QtWidgets
+from plottr.data.datadict import MeshgridDataDict
 from plottr.gui.widgets import makeFlowchartWithPlotWindow
 from plottr.node.dim_reducer import XYSelector
 from plottr.node.fitter import FittingNode, FittingOptions

@@ -158,13 +158,15 @@ class RunList(QtWidgets.QTreeWidget):
         copy_action = menu.addAction(copy_icon, "Copy")
 
         window = cast(QCodesDBInspector, self.window())
-        starAction: QtWidgets.QAction = window.starAction # type: ignore[has-type]
+        starAction: QtWidgets.QAction = window.starAction
 
         starAction.setText('Star' if current_tag_char != self.tag_dict['star'] else 'Unstar')
         menu.addAction(starAction)
 
-        crossAction: QtWidgets.QAction = window.crossAction # type: ignore[has-type]
-        crossAction.setText('Cross' if current_tag_char != self.tag_dict['cross'] else 'Uncross')
+        crossAction: QtWidgets.QAction = window.crossAction
+        crossAction.setText(
+            "Cross" if current_tag_char != self.tag_dict["cross"] else "Uncross"
+        )
         menu.addAction(crossAction)
 
         action = menu.exec_(self.mapToGlobal(position))
@@ -579,7 +581,10 @@ class QCodesDBInspector(QtWidgets.QMainWindow):
     @Slot(int)
     def setRunSelection(self, runId: int) -> None:
         assert self.filepath is not None
-        ds = load_dataset_from(self.filepath, runId)
+        if sys.version_info >= (3, 11):
+            ds = load_dataset_from(self.filepath, runId, read_only=True)
+        else:
+            ds = load_dataset_from(self.filepath, runId)
         snap = None
         if hasattr(ds, 'snapshot'):
             snap = ds.snapshot
@@ -607,7 +612,10 @@ class QCodesDBInspector(QtWidgets.QMainWindow):
         # set tag in the database
         assert self.filepath is not None
         runId = int(item.text(0))
-        ds = load_dataset_from(self.filepath, runId)
+        if sys.version_info >= (3, 11):
+            ds = load_dataset_from(self.filepath, runId, read_only=False)
+        else:
+            ds = load_dataset_from(self.filepath, runId)
         ds.add_metadata('inspectr_tag', tag)
 
         # set tag in self.dbdf
