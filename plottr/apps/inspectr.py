@@ -168,6 +168,10 @@ class RunList(QtWidgets.QTreeWidget):
             "Cross" if current_tag_char != self.tag_dict["cross"] else "Uncross"
         )
         menu.addAction(crossAction)
+        
+        expAction: QtWidgets.QAction = window.expAction # type: ignore[has-type]
+        expAction.setText('Export')
+        menu.addAction(expAction)
 
         action = menu.exec_(self.mapToGlobal(position))
         if action == copy_action:
@@ -406,6 +410,12 @@ class QCodesDBInspector(QtWidgets.QMainWindow):
         self.crossAction.setShortcut('Ctrl+Alt+X')
         self.crossAction.triggered.connect(self.crossSelectedRun)
         self.addAction(self.crossAction)
+
+        # action: export data
+        self.expAction = QtWidgets.QAction()
+        self.expAction.setShortcut('Ctrl+Alt+E')
+        self.expAction.triggered.connect(self.exportSelectedRun)
+        self.addAction(self.expAction)
 
         # sizing
         scaledSize = int(640 * rint(self.logicalDpiX() / 96.0))
@@ -646,6 +656,27 @@ class QCodesDBInspector(QtWidgets.QMainWindow):
     def crossSelectedRun(self) -> None:
         self.tagSelectedRun('cross')
 
+    @Slot()
+    def exportSelectedRun(self) -> None:
+        """
+        Open a file dialog that allows selecting a folder and file name.
+        """
+        curdir = os.getcwd()
+        runId = int(self.runList.selectedItems()[0].text(0))
+        default_name = curdir+"/dataID_"+str(runId)+".csv"
+
+        path, _fltr = QtWidgets.QFileDialog.getSaveFileName(
+            self,
+            'Export to .csv file',
+            default_name,
+            'comma separated files (*.csv);;all files (*.*)',
+            )
+
+        if path:
+            LOGGER.info(f"Opening: {path}")
+            ds = load_dataset_from(self.filepath, runId)
+            df = ds.to_pandas_dataframe()
+            df.to_csv(path)
 
 class WindowDict(TypedDict):
     flowchart: Flowchart
