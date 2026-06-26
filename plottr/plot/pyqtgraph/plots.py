@@ -114,10 +114,20 @@ class PlotWithColorbar(PlotBase):
 
         self.img = pg.ImageItem()
         self.plot.addItem(self.img)
-        # Transpose z to match matplotlib convention: the first axis of the
-        # meshgrid (labeled on bottom/x) maps to the horizontal display axis.
-        # pyqtgraph ImageItem displays array[col, row], so z.T is needed.
-        self.img.setImage(z.T)
+        # pyqtgraph's ImageItem uses col-major ordering by default, i.e.
+        # ``image[i, j]`` maps the first array axis to the horizontal (x)
+        # display axis and the second array axis to the vertical (y) axis.
+        # The meshgrid reaches us with x varying along the first axis and y
+        # along the second (XYSelector reorders axes accordingly), so the data
+        # can be handed over without transposing. Flip along an axis whose
+        # coordinate is decreasing so the image aligns with the always-
+        # increasing rectangle set below -- this mirrors the matplotlib backend.
+        img_z = z
+        if x.shape[0] > 1 and not x[0, 0] < x[1, 0]:
+            img_z = img_z[::-1, :]
+        if y.shape[1] > 1 and not y[0, 0] < y[0, 1]:
+            img_z = img_z[:, ::-1]
+        self.img.setImage(img_z)
         self.img.setRect(QtCore.QRectF(x.min(), y.min(), x.max() - x.min(), y.max() - y.min()))
 
         self.colorbar.setImageItem(self.img)

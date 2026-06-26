@@ -61,8 +61,10 @@ class TestAxisOrientation:
         plot = PlotWithColorbar()
         qtbot.addWidget(plot)
         plot.setImage(xx, yy, zz)
-        # z is transposed for display: input (5, 3) → ImageItem (3, 5)
-        assert plot.img.image.shape == (3, 5)
+        # pyqtgraph uses col-major ordering: the first array axis (x, 5 points)
+        # maps to the horizontal display axis, the second (y, 3 points) to the
+        # vertical one. No transpose is applied, so the shape is unchanged.
+        assert plot.img.image.shape == (5, 3)
 
     def test_pyqtgraph_image_rect(self, qtbot):
         from plottr.plot.pyqtgraph.plots import PlotWithColorbar
@@ -86,7 +88,79 @@ class TestAxisOrientation:
         plot = PlotWithColorbar()
         qtbot.addWidget(plot)
         plot.setImage(xx, yy, zz)
-        assert plot.img.image.shape == (3, 5)  # transposed
+        assert plot.img.image.shape == (5, 3)  # no transpose, only a flip
+        # x is decreasing -> the data is flipped along axis 0 so that the
+        # smallest x ends up at the left (image index 0).
+        np.testing.assert_array_equal(plot.img.image, zz[::-1, :])
+
+    def test_pyqtgraph_orientation_matches_mpl(self, qtbot):
+        """The pixel that pyqtgraph and matplotlib place at the bottom-left
+        corner must encode the same (x, y) data location."""
+        from plottr.plot.pyqtgraph.plots import PlotWithColorbar
+        from plottr.plot.mpl.plotting import plotImage
+        _, xx, yy, zz = _make_asymmetric_meshgrid()
+
+        fig, ax = plt.subplots()
+        im = plotImage(ax, xx, yy, zz)
+        mpl_arr = np.asarray(im.get_array())
+        plt.close(fig)
+
+        plot = PlotWithColorbar()
+        qtbot.addWidget(plot)
+        plot.setImage(xx, yy, zz)
+        pg_img = plot.img.image
+
+        # matplotlib (origin='lower'): bottom-left = mpl_arr[0, 0],
+        # one step right = +x, one step up = +y.
+        # pyqtgraph (col-major): bottom-left = pg_img[0, 0],
+        # one step right (axis 0) = +x, one step up (axis 1) = +y.
+        assert pg_img[0, 0] == mpl_arr[0, 0]
+        assert pg_img[1, 0] == mpl_arr[0, 1]   # +x step
+        assert pg_img[0, 1] == mpl_arr[1, 0]   # +y step
+
+    def test_pyqtgraph_axis_order_after_xyselector(self, qtbot):
+        """Regression: data stored with the y-role axis first must still be
+        displayed with the x-role axis horizontal (matches matplotlib).
+
+        Reproduces the case where the array is laid out as
+        ``[axisA, axisB]`` but the user assigns ``axisB`` to x and ``axisA``
+        to y. ``XYSelector`` reorders the axes; the plot backend must not
+        re-introduce a transpose.
+        """
+        from plottr.plot.pyqtgraph.plots import PlotWithColorbar
+        from plottr.node.dim_reducer import XYSelector
+
+        n_a, n_b = 7, 4
+        a = np.linspace(0, 6, n_a)
+        b = np.linspace(-3, 0, n_b)
+        aa, bb = np.meshgrid(a, b, indexing='ij')   # shape (n_a, n_b)
+        ai = np.arange(n_a)[:, None] * np.ones((1, n_b))
+        bi = np.ones((n_a, 1)) * np.arange(n_b)[None, :]
+        zz = bi * 1000 + ai                          # encodes (b_idx, a_idx)
+
+        dd = MeshgridDataDict(
+            signal=dict(values=zz, axes=['a', 'b']),
+            a=dict(values=aa), b=dict(values=bb),
+        )
+        dd.validate()
+
+        sel = XYSelector(name='sel_orient')
+        sel._xyAxes = ('b', 'a')   # b -> x-axis, a -> y-axis
+        out = sel.process(dataIn=dd)['dataOut']
+        inds = out.axes('signal')
+        x = out.data_vals(inds[0])
+        y = out.data_vals(inds[1])
+        z = out.data_vals('signal')
+
+        plot = PlotWithColorbar()
+        qtbot.addWidget(plot)
+        plot.setImage(x, y, z)
+        img = plot.img.image
+
+        # horizontal step (axis 0) should change the x-role index (b -> +1000)
+        assert img[1, 0] - img[0, 0] == 1000
+        # vertical step (axis 1) should change the y-role index (a -> +1)
+        assert img[0, 1] - img[0, 0] == 1
 
     def test_mpl_and_pyqtgraph_consistency(self, qtbot):
         _, xx, yy, zz = _make_asymmetric_meshgrid()
