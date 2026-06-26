@@ -6,7 +6,7 @@ import logging
 import os
 import time
 import argparse
-from typing import Union, Tuple, Optional, Type, List, Any, Type
+from typing import Union, Tuple, Optional, Type, List, Any, Type, TYPE_CHECKING
 
 from .. import QtCore, Flowchart, Signal, Slot, QtWidgets, QtGui
 from ..data.datadict import DataDictBase
@@ -27,6 +27,12 @@ from ..plot.mpl.autoplot import AutoPlot as MPLAutoPlot
 from ..plot.pyqtgraph.autoplot import AutoPlot as PGAutoPlot
 from ..utils.misc import unwrap_optional
 
+if TYPE_CHECKING:
+    try:
+        from qcodes.dataset import DataSetProtocol
+    except ImportError:
+        from qcodes.dataset.data_set import DataSet as DataSetProtocol
+
 __author__ = 'Wolfgang Pfaff'
 __license__ = 'MIT'
 
@@ -36,7 +42,7 @@ __license__ = 'MIT'
 LOGGER = logging.getLogger('plottr.apps.autoplot')
 
 
-def _no_data_message(ds: Any) -> str:
+def _no_data_message(ds: 'DataSetProtocol') -> str:
     """Build a user-facing message explaining why a dataset has no data.
 
     Uses dataset state (running/pristine) and export_info to provide
@@ -323,10 +329,7 @@ class AutoPlotMainWindow(PlotWindow):
 
         try:
             self.fc.nodes()['Data selection'].selectedData = selected
-            if data.meta_val('qcodes_shape') is not None:
-                self.fc.nodes()['Grid'].grid = GridOption.metadataShape, {}
-            else:
-                self.fc.nodes()['Grid'].grid = GridOption.guessShape, {}
+            self.fc.nodes()['Grid'].grid = GridOption.guessShape, {}
             self.fc.nodes()['Dimension assignment'].dimensionRoles = drs
         # FIXME: this is maybe a bit excessive, but trying to set all the defaults
         #   like this can result in many types of errors.
@@ -369,6 +372,13 @@ class QCAutoPlotMainWindow(AutoPlotMainWindow):
             ds = getattr(self.loaderNode, '_dataset', None)
             if ds is not None and not ds.number_of_results:
                 self.showWarningBanner(_no_data_message(ds))
+
+    def setDefaults(self, data: DataDictBase) -> None:
+        super().setDefaults(data)
+        # qcodes datasets carry their shape in the metadata; when available,
+        # grid the data using that shape instead of guessing it.
+        if data.meta_val('qcodes_shape') is not None:
+            self.fc.nodes()['Grid'].grid = GridOption.metadataShape, {}
 
     def refreshData(self) -> None:
         super().refreshData()

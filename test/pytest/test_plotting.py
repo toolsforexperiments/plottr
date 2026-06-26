@@ -379,3 +379,40 @@ class TestPyqtgraphComplexModes:
                 if menu is not None:
                     return [ma.text() for ma in menu.actions()]
         return []
+
+
+# -- Default grid selection tests --
+
+class TestGridDefaults:
+    """Verify setDefaults picks a sensible grid option for the input data."""
+
+    def test_ddh5_without_shape_meta_defaults_to_guessShape(self, qtbot):
+        """A dataset without ``qcodes_shape`` metadata (e.g. a normal ddh5
+        file) must default to ``guessShape`` rather than being left at the
+        ``noGrid`` default.
+
+        Regression: the base ``setDefaults`` used to call
+        ``meta_val('qcodes_shape')`` unconditionally, which raised
+        ``KeyError`` for ddh5 data and aborted defaults setup, leaving the
+        gridder at ``noGrid`` ("No grid").
+        """
+        from plottr.apps.autoplot import autoplot
+        from plottr.node.grid import GridOption
+        x = np.linspace(0, 1, 5)
+        y = np.linspace(0, 1, 4)
+        xx, yy = np.meshgrid(x, y, indexing='ij')
+        data = MeshgridDataDict(
+            z=dict(values=xx + yy, axes=['x', 'y']),
+            x=dict(values=xx), y=dict(values=yy),
+        )
+        data.validate()
+        assert '__qcodes_shape__' not in data  # no qcodes shape metadata
+
+        fc, win = autoplot(inputData=data)
+        qtbot.addWidget(win)
+        option, _ = fc.nodes()['Grid'].grid
+        assert option is GridOption.guessShape
+
+        roles = fc.nodes()['Dimension assignment'].dimensionRoles
+        assert roles  # dimension roles were assigned, defaults completed
+

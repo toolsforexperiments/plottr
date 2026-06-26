@@ -1,16 +1,7 @@
 from enum import Enum, unique
 from typing import Dict, Optional
 
-try:
-    from qcodes.plotting.axis_labels import find_scale_and_prefix
-except ImportError:
-    try:
-        # fallback for qcodes < 0.46 where the function lived under utils
-        from qcodes.utils.plotting import find_scale_and_prefix  # type: ignore[import-not-found, no-redef]
-    except ImportError:
-        # fallback when qcodes is not installed (it is an optional dependency)
-        from plottr.utils.find_scale_and_prefix import find_scale_and_prefix  # type: ignore[no-redef]
-
+from qcodes.plotting import find_scale_and_prefix
 
 from plottr import QtWidgets, Signal, Slot
 from plottr.data.datadict import DataDictBase
