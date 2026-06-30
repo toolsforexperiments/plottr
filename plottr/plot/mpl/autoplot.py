@@ -125,6 +125,7 @@ class FigureMaker(BaseFM):
         assert plotItem.plotOptions is not None
         return axes[0].plot(x, y, label=lbl, **plotItem.plotOptions)
 
+
     def plotImage(self, plotItem: PlotItem) -> Optional[ScalarMappable]:
         assert len(plotItem.data) == 3
         x, y, z = plotItem.data
@@ -153,6 +154,9 @@ class AutoPlotToolBar(QtWidgets.QToolBar):
 
     #: signal emitted when the complex data option has been changed
     complexRepresentationSelected = Signal(ComplexRepresentation)
+
+    #: signal emitted when the colormap has been changed
+    cmapChanged = Signal(str)
 
     def __init__(self, name: str, parent: Optional[QtWidgets.QWidget] = None):
         """Constructor for :class:`AutoPlotToolBar`"""
@@ -229,12 +233,68 @@ class AutoPlotToolBar(QtWidgets.QToolBar):
             ComplexRepresentation.magAndPhase: self.plotMagPhase
         })
 
+        self.addSeparator()
+        self.scrollableAction = self.addAction('Scrollable')
+        self.scrollableAction.setCheckable(True)
+        self.scrollableAction.setChecked(False)
+        self.scrollableAction.setToolTip('Enable scrollable plot area for many subplots')
+
+        self.minHeightSpin = QtWidgets.QSpinBox()
+        self.minHeightSpin.setRange(40, 2000)
+        self.minHeightSpin.setValue(100)
+        self.minHeightSpin.setSuffix(" px")
+        self.minHeightSpin.setToolTip("Minimum height per subplot row")
+        self.minHeightSpin.setEnabled(False)
+        self.addWidget(self.minHeightSpin)
+
+        self.scrollableAction.triggered.connect(
+            lambda: self.minHeightSpin.setEnabled(self.scrollableAction.isChecked())
+        )
+
+        # Colormap selector
+        self.addSeparator()
+        self._cmapLabel = QtWidgets.QLabel(" Colormap: ")
+        self.addWidget(self._cmapLabel)
+        self.cmapCombo = QtWidgets.QComboBox()
+        self.cmapCombo.setToolTip("Select colormap for 2D plots")
+        self.cmapCombo.setSizeAdjustPolicy(
+            QtWidgets.QComboBox.AdjustToContents)
+        self._populateColormaps()
+        self.addWidget(self.cmapCombo)
+
+        #: signal emitted when the colormap has been changed
+        self.cmapCombo.currentTextChanged.connect(self._onCmapChanged)
+
         self._currentPlotType = PlotType.empty
         self._currentlyAllowedPlotTypes: Tuple[PlotType, ...] = ()
 
         self._currentComplex = ComplexRepresentation.realAndImag
         self.ComplexActions[self._currentComplex].setChecked(True)
         self._currentlyAllowedComplexTypes: Tuple[ComplexRepresentation, ...] = ()
+
+    def _populateColormaps(self) -> None:
+        """Fill the colormap combo box with matplotlib's available colormaps."""
+        import matplotlib as mpl
+        # Curated list of popular colormaps first, then all others
+        popular = ['viridis', 'magma', 'inferno', 'plasma', 'cividis',
+                   'coolwarm', 'RdBu_r', 'RdYlBu_r', 'Spectral_r',
+                   'hot', 'bone', 'gray']
+        all_cmaps = sorted(mpl.colormaps())
+        # Put popular ones first, then the rest (no duplicates)
+        ordered = [c for c in popular if c in all_cmaps]
+        ordered += [c for c in all_cmaps if c not in ordered and not c.endswith('_r')]
+        self.cmapCombo.addItems(ordered)
+        # Set current to the matplotlib default
+        default = mpl.rcParams.get('image.cmap', 'viridis')
+        idx = self.cmapCombo.findText(default)
+        if idx >= 0:
+            self.cmapCombo.setCurrentIndex(idx)
+
+    def _onCmapChanged(self, name: str) -> None:
+        """Update the matplotlib RC param and signal a replot."""
+        import matplotlib as mpl
+        mpl.rcParams['image.cmap'] = name
+        self.cmapChanged.emit(name)
 
     def selectPlotType(self, plotType: PlotType) -> None:
         """makes sure that the selected `plotType` is active (checked), all
@@ -353,6 +413,7 @@ class AutoPlot(MPLPlotWidget):
 
         self.plotDataType = PlotDataType.unknown
         self.plotType = PlotType.empty
+        self._inSetData = False
 
         # The default complex behavior is set here.
         self.complexRepresentation = ComplexRepresentation.realAndImag
@@ -368,6 +429,13 @@ class AutoPlot(MPLPlotWidget):
         self.plotOptionsToolBar.complexRepresentationSelected.connect(
             self._complexPreferenceFromToolBar
         )
+        self.plotOptionsToolBar.scrollableAction.triggered.connect(
+            self._scrollableFromToolBar
+        )
+        self.plotOptionsToolBar.minHeightSpin.editingFinished.connect(
+            self._scrollableFromToolBar
+        )
+        self.plotOptionsToolBar.cmapChanged.connect(self._cmapFromToolBar)
 
         scaling = dpiScalingFactor(self)
         iconSize = int(36 + 8*(scaling - 1))
@@ -384,9 +452,17 @@ class AutoPlot(MPLPlotWidget):
         :param data: input data
         """
         super().setData(data)
+        if data is None:
+            self.plot.fig.clear()
+            self.updatePlot()
+            return
         self.plotDataType = determinePlotDataType(data)
+        # Flag to suppress redundant _plotData calls from toolbar signals
+        # triggered by _processPlotTypeOptions / _processComplexTypeOptions.
+        self._inSetData = True
         self._processPlotTypeOptions()
         self._processComplexTypeOptions()
+        self._inSetData = False
         self._plotData()
 
     def _processPlotTypeOptions(self) -> None:
@@ -429,13 +505,26 @@ class AutoPlot(MPLPlotWidget):
     def _plotTypeFromToolBar(self, plotType: PlotType) -> None:
         if plotType is not self.plotType:
             self.plotType = plotType
-            self._plotData()
+            if not self._inSetData:
+                self._plotData()
 
     @Slot(ComplexRepresentation)
     def _complexPreferenceFromToolBar(self, complexRepresentation: ComplexRepresentation) -> None:
         if complexRepresentation is not self.complexRepresentation:
             self.complexRepresentation = complexRepresentation
+            if not self._inSetData:
+                self._plotData()
+
+    @Slot(str)
+    def _cmapFromToolBar(self, _cmap: str) -> None:
+        if not self._inSetData:
             self._plotData()
+
+    @Slot()
+    def _scrollableFromToolBar(self) -> None:
+        scrollable = self.plotOptionsToolBar.scrollableAction.isChecked()
+        self.setScrollable(scrollable)
+        self._plotData()
 
     def _plotData(self) -> None:
         """Plot the data using previously determined data and plot types."""
@@ -465,6 +554,17 @@ class AutoPlot(MPLPlotWidget):
                     labels=[str(self.data.label(n)) for n in indeps] + [str(self.data.label(dn))],
                     plotDataType=self.plotDataType,
                     **kw)
+
+            nSubPlots = fm.nSubPlots()
+
+        # Set canvas minimum height for scrollable mode
+        scrollable = self.plotOptionsToolBar.scrollableAction.isChecked()
+        if scrollable and nSubPlots > 2:
+            nrows = int(nSubPlots ** 0.5 + 0.5)
+            min_h = self.plotOptionsToolBar.minHeightSpin.value()
+            self.plot.setMinimumHeight(max(nrows * min_h, 400))
+        else:
+            self.plot.setMinimumHeight(0)
 
         self.setMeta(self.data)
         self.updatePlot()

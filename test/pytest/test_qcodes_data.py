@@ -312,3 +312,424 @@ def test_update_qcloader(qtbot, empty_db_path):
     #         break
     #     check()
     # check()
+
+
+# -- Records counter tests (qcodes_db_overview) --
+
+def _make_qcodes_db_with_runs(db_path: str, n_runs: int = 1) -> str:
+    """Helper: create a QCodes DB with n_runs simple numeric datasets."""
+    try:
+        from qcodes.parameters import ParamSpecBase
+    except ImportError:
+        from qcodes.dataset.descriptions.param_spec import ParamSpecBase
+    from qcodes.dataset.descriptions.dependencies import InterDependencies_
+
+    initialise_or_create_database_at(db_path)
+    exp = load_or_create_experiment("test_exp", sample_name="test_sample")
+    p_x = ParamSpecBase("x", "numeric")
+    p_y = ParamSpecBase("y", "numeric")
+    interdeps = InterDependencies_(dependencies={p_y: (p_x,)})
+
+    for r in range(n_runs):
+        ds = qc.new_data_set(f"run_{r + 1}")
+        ds.set_interdependencies(interdeps)
+        ds.mark_started()
+        for i in range(10):
+            ds.add_results([{p_x.name: float(i), p_y.name: float(i ** 2)}])
+        ds.mark_completed()
+    return db_path
+
+
+class TestRecordsCounter:
+    """Verify records counter shows actual data point count."""
+
+    def test_counts_result_rows(self, tmp_path):
+        """Overview should count rows from the results table."""
+        import sqlite3
+        from plottr.data.qcodes_db_overview import get_db_overview
+
+        db_path = str(tmp_path / "test.db")
+        _make_qcodes_db_with_runs(db_path, n_runs=3)
+        overview = get_db_overview(db_path)
+        conn = sqlite3.connect(db_path)
+
+        for run_id, info in overview.items():
+            row = conn.execute(
+                "SELECT result_table_name FROM runs WHERE run_id=?",
+                (run_id,)
+            ).fetchone()
+            if row and row[0]:
+                try:
+                    actual = conn.execute(
+                        f'SELECT COUNT(*) FROM "{row[0]}"'
+                    ).fetchone()[0]
+                except Exception:
+                    continue
+                assert info['records'] == actual, \
+                    f"Run {run_id}: overview={info['records']}, actual={actual}"
+        conn.close()
+
+    def test_records_from_shapes(self):
+        """Shape info in run_description should produce correct count."""
+        import json
+        from plottr.data.qcodes_db_overview import _records_from_run_description
+
+        desc = json.dumps({"version": 3, "shapes": {"dep1": [100, 50]}})
+        assert _records_from_run_description(desc) == 5000
+        assert _records_from_run_description(json.dumps({"version": 3})) == 0
+        assert _records_from_run_description(None) == 0
+        assert _records_from_run_description("") == 0
+
+
+# -- Dataset refresh tests (inspectr incremental load) --
+
+class TestDatasetRefresh:
+    """Verify incremental DB refresh detects new runs."""
+
+    def test_incremental_overview(self, tmp_path):
+        """get_db_overview with start_run_id should find newly added runs."""
+        from plottr.data.qcodes_db_overview import get_db_overview
+        try:
+            from qcodes.parameters import ParamSpecBase
+        except ImportError:
+            from qcodes.dataset.descriptions.param_spec import ParamSpecBase
+        from qcodes.dataset.descriptions.dependencies import InterDependencies_
+
+        db_path = str(tmp_path / "test.db")
+        _make_qcodes_db_with_runs(db_path, n_runs=2)
+
+        assert set(get_db_overview(db_path).keys()) == {1, 2}
+        assert len(get_db_overview(db_path, start_run_id=2)) == 0
+
+        # Add a third run
+        initialise_or_create_database_at(db_path)
+        exp = load_or_create_experiment("test_exp2", sample_name="s2")
+        p_x = ParamSpecBase("x", "numeric")
+        p_y = ParamSpecBase("y", "numeric")
+        interdeps = InterDependencies_(dependencies={p_y: (p_x,)})
+        ds = qc.new_data_set("run_3")
+        ds.set_interdependencies(interdeps)
+        ds.mark_started()
+        ds.add_results([{p_x.name: 1.0, p_y.name: 2.0}])
+        ds.mark_completed()
+
+        assert 3 in get_db_overview(db_path, start_run_id=2)
+
+    def test_inspectr_refresh(self, qtbot, tmp_path):
+        """QCodesDBInspector.refreshDB should detect new runs."""
+        import os
+        os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
+        from plottr.apps.inspectr import QCodesDBInspector
+        try:
+            from qcodes.parameters import ParamSpecBase
+        except ImportError:
+            from qcodes.dataset.descriptions.param_spec import ParamSpecBase
+        from qcodes.dataset.descriptions.dependencies import InterDependencies_
+
+        db_path = str(tmp_path / "test.db")
+        _make_qcodes_db_with_runs(db_path, n_runs=1)
+
+        inspector = QCodesDBInspector(dbPath=db_path)
+        qtbot.addWidget(inspector)
+
+        def initial_load_done():
+            return inspector.dbdf is not None and inspector.dbdf.size > 0
+        qtbot.waitUntil(initial_load_done, timeout=5000)
+        assert list(inspector.dbdf.index) == [1]
+
+        # Add run 2
+        initialise_or_create_database_at(db_path)
+        p_x = ParamSpecBase("x", "numeric")
+        p_y = ParamSpecBase("y", "numeric")
+        interdeps = InterDependencies_(dependencies={p_y: (p_x,)})
+        ds = qc.new_data_set("run_2")
+        ds.set_interdependencies(interdeps)
+        ds.mark_started()
+        ds.add_results([{p_x.name: 1.0, p_y.name: 2.0}])
+        ds.mark_completed()
+
+        inspector.refreshDB()
+        def refresh_done():
+            return (inspector.dbdf is not None and 2 in inspector.dbdf.index)
+        qtbot.waitUntil(refresh_done, timeout=5000)
+        assert 2 in inspector.dbdf.index
+
+    def test_loadFullDB_resets_ui_on_reload(self, qtbot, tmp_path):
+        """Reloading the same DB file should clear date list, run list,
+        and dbdf — same as loading a fresh file."""
+        import os
+        os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
+        from plottr.apps.inspectr import QCodesDBInspector
+
+        db_path = str(tmp_path / "test.db")
+        _make_qcodes_db_with_runs(db_path, n_runs=3)
+
+        inspector = QCodesDBInspector(dbPath=db_path)
+        qtbot.addWidget(inspector)
+        qtbot.waitUntil(
+            lambda: inspector.dbdf is not None and inspector.dbdf.size > 0,
+            timeout=5000,
+        )
+        # Select a date so the run list is populated
+        if inspector.dateList.count() > 0:
+            inspector.dateList.item(0).setSelected(True)
+        qtbot.waitUntil(
+            lambda: inspector.runList.topLevelItemCount() > 0,
+            timeout=5000,
+        )
+        assert inspector.runList.topLevelItemCount() > 0
+
+        # Reload the same file
+        inspector.loadFullDB(db_path)
+
+        # Immediately after loadFullDB: UI should be cleared
+        assert inspector.dbdf is None, "dbdf should be reset to None"
+        assert inspector.dateList.count() == 0, "date list should be empty"
+        assert inspector.runList.topLevelItemCount() == 0, \
+            "run list should be empty during reload"
+
+        # Wait for reload to complete
+        qtbot.waitUntil(
+            lambda: inspector.dbdf is not None and inspector.dbdf.size > 0,
+            timeout=5000,
+        )
+        # After reload: data is back but run list shows hint (no date selected)
+        assert inspector.dbdf is not None
+        assert inspector.dateList.count() > 0
+
+    def test_inspectr_refresh_updates_records_for_incomplete(
+        self, qtbot, tmp_path
+    ):
+        """refreshDB should update records counter for incomplete datasets.
+
+        This was a regression: incremental refresh only loaded NEW runs,
+        so existing rows' records counter stayed stale.
+        """
+        import os
+        os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
+        from plottr.apps.inspectr import QCodesDBInspector
+        try:
+            from qcodes.parameters import ParamSpecBase
+        except ImportError:
+            from qcodes.dataset.descriptions.param_spec import ParamSpecBase
+        from qcodes.dataset.descriptions.dependencies import InterDependencies_
+
+        db_path = str(tmp_path / "test.db")
+        initialise_or_create_database_at(db_path)
+        load_or_create_experiment("exp", sample_name="s")
+        p_x = ParamSpecBase("x", "numeric")
+        p_y = ParamSpecBase("y", "numeric")
+        interdeps = InterDependencies_(dependencies={p_y: (p_x,)})
+
+        # Start an INCOMPLETE dataset with 5 results
+        ds = qc.new_data_set("incomplete")
+        ds.set_interdependencies(interdeps)
+        ds.mark_started()
+        for i in range(5):
+            ds.add_results([{p_x.name: float(i), p_y.name: float(i ** 2)}])
+
+        inspector = QCodesDBInspector(dbPath=db_path)
+        qtbot.addWidget(inspector)
+        qtbot.waitUntil(
+            lambda: inspector.dbdf is not None and 1 in inspector.dbdf.index,
+            timeout=5000
+        )
+        initial = int(inspector.dbdf.loc[1, 'records'])
+        assert initial == 5
+
+        # Add more results to the same dataset (still incomplete)
+        for i in range(5, 25):
+            ds.add_results([{p_x.name: float(i), p_y.name: float(i ** 2)}])
+
+        # Refresh should pick up the new records count
+        inspector.refreshDB()
+        qtbot.waitUntil(
+            lambda: int(inspector.dbdf.loc[1, 'records']) == 25,
+            timeout=5000
+        )
+        assert int(inspector.dbdf.loc[1, 'records']) == 25
+        ds.mark_completed()
+
+
+class TestBackendPersistence:
+    """Verify that the chosen plot backend is remembered across launches."""
+
+    @pytest.fixture(autouse=True)
+    def _clear_qsettings(self):
+        """Use an isolated QSettings store for each test so we don't pollute
+        the user's real preferences."""
+        from plottr import QtCore
+        from plottr.apps.inspectr import (
+            _QSETTINGS_ORG, _QSETTINGS_APP, _BACKEND_SETTING_KEY,
+        )
+        # Force INI format in a temp scope so the test is isolated
+        QtCore.QCoreApplication.setOrganizationName("plottr-test")
+        QtCore.QCoreApplication.setApplicationName("inspectr-test")
+        settings = QtCore.QSettings(_QSETTINGS_ORG, _QSETTINGS_APP)
+        settings.remove(_BACKEND_SETTING_KEY)
+        yield
+        settings.remove(_BACKEND_SETTING_KEY)
+
+    def test_save_and_load_backend_choice(self):
+        """Saved backend should be returned by _load_saved_backend."""
+        from plottr.apps.inspectr import (
+            _load_saved_backend, _save_backend_choice,
+        )
+        assert _load_saved_backend() is None
+        _save_backend_choice("pyqtgraph")
+        assert _load_saved_backend() == "pyqtgraph"
+        _save_backend_choice("matplotlib")
+        assert _load_saved_backend() == "matplotlib"
+
+    def test_unknown_backend_returns_none(self):
+        """Invalid saved value should not be returned."""
+        from plottr import QtCore
+        from plottr.apps.inspectr import (
+            _load_saved_backend, _QSETTINGS_ORG, _QSETTINGS_APP,
+            _BACKEND_SETTING_KEY,
+        )
+        settings = QtCore.QSettings(_QSETTINGS_ORG, _QSETTINGS_APP)
+        settings.setValue(_BACKEND_SETTING_KEY, "not-a-backend")
+        assert _load_saved_backend() is None
+
+    def test_inspectr_uses_saved_backend_on_launch(self, qtbot, tmp_path):
+        """If no plotWidgetClass is passed, inspectr should pick up the
+        previously saved backend."""
+        import os
+        os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
+        from plottr.apps.inspectr import (
+            QCodesDBInspector, _save_backend_choice, _get_plot_backends,
+        )
+
+        db_path = str(tmp_path / "test.db")
+        _make_qcodes_db_with_runs(db_path, n_runs=1)
+
+        # Simulate a previous run having selected pyqtgraph
+        _save_backend_choice("pyqtgraph")
+
+        inspector = QCodesDBInspector(dbPath=db_path)
+        qtbot.addWidget(inspector)
+        expected_cls = _get_plot_backends()["pyqtgraph"]
+        assert inspector._plotWidgetClass is expected_cls
+        # Wait for background load to complete cleanly before teardown
+        qtbot.waitUntil(
+            lambda: not inspector.loadDBThread.isRunning(), timeout=5000
+        )
+
+    def test_changing_backend_persists_choice(self, qtbot, tmp_path):
+        """Changing the toolbar combo box should save the new choice."""
+        import os
+        os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
+        from plottr.apps.inspectr import (
+            QCodesDBInspector, _load_saved_backend,
+        )
+
+        db_path = str(tmp_path / "test.db")
+        _make_qcodes_db_with_runs(db_path, n_runs=1)
+
+        inspector = QCodesDBInspector(dbPath=db_path)
+        qtbot.addWidget(inspector)
+        # Wait for initial load to settle
+        qtbot.waitUntil(
+            lambda: not inspector.loadDBThread.isRunning(), timeout=5000
+        )
+
+        inspector.plotBackendSelector.setCurrentText("pyqtgraph")
+        assert _load_saved_backend() == "pyqtgraph"
+
+        inspector.plotBackendSelector.setCurrentText("matplotlib")
+        assert _load_saved_backend() == "matplotlib"
+
+
+class TestNoDataAvailable:
+    """Verify that opening a dataset with no actual data
+    (e.g., metadata-only DB where the .nc file is missing)
+    shows a clear status message instead of an empty window."""
+
+    def _make_dataset_without_data(self, db_path: str) -> int:
+        """Create a qcodes dataset whose data file is then deleted,
+        leaving a metadata-only entry in the SQLite DB."""
+        import os
+        try:
+            from qcodes.parameters import ParamSpecBase
+        except ImportError:
+            from qcodes.dataset.descriptions.param_spec import ParamSpecBase
+        from qcodes.dataset.descriptions.dependencies import InterDependencies_
+
+        initialise_or_create_database_at(db_path)
+        load_or_create_experiment("metadata_only_exp", sample_name="s")
+        p_x = ParamSpecBase("x", "numeric")
+        p_y = ParamSpecBase("y", "numeric")
+        interdeps = InterDependencies_(dependencies={p_y: (p_x,)})
+
+        ds = qc.new_data_set("metadata_only_run")
+        ds.set_interdependencies(interdeps)
+        ds.mark_started()
+        # Don't add any results, mark as completed
+        ds.mark_completed()
+        run_id = ds.run_id
+
+        # Force a reload — load_dataset_from will see number_of_results == 0
+        return run_id
+
+    def test_ds_to_datadicts_skips_missing_params(self, tmp_path):
+        """ds_to_datadicts should not raise KeyError when cache is empty
+        or missing parameters (e.g., when the .nc data file is missing
+        for a metadata-only DB)."""
+        from plottr.data.qcodes_dataset import ds_to_datadicts
+        from qcodes.dataset.data_set import load_by_id
+        from unittest.mock import patch
+
+        db_path = str(tmp_path / "test.db")
+        run_id = self._make_dataset_without_data(db_path)
+        ds = load_by_id(run_id)
+
+        # Simulate: .nc file missing → cache.data() returns {}.
+        # Should NOT raise KeyError; should return empty dict (no
+        # dependent params have data to report).
+        with patch.object(ds.cache, 'data', return_value={}):
+            result = ds_to_datadicts(ds)
+        assert result == {}
+
+    def test_ds_to_datadicts_skips_partial_data(self, tmp_path):
+        """ds_to_datadicts should skip dependents whose tree is missing
+        from the cache, rather than crashing."""
+        from plottr.data.qcodes_dataset import ds_to_datadicts
+        from qcodes.dataset.data_set import load_by_id
+        from unittest.mock import patch
+        import numpy as np
+
+        db_path = str(tmp_path / "test.db")
+        run_id = self._make_dataset_without_data(db_path)
+        ds = load_by_id(run_id)
+
+        # Cache says we have x (independent) but no 'y' tree → 'y' should
+        # be silently skipped without raising KeyError.
+        partial = {'x': {'x': np.array([1.0, 2.0])}}
+        with patch.object(ds.cache, 'data', return_value=partial):
+            result = ds_to_datadicts(ds)
+        # 'y' is the only dependent and has no data → empty result
+        assert result == {}
+
+    def test_autoplot_shows_status_for_empty_dataset(
+        self, qtbot, tmp_path
+    ):
+        """QCAutoPlotMainWindow should show a status bar message when
+        the dataset has no data, instead of leaving an empty window
+        with no explanation."""
+        import os
+        os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
+        from plottr.apps.autoplot import autoplotQcodesDataset
+
+        db_path = str(tmp_path / "test.db")
+        run_id = self._make_dataset_without_data(db_path)
+
+        fc, win = autoplotQcodesDataset(pathAndId=(db_path, run_id))
+        qtbot.addWidget(win)
+
+        status = win.statusBar().currentMessage()
+        assert "No data available" in status
+        assert str(run_id) in status
+        win.close()
+
+

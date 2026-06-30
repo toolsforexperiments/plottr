@@ -33,6 +33,7 @@ dependencies = [
     "psutil",
     "watchdog",
     "pyzmq",
+    "unicodeit>=0.7.5",
 ]
 dynamic = ["version"]
 
@@ -100,7 +101,8 @@ module = [
     "matplotlib.*",
     "pyqtgraph.*",
     "xhistogram.*",
-    "ruamel.*"
+    "ruamel.*",
+    "unicodeit",
 ]
 ignore_missing_imports = true
 

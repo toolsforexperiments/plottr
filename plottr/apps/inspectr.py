@@ -17,7 +17,7 @@ import time
 import sys
 import argparse
 import logging
-from typing import Optional, Sequence, List, Dict, Iterable, Union, cast, Tuple, Mapping
+from typing import Any, Optional, Sequence, List, Dict, Iterable, Union, cast, Tuple, Mapping
 
 from typing_extensions import TypedDict
 
@@ -28,7 +28,9 @@ from plottr import QtCore, QtWidgets, Signal, Slot, QtGui, Flowchart
 
 from .. import log as plottrlog
 from ..data.qcodes_dataset import (get_runs_from_db_as_dataframe,
+                                   get_runs_from_db, get_runs_from_db_fast,
                                    get_ds_structure, load_dataset_from)
+from ..data.qcodes_db_overview import get_db_overview
 from plottr.gui.widgets import MonitorIntervalInput, FormLayoutWrapper, dictToTreeWidgetItems
 
 from .autoplot import autoplotQcodesDataset, QCAutoPlotMainWindow
@@ -38,6 +40,57 @@ __author__ = 'Wolfgang Pfaff'
 __license__ = 'MIT'
 
 LOGGER = plottrlog.getLogger('plottr.apps.inspectr')
+
+#: Hint text shown in the run list when no date is selected.
+_SELECT_DATE_HINT = "Select a date on the left to browse datasets."
+
+#: Mapping of display names to plot widget classes for the backend selector.
+#: Populated lazily on first access.
+_PLOT_BACKENDS: Dict[str, type] = {}
+
+#: Organization and application names used by QSettings to persist per-user
+#: preferences (selected plot backend, etc.). QSettings picks an OS-native
+#: storage location (registry on Windows, plist on macOS, ini on Linux).
+_QSETTINGS_ORG = 'plottr'
+_QSETTINGS_APP = 'inspectr'
+_BACKEND_SETTING_KEY = 'plotBackend'
+
+
+def _get_plot_backends() -> Dict[str, type]:
+    """Lazily populate and return the backend mapping."""
+    if not _PLOT_BACKENDS:
+        from plottr.plot.mpl.autoplot import AutoPlot as MPLAutoPlot
+        from plottr.plot.pyqtgraph.autoplot import AutoPlot as PGAutoPlot
+        _PLOT_BACKENDS['matplotlib'] = MPLAutoPlot
+        _PLOT_BACKENDS['pyqtgraph'] = PGAutoPlot
+    return _PLOT_BACKENDS
+
+
+def _backend_name_for_class(cls: Optional[type]) -> Optional[str]:
+    """Return the display name for a plot widget class, or None if unknown."""
+    for name, backend_cls in _get_plot_backends().items():
+        if backend_cls is cls:
+            return name
+    return None
+
+
+def _load_saved_backend() -> Optional[str]:
+    """Read the previously-saved backend choice from QSettings.
+
+    :return: backend name (e.g. 'matplotlib', 'pyqtgraph'), or None if no
+        setting saved or the saved value is not a recognised backend.
+    """
+    settings = QtCore.QSettings(_QSETTINGS_ORG, _QSETTINGS_APP)
+    saved = settings.value(_BACKEND_SETTING_KEY)
+    if isinstance(saved, str) and saved in _get_plot_backends():
+        return saved
+    return None
+
+
+def _save_backend_choice(backend: str) -> None:
+    """Persist the user's backend choice for future inspectr launches."""
+    settings = QtCore.QSettings(_QSETTINGS_ORG, _QSETTINGS_APP)
+    settings.setValue(_BACKEND_SETTING_KEY, backend)
 
 
 ### Database inspector tool
@@ -142,8 +195,27 @@ class RunList(QtWidgets.QTreeWidget):
         self.itemSelectionChanged.connect(self.selectRun)
         self.itemActivated.connect(self.activateRun)
 
+        # Overlay label for status messages
+        self._overlayLabel = QtWidgets.QLabel(self.viewport())
+        self._overlayLabel.setAlignment(QtCore.Qt.AlignCenter)
+        self._overlayLabel.setWordWrap(True)
+        self._overlayLabel.setStyleSheet(
+            "color: gray; font-size: 13pt; padding: 40px;"
+        )
+        self._overlayLabel.setAttribute(QtCore.Qt.WA_TransparentForMouseEvents)
+        self.setOverlayText(_SELECT_DATE_HINT)
+
         self.setContextMenuPolicy(QtCore.Qt.CustomContextMenu)
         self.customContextMenuRequested.connect(self.showContextMenu)
+
+    def setOverlayText(self, text: str) -> None:
+        """Show a centered overlay message. Pass empty string to hide."""
+        self._overlayLabel.setText(text)
+        self._overlayLabel.setVisible(bool(text))
+
+    def resizeEvent(self, event: QtGui.QResizeEvent) -> None:
+        super().resizeEvent(event)
+        self._overlayLabel.setGeometry(self.viewport().rect())
 
     @Slot(QtCore.QPoint)
     def showContextMenu(self, position: QtCore.QPoint) -> None:
@@ -160,6 +232,7 @@ class RunList(QtWidgets.QTreeWidget):
         window = cast(QCodesDBInspector, self.window())
         starAction: QtWidgets.QAction = window.starAction
 
+
         starAction.setText('Star' if current_tag_char != self.tag_dict['star'] else 'Unstar')
         menu.addAction(starAction)
 
@@ -167,6 +240,7 @@ class RunList(QtWidgets.QTreeWidget):
         crossAction.setText(
             "Cross" if current_tag_char != self.tag_dict["cross"] else "Uncross"
         )
+
         menu.addAction(crossAction)
 
         action = menu.exec_(self.mapToGlobal(position))
@@ -191,21 +265,27 @@ class RunList(QtWidgets.QTreeWidget):
 
     def setRuns(self, selection: Mapping[int, Mapping[str, str]], show_only_star: bool, show_also_cross: bool) -> None:
         self.clear()
+        self.setOverlayText('')
 
         # disable sorting before inserting values to avoid performance hit
         self.setSortingEnabled(False)
 
+        count = 0
         for runId, record in selection.items():
             tag = record.get('inspectr_tag', '')
             if show_only_star and tag == '':
                 continue
             elif show_also_cross or tag != 'cross':
                 self.addRun(runId, **record)
+                count += 1
 
         self.setSortingEnabled(True)
 
         for i in range(len(self.cols)):
             self.resizeColumnToContents(i)
+
+        if count == 0:
+            self.setOverlayText("No datasets match the current filter.")
 
     def updateRuns(self, selection: Mapping[int, Mapping[str, str]]) -> None:
 
@@ -254,7 +334,14 @@ class RunInfo(QtWidgets.QTreeWidget):
 
     When sending information in form of a dictionary, it will create
     a tree view of that dictionary and display that.
+
+    Snapshot data is loaded lazily: a placeholder item is shown, and the full
+    snapshot tree is built only when the user expands it.
     """
+
+    #: Signal emitted when the snapshot section needs to be loaded.
+    #: Argument is the QTreeWidgetItem to populate.
+    _snapshotRequested = Signal(object)
 
     def __init__(self, parent: Optional[QtWidgets.QWidget] = None):
         super().__init__(parent)
@@ -262,16 +349,74 @@ class RunInfo(QtWidgets.QTreeWidget):
         self.setHeaderLabels(['Key', 'Value'])
         self.setColumnCount(2)
 
+        # Smooth pixel-based scrolling so tall rows (e.g., long tracebacks)
+        # can be scrolled through without jumping to the next row.
+        self.setVerticalScrollMode(QtWidgets.QAbstractItemView.ScrollPerPixel)
+
+        self._snapshotItem: Optional[QtWidgets.QTreeWidgetItem] = None
+        self._snapshotData: Optional[dict] = None
+        self._snapshotLoaded = False
+
+        self.itemExpanded.connect(self._onItemExpanded)
+
     @Slot(dict)
     def setInfo(self, infoDict: Dict[str, Union[dict, str]]) -> None:
         self.clear()
+        self._snapshotItem = None
+        self._snapshotData = None
+        self._snapshotLoaded = False
 
-        items = dictToTreeWidgetItems(infoDict)
-        for item in items:
-            self.addTopLevelItem(item)
-            item.setExpanded(True)
+        for key, value in infoDict.items():
+            if key == 'QCoDeS Snapshot':
+                # Create a placeholder for the snapshot — don't build the tree yet
+                self._snapshotItem = QtWidgets.QTreeWidgetItem([key, '(click to expand)'])
+                # Add a dummy child so the expand arrow appears
+                self._snapshotItem.addChild(QtWidgets.QTreeWidgetItem(['(loading...)', '']))
+                self._snapshotData = value if isinstance(value, dict) else None
+                self.addTopLevelItem(self._snapshotItem)
+                self._snapshotItem.setExpanded(False)
+            else:
+                if not isinstance(value, dict):
+                    item = QtWidgets.QTreeWidgetItem([str(key), str(value)])
+                else:
+                    item = QtWidgets.QTreeWidgetItem([key, ''])
+                    for child in dictToTreeWidgetItems(value):
+                        item.addChild(child)
+                self.addTopLevelItem(item)
+                item.setExpanded(False)
 
-        self.expandAll()
+        for i in range(2):
+            self.resizeColumnToContents(i)
+
+    @Slot(QtWidgets.QTreeWidgetItem)
+    def _onItemExpanded(self, item: QtWidgets.QTreeWidgetItem) -> None:
+        if item is self._snapshotItem and not self._snapshotLoaded:
+            self._loadSnapshot()
+
+    def _loadSnapshot(self) -> None:
+        """Replace the placeholder with the actual snapshot tree."""
+        if self._snapshotItem is None:
+            return
+
+        self._snapshotLoaded = True
+        snap_data = self._snapshotData
+
+        # Remove placeholder children
+        self._snapshotItem.takeChildren()
+
+        if snap_data is None:
+            self._snapshotItem.setText(1, '(no snapshot)')
+            return
+
+        self._snapshotItem.setText(1, '')
+
+        if isinstance(snap_data, dict):
+            for child in dictToTreeWidgetItems(snap_data):
+                self._snapshotItem.addChild(child)
+        else:
+            self._snapshotItem.addChild(
+                QtWidgets.QTreeWidgetItem([str(snap_data), '']))
+
         for i in range(2):
             self.resizeColumnToContents(i)
 
@@ -281,17 +426,52 @@ class LoadDBProcess(QtCore.QObject):
     Worker object for getting a qcodes db overview as pandas dataframe.
     It's good to have this in a separate thread because it can be a bit slow
     for large databases.
+
+    Uses ``get_db_overview`` (direct SQL) by default for maximum speed.
+    Falls back to ``get_runs_from_db_fast`` (qcodes public API) if the
+    SQL approach fails.
     """
     dbdfLoaded = Signal(object)
+    progressUpdated = Signal(int, int)  # (current, total)
     pathSet = Signal()
+
+    #: If True, use direct SQL queries (fast). If False, use qcodes API.
+    use_fast_sql: bool = True
+
+    def __init__(self) -> None:
+        super().__init__()
+        self.path: Optional[str] = None
 
     def setPath(self, path: str) -> None:
         self.path = path
         self.pathSet.emit()
 
     def loadDB(self) -> None:
-        dbdf = get_runs_from_db_as_dataframe(self.path)
+        assert self.path is not None
+
+        overview: Optional[Dict[int, Any]] = None
+        if self.use_fast_sql:
+            try:
+                overview = get_db_overview(self.path)
+            except Exception as e:
+                LOGGER.warning(f"Fast SQL overview failed, falling back to "
+                               f"qcodes API: {e}")
+                overview = None
+
+        if overview is None:
+            overview = get_runs_from_db_fast(
+                self.path,
+                progress_callback=self._onProgress,
+            )
+
+        if overview:
+            dbdf = pandas.DataFrame.from_dict(overview, orient='index')
+        else:
+            dbdf = pandas.DataFrame()
         self.dbdfLoaded.emit(dbdf)
+
+    def _onProgress(self, current: int, total: int) -> None:
+        self.progressUpdated.emit(current, total)
 
 
 class QCodesDBInspector(QtWidgets.QMainWindow):
@@ -308,11 +488,22 @@ class QCodesDBInspector(QtWidgets.QMainWindow):
     _sendInfo = Signal(dict)
 
     def __init__(self, parent: Optional[QtWidgets.QWidget] = None,
-                 dbPath: Optional[str] = None):
+                 dbPath: Optional[str] = None,
+                 plotWidgetClass: Optional[type] = None):
         """Constructor for :class:`QCodesDBInspector`."""
         super().__init__(parent)
 
         self._plotWindows: Dict[int, WindowDict] = {}
+
+        # If no explicit backend class is requested, fall back to whatever
+        # the user picked the last time they used inspectr (persisted via
+        # QSettings). Falling back to None lets downstream code use the
+        # plottr-wide default.
+        if plotWidgetClass is None:
+            saved_name = _load_saved_backend()
+            if saved_name is not None:
+                plotWidgetClass = _get_plot_backends().get(saved_name)
+        self._plotWidgetClass = plotWidgetClass
 
         self.filepath = dbPath
         self.dbdf: Optional[pandas.DataFrame] = None
@@ -370,6 +561,31 @@ class QCodesDBInspector(QtWidgets.QMainWindow):
         self.autoLaunchPlots.setToolTip(tt)
         self.toolbar.addWidget(self.autoLaunchPlots)
 
+        self.toolbar.addSeparator()
+
+        # toolbar item: plot backend selector
+        backendLabel = QtWidgets.QLabel(" Plot backend: ")
+        self.toolbar.addWidget(backendLabel)
+        self.plotBackendSelector = QtWidgets.QComboBox()
+        backends = _get_plot_backends()
+        self.plotBackendSelector.addItems(list(backends.keys()))
+        self.plotBackendSelector.setToolTip('Choose plotting backend for new plot windows')
+        if plotWidgetClass is not None:
+            known_name = _backend_name_for_class(plotWidgetClass)
+            if known_name is not None:
+                self.plotBackendSelector.setCurrentText(known_name)
+            else:
+                # Unknown class: add it to the selector with its class name
+                label = plotWidgetClass.__name__
+                self.plotBackendSelector.addItem(label)
+                self.plotBackendSelector.setCurrentText(label)
+        self.plotBackendSelector.currentTextChanged.connect(self._onBackendChanged)
+        self.toolbar.addWidget(self.plotBackendSelector)
+        # Sync the class with the initial combo selection
+        self._onBackendChanged(self.plotBackendSelector.currentText())
+
+        self.toolbar.addSeparator()
+
         self.showOnlyStarAction = self.toolbar.addAction(RunList.tag_dict['star'])
         self.showOnlyStarAction.setToolTip('Show only starred runs')
         self.showOnlyStarAction.setCheckable(True)
@@ -408,8 +624,8 @@ class QCodesDBInspector(QtWidgets.QMainWindow):
         self.addAction(self.crossAction)
 
         # sizing
-        scaledSize = int(640 * rint(self.logicalDpiX() / 96.0))
-        self.resize(scaledSize, scaledSize)
+        scaledDpi = rint(self.logicalDpiX() / 96.0)
+        self.resize(int(960 * scaledDpi), int(640 * scaledDpi))
 
         ### Thread workers
 
@@ -420,6 +636,7 @@ class QCodesDBInspector(QtWidgets.QMainWindow):
         self.loadDBProcess.pathSet.connect(self.loadDBThread.start)
         self.loadDBProcess.dbdfLoaded.connect(self.DBLoaded)
         self.loadDBProcess.dbdfLoaded.connect(self.loadDBThread.quit)
+        self.loadDBProcess.progressUpdated.connect(self.onLoadProgress)
         self.loadDBThread.started.connect(self.loadDBProcess.loadDB)
 
         ### connect signals/slots
@@ -481,27 +698,59 @@ class QCodesDBInspector(QtWidgets.QMainWindow):
             self.loadFullDB(path=path)
 
     def loadFullDB(self, path: Optional[str] = None) -> None:
-        if path is not None and path != self.filepath:
+        if path is not None:
             self.filepath = path
-
-            # makes sure we treat a newly loaded file fresh and not as a
-            # refreshed one.
-            self.latestRunId = None
 
         if self.filepath is not None:
             if not self.loadDBThread.isRunning():
+                # Reset to "just opened" state: clear all UI and cached data
+                # so the user sees a clean loading experience regardless of
+                # whether this is a new file or a reload of the same file.
+                self.latestRunId = None
+                self.dbdf = None
+                self.dateList.clear()
+                self.runList.clear()
+                self.runList.setOverlayText("Loading database...")
                 self.loadDBProcess.setPath(self.filepath)
 
+    @Slot(int, int)
+    def onLoadProgress(self, current: int, total: int) -> None:
+        self.runList.setOverlayText(
+            f"Loading database... ({current}/{total} datasets)")
+
     def DBLoaded(self, dbdf: pandas.DataFrame) -> None:
-        if self.dbdf is not None and dbdf.equals(self.dbdf):
-            LOGGER.debug('DB reloaded with no changes. Skipping update')
+        if dbdf.size == 0 and self.dbdf is not None:
+            LOGGER.debug('DB reloaded with no new data. Skipping update.')
+            self.runList.setOverlayText(
+                _SELECT_DATE_HINT)
             return None
-        self.dbdf = dbdf
+
+        if self.latestRunId is not None and self.dbdf is not None and dbdf.size > 0:
+            # Incremental load: merge new rows into existing dataframe
+            existing_mask = dbdf.index.isin(self.dbdf.index)
+            # Update existing rows (e.g., completed_date may have changed)
+            if existing_mask.any():
+                self.dbdf.update(dbdf.loc[existing_mask])
+            # Append all truly-new rows in a single concat
+            new_rows = dbdf.loc[~existing_mask]
+            if not new_rows.empty:
+                self.dbdf = pandas.concat([self.dbdf, new_rows])
+        else:
+            self.dbdf = dbdf
+
         self.dbdfUpdated.emit()
         self.dateList.sendSelectedDates()
-        LOGGER.debug('DB reloaded')
+        LOGGER.debug('DB loaded/refreshed')
 
-        if self.latestRunId is not None:
+        # Set appropriate overlay text after loading completes
+        if self.dbdf is None or self.dbdf.size == 0:
+            self.runList.setOverlayText(
+                "No datasets found in this database.")
+        elif self.runList.topLevelItemCount() == 0:
+            self.runList.setOverlayText(
+                _SELECT_DATE_HINT)
+
+        if self.latestRunId is not None and self.dbdf is not None and self.dbdf.size > 0:
             idxs = self.dbdf.index.values
             newIdxs = idxs[idxs > self.latestRunId]
 
@@ -522,15 +771,22 @@ class QCodesDBInspector(QtWidgets.QMainWindow):
     ### reloading the db
     @Slot()
     def refreshDB(self) -> None:
-        if self.filepath is not None:
-            if self.loadDBThread.isRunning():
-                return
-            if self.dbdf is not None and self.dbdf.size > 0:
-                self.latestRunId = self.dbdf.index.values.max()
-            else:
-                self.latestRunId = -1
+        """Re-read the database to pick up new runs AND updates to existing
+        runs (e.g., records count growing as an incomplete dataset is filled).
 
-            self.loadFullDB()
+        Always does a full re-read which is fast at the moment.
+        """
+        if self.filepath is None or self.loadDBThread.isRunning():
+            return
+
+        # Remember the latest run_id so DBLoaded knows to merge rather than
+        # replace (preserves existing UI state like selection/expand state).
+        if self.dbdf is not None and self.dbdf.size > 0:
+            self.latestRunId = int(self.dbdf.index.values.max())
+        else:
+            self.latestRunId = -1
+
+        self.loadDBProcess.setPath(self.filepath)
 
     @Slot(float)
     def setMonitorInterval(self, val: float) -> None:
@@ -577,6 +833,8 @@ class QCodesDBInspector(QtWidgets.QMainWindow):
         else:
             self._selected_dates = ()
             self.runList.clear()
+            self.runList.setOverlayText(
+                _SELECT_DATE_HINT)
 
     @Slot(int)
     def setRunSelection(self, runId: int) -> None:
@@ -601,12 +859,25 @@ class QCodesDBInspector(QtWidgets.QMainWindow):
     @Slot(int)
     def plotRun(self, runId: int) -> None:
         assert self.filepath is not None
-        fc, win = autoplotQcodesDataset(pathAndId=(self.filepath, runId))
+        fc, win = autoplotQcodesDataset(
+            pathAndId=(self.filepath, runId),
+            plotWidgetClass=self._plotWidgetClass,
+        )
         self._plotWindows[runId] = {
             'flowchart': fc,
             'window': win,
         }
         win.showTime()
+
+    @Slot(str)
+    def _onBackendChanged(self, backend: str) -> None:
+        backends = _get_plot_backends()
+        if backend in backends:
+            self._plotWidgetClass = backends[backend]
+            # Persist the user's choice for next launch
+            _save_backend_choice(backend)
+        else:
+            self._plotWidgetClass = backends.get(backend, self._plotWidgetClass)
 
     def setTag(self, item: QtWidgets.QTreeWidgetItem, tag: str) -> None:
         # set tag in the database
@@ -652,16 +923,18 @@ class WindowDict(TypedDict):
     window: QCAutoPlotMainWindow
 
 
-def inspectr(dbPath: Optional[str] = None) -> QCodesDBInspector:
-    win = QCodesDBInspector(dbPath=dbPath)
+def inspectr(dbPath: Optional[str] = None,
+             plotWidgetClass: Optional[type] = None) -> QCodesDBInspector:
+    win = QCodesDBInspector(dbPath=dbPath, plotWidgetClass=plotWidgetClass)
     return win
 
 
-def main(dbPath: Optional[str], log_level: Union[int, str] = logging.WARNING) -> None:
+def main(dbPath: Optional[str], log_level: Union[int, str] = logging.WARNING,
+         plotWidgetClass: Optional[type] = None) -> None:
     app = QtWidgets.QApplication([])
     plottrlog.enableStreamHandler(True, log_level)
 
-    win = inspectr(dbPath=dbPath)
+    win = inspectr(dbPath=dbPath, plotWidgetClass=plotWidgetClass)
     win.show()
 
     if (sys.flags.interactive != 1) or not hasattr(QtCore, 'PYQT_VERSION'):
@@ -679,3 +952,4 @@ def script() -> None:
                         default="WARNING")
     args = parser.parse_args()
     main(args.dbpath, args.console_log_level)
+
