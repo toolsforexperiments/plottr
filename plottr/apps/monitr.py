@@ -1968,7 +1968,7 @@ class FileExplorer(QtWidgets.QWidget):
         self.refresh_button = QtWidgets.QPushButton("Refresh")
         self.expand_button = QtWidgets.QPushButton("Expand")
         self.collapse_button = QtWidgets.QPushButton("Collapse")
-        self.copy_button = QtWidgets.QPushButton("Copy Path")
+        self.copy_button = QtWidgets.QPushButton("Copy ALL Paths")
         self.tag_filter_combobox = QtWidgets.QComboBox()
         self.tag_filter_combobox.setSizePolicy(
             QtWidgets.QSizePolicy.Expanding, QtWidgets.QSizePolicy.Minimum
@@ -2487,10 +2487,19 @@ class TextEditWidget(TextViewWidget):
 
     It contains a floating button that allows for editing and saving changes done in the editing phase. Text is not
     editable before clicking the button.
+
+    If the file name ends with ``.mono.md`` (e.g. ``log.mono.md``), the content is rendered in monospace font
+    (Courier New, 10pt). Use this convention for files that contain tabular or fixed-width text.
     """
 
     def __init__(self, path: Path, *args: Any, **kwargs: Any):
         super().__init__(path, *args, **kwargs)
+
+        if path.suffixes[-2:] == [".mono", ".md"]:
+            monospace_font = QtGui.QFont("Courier New")
+            monospace_font.setPointSize(10)
+            self.setFont(monospace_font)
+
         self.floating_button = FloatingButtonWidget(parent=self)
         self.floating_button.hide()
         self.floating_button.save_activated.connect(self.save_activated)
@@ -2622,7 +2631,7 @@ class TextInput(QtWidgets.QTextEdit):
         dialog_text, response = QtWidgets.QInputDialog.getText(
             self,
             "Input comment name",
-            "Name:",
+            "(if the file ends in `.mono.md` it will be rendered in monospace font):",
         )
 
         if response:
@@ -3220,6 +3229,16 @@ class Monitr(QtWidgets.QMainWindow):
             self.backend_group.addAction(action)
             menu.addAction(action)
 
+        sort_menu = menu_bar.addMenu("Sort")
+        self.sort_group = QtWidgets.QActionGroup(sort_menu)
+        for label, default in [("Sort by type", True), ("Sort alphabetically", False)]:
+            action = QtWidgets.QAction(label)
+            action.setCheckable(True)
+            action.setChecked(default)
+            self.sort_group.addAction(action)
+            sort_menu.addAction(action)
+        self.sort_group.triggered.connect(lambda _: self.generate_right_side_window())
+
         # Set left side layout
         self.left_side_layout = QtWidgets.QVBoxLayout()
         self.left_side_dummy_widget = QtWidgets.QWidget()
@@ -3248,6 +3267,7 @@ class Monitr(QtWidgets.QMainWindow):
         self.right_side_dummy_widget.setLayout(self.right_side_layout)
 
         self.data_window: Optional[Collapsible] = None
+        self.copy_path_widget: Optional[QtWidgets.QWidget] = None
         self.text_input: Optional[Collapsible] = None
         self.file_windows: List[Collapsible] = []
         self.scroll_area: Optional[VerticalScrollArea] = None
@@ -3451,6 +3471,7 @@ class Monitr(QtWidgets.QMainWindow):
         self.add_folder_header()
         self.add_tag_label(files_meta["tag_labels"])
         self.add_data_window(files_meta["data_files"])
+        self.add_copy_path_buttons()
         self.add_text_input(self.current_selected_folder)
         self.add_all_files(files_meta["extra_files"])
 
@@ -3504,6 +3525,11 @@ class Monitr(QtWidgets.QMainWindow):
             self.right_side_layout.removeWidget(self.invalid_data_label)
             self.invalid_data_label.deleteLater()
             self.invalid_data_label = None
+
+        if self.copy_path_widget is not None:
+            self.right_side_layout.removeWidget(self.copy_path_widget)
+            self.copy_path_widget.deleteLater()
+            self.copy_path_widget = None
 
         if self.text_input is not None:
             self.right_side_layout.removeWidget(self.text_input)
@@ -3622,6 +3648,36 @@ class Monitr(QtWidgets.QMainWindow):
         self.text_input = Collapsible(TextInput(path), title="Add Comment:")
         self.right_side_layout.addWidget(self.text_input)
 
+    def add_copy_path_buttons(self) -> None:
+        self.copy_path_widget = QtWidgets.QWidget()
+        layout = QtWidgets.QHBoxLayout(self.copy_path_widget)
+        layout.setContentsMargins(0, 0, 0, 0)
+
+        path = str(self.current_selected_folder)
+        copy_current_btn = QtWidgets.QPushButton("Copy folder path")
+        copy_current_btn.clicked.connect(
+            lambda _, p=path: QtWidgets.QApplication.clipboard().setText(p)
+        )
+
+        layout.addWidget(copy_current_btn)
+        layout.addStretch()
+
+        self.right_side_layout.addWidget(self.copy_path_widget)
+
+    @staticmethod
+    def _sort_right_window_files(x: Tuple[Path, str, ContentType]) -> Tuple[int, str]:
+        file_name, file_type = x[1], x[2]
+        if file_type == ContentType.image:
+            return (0, file_name)
+        elif file_type == ContentType.md:
+            return (1, file_name)
+        elif file_type == ContentType.json:
+            return (2, file_name)
+        elif file_type == ContentType.py:
+            return (3, file_name)
+        else:
+            return (4, file_name)
+
     def add_all_files(self, files_data: List[Tuple[Path, str, ContentType]]) -> None:
         """
         Adds all other md, json or images files on the right side of the screen.
@@ -3629,6 +3685,12 @@ class Monitr(QtWidgets.QMainWindow):
         :param file_dict: List containing 3 items Tuples. The first item should always be the Path of the file.
             The second item should be the name of the file. The third item should be the ContentType of it.
         """
+        checked = self.sort_group.checkedAction()
+        if checked is not None and checked.text() == "Sort alphabetically":
+            files_data.sort(key=lambda x: str.lower(x[1]), reverse=True)
+        else:
+            files_data.sort(key=self._sort_right_window_files)
+
         for file, name, file_type in files_data:
             if file_type == ContentType.json:
                 expand = False
