@@ -279,7 +279,6 @@ class Node(NodeBase, Generic[NodeWidgetType]):
         daxes = dataIn.axes()
         ddeps = dataIn.dependents()
         dshapes = dataIn.shapes()
-        dstruct = dataIn.structure(add_shape=False)
 
         if None in [self.dataAxes, self.dataDependents, self.dataType, self.dataShapes]:
             _axesChanged = True
@@ -311,7 +310,10 @@ class Node(NodeBase, Generic[NodeWidgetType]):
         self.dataDependents = ddeps
         self.dataType = dtype
         self.dataShapes = dshapes
-        self.dataStructure = dstruct
+
+        # Only compute structure snapshot when it actually changed
+        if _structChanged:
+            self.dataStructure = dataIn._build_structure()
 
         if _axesChanged:
             self.dataAxesChanged.emit(daxes)
