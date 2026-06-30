@@ -102,7 +102,7 @@ class PlotWithColorbar(PlotBase):
     def setImage(self, x: np.ndarray, y: np.ndarray, z: np.ndarray) -> None:
         """Set data to be plotted as image.
 
-        Clears the plot before creating a new image item that gets places in the
+        Clears the plot before creating a new image item that gets placed in the
         plot and linked to the colorscale.
 
         :param x: x coordinates (as 2D meshgrid)
