@@ -377,7 +377,7 @@ class QCAutoPlotMainWindow(AutoPlotMainWindow):
         super().setDefaults(data)
         # qcodes datasets carry their shape in the metadata; when available,
         # grid the data using that shape instead of guessing it.
-        if data.meta_val('qcodes_shape') is not None:
+        if data.has_meta('qcodes_shape') and data.meta_val('qcodes_shape') is not None:
             self.fc.nodes()['Grid'].grid = GridOption.metadataShape, {}
 
     def refreshData(self) -> None:
