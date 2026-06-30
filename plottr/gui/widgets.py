@@ -6,7 +6,7 @@ Common GUI widgets that are re-used across plottr.
 from typing import Union, List, Tuple, Optional, Sequence, Dict, Any, Type, Generic, TypeVar
 
 from .tools import dictToTreeWidgetItems, dpiScalingFactor
-from plottr import QtGui, Flowchart, QtWidgets, Signal, Slot
+from plottr import QtGui, Flowchart, QtWidgets, Signal, Slot, PYSIDE6
 from plottr.node import Node, linearFlowchart
 from plottr.node.node import updateGuiQuietly, emitGuiUpdate
 from ..plot import PlotNode, PlotWidgetContainer, PlotWidget
@@ -456,7 +456,10 @@ class MultiDimensionSelector(QtWidgets.QListWidget):
         self.node: Optional[Node] = None
         self.dimensionType = dimensionType
 
-        self.setSelectionMode(self.MultiSelection)
+        if PYSIDE6:
+            self.setSelectionMode(self.SelectionMode.MultiSelection)
+        else:
+            self.setSelectionMode(self.MultiSelection)
         self.itemSelectionChanged.connect(self.emitSelection)
 
     def setDimensions(self, dimensions: List[str]) -> None:

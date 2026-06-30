@@ -162,7 +162,7 @@ class PlotWithColorbar(PlotBase):
     def _colorScatterPoints(self, cbar: pg.ColorBarItem) -> None:
         if self.scatter is not None and self.scatterZVals is not None:
             z_norm = self._normalizeColors(self.scatterZVals, cbar.levels())
-            colors = self.colorbar.cmap.mapToQColor(z_norm)
+            colors = self.colorbar.colorMap().mapToQColor(z_norm)
             self.scatter.setBrush(colors)
 
     def _normalizeColors(self, z: np.ndarray, levels: Tuple[float, float]) -> np.ndarray:

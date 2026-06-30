@@ -254,8 +254,19 @@ def test_concurrent_write_and_read():
     ref_dataset['__dataset.name__'] = ''
 
     writer.start()
+
+    # The writer runs in a separate process; depending on the OS process start
+    # method (e.g. Windows uses 'spawn', not 'fork') it can take several seconds
+    # just to import plottr and create the file. Wait for the file to appear
+    # before reading, so the concurrent read below doesn't race against process
+    # startup. Concurrent access itself is coordinated by FileOpener's lock file.
+    while writer.is_alive() and not Path(writer.filepath).exists():
+        time.sleep(0.1)
+
     while writer.is_alive():
         time.sleep(2)
+        if not Path(writer.filepath).exists():
+            continue
         data_from_file = dds.datadict_from_hdf5(writer.filepath, structure_only=True)
         assert(data_from_file.structure(include_meta=False))
 
