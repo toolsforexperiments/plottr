@@ -2810,8 +2810,8 @@ class VerticalScrollArea(QtWidgets.QScrollArea):
             self.setMinimumWidth(widget.minimumSizeHint().width())
         return super().eventFilter(a0, a1)
 
-    @Slot(int)  # type: ignore[arg-type]
-    def on_range_changed(self) -> None:
+    @Slot(int, int)
+    def on_range_changed(self, min_value: int, max_value: int) -> None:
         if self.first_scroll is True:
             bar = self.verticalScrollBar()
             if bar is not None:

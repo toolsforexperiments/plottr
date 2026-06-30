@@ -7,7 +7,6 @@ from shutil import rmtree
 
 import numpy as np
 
-from plottr import qtsleep
 from plottr.data import datadict as dd
 from plottr.data import datadict_storage as dds
 from plottr.node.tools import linearFlowchart
@@ -150,8 +149,11 @@ def test_loader_node(qtbot):
     with qtbot.waitSignal(node.loadingWorker.dataLoaded, timeout=1000) as blocker:
         node.filepath = str(FILEPATH)
 
-    # wait a bit to make sure the output is set.
-    qtsleep(0.1)
+    # dataLoaded is followed by a queued onThreadComplete() slot that actually
+    # sets the flowchart output; wait until that has happened instead of
+    # sleeping a fixed amount (robust on slow CI / Windows).
+    qtbot.waitUntil(lambda: fc.outputValues()['dataOut'] is not None,
+                    timeout=2000)
 
     out = fc.outputValues()['dataOut'].copy()
     out.pop('__title__')
