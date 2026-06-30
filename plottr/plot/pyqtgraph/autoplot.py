@@ -24,7 +24,7 @@ from plottr.utils.latex import latex_to_html
 from .plots import Plot, PlotWithColorbar, PlotBase
 from ..base import AutoFigureMaker as BaseFM, PlotDataType, \
     PlotItem, ComplexRepresentation, determinePlotDataType, \
-    PlotWidgetContainer, PlotWidget
+    PlotWidgetContainer, PlotWidget, ClipboardMessageMixin
 
 logger = logging.getLogger(__name__)
 
@@ -313,7 +313,7 @@ class FigureMaker(BaseFM):
         subPlot.setScatter2d(*plotItem.data)
 
 
-class AutoPlot(PlotWidget):
+class AutoPlot(ClipboardMessageMixin, PlotWidget):
     """Widget for automatic plotting with pyqtgraph.
 
     Uses :class:`.FigureMaker` to produce subplots.
@@ -334,6 +334,11 @@ class AutoPlot(PlotWidget):
         layout = QtWidgets.QVBoxLayout()
         layout.setContentsMargins(0, 0, 0, 0)
         layout.setSpacing(0)
+
+        self._initClipboardMessage()
+        self.statusLabel = QtWidgets.QLabel(self.CLIPBOARD_HINT_MESSAGE)
+        self.statusLabel.setAlignment(QtCore.Qt.AlignCenter)
+        self.statusLabel.setStyleSheet("color: gray;")
 
         self.setLayout(layout)
         self.setMinimumSize(*getcfg('main', 'pyqtgraph', 'minimum_plot_size',
@@ -394,6 +399,11 @@ class AutoPlot(PlotWidget):
             self.figConfig.optionsChanged.connect(self._refreshPlot)
             self.figConfig.figCopied.connect(self.onfigCopied)
             self.figConfig.figSaved.connect(self.onfigSaved)
+            self.layout().addWidget(self.statusLabel)
+
+        if kwargs.get('clearWidget', True):
+            for subplot in self.fmWidget.subPlots:
+                self._connectPlotEvents(subplot)
 
         self.fmWidget.setScrollable(self.figOptions.scrollablePlots)
         self.fmWidget._minPlotHeight = self.figOptions.minPlotHeight
@@ -427,6 +437,41 @@ class AutoPlot(PlotWidget):
     def _refreshPlot(self) -> None:
         self._plotData()
 
+    def _displayMessage(self, message: str) -> None:
+        self.statusLabel.setText(message)
+
+    def setStatusMessage(self, message: str) -> None:
+        if not self.clipboardMessageActive:
+            self.statusLabel.setText(message if message else self.CLIPBOARD_HINT_MESSAGE)
+
+    def _connectPlotEvents(self, subplot: PlotBase) -> None:
+        subplot.plot.scene().sigMouseMoved.connect(
+            lambda pos, sp=subplot: self._onMouseMoved(sp, pos)
+        )
+        subplot.plot.scene().sigMouseClicked.connect(
+            lambda event, sp=subplot: self._onPlotClicked(sp, event)
+        )
+
+    def _onMouseMoved(self, subplot: PlotBase, pos: Any) -> None:
+        vb = subplot.plot.getViewBox()
+        local = vb.mapFromScene(pos)
+        if vb.boundingRect().contains(local):
+            pt = vb.mapSceneToView(pos)
+            self.setStatusMessage(f'({pt.x():.8g}, {pt.y():.8g})')
+        else:
+            self.setStatusMessage('')
+
+    def _onPlotClicked(self, subplot: PlotBase, event: Any) -> None:
+        if event.button() != QtCore.Qt.LeftButton:
+            return
+        vb = subplot.plot.getViewBox()
+        local = vb.mapFromScene(event.scenePos())
+        if vb.boundingRect().contains(local):
+            pt = vb.mapSceneToView(event.scenePos())
+            coord_str = '({:.8g}, {:.8g})'.format(pt.x(), pt.y())
+            QtWidgets.QApplication.clipboard().setText(coord_str)
+            self.showClipboardMessage(f"Copied {coord_str} to clipboard")
+
     @Slot()
     def onfigCopied(self) -> None:
         """
@@ -437,6 +482,7 @@ class AutoPlot(PlotWidget):
         screenshot = self.fmWidget.grab(rectangle=QtCore.QRect(QtCore.QPoint(0, 0), QtCore.QSize(-1, -1)))
         clipboard = QtWidgets.QApplication.clipboard()
         clipboard.setImage(screenshot.toImage())
+        self.showClipboardMessage("Figure copied to clipboard")
 
     @Slot()
     def onfigSaved(self) -> None:
@@ -552,7 +598,6 @@ class FigureConfigToolBar(QtWidgets.QToolBar):
         # Adding functionality to copy and save the graph
         self.copyFig = self.addAction('Copy Figure', self._copyFig)
         self.saveFig = self.addAction('Save Figure', self._saveFig)
-
 
     def _setOption(self, option: str, value: Any) -> None:
         setattr(self.options, option, value)
