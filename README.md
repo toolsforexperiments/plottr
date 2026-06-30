@@ -18,12 +18,33 @@ https://plottr.readthedocs.io (work in progress...)
 
 Plottr is installable from pypi with `pip install plottr`
 
-Plottr requires either the PyQt5 or Pyside2 gui framework.
-To install with PyQt5 or Pyside2 backend you can do
-``pip install plottr[PyQt5]`` or ``pip install plottr[Pyside2]`` 
+### Qt bindings
 
-Note that if  you have installed ``pyqt`` from ``(Ana)Conda`` you should not use any of these
-targets but do ``pip install plottr`` or install Plottr from conda forge:
+Plottr is a Qt application. At runtime it talks to Qt through
+[`qtpy`](https://github.com/spyder-ide/qtpy), so it works with any of the
+supported Qt bindings, but **you must install one yourself** -- none is pulled
+in automatically. Pick exactly one of:
+
+| Binding   | pip extra                  | Notes                              |
+|-----------|----------------------------|------------------------------------|
+| PySide6   | `pip install plottr[pyside6]` | **Recommended** (and what testing/type-checking use by default) |
+| PyQt5     | `pip install plottr[pyqt5]`   |                                    |
+| PyQt6     | `pip install plottr[pyqt6]`   |                                    |
+| PySide2   | `pip install plottr[pyside2]` | Older Qt5 binding                  |
+
+For example, the recommended install is:
+
+```
+pip install plottr[pyside6]
+```
+
+If you have **more than one** binding installed, select which one plottr (via
+`qtpy`) should use by setting the `QT_API` environment variable before starting,
+e.g. `QT_API=pyside6` (other valid values: `pyqt5`, `pyqt6`, `pyside2`).
+
+If you installed `pyqt` from `(Ana)Conda` you should **not** use any of the pip
+extras above; instead do `pip install plottr` (Qt comes from conda) or install
+plottr from conda-forge:
 
 ```
 conda config --add channels conda-forge
@@ -31,7 +52,8 @@ conda config --set channel_priority strict
 conda install plottr
 ```
 
-To install from source: clone the repo, and install using `pip install -e .`
+To install from source: clone the repo, and install using
+`pip install -e .[pyside6]` (or another binding extra of your choice).
 
 ## inspectr: QCoDeS dataset inspection and (live) plotting
 
@@ -50,11 +72,12 @@ Note: this package is not compatible with the original `plottr` tool.
 You might want to install freshly if you still use the old version.
 
 ## Requirements:
-* python >= 3.8
+* python >= 3.12
 * the usual: numpy, mpl, ...
 * pandas >= 0.22
 * xarray
 * pyqtgraph >= 0.12.1
+* one Qt binding (PySide6 recommended; see [Installation](#installation))
 
 # Recent changes:
 
