@@ -31,7 +31,7 @@ from itertools import cycle
 
 from watchdog.events import FileSystemEvent, FileSystemMovedEvent
 
-from .. import QtCore, QtWidgets, Signal, Slot, QtGui, plottrPath
+from .. import QtCore, QtWidgets, Signal, Slot, QtGui, plottrPath, QAction, QActionGroup
 from .. import config_entry as getcfg
 from ..plot.mpl.autoplot import AutoPlot as MPLAutoPlot
 from ..plot.pyqtgraph.autoplot import AutoPlot as PGAutoPlot
@@ -267,7 +267,7 @@ class Item(QtGui.QStandardItem):
                         f" \n {path} was deleted "
                     )
                     error_msg.setWindowTitle(f"Deleting __star__.tag")
-                    error_msg.exec_()
+                    error_msg.exec()
                     return
                 else:
                     self.star = True
@@ -283,7 +283,7 @@ class Item(QtGui.QStandardItem):
                         f" \n {path} was deleted "
                     )
                     error_msg.setWindowTitle(f"Deleting __trash__.tag")
-                    error_msg.exec_()
+                    error_msg.exec()
                     return
                 else:
                     self.trash = True
@@ -299,7 +299,7 @@ class Item(QtGui.QStandardItem):
                         f"{path} was deleted."
                     )
                     error_msg.setWindowTitle(f"Deleting __complete__.tag")
-                    error_msg.exec_()
+                    error_msg.exec()
                     return
                 else:
                     self.complete = True
@@ -315,7 +315,7 @@ class Item(QtGui.QStandardItem):
                         f"{path} was deleted."
                     )
                     error_msg.setWindowTitle(f"Deleting __interrupted__.tag")
-                    error_msg.exec_()
+                    error_msg.exec()
                     return
                 else:
                     self.interrupted = True
@@ -504,7 +504,7 @@ class FileModel(QtGui.QStandardItemModel):
                 item.setText(p.name)
                 error_message = QtWidgets.QMessageBox()
                 error_message.setText(f"{e}")
-                error_message.exec_()
+                error_message.exec()
 
     @Slot()
     def refresh_model(self) -> None:
@@ -758,7 +758,7 @@ class FileModel(QtGui.QStandardItemModel):
                     self._delete_all_children_from_main_dictionary(child_item)
                 del self.main_dictionary[child_item.path]
 
-    @Slot(FileSystemEvent)
+    @Slot(FileSystemEvent)  # type: ignore[arg-type]
     def on_file_moved(self, event: FileSystemMovedEvent) -> None:
         """
         Gets triggered every time a file is moved or the name of a file (including type) changes.
@@ -1148,7 +1148,7 @@ class SortFilterProxyModel(QtCore.QSortFilterProxyModel):
         self.allowed_items = allowed_items
         self.trigger_filter()
 
-    def filterAcceptsRow(
+    def filterAcceptsRow(  # type: ignore[override]
         self, source_row: int, source_parent: QtCore.QModelIndex
     ) -> bool:
         """
@@ -1241,14 +1241,14 @@ class FileTreeView(QtWidgets.QTreeView):
         self.un_trash_text = "un-trash"
 
         self.context_menu = QtWidgets.QMenu(self)
-        self.copy_path_action = QtWidgets.QAction("copy path")
-        self.star_action = QtWidgets.QAction("star")
-        self.trash_action = QtWidgets.QAction("trash")
-        self.delete_action = QtWidgets.QAction("delete")
-        self.tag_actions: Dict[str, QtWidgets.QAction] = {}
+        self.copy_path_action = QAction("copy path")
+        self.star_action = QAction("star")
+        self.trash_action = QAction("trash")
+        self.delete_action = QAction("delete")
+        self.tag_actions: Dict[str, QAction] = {}
         for tag in self.model_.tags_dict.keys():
             if tag not in self.tag_actions:
-                self.tag_actions[tag] = QtWidgets.QAction(str(tag))
+                self.tag_actions[tag] = QAction(str(tag))
 
         self.proxy_model.filter_incoming.connect(self.on_filter_incoming_event)
         self.proxy_model.filter_finished.connect(self.on_filter_ended_event)
@@ -1290,7 +1290,7 @@ class FileTreeView(QtWidgets.QTreeView):
             item = self.model_.item(i, 0)
             if item is not None and isinstance(item, Item):
                 self._set_widget_for_item_and_children(item)
-        self.on_adjust_column_width()
+        self.on_adjust_column_width(None)
 
     def _set_widget_for_item_and_children(self, item: Item) -> None:
         """
@@ -1356,9 +1356,9 @@ class FileTreeView(QtWidgets.QTreeView):
         #  TODO: Implement the delete action in the model.
         # self.context_menu.addSeparator()
         # self.context_menu.addAction(self.delete_action)
-        self.context_menu.exec_(self.mapToGlobal(pos))
+        self.context_menu.exec(self.mapToGlobal(pos))
 
-    @Slot(object)
+    @Slot(object)  # type: ignore[arg-type]
     def on_adjust_column_width(self, item: Optional[Item] = None) -> None:
         """
         Gets called when the model changed the icon of an item. When changing an item icons that has the tag widget
@@ -1374,15 +1374,15 @@ class FileTreeView(QtWidgets.QTreeView):
     @Slot(str)
     def on_add_tag_action(self, new_tag: str) -> None:
         if new_tag not in self.tag_actions:
-            self.tag_actions[new_tag] = QtWidgets.QAction()
+            self.tag_actions[new_tag] = QAction()
 
     @Slot(str)
     def on_delete_tag_action(self, deleted_tag: str) -> None:
         if deleted_tag in self.tag_actions:
             del self.tag_actions[deleted_tag]
 
-    @Slot(QtWidgets.QAction)
-    def on_context_action_triggered(self, action: QtWidgets.QAction) -> None:
+    @Slot(QAction)
+    def on_context_action_triggered(self, action: QAction) -> None:
         tag = action.text()
         if tag[0:3] == "un-":
             tag = tag[3:]
@@ -1398,7 +1398,7 @@ class FileTreeView(QtWidgets.QTreeView):
 
         self.model_.tag_action_triggered(item_index, tag)
 
-    def currentChanged(
+    def currentChanged(  # type: ignore[override]
         self, current: QtCore.QModelIndex, previous: QtCore.QModelIndex
     ) -> None:
         """
@@ -2178,7 +2178,7 @@ class FileExplorer(QtWidgets.QWidget):
                     if tpe == ContentType.data:
                         self.path_list.append(str(path))
         else:
-            item = self.model.itemFromIndex(item_index)  # type: ignore[attr-defined] # Not sure why mypy is complaining about using itemFromIndex only here but not in other places.
+            item = self.model.itemFromIndex(item_index)
             assert isinstance(item, Item)
             for path, tpe in item.files.items():
                 if tpe == ContentType.data:
@@ -2267,7 +2267,7 @@ class DataTreeWidget(QtWidgets.QTreeWidget):
         self.data = data
 
         # Popup menu.
-        self.plot_popup_action = QtWidgets.QAction("Plot")
+        self.plot_popup_action = QAction("Plot")
         self.popup_menu = QtWidgets.QMenu(self)
 
         self.plot_popup_action.triggered.connect(self.emit_plot_requested_signal)
@@ -2326,7 +2326,7 @@ class DataTreeWidget(QtWidgets.QTreeWidget):
         # Check that the item is in fact a top level item and open the popup menu
         if item is not None and parent_item is None:
             self.popup_menu.addAction(self.plot_popup_action)
-            self.popup_menu.exec_(self.mapToGlobal(pos))
+            self.popup_menu.exec(self.mapToGlobal(pos))
             self.popup_menu.removeAction(self.plot_popup_action)
 
     @Slot()
@@ -2353,7 +2353,7 @@ class DataTreeWidget(QtWidgets.QTreeWidget):
             rows += 1
             index = self.indexFromItem(it.value())
             height += self.rowHeight(index)
-            it += 1  # type: ignore[assignment, operator] # Taken from this example:
+            it += 1  # Taken from this example:
         # https://riverbankcomputing.com/pipermail/pyqt/2014-May/034315.html
 
         # calculating width:
@@ -2540,7 +2540,7 @@ class TextEditWidget(TextViewWidget):
             error_msg = QtWidgets.QMessageBox()
             error_msg.setText(f"{e}")
             error_msg.setWindowTitle(f"Error trying to save markdown edit.")
-            error_msg.exec_()
+            error_msg.exec()
 
     @Slot()
     def edit_activated(self) -> None:
@@ -2652,14 +2652,14 @@ class TextInput(QtWidgets.QTextEdit):
                         f"File: {comment_path} already exists, please select a different file name."
                     )
                     error_msg.setWindowTitle(f"Error trying to save comment.")
-                    error_msg.exec_()
+                    error_msg.exec()
 
             except Exception as e:
                 # Show the error message
                 error_msg = QtWidgets.QMessageBox()
                 error_msg.setText(f"{e}")
                 error_msg.setWindowTitle(f"Error trying to save comment.")
-                error_msg.exec_()
+                error_msg.exec()
 
     def resizeEvent(self, event: QtGui.QResizeEvent) -> None:
         """
@@ -2673,7 +2673,7 @@ class TextInput(QtWidgets.QTextEdit):
         self.save_button.show()
 
     def leaveEvent(self, *args: Any, **kwargs: Any) -> None:
-        super().enterEvent(*args, **kwargs)
+        super().leaveEvent(*args, **kwargs)
         self.save_button.hide()
 
     def size_change(self) -> None:
@@ -2728,7 +2728,7 @@ class ImageViewer(QtWidgets.QLabel):
         self.context_menu = QtWidgets.QMenu(self)
 
         # creating actions
-        self.copy_action = QtWidgets.QAction("copy")
+        self.copy_action = QAction("copy")
         self.copy_action.triggered.connect(self.on_copy_action)
 
         self.setContextMenuPolicy(QtCore.Qt.CustomContextMenu)
@@ -2740,7 +2740,7 @@ class ImageViewer(QtWidgets.QLabel):
 
     @Slot(QtCore.QPoint)
     def on_context_menu_requested(self, pos: QtCore.QPoint) -> None:
-        self.context_menu.exec_(self.mapToGlobal(pos))
+        self.context_menu.exec(self.mapToGlobal(pos))
 
     @Slot()
     def on_copy_action(self) -> None:
@@ -2805,11 +2805,13 @@ class VerticalScrollArea(QtWidgets.QScrollArea):
         self.verticalScrollBar().rangeChanged.connect(self.on_range_changed)
 
     def eventFilter(self, a0: QtCore.QObject, a1: QtCore.QEvent) -> bool:
-        self.setMinimumWidth(self.widget().minimumSizeHint().width())
+        widget = self.widget()
+        if widget is not None:
+            self.setMinimumWidth(widget.minimumSizeHint().width())
         return super().eventFilter(a0, a1)
 
-    @Slot(int)
-    def on_range_changed(self) -> None:
+    @Slot(int, int)
+    def on_range_changed(self, min_value: int, max_value: int) -> None:
         if self.first_scroll is True:
             bar = self.verticalScrollBar()
             if bar is not None:
@@ -3218,21 +3220,21 @@ class Monitr(QtWidgets.QMainWindow):
         # Create menu bar
         menu_bar = self.menuBar()
         menu = menu_bar.addMenu("Backend")
-        self.backend_group = QtWidgets.QActionGroup(menu)
+        self.backend_group = QActionGroup(menu)
         for backend, plotWidgetClass in [
             ("matplotlib", MPLAutoPlot),
             ("pyqtgraph", PGAutoPlot),
         ]:
-            action = QtWidgets.QAction(backend)
+            action = QAction(backend)
             action.setCheckable(True)
             action.setChecked(getcfg("main", "default-plotwidget") == plotWidgetClass)
             self.backend_group.addAction(action)
             menu.addAction(action)
 
         sort_menu = menu_bar.addMenu("Sort")
-        self.sort_group = QtWidgets.QActionGroup(sort_menu)
+        self.sort_group = QActionGroup(sort_menu)
         for label, default in [("Sort by type", True), ("Sort alphabetically", False)]:
-            action = QtWidgets.QAction(label)
+            action = QAction(label)
             action.setCheckable(True)
             action.setChecked(default)
             self.sort_group.addAction(action)
@@ -3847,7 +3849,8 @@ class Monitr(QtWidgets.QMainWindow):
         False and calls on_update_data_widget.
         """
         self.active_timer = False
-        self.on_update_data_widget(self.data_file_need_update)
+        if self.data_file_need_update is not None:
+            self.on_update_data_widget(self.data_file_need_update)
 
     def closeEvent(self, a0: QtGui.QCloseEvent) -> None:
         """
@@ -3878,4 +3881,4 @@ def script() -> int:
     app = QtWidgets.QApplication([])
     win = Monitr(path)
     win.show()
-    return app.exec_()
+    return app.exec()

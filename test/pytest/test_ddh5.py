@@ -148,6 +148,13 @@ def test_loader_node(qtbot):
 
     with qtbot.waitSignal(node.loadingWorker.dataLoaded, timeout=1000) as blocker:
         node.filepath = str(FILEPATH)
+
+    # dataLoaded is followed by a queued onThreadComplete() slot that actually
+    # sets the flowchart output; wait until that has happened instead of
+    # sleeping a fixed amount (robust on slow CI / Windows).
+    qtbot.waitUntil(lambda: fc.outputValues()['dataOut'] is not None,
+                    timeout=2000)
+
     out = fc.outputValues()['dataOut'].copy()
     out.pop('__title__')
     assert _clean_from_file(out) == data
@@ -249,8 +256,19 @@ def test_concurrent_write_and_read():
     ref_dataset['__dataset.name__'] = ''
 
     writer.start()
+
+    # The writer runs in a separate process; depending on the OS process start
+    # method (e.g. Windows uses 'spawn', not 'fork') it can take several seconds
+    # just to import plottr and create the file. Wait for the file to appear
+    # before reading, so the concurrent read below doesn't race against process
+    # startup. Concurrent access itself is coordinated by FileOpener's lock file.
+    while writer.is_alive() and not Path(writer.filepath).exists():
+        time.sleep(0.1)
+
     while writer.is_alive():
         time.sleep(2)
+        if not Path(writer.filepath).exists():
+            continue
         data_from_file = dds.datadict_from_hdf5(writer.filepath, structure_only=True)
         assert(data_from_file.structure(include_meta=False))
 

@@ -3,6 +3,6 @@ pytest
 pytest-qt
 hypothesis
 mypy==2.1.0
-PyQt5-stubs==5.15.6.0
+PySide6-stubs
 pandas-stubs
 watchdog

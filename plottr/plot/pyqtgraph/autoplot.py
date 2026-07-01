@@ -17,7 +17,7 @@ from typing import List, Optional, Any
 import numpy as np
 from pyqtgraph import mkPen
 
-from plottr import QtWidgets, QtCore, Signal, Slot, \
+from plottr import QtWidgets, QtCore, Signal, Slot, QAction, QActionGroup, \
     config_entry as getcfg
 from plottr.data.datadict import DataDictBase
 from plottr.utils.latex import latex_to_html
@@ -591,7 +591,7 @@ class FigureConfigToolBar(QtWidgets.QToolBar):
         )
 
         complexOptions = QtWidgets.QMenu(parent=self)
-        complexGroup = QtWidgets.QActionGroup(complexOptions)
+        complexGroup = QActionGroup(complexOptions)
         complexGroup.setExclusive(True)
         self._createComplexRepresentation()
         
@@ -613,7 +613,7 @@ class FigureConfigToolBar(QtWidgets.QToolBar):
         #constructs/reconstructs the Complex Button with different viewing options based upon input data
 
         complexOptions = QtWidgets.QMenu(parent=self)
-        complexGroup = QtWidgets.QActionGroup(complexOptions)
+        complexGroup = QActionGroup(complexOptions)
         complexGroup.setExclusive(True)
 
         for k in ComplexRepresentation:
@@ -622,7 +622,7 @@ class FigureConfigToolBar(QtWidgets.QToolBar):
             if not self.options.imagData and not k == ComplexRepresentation.real: continue
             if self.options.numAxes == 2 and k == ComplexRepresentation.log_MagAndPhase: continue
 
-            a = QtWidgets.QAction(k.label, complexOptions)
+            a = QAction(k.label, complexOptions)
             a.setCheckable(True)
             complexGroup.addAction(a)
             complexOptions.addAction(a)
