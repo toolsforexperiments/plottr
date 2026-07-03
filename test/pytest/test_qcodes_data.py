@@ -372,7 +372,7 @@ class TestRecordsCounter:
     def test_records_from_shapes(self):
         """Shape info in run_description should produce correct count."""
         import json
-        from plottr.data.qcodes_db_overview import _records_from_run_description
+        from plottr.data._qcodes_db_overview import _records_from_run_description
 
         desc = json.dumps({"version": 3, "shapes": {"dep1": [100, 50]}})
         assert _records_from_run_description(desc) == 5000
