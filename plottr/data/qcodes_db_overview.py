@@ -15,6 +15,7 @@ used as a fallback. The queries rely on the stable QCoDeS database schema
 import datetime
 import json
 import logging
+import sqlite3
 from contextlib import closing, nullcontext
 from typing import Dict, Optional, Sequence, Tuple
 
@@ -83,6 +84,7 @@ def _records_from_run_description(run_description_json: Optional[str]) -> int:
 
 
 def get_db_overview(path_to_db: Optional[str] = None,
+                    *,
                     conn: Optional[object] = None,
                     start_run_id: int = 0,
                     extra_columns: Optional[Sequence[str]] = None,
@@ -128,7 +130,7 @@ def get_db_overview(path_to_db: Optional[str] = None,
         query = f"""
             SELECT r.run_id, e.name, e.sample_name, r.name,
                    r.run_timestamp, r.completed_timestamp,
-                   r.result_counter, r.guid, r.result_table_name,
+                   r.guid, r.result_table_name,
                    r.run_description{extra_select}
             FROM runs r
             JOIN experiments e ON r.exp_id = e.exp_id
@@ -138,44 +140,43 @@ def get_db_overview(path_to_db: Optional[str] = None,
 
         try:
             rows = c.execute(query, (start_run_id,)).fetchall()
-        except Exception as e:
+        except sqlite3.Error as e:
             logger.warning(f"Could not query database overview: {e}")
             return overview
 
-        # result_counter in the runs table counts INSERT calls, not data points.
-        # For array paramtype one INSERT can contain thousands of data points,
+        # result_counter in the runs table is the run's ordinal within its
+        # experiment, not a data-point count, so it is not usable here. For
+        # array paramtype one INSERT can also contain thousands of data points,
         # so query the real row count of each results table separately.
-        result_tables = {row[8] for row in rows if row[8]}
+        result_tables = {row[7] for row in rows if row[7]}
         row_counts: Dict[str, int] = {}
         for table in result_tables:
             try:
-                count = c.execute(f'SELECT COUNT(*) FROM "{table}"').fetchone()
-            except Exception:
-                continue  # results table may not exist yet
-            row_counts[table] = count[0] if count else 0
+                (count,) = c.execute(f'SELECT COUNT(*) FROM "{table}"').fetchone()
+            except sqlite3.Error:
+                continue  # results table may not exist (yet)
+            row_counts[table] = count
 
-        n_fixed = 10  # number of columns selected before extra_columns
+        n_fixed = 9  # number of columns selected before extra_columns
         for row in rows:
             run_id = row[0]
             started_date, started_time = _format_timestamp(row[4])
             completed_date, completed_time = _format_timestamp(row[5])
-            result_table = row[8] or ''
+            result_table = row[7] or ''
             is_completed = row[5] is not None and row[5] != 0
 
             # For completed datasets: prefer shape metadata (authoritative
             # final count) over results table rows. For active datasets: prefer
             # results table rows (live count that grows as data is added).
-            # Fall back to result_counter if nothing else is available.
+            # 0 means "unknown".
             if is_completed:
-                records = _records_from_run_description(row[9])
+                records = _records_from_run_description(row[8])
                 if records == 0:
                     records = row_counts.get(result_table, 0)
             else:
                 records = row_counts.get(result_table, 0)
                 if records == 0:
-                    records = _records_from_run_description(row[9])
-            if records == 0:
-                records = row[6] or 0
+                    records = _records_from_run_description(row[8])
 
             entry: RunOverviewDict = {
                 'run_id': run_id,
@@ -187,11 +188,14 @@ def get_db_overview(path_to_db: Optional[str] = None,
                 'completed_date': completed_date,
                 'completed_time': completed_time,
                 'records': records,
-                'guid': row[7] or '',
+                'guid': row[6] or '',
             }
             if valid_extra_columns:
                 extra = {col: row[n_fixed + i]
                          for i, col in enumerate(valid_extra_columns)}
+                # The keys of ``extra`` are only known at runtime (the
+                # user-supplied ``extra_columns``), so they cannot be part of
+                # the closed ``RunOverviewDict`` definition.
                 entry.update(extra)  # type: ignore[typeddict-item]
 
             overview[run_id] = entry
