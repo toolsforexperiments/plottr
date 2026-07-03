@@ -452,7 +452,8 @@ class LoadDBProcess(QtCore.QObject):
         overview: Optional[Dict[int, Any]] = None
         if self.use_fast_sql:
             try:
-                overview = get_db_overview(self.path)
+                overview = get_db_overview(self.path,
+                                           extra_columns=['inspectr_tag'])
             except Exception as e:
                 LOGGER.warning(f"Fast SQL overview failed, falling back to "
                                f"qcodes API: {e}")
