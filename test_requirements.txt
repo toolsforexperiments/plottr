@@ -2,7 +2,7 @@ qcodes
 pytest
 pytest-qt
 hypothesis
-mypy==2.1.0
+mypy==2.3.0
 PySide6-stubs
 pandas-stubs
 watchdog
