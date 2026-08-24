@@ -13,7 +13,8 @@ from plottr.data.qcodes_dataset import (
     get_ds_structure,
     get_ds_info,
     get_runs_from_db,
-    ds_to_datadict)
+    ds_to_datadict,
+    _split_timestamp)
 
 
 @pytest.fixture(scope='function')
@@ -201,17 +202,21 @@ def test_get_ds_info(experiment):
 
     # timestamps are difficult to test for, so we will cheat here and
     # instead of hard-coding timestamps we will just get them from the dataset
-    # The same applies to the guid as it contains the timestamp
-    started_ts = dataset.run_timestamp()
-    completed_ts = dataset.completed_timestamp()
+    # The same applies to the guid as it contains the timestamp.
+    # We parse the qcodes timestamps the same way ``get_ds_info`` does, so that
+    # this test is robust to the qcodes timestamp format (in particular the
+    # newer format that appends the local UTC offset, e.g.
+    # "2026-07-31 10:27:25+0200").
+    started_date, started_time = _split_timestamp(dataset.run_timestamp())
+    completed_date, completed_time = _split_timestamp(dataset.completed_timestamp())
 
     expected_ds_info = {
         'experiment': '2d_softsweep',
         'sample': 'no sample',
-        'completed_date': completed_ts[:10],
-        'completed_time': completed_ts[11:],
-        'started_date': started_ts[:10],
-        'started_time': started_ts[11:],
+        'completed_date': completed_date,
+        'completed_time': completed_time,
+        'started_date': started_date,
+        'started_time': started_time,
         'name': 'results',
         'structure': None,
         'records': 0,
