@@ -64,12 +64,12 @@ def _split_timestamp(ts: Optional[str]) -> Tuple[str, str]:
         return '', ''
     try:
         dt = datetime.fromisoformat(ts)
-    except (ValueError, TypeError):
+        if dt.tzinfo is not None:
+            # Render in the local timezone of the machine running plottr.
+            dt = dt.astimezone()
+        return dt.strftime('%Y-%m-%d'), dt.strftime('%H:%M:%S')
+    except (ValueError, TypeError, OSError, OverflowError):
         return '', ''
-    if dt.tzinfo is not None:
-        # Render in the local timezone of the machine running plottr.
-        dt = dt.astimezone()
-    return dt.strftime('%Y-%m-%d'), dt.strftime('%H:%M:%S')
 
 
 class IndependentParameterDict(TypedDict):
