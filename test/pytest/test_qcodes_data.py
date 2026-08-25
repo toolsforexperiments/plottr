@@ -1,3 +1,5 @@
+import datetime
+
 import numpy as np
 import pytest
 from packaging import version
@@ -181,6 +183,39 @@ def test_get_ds_structure(experiment):
     assert structure == expected_structure
 
 
+def test_split_timestamp_naive():
+    # The legacy qcodes timestamp format has no timezone information and is
+    # returned as-is (split into date and time). Expected values are hard-coded
+    # so this does not depend on the helper's own logic.
+    assert _split_timestamp("2026-07-31 10:27:25") == ("2026-07-31", "10:27:25")
+
+
+def test_split_timestamp_none_and_invalid():
+    assert _split_timestamp(None) == ("", "")
+    assert _split_timestamp("") == ("", "")
+    assert _split_timestamp("not a timestamp") == ("", "")
+
+
+def test_split_timestamp_timezone_aware_rendered_in_local_time():
+    # The new qcodes timestamp format includes the UTC offset. Such timestamps
+    # must be converted to the local timezone of the machine before being split.
+    # We compute the expected local date/time independently from the helper:
+    # take a fixed absolute instant, convert it to local wall-clock time via
+    # ``datetime.fromtimestamp`` (a different code path than the helper), and
+    # verify the helper agrees for the same instant given in different offsets.
+    utc_instant = datetime.datetime(2026, 7, 31, 8, 27, 25,
+                                    tzinfo=datetime.timezone.utc)
+    local = datetime.datetime.fromtimestamp(utc_instant.timestamp())
+    expected = (local.strftime("%Y-%m-%d"), local.strftime("%H:%M:%S"))
+
+    # Same instant expressed as UTC (+00:00) and as +02:00.
+    assert _split_timestamp("2026-07-31 08:27:25+00:00") == expected
+    assert _split_timestamp("2026-07-31 10:27:25+02:00") == expected
+    # qcodes renders the offset without a colon (e.g. "+0000"); ensure that
+    # format is handled too.
+    assert _split_timestamp("2026-07-31 08:27:25+0000") == expected
+
+
 def test_get_ds_info(experiment):
     N = 5
 
@@ -203,20 +238,19 @@ def test_get_ds_info(experiment):
     # timestamps are difficult to test for, so we will cheat here and
     # instead of hard-coding timestamps we will just get them from the dataset
     # The same applies to the guid as it contains the timestamp.
-    # We parse the qcodes timestamps the same way ``get_ds_info`` does, so that
-    # this test is robust to the qcodes timestamp format (in particular the
-    # newer format that appends the local UTC offset, e.g.
-    # "2026-07-31 10:27:25+0200").
-    started_date, started_time = _split_timestamp(dataset.run_timestamp())
-    completed_date, completed_time = _split_timestamp(dataset.completed_timestamp())
+    # To avoid testing ``get_ds_info`` against the very helper it uses
+    # (``_split_timestamp``), we derive the expected local date/time
+    # independently from the raw unix timestamps exposed by qcodes.
+    started = datetime.datetime.fromtimestamp(dataset.run_timestamp_raw)
+    completed = datetime.datetime.fromtimestamp(dataset.completed_timestamp_raw)
 
     expected_ds_info = {
         'experiment': '2d_softsweep',
         'sample': 'no sample',
-        'completed_date': completed_date,
-        'completed_time': completed_time,
-        'started_date': started_date,
-        'started_time': started_time,
+        'completed_date': completed.strftime('%Y-%m-%d'),
+        'completed_time': completed.strftime('%H:%M:%S'),
+        'started_date': started.strftime('%Y-%m-%d'),
+        'started_time': started.strftime('%H:%M:%S'),
         'name': 'results',
         'structure': None,
         'records': 0,

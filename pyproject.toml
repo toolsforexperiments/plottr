@@ -117,6 +117,17 @@ module = [
 ]
 ignore_missing_imports = true
 
+# qcodes ships a py.typed marker, so mypy type-checks its source when following
+# imports from plottr. mypy 2.3.1 crashes with an INTERNAL ERROR while analysing
+# ``qcodes.dataset.data_set_protocol``. Skip following imports into qcodes so we
+# do not type-check a third-party library (and work around the mypy crash).
+[[tool.mypy.overrides]]
+module = [
+    "qcodes.*",
+]
+follow_imports = "skip"
+follow_imports_for_stubs = true
+
 [tool.versioningit]
 default-version = "0.0"
 
