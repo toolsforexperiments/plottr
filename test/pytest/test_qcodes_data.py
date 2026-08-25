@@ -1,4 +1,5 @@
 import datetime
+import time
 
 import numpy as np
 import pytest
@@ -216,18 +217,28 @@ def test_split_timestamp_timezone_aware_rendered_in_local_time():
     assert _split_timestamp("2026-07-31 08:27:25+0000") == expected
 
 
-def test_split_timestamp_timezone_aware_crosses_date_boundary():
+def test_split_timestamp_timezone_aware_crosses_date_boundary(monkeypatch):
     # Converting to local time can push the timestamp onto a different
-    # calendar date than the one written in the input string. Expected
-    # values are again derived independently via ``datetime.fromtimestamp``.
-    utc_instant = datetime.datetime(2026, 7, 31, 23, 30, 0,
-                                    tzinfo=datetime.timezone.utc)
-    local = datetime.datetime.fromtimestamp(utc_instant.timestamp())
-    expected = (local.strftime("%Y-%m-%d"), local.strftime("%H:%M:%S"))
+    # calendar date than the one written in the input string. The local
+    # timezone is pinned explicitly so the boundary crossing is guaranteed
+    # regardless of the host machine's own timezone. Expected values are
+    # again derived independently via ``datetime.fromtimestamp``.
+    if not hasattr(time, "tzset"):
+        pytest.skip("time.tzset is not available on this platform")
 
-    # Same instant, expressed with a +02:00 offset, which shifts the
-    # calendar date in the input string to the next day.
-    assert _split_timestamp("2026-08-01 01:30:00+02:00") == expected
+    monkeypatch.setenv("TZ", "Europe/Berlin")
+    time.tzset()
+    try:
+        utc_instant = datetime.datetime(2026, 7, 31, 23, 30, 0,
+                                        tzinfo=datetime.timezone.utc)
+        local = datetime.datetime.fromtimestamp(utc_instant.timestamp())
+        expected = (local.strftime("%Y-%m-%d"), local.strftime("%H:%M:%S"))
+
+        # Same instant, expressed with a +02:00 offset, which shifts the
+        # calendar date in the input string to the next day.
+        assert _split_timestamp("2026-08-01 01:30:00+02:00") == expected
+    finally:
+        time.tzset()
 
 
 def test_get_ds_info(experiment):
