@@ -2,7 +2,11 @@ qcodes
 pytest
 pytest-qt
 hypothesis
-mypy==2.3.1
+# mypy >=2.2.0 crashes with an INTERNAL ERROR while following imports into
+# qcodes' data_set_protocol.py (verified up to 2.3.1, the latest release as
+# of writing). Pinned to 2.1.0, the newest version that doesn't crash; bump
+# once upstream fixes this (see https://github.com/python/mypy/issues/21741).
+mypy==2.1.0
 PySide6-stubs
 pandas-stubs
 watchdog

@@ -47,18 +47,28 @@ def _get_names_of_standalone_parameters(paramspecs: List['ParamSpec']
 def _split_timestamp(ts: Optional[str]) -> Tuple[str, str]:
     """Split a qcodes timestamp string into (date, time) components.
 
-    Uses datetime parsing instead of string slicing for robustness.
+    Uses datetime parsing instead of string slicing for robustness. This
+    handles both the legacy qcodes timestamp format (``"YYYY-MM-DD HH:MM:SS"``)
+    and the newer one that includes the UTC offset of the local timezone
+    (``"YYYY-MM-DD HH:MM:SS%z"``, e.g. ``"2026-07-31 10:27:25+0200"``).
 
-    :param ts: timestamp string as returned by ``ds.run_timestamp()``
-        (typically ``"YYYY-MM-DD HH:MM:SS"``), or None.
+    Timezone-aware timestamps are converted to the local timezone of the
+    machine running plottr before formatting, so the rendered date and time
+    always reflect the local (PC) timezone. The UTC offset itself is dropped
+    from the returned components.
+
+    :param ts: timestamp string as returned by ``ds.run_timestamp()``, or None.
     :returns: (date_str, time_str) or ('', '') if ts is None or unparsable.
     """
     if ts is None:
         return '', ''
     try:
         dt = datetime.fromisoformat(ts)
+        if dt.tzinfo is not None:
+            # Render in the local timezone of the machine running plottr.
+            dt = dt.astimezone()
         return dt.strftime('%Y-%m-%d'), dt.strftime('%H:%M:%S')
-    except (ValueError, TypeError):
+    except (ValueError, TypeError, OSError, OverflowError):
         return '', ''
 
 
