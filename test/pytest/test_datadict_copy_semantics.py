@@ -439,6 +439,29 @@ class TestMeshgridValidation:
         dd['z'] = dict(values=xx + yy, axes=['x', 'y'], unit='A', label='z')
         assert dd.validate()
 
+    def test_valid_non_monotonic_1d_sweep(self):
+        """A 1D sweep may reverse direction without being malformed."""
+        voltage = np.concatenate((
+            np.linspace(0, 1, 51),
+            [1],
+            np.linspace(-0.02, -3, 150),
+        ))
+        current = np.arange(voltage.size, dtype=float)
+        data = DataDict(
+            voltage=dict(values=voltage),
+            current=dict(values=current, axes=['voltage']),
+        )
+
+        meshes = (
+            datadict_to_meshgrid(data, use_existing_shape=True),
+            datadict_to_meshgrid(data),
+        )
+
+        for mesh in meshes:
+            assert mesh.shape() == (voltage.size,)
+            np.testing.assert_array_equal(mesh.data_vals('voltage'), voltage)
+            np.testing.assert_array_equal(mesh.data_vals('current'), current)
+
     def test_invalid_non_monotonic(self):
         """Axis that goes up then down should fail."""
         dd = MeshgridDataDict()

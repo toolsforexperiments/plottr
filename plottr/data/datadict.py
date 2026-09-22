@@ -1170,6 +1170,11 @@ class MeshgridDataDict(DataDictBase):
 
             if 'axes' in v:
                 for axis_num, na in enumerate(v['axes']):
+                    # One-dimensional coordinates can reverse or repeat while
+                    # still defining a plottable, acquisition-ordered line.
+                    if len(v['axes']) == 1:
+                        break
+
                     # check that the data of the axes matches its use
                     # if data present
                     axis_data = data_items[na]['values']
