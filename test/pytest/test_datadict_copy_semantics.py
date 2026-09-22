@@ -443,6 +443,7 @@ class TestMeshgridValidation:
         """A 1D sweep may reverse direction without being malformed."""
         voltage = np.concatenate((
             np.linspace(0, 1, 51),
+            [1],
             np.linspace(-0.02, -3, 150),
         ))
         current = np.arange(voltage.size, dtype=float)
