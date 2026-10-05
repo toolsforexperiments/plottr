@@ -32,7 +32,7 @@ class DataFileContent(QtWidgets.QTreeWidget):
 
         self.data: Dict[str, DataDict] = {}
         self.groupItems: List[QtWidgets.QTreeWidgetItem] = []
-        self.selectedGroup = None
+        self.selectedGroup: str | None = None
 
         self.dataPopup = QtWidgets.QMenu('Data actions', self)
         self.plotAction = self.dataPopup.addAction("Plot")
