@@ -447,7 +447,7 @@ class FileModel(QtGui.QStandardItemModel):
         super().__init__(rows, columns, parent=parent)
         self.monitor_path = Path(monitor_path)
         self.header_labels = ["File path", "Tags"]
-        self.currently_selected_folder = None
+        self.currently_selected_folder: None | Path = None
 
         # The main dictionary has all the datasets (folders) Path as keys, with the actual item as its value.
         self.main_dictionary: Dict[Path, Item] = {}
