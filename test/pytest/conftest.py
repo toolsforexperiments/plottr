@@ -1,8 +1,11 @@
 import pytest
 import numpy as np
 
-import qcodes as qc
-from qcodes import load_or_create_experiment, initialise_or_create_database_at
+from qcodes.dataset import (
+    Measurement,
+    initialise_or_create_database_at,
+    load_or_create_experiment,
+)
 
 @pytest.fixture(scope='function')
 def empty_db_path(tmp_path):
@@ -22,7 +25,7 @@ def experiment(empty_db_path):
 def database_with_three_datasets(empty_db_path):
     """Fixture of a database file with 3 DataSets"""
     exp1 = load_or_create_experiment('get_runs_from_db', sample_name='qubit')
-    m1 = qc.Measurement(exp=exp1)
+    m1 = Measurement(exp=exp1)
 
     m1.register_custom_parameter('x', unit='cm')
     m1.register_custom_parameter('y')
@@ -39,7 +42,7 @@ def database_with_three_datasets(empty_db_path):
         dataset12 = datasaver.dataset
 
     exp2 = load_or_create_experiment('give_em', sample_name='now')
-    m2 = qc.Measurement(exp=exp2)
+    m2 = Measurement(exp=exp2)
 
     m2.register_custom_parameter('a')
     m2.register_custom_parameter('b', unit='mm')
@@ -64,7 +67,7 @@ def database_with_three_datasets(empty_db_path):
 def dataset_with_shape(empty_db_path):
     """Fixture of a database file a shaped and an unshapeed dataset"""
     exp = load_or_create_experiment('get_runs_from_db', sample_name='qubit')
-    m1 = qc.Measurement(exp=exp)
+    m1 = Measurement(exp=exp)
 
     m1.register_custom_parameter('x', unit='cm')
     m1.register_custom_parameter('y')

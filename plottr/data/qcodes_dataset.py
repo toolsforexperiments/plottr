@@ -31,7 +31,7 @@ if TYPE_CHECKING:
         from qcodes.dataset import DataSetProtocol
     except ImportError:
         from qcodes.dataset.data_set import DataSet as DataSetProtocol
-    from qcodes import ParamSpec
+    from qcodes.dataset import ParamSpec
 
 
 def _get_names_of_standalone_parameters(paramspecs: List['ParamSpec']
