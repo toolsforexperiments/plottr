@@ -28,10 +28,7 @@ from ..plot.pyqtgraph.autoplot import AutoPlot as PGAutoPlot
 from ..utils.misc import unwrap_optional
 
 if TYPE_CHECKING:
-    try:
-        from qcodes.dataset import DataSetProtocol
-    except ImportError:
-        from qcodes.dataset.data_set import DataSet as DataSetProtocol
+    from qcodes.dataset import DataSetProtocol
 
 __author__ = 'Wolfgang Pfaff'
 __license__ = 'MIT'

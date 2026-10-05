@@ -29,7 +29,7 @@ if TYPE_CHECKING:
     from collections.abc import Sequence
     from pathlib import Path
 
-    from qcodes.dataset.sqlite.connection import AtomicConnection
+    from qcodes.dataset import AtomicConnection
 
 log = logging.getLogger(__name__)
 

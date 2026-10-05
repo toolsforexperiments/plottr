@@ -7,11 +7,14 @@ from packaging import version
 
 import qcodes as qc
 from qcodes.dataset import (
+    InterDependencies_,
     Measurement,
     initialise_or_create_database_at,
+    load_by_id,
     load_or_create_experiment,
     new_data_set,
 )
+from qcodes.parameters import ParamSpecBase
 
 from plottr.data.datadict import DataDict
 from plottr.utils import testdata
@@ -387,11 +390,6 @@ def test_update_qcloader(qtbot, empty_db_path):
 
 def _make_qcodes_db_with_runs(db_path: str, n_runs: int = 1) -> str:
     """Helper: create a QCodes DB with n_runs simple numeric datasets."""
-    try:
-        from qcodes.parameters import ParamSpecBase
-    except ImportError:
-        from qcodes.dataset.descriptions.param_spec import ParamSpecBase
-    from qcodes.dataset.descriptions.dependencies import InterDependencies_
 
     initialise_or_create_database_at(db_path)
     exp = load_or_create_experiment("test_exp", sample_name="test_sample")
@@ -458,11 +456,6 @@ class TestDatasetRefresh:
     def test_incremental_overview(self, tmp_path):
         """get_db_overview with start_run_id should find newly added runs."""
         from plottr.data.qcodes_db_overview import get_db_overview
-        try:
-            from qcodes.parameters import ParamSpecBase
-        except ImportError:
-            from qcodes.dataset.descriptions.param_spec import ParamSpecBase
-        from qcodes.dataset.descriptions.dependencies import InterDependencies_
 
         db_path = str(tmp_path / "test.db")
         _make_qcodes_db_with_runs(db_path, n_runs=2)
@@ -489,11 +482,6 @@ class TestDatasetRefresh:
         import os
         os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
         from plottr.apps.inspectr import QCodesDBInspector
-        try:
-            from qcodes.parameters import ParamSpecBase
-        except ImportError:
-            from qcodes.dataset.descriptions.param_spec import ParamSpecBase
-        from qcodes.dataset.descriptions.dependencies import InterDependencies_
 
         db_path = str(tmp_path / "test.db")
         _make_qcodes_db_with_runs(db_path, n_runs=1)
@@ -577,11 +565,6 @@ class TestDatasetRefresh:
         import os
         os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
         from plottr.apps.inspectr import QCodesDBInspector
-        try:
-            from qcodes.parameters import ParamSpecBase
-        except ImportError:
-            from qcodes.dataset.descriptions.param_spec import ParamSpecBase
-        from qcodes.dataset.descriptions.dependencies import InterDependencies_
 
         db_path = str(tmp_path / "test.db")
         initialise_or_create_database_at(db_path)
@@ -719,11 +702,6 @@ class TestNoDataAvailable:
         """Create a qcodes dataset whose data file is then deleted,
         leaving a metadata-only entry in the SQLite DB."""
         import os
-        try:
-            from qcodes.parameters import ParamSpecBase
-        except ImportError:
-            from qcodes.dataset.descriptions.param_spec import ParamSpecBase
-        from qcodes.dataset.descriptions.dependencies import InterDependencies_
 
         initialise_or_create_database_at(db_path)
         load_or_create_experiment("metadata_only_exp", sample_name="s")
@@ -746,7 +724,6 @@ class TestNoDataAvailable:
         or missing parameters (e.g., when the .nc data file is missing
         for a metadata-only DB)."""
         from plottr.data.qcodes_dataset import ds_to_datadicts
-        from qcodes.dataset.data_set import load_by_id
         from unittest.mock import patch
 
         db_path = str(tmp_path / "test.db")
@@ -764,7 +741,6 @@ class TestNoDataAvailable:
         """ds_to_datadicts should skip dependents whose tree is missing
         from the cache, rather than crashing."""
         from plottr.data.qcodes_dataset import ds_to_datadicts
-        from qcodes.dataset.data_set import load_by_id
         from unittest.mock import patch
         import numpy as np
 
