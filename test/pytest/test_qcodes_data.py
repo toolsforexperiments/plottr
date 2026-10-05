@@ -6,7 +6,15 @@ import pytest
 from packaging import version
 
 import qcodes as qc
-from qcodes import load_or_create_experiment, initialise_or_create_database_at
+from qcodes.dataset import (
+    InterDependencies_,
+    Measurement,
+    initialise_or_create_database_at,
+    load_by_id,
+    load_or_create_experiment,
+    new_data_set,
+)
+from qcodes.parameters import ParamSpecBase
 
 from plottr.data.datadict import DataDict
 from plottr.utils import testdata
@@ -38,7 +46,7 @@ def experiment(empty_db_path):
 def database_with_three_datasets(empty_db_path):
     """Fixture of a database file with 3 DataSets"""
     exp1 = load_or_create_experiment('get_runs_from_db', sample_name='qubit')
-    m1 = qc.Measurement(exp=exp1)
+    m1 = Measurement(exp=exp1)
 
     m1.register_custom_parameter('x', unit='cm')
     m1.register_custom_parameter('y')
@@ -55,7 +63,7 @@ def database_with_three_datasets(empty_db_path):
         dataset12 = datasaver.dataset
 
     exp2 = load_or_create_experiment('give_em', sample_name='now')
-    m2 = qc.Measurement(exp=exp2)
+    m2 = Measurement(exp=exp2)
 
     m2.register_custom_parameter('a')
     m2.register_custom_parameter('b', unit='mm')
@@ -78,7 +86,7 @@ def database_with_three_datasets(empty_db_path):
 
 def test_load_2dsoftsweep(experiment):
     N = 5
-    m = qc.Measurement(exp=experiment)
+    m = Measurement(exp=experiment)
     m.register_custom_parameter('x', unit='cm')
     m.register_custom_parameter('y')
 
@@ -107,7 +115,7 @@ def test_load_2dsoftsweep(experiment):
                     reason="Requires QCoDes 0.20.0 or later")
 def test_load_2dsoftsweep_known_shape(experiment):
     N = 1
-    m = qc.Measurement(exp=experiment)
+    m = Measurement(exp=experiment)
     m.register_custom_parameter('x', unit='cm')
     m.register_custom_parameter('y')
 
@@ -142,7 +150,7 @@ def test_load_2dsoftsweep_known_shape(experiment):
 def test_get_ds_structure(experiment):
     N = 5
 
-    m = qc.Measurement(exp=experiment)
+    m = Measurement(exp=experiment)
     m.register_custom_parameter('x', unit='cm',label='my_x_param')
     m.register_custom_parameter('y')
 
@@ -244,7 +252,7 @@ def test_split_timestamp_timezone_aware_crosses_date_boundary(monkeypatch):
 def test_get_ds_info(experiment):
     N = 5
 
-    m = qc.Measurement(exp=experiment)
+    m = Measurement(exp=experiment)
 
     m.register_custom_parameter('x', unit='cm')
     m.register_custom_parameter('y')
@@ -327,7 +335,7 @@ def test_update_qcloader(qtbot, empty_db_path):
     exp = load_or_create_experiment('2d_softsweep', sample_name='no sample')
 
     N = 2
-    m = qc.Measurement(exp=exp)
+    m = Measurement(exp=exp)
     m.register_custom_parameter('x')
     m.register_custom_parameter('y')
     dd_expected = DataDict(x=dict(values=np.array([])),
@@ -382,11 +390,6 @@ def test_update_qcloader(qtbot, empty_db_path):
 
 def _make_qcodes_db_with_runs(db_path: str, n_runs: int = 1) -> str:
     """Helper: create a QCodes DB with n_runs simple numeric datasets."""
-    try:
-        from qcodes.parameters import ParamSpecBase
-    except ImportError:
-        from qcodes.dataset.descriptions.param_spec import ParamSpecBase
-    from qcodes.dataset.descriptions.dependencies import InterDependencies_
 
     initialise_or_create_database_at(db_path)
     exp = load_or_create_experiment("test_exp", sample_name="test_sample")
@@ -395,7 +398,7 @@ def _make_qcodes_db_with_runs(db_path: str, n_runs: int = 1) -> str:
     interdeps = InterDependencies_(dependencies={p_y: (p_x,)})
 
     for r in range(n_runs):
-        ds = qc.new_data_set(f"run_{r + 1}")
+        ds = new_data_set(f"run_{r + 1}")
         ds.set_interdependencies(interdeps)
         ds.mark_started()
         for i in range(10):
@@ -453,11 +456,6 @@ class TestDatasetRefresh:
     def test_incremental_overview(self, tmp_path):
         """get_db_overview with start_run_id should find newly added runs."""
         from plottr.data.qcodes_db_overview import get_db_overview
-        try:
-            from qcodes.parameters import ParamSpecBase
-        except ImportError:
-            from qcodes.dataset.descriptions.param_spec import ParamSpecBase
-        from qcodes.dataset.descriptions.dependencies import InterDependencies_
 
         db_path = str(tmp_path / "test.db")
         _make_qcodes_db_with_runs(db_path, n_runs=2)
@@ -471,7 +469,7 @@ class TestDatasetRefresh:
         p_x = ParamSpecBase("x", "numeric")
         p_y = ParamSpecBase("y", "numeric")
         interdeps = InterDependencies_(dependencies={p_y: (p_x,)})
-        ds = qc.new_data_set("run_3")
+        ds = new_data_set("run_3")
         ds.set_interdependencies(interdeps)
         ds.mark_started()
         ds.add_results([{p_x.name: 1.0, p_y.name: 2.0}])
@@ -484,11 +482,6 @@ class TestDatasetRefresh:
         import os
         os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
         from plottr.apps.inspectr import QCodesDBInspector
-        try:
-            from qcodes.parameters import ParamSpecBase
-        except ImportError:
-            from qcodes.dataset.descriptions.param_spec import ParamSpecBase
-        from qcodes.dataset.descriptions.dependencies import InterDependencies_
 
         db_path = str(tmp_path / "test.db")
         _make_qcodes_db_with_runs(db_path, n_runs=1)
@@ -506,7 +499,7 @@ class TestDatasetRefresh:
         p_x = ParamSpecBase("x", "numeric")
         p_y = ParamSpecBase("y", "numeric")
         interdeps = InterDependencies_(dependencies={p_y: (p_x,)})
-        ds = qc.new_data_set("run_2")
+        ds = new_data_set("run_2")
         ds.set_interdependencies(interdeps)
         ds.mark_started()
         ds.add_results([{p_x.name: 1.0, p_y.name: 2.0}])
@@ -572,11 +565,6 @@ class TestDatasetRefresh:
         import os
         os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
         from plottr.apps.inspectr import QCodesDBInspector
-        try:
-            from qcodes.parameters import ParamSpecBase
-        except ImportError:
-            from qcodes.dataset.descriptions.param_spec import ParamSpecBase
-        from qcodes.dataset.descriptions.dependencies import InterDependencies_
 
         db_path = str(tmp_path / "test.db")
         initialise_or_create_database_at(db_path)
@@ -586,7 +574,7 @@ class TestDatasetRefresh:
         interdeps = InterDependencies_(dependencies={p_y: (p_x,)})
 
         # Start an INCOMPLETE dataset with 5 results
-        ds = qc.new_data_set("incomplete")
+        ds = new_data_set("incomplete")
         ds.set_interdependencies(interdeps)
         ds.mark_started()
         for i in range(5):
@@ -714,11 +702,6 @@ class TestNoDataAvailable:
         """Create a qcodes dataset whose data file is then deleted,
         leaving a metadata-only entry in the SQLite DB."""
         import os
-        try:
-            from qcodes.parameters import ParamSpecBase
-        except ImportError:
-            from qcodes.dataset.descriptions.param_spec import ParamSpecBase
-        from qcodes.dataset.descriptions.dependencies import InterDependencies_
 
         initialise_or_create_database_at(db_path)
         load_or_create_experiment("metadata_only_exp", sample_name="s")
@@ -726,7 +709,7 @@ class TestNoDataAvailable:
         p_y = ParamSpecBase("y", "numeric")
         interdeps = InterDependencies_(dependencies={p_y: (p_x,)})
 
-        ds = qc.new_data_set("metadata_only_run")
+        ds = new_data_set("metadata_only_run")
         ds.set_interdependencies(interdeps)
         ds.mark_started()
         # Don't add any results, mark as completed
@@ -741,7 +724,6 @@ class TestNoDataAvailable:
         or missing parameters (e.g., when the .nc data file is missing
         for a metadata-only DB)."""
         from plottr.data.qcodes_dataset import ds_to_datadicts
-        from qcodes.dataset.data_set import load_by_id
         from unittest.mock import patch
 
         db_path = str(tmp_path / "test.db")
@@ -759,7 +741,6 @@ class TestNoDataAvailable:
         """ds_to_datadicts should skip dependents whose tree is missing
         from the cache, rather than crashing."""
         from plottr.data.qcodes_dataset import ds_to_datadicts
-        from qcodes.dataset.data_set import load_by_id
         from unittest.mock import patch
         import numpy as np
 

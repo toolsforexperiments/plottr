@@ -15,9 +15,9 @@ from typing_extensions import TypedDict
 
 import pandas as pd
 
-from qcodes.dataset.data_set import load_by_id
-from qcodes.dataset.experiment_container import experiments
-from qcodes.dataset.sqlite.database import conn_from_dbpath_or_conn, initialise_or_create_database_at
+from qcodes.dataset import experiments, initialise_or_create_database_at, load_by_id
+# Not part of the public qcodes.dataset API, so imported from the submodules.
+from qcodes.dataset.sqlite.database import conn_from_dbpath_or_conn
 from qcodes.dataset.sqlite.queries import get_last_run
 
 from .datadict import DataDictBase, DataDict, combine_datadicts
@@ -27,11 +27,7 @@ __author__ = 'Wolfgang Pfaff'
 __license__ = 'MIT'
 
 if TYPE_CHECKING:
-    try:
-        from qcodes.dataset import DataSetProtocol
-    except ImportError:
-        from qcodes.dataset.data_set import DataSet as DataSetProtocol
-    from qcodes import ParamSpec
+    from qcodes.dataset import DataSetProtocol, ParamSpec
 
 
 def _get_names_of_standalone_parameters(paramspecs: List['ParamSpec']
