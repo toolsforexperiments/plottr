@@ -170,6 +170,9 @@ def test_loader_node(qtbot):
 
     with qtbot.waitSignal(node.loadingWorker.dataLoaded, timeout=1000) as blocker:
         node.update()
+    # as above: the output is only updated by the queued onThreadComplete() slot.
+    qtbot.waitUntil(lambda: fc.outputValues()['dataOut'].nrecords() == 4,
+                    timeout=2000)
     out = fc.outputValues()['dataOut'].copy()
     out.pop('__title__')
     assert _clean_from_file(out) == data
