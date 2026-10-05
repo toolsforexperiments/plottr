@@ -1,3 +1,5 @@
+import gc
+
 import pytest
 import numpy as np
 
@@ -6,6 +8,30 @@ from qcodes.dataset import (
     initialise_or_create_database_at,
     load_or_create_experiment,
 )
+
+
+@pytest.fixture(autouse=True)
+def collect_garbage_only_between_tests():
+    """Run Python's cyclic garbage collector only at safe points.
+
+    This is the test-suite counterpart of
+    :func:`plottr.enableEventLoopGarbageCollection`, which plottr's apps use;
+    see its docstring for why automatic collection can crash Qt applications
+    and for the link to pyqtgraph's ``GarbageCollector``. Tests create and drop
+    many flowcharts and do not reliably run an event loop, so instead of a
+    timer we disable automatic collection during each test and collect
+    explicitly afterwards. This also ensures no Qt objects survive until
+    interpreter shutdown.
+    """
+    was_enabled = gc.isenabled()
+    gc.disable()
+    try:
+        yield
+    finally:
+        gc.collect()
+        if was_enabled:
+            gc.enable()
+
 
 @pytest.fixture(scope='function')
 def empty_db_path(tmp_path):

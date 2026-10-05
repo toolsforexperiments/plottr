@@ -31,7 +31,7 @@ from itertools import cycle
 
 from watchdog.events import FileSystemEvent, FileSystemMovedEvent
 
-from .. import QtCore, QtWidgets, Signal, Slot, QtGui, plottrPath, QAction, QActionGroup
+from .. import QtCore, QtWidgets, Signal, Slot, QtGui, plottrPath, QAction, QActionGroup, enableEventLoopGarbageCollection
 from .. import config_entry as getcfg
 from ..plot.mpl.autoplot import AutoPlot as MPLAutoPlot
 from ..plot.pyqtgraph.autoplot import AutoPlot as PGAutoPlot
@@ -3879,6 +3879,7 @@ def script() -> int:
         sys.exit()
 
     app = QtWidgets.QApplication([])
+    enableEventLoopGarbageCollection(app)
     win = Monitr(path)
     win.show()
     return app.exec()

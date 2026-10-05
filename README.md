@@ -55,6 +55,28 @@ conda install plottr
 To install from source: clone the repo, and install using
 `pip install -e .[pyside6]` (or another binding extra of your choice).
 
+### Using plottr in your own Qt application
+
+Python's cyclic garbage collector can segfault Qt applications if it happens
+to destroy discarded Qt objects (such as the flowcharts and windows of closed
+plots) while Qt is busy with other objects, or from a worker thread.
+plottr's own apps (`plottr-inspectr`, `plottr-monitr`,
+`plottr-autoplot-ddh5`) therefore only collect garbage from the Qt event loop,
+using pyqtgraph's
+[`GarbageCollector`](https://github.com/pyqtgraph/pyqtgraph/blob/pyqtgraph-0.14.0/pyqtgraph/util/garbage_collector.py).
+If you create and discard plottr flowcharts or plot windows in your own Qt
+application, do the same right after creating the `QApplication`:
+
+```python
+from plottr import qtapp, enableEventLoopGarbageCollection
+
+app = qtapp()
+enableEventLoopGarbageCollection(app)
+```
+
+This changes garbage collection for the whole Python process, which is why
+plottr does not do it automatically when used as a library.
+
 ## inspectr: QCoDeS dataset inspection and (live) plotting
 
 You can use the `inspectr` tool to get a simple overview over QCoDeS database

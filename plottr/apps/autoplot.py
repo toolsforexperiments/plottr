@@ -8,7 +8,7 @@ import time
 import argparse
 from typing import Union, Tuple, Optional, Type, List, Any, Type, TYPE_CHECKING
 
-from .. import QtCore, Flowchart, Signal, Slot, QtWidgets, QtGui, QAction
+from .. import QtCore, Flowchart, Signal, Slot, QtWidgets, QtGui, QAction, enableEventLoopGarbageCollection
 from ..data.datadict import DataDictBase
 from ..data.datadict_storage import DDH5Loader
 from ..data.qcodes_dataset import QCodesDSLoader
@@ -475,6 +475,7 @@ def autoplotDDH5App(*args: Any) -> Tuple[Flowchart, AutoPlotMainWindow]:
 
 def main(f: str, g: str) -> int:
     app = QtWidgets.QApplication([])
+    enableEventLoopGarbageCollection(app)
     fc, win = autoplotDDH5(f, g)
 
     return app.exec()
