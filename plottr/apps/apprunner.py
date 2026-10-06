@@ -7,7 +7,7 @@ import sys
 import importlib
 import argparse
 
-from plottr import qtapp
+from plottr import qtapp, enableEventLoopGarbageCollection
 from plottr.apps.appmanager import App
 
 
@@ -27,6 +27,7 @@ if __name__ == '__main__':
     extra_arguments = tuple(args.app_arguments)
 
     application = qtapp()
+    enableEventLoopGarbageCollection(application)
     module = importlib.import_module(full_module)
     func = getattr(module, func_name)
     app = App(func, port, None, extra_arguments)

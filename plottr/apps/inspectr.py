@@ -24,7 +24,7 @@ from typing_extensions import TypedDict
 from numpy import rint
 import pandas
 
-from plottr import QtCore, QtWidgets, Signal, Slot, QtGui, Flowchart, QAction
+from plottr import QtCore, QtWidgets, Signal, Slot, QtGui, Flowchart, QAction, enableEventLoopGarbageCollection
 
 from .. import log as plottrlog
 from ..data.qcodes_dataset import (get_runs_from_db_as_dataframe,
@@ -941,6 +941,7 @@ def main(dbPath: Optional[str], log_level: Union[int, str] = logging.WARNING,
     if (sys.flags.interactive != 1) or not hasattr(QtCore, 'PYQT_VERSION'):
         appinstance = QtWidgets.QApplication.instance()
         assert appinstance is not None
+        enableEventLoopGarbageCollection(appinstance)
         appinstance.exec()
 
 

@@ -1,6 +1,7 @@
 from typing import TYPE_CHECKING, List, Tuple, Dict, Any, Optional
 from importlib.abc import Loader
 from importlib.util import spec_from_file_location, module_from_spec
+import gc
 import logging
 import os
 import sys
@@ -37,6 +38,7 @@ else:
         QActionGroup = QtWidgets.QActionGroup
 
 from pyqtgraph.flowchart import Flowchart as pgFlowchart, Node as pgNode
+from pyqtgraph.util.garbage_collector import GarbageCollector
 Flowchart = pgFlowchart
 NodeBase = pgNode
 
@@ -61,6 +63,44 @@ def qtapp() -> QtWidgets.QApplication:
     signal.signal(signal.SIGINT, signal.SIG_DFL)
     app = QtWidgets.QApplication(sys.argv)
     return app
+
+
+_garbageCollector: Optional[GarbageCollector] = None
+
+
+def enableEventLoopGarbageCollection(app: QtCore.QCoreApplication,
+                                     interval_sec: float = 1.0) -> None:
+    """Run Python's cyclic garbage collector only from the Qt event loop.
+
+    Flowcharts, nodes and their pyqtgraph/Qt objects form reference cycles,
+    so once discarded (e.g., a closed plot window) they are only freed by
+    Python's cyclic garbage collector. By default that collector runs
+    whenever an allocation happens to cross its threshold -- including
+    while Qt is in the middle of constructing other graphics items, or in a
+    worker thread. Destroying Qt objects at such points can segfault the
+    process.
+
+    This disables automatic collection and instead collects periodically
+    from a timer in the GUI thread's event loop (via pyqtgraph's
+    ``GarbageCollector``, see
+    https://github.com/pyqtgraph/pyqtgraph/blob/pyqtgraph-0.14.0/pyqtgraph/util/garbage_collector.py),
+    plus once more when the application is about to quit, so that no Qt
+    objects are left for interpreter shutdown.
+
+    Call this once, after creating the ``QApplication``, in applications that
+    own the process (plottr's own apps do). Because it changes the garbage
+    collector for the whole interpreter, plottr does not do this
+    automatically when its widgets are embedded in other applications.
+    """
+    global _garbageCollector
+    if _garbageCollector is not None:
+        return
+    _garbageCollector = GarbageCollector(interval=interval_sec)
+    app.aboutToQuit.connect(_collectGarbage)
+
+
+def _collectGarbage() -> None:
+    gc.collect()
 
 
 def configPaths() -> Tuple[str, str, str]:
