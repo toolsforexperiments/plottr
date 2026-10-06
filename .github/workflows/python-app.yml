@@ -14,17 +14,13 @@ jobs:
       fail-fast: false
       matrix:
         python-version: ["3.12", "3.13", "3.14"]
-    env:
-      DISPLAY: ':99.0'
 
     steps:
-      # Source - https://stackoverflow.com/questions/75497408/github-action-pytest-exit-code-134
-      # Posted by Justin Buiel
-      # Retrieved 2026-01-03, License - CC BY-SA 4.0
-    - uses: tlambert03/setup-qt-libs@v1
-    - name: build "display"
-      run: |
-        /sbin/start-stop-daemon --start --quiet --pidfile /tmp/custom_xvfb_99.pid --make-pidfile --background --exec /usr/bin/Xvfb -- :99 -screen 0 1920x1200x24 -ac +extension GLX
+    # Installs the system libraries Qt needs, starts Xvfb and exports DISPLAY.
+    - uses: pyvista/setup-headless-display-action@v5
+      with:
+        qt: true
+        pyvista: false
     - uses: actions/checkout@v7
     - name: Set up Python ${{ matrix.python-version }}
       uses: actions/setup-python@v7.0.0
