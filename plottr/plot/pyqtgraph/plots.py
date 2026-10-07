@@ -88,16 +88,17 @@ class PlotWithColorbar(PlotBase):
         self.scatter: Optional[pg.ScatterPlotItem] = None
         self.scatterZVals: Optional[np.ndarray] = None
 
+        # Recolor scatter points when the user changes the colorbar levels.
+        # This is a no-op while no scatter plot is shown, so the slot can stay
+        # connected for the lifetime of the widget.
+        self.colorbar.sigLevelsChanged.connect(self._colorScatterPoints)
+
     def clearPlot(self) -> None:
         """Clear the content of the plot."""
         self.img = None
         self.scatter = None
         self.scatterZVals = None
         self.plot.clear()
-        try:
-            self.colorbar.sigLevelsChanged.disconnect(self._colorScatterPoints)
-        except TypeError:
-            pass
 
     def setImage(self, x: np.ndarray, y: np.ndarray, z: np.ndarray) -> None:
         """Set data to be plotted as image.
@@ -155,8 +156,6 @@ class PlotWithColorbar(PlotBase):
         self.colorbar.setLevels((z.min(), z.max()))
         self.colorbar.rounding = (z.max() - z.min()) * 1e-2
         self._colorScatterPoints(self.colorbar)
-
-        self.colorbar.sigLevelsChanged.connect(self._colorScatterPoints)
 
     # TODO: this seems crazy slow.
     def _colorScatterPoints(self, cbar: pg.ColorBarItem) -> None:
