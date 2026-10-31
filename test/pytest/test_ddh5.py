@@ -1,7 +1,7 @@
 """Test for datadict hdf5 serialization"""
 
 from pathlib import Path
-from multiprocessing import Process
+import multiprocessing
 import time
 from shutil import rmtree
 
@@ -205,7 +205,12 @@ def test_writer():
     rmtree('./TESTDATA')
 
 
-class _Writer(Process):
+# Use 'spawn' on all platforms: forking the multi-threaded (Qt) test process is
+# unsafe and raises a DeprecationWarning on Linux with Python >= 3.12.
+_mp_context = multiprocessing.get_context("spawn")
+
+
+class _Writer(_mp_context.Process):
 
     ncols = 100
     nrows_per_rep = 1000

@@ -280,7 +280,11 @@ class FittingGui(NodeWidget):
             self.param_table.setCellWidget(idx, 2, lowerBoundBox)
             self.param_table.setCellWidget(idx, 3, upperBoundBox)
 
-        self.changeParamLiveUpdate(self.live_update)
+        # The new option widgets start out unconnected, so only connect them
+        # when live update is on. (Disconnecting signals that were never
+        # connected makes PySide6 emit a RuntimeWarning.)
+        if self.live_update:
+            self.changeParamLiveUpdate(True)
 
     def _paramFixCheck(self, default_value: bool = False) -> QtWidgets.QCheckBox:
         """generate a push checkbox for the parameter fix option.
@@ -312,12 +316,12 @@ class FittingGui(NodeWidget):
         reloadInputOptButton = QtWidgets.QPushButton("Reload Input Option")
         grid.addWidget(reloadInputOptButton, 0, 3)
 
-        @Slot(QtCore.Qt.CheckState)  # type: ignore[arg-type]
-        def setLiveUpdate(live: QtCore.Qt.CheckState) -> None:
+        @Slot(bool)  # type: ignore[arg-type]
+        def setLiveUpdate(live: bool) -> None:
             ''' connect/disconnects the changing signal of each fitting
             option to signalAllOptions slot
             '''
-            if live == QtCore.Qt.Checked:
+            if live:
                 self.model_list.currentItemChanged.connect(
                     self._signalAllOptions)
                 self.changeParamLiveUpdate(True)
@@ -346,7 +350,10 @@ class FittingGui(NodeWidget):
             self.dry_run = True
             self.signalAllOptions()
 
-        liveUpdateCheck.stateChanged.connect(setLiveUpdate)
+        # use toggled(bool) rather than stateChanged: depending on the Qt
+        # binding, stateChanged emits an int that does not compare equal to
+        # the Qt.CheckState enum.
+        liveUpdateCheck.toggled.connect(setLiveUpdate)
         updateFitButton.pressed.connect(self.signalAllOptions)
         guessParamButton.pressed.connect(setGuessParam)
         reloadInputOptButton.pressed.connect(reloadInputOption)
