@@ -1093,7 +1093,7 @@ class FileModel(QtGui.QStandardItemModel):
         return [
             self.tags_model.item(i, 0).text()
             for i in range(self.tags_model.rowCount())
-            if self.tags_model.item(i, 0).checkState()
+            if self.tags_model.item(i, 0).checkState() == QtCore.Qt.CheckState.Checked
         ]
 
     @Slot()
