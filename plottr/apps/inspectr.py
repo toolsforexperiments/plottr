@@ -766,7 +766,7 @@ class QCodesDBInspector(QtWidgets.QMainWindow):
     def updateDates(self) -> None:
         assert self.dbdf is not None
         if self.dbdf.size > 0:
-            dates = list(self.dbdf.groupby('started_date').indices.keys())
+            dates = [str(d) for d in self.dbdf.groupby('started_date').indices]
             self.dateList.updateDates(dates)
 
     ### reloading the db

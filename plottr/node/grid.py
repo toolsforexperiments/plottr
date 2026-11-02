@@ -234,6 +234,8 @@ class GridOptionWidget(QtWidgets.QWidget):
             are `order` and `shape` as returned by :mem:`getShape`.
         """
         activeBtn = self.btnGroup.checkedButton()
+        # the group is exclusive and a button is checked on construction
+        assert activeBtn is not None
         activeId = self.btnGroup.id(activeBtn)
         opts: Optional[SpecShapeType] = None
 
