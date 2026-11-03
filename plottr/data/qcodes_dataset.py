@@ -9,9 +9,7 @@ from contextlib import closing
 from datetime import datetime
 from itertools import chain
 from operator import attrgetter
-from typing import Dict, List, Set, Union, TYPE_CHECKING, Any, Tuple, Optional, cast
-
-from typing_extensions import TypedDict
+from typing import Dict, List, Set, Union, TYPE_CHECKING, Any, Tuple, Optional, cast, TypedDict
 
 import pandas as pd
 

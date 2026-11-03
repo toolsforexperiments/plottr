@@ -17,9 +17,7 @@ import time
 import sys
 import argparse
 import logging
-from typing import Any, Optional, Sequence, List, Dict, Iterable, Union, cast, Tuple, Mapping
-
-from typing_extensions import TypedDict
+from typing import Any, Optional, Sequence, List, Dict, Iterable, Union, cast, Tuple, Mapping, TypedDict
 
 from numpy import rint
 import pandas

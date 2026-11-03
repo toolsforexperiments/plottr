@@ -5,3 +5,5 @@ hypothesis
 mypy==2.4.1
 pandas-stubs
 watchdog
+psutil
+packaging
