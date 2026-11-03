@@ -21,9 +21,7 @@ import datetime
 import json
 import logging
 from contextlib import closing, nullcontext
-from typing import TYPE_CHECKING
-
-from typing_extensions import TypedDict
+from typing import TYPE_CHECKING, TypedDict
 
 if TYPE_CHECKING:
     from collections.abc import Sequence

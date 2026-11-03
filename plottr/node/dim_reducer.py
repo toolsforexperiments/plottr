@@ -2,10 +2,9 @@
 
 nodes and widgets for reducing data dimensionality.
 """
-from typing import Dict, Any, Tuple, Type, Optional, List, Union, cast, Callable
+from typing import Dict, Any, Tuple, Type, Optional, List, Union, cast, Callable, TypedDict
 from enum import Enum, unique
 
-from typing_extensions import TypedDict
 import numpy as np
 
 from .node import Node, updateOption, NodeWidget

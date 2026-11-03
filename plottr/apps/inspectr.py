@@ -17,9 +17,7 @@ import time
 import sys
 import argparse
 import logging
-from typing import Any, Optional, Sequence, List, Dict, Iterable, Union, cast, Tuple, Mapping
-
-from typing_extensions import TypedDict
+from typing import Any, Optional, Sequence, List, Dict, Iterable, Union, cast, Tuple, Mapping, TypedDict
 
 from numpy import rint
 import pandas
@@ -766,7 +764,7 @@ class QCodesDBInspector(QtWidgets.QMainWindow):
     def updateDates(self) -> None:
         assert self.dbdf is not None
         if self.dbdf.size > 0:
-            dates = list(self.dbdf.groupby('started_date').indices.keys())
+            dates = [str(d) for d in self.dbdf.groupby('started_date').indices]
             self.dateList.updateDates(dates)
 
     ### reloading the db

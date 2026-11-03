@@ -32,3 +32,38 @@ jobs:
     - name: Test with pytest
       run: |
         pytest test/pytest
+
+  min-deps:
+    # Checks that the minimum versions declared in pyproject.toml still work:
+    # every dependency is installed at its lowest allowed version, on the
+    # oldest supported Python.
+    name: Minimum dependencies (Python 3.12)
+    runs-on: ubuntu-latest
+    env:
+      QT_API: pyside6
+      PYTEST_QT_API: pyside6
+
+    steps:
+    - uses: pyvista/setup-headless-display-action@v5
+      with:
+        qt: true
+        pyvista: false
+    - uses: actions/checkout@v7
+    - name: Set up Python 3.12
+      uses: actions/setup-python@v7.1.0
+      with:
+        python-version: "3.12"
+    - uses: astral-sh/setup-uv@v10.3.3
+    - name: Install the minimum versions of the dependencies
+      run: |
+        uv pip compile pyproject.toml --extra pyside6 --extra qcodes \
+          --resolution lowest-direct --python-version 3.12 \
+          --output-file min-requirements.txt
+        uv pip install --system -r min-requirements.txt
+        uv pip install --system --no-deps .
+        # test tools, without moving any of the pinned dependencies
+        uv pip install --system -r test_requirements.txt -c min-requirements.txt
+        uv pip list --system
+    - name: Test with pytest
+      run: |
+        pytest test/pytest

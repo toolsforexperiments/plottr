@@ -71,7 +71,12 @@ def test_data_selector_node_ui(qtbot, node_ui_enabled):
 
     data = testdata.three_incompatible_3d_sets(2, 2, 2)
     fc.setInput(dataIn=data)
+    # The node sends the data structure to its UI through Qt signals. With
+    # PySide6 < 6.10.1 those signals were never delivered (along with a "Sort
+    # Warning" about the order of signals and slots), leaving the UI empty.
+    assert node.ui.widget.topLevelItemCount() == len(data.dependents())
     node.selectedData = ['data']
+    assert node.ui.getSelected() == ['data']
     assert fc.outputValues()['dataOut'] is not None
 
 
