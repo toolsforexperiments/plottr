@@ -53,7 +53,7 @@ jobs:
       uses: actions/setup-python@v7.1.0
       with:
         python-version: "3.12"
-    - uses: astral-sh/setup-uv@v10
+    - uses: astral-sh/setup-uv@v10.3.3
     - name: Install the minimum versions of the dependencies
       run: |
         uv pip compile pyproject.toml --extra pyside6 --extra qcodes \
