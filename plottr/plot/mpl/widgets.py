@@ -9,7 +9,7 @@ from matplotlib import rcParams
 from matplotlib.axes import Axes
 from matplotlib.figure import Figure
 from matplotlib.backend_bases import LocationEvent, MouseButton, Event
-from matplotlib.backends.backend_qt5agg import (
+from matplotlib.backends.backend_qtagg import (
     FigureCanvasQTAgg as FCanvas,
     NavigationToolbar2QT as NavBar,
 )
