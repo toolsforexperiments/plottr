@@ -96,8 +96,8 @@ You might want to install freshly if you still use the old version.
 ## Requirements:
 * python >= 3.12
 * the usual: numpy, mpl, ...
-* pandas >= 0.22
-* pyqtgraph >= 0.12.1
+* pandas >= 2.2.2
+* pyqtgraph >= 0.13.3
 * one Qt binding (PySide6 recommended; see [Installation](#installation))
 
 # Recent changes:
