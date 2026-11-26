@@ -16,6 +16,7 @@ import numpy as np
 from pathlib import Path
 from typing import Tuple, List
 
+from plottr import QtCore
 from plottr.data.datadict import DataDict
 from plottr.apps.monitr import FilterWorker, FileModel
 from plottr.data.datadict_storage import datadict_to_hdf5
@@ -978,6 +979,19 @@ def test_item_query_check(qtbot, tmp_path):
     tag_filter = []
     queries_dict = FilterWorker.parse_queries(filter, tag_filter)
     assert not FilterWorker._item_check(item, False, queries_dict, )
+
+
+def test_currently_selected_tags_only_returns_checked_tags(qtbot, tmp_path):
+    """With Qt6, ``CheckState.Unchecked`` is a truthy Python enum, so the
+    selection must compare against ``Checked`` rather than test truthiness."""
+    model = FileModel(str(tmp_path), 0, 2, watcher_on=False)
+    model.tag_added('good')
+    model.tag_added('bad')
+    assert model.currently_selected_tags() == []
+
+    good_item = model.tags_model.findItems('good', QtCore.Qt.MatchFlag.MatchExactly)[0]
+    good_item.setCheckState(QtCore.Qt.CheckState.Checked)
+    assert model.currently_selected_tags() == ['good']
 
 
 

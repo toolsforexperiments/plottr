@@ -320,11 +320,13 @@ class Collapsible(QtWidgets.QWidget):
         :param widget: The new widget that should be displayed. It should already be instantiated.
         """
 
-        self.layout().removeWidget(self.widget)
+        layout = self.layout()
+        assert layout is not None
+        layout.removeWidget(self.widget)
         self.widget.deleteLater()
 
         self.widget = widget
-        self.layout().addWidget(self.widget)
+        layout.addWidget(self.widget)
 
 
 class DimensionCombo(QtWidgets.QComboBox):

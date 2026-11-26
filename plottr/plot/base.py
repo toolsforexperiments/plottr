@@ -131,13 +131,16 @@ class PlotWidgetContainer(QtWidgets.QWidget):
         if widget is self.plotWidget:
             return
 
+        layout = self.layout()
+        assert layout is not None
+
         if self.plotWidget is not None:
-            self.layout().removeWidget(self.plotWidget)
+            layout.removeWidget(self.plotWidget)
             self.plotWidget.deleteLater()
 
         self.plotWidget = widget
         if self.plotWidget is not None:
-            self.layout().addWidget(widget)
+            layout.addWidget(widget)
             self.plotWidget.setData(self.data)
 
     def setData(self, data: DataDictBase) -> None:

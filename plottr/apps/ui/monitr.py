@@ -39,7 +39,7 @@ class DataFileContent(QtWidgets.QTreeWidget):
         self.plotAction.triggered.connect(self.onPlotActionTriggered)
 
 
-    @Slot(object)  # type: ignore[arg-type]
+    @Slot(object)
     def setData(self, data: Dict[str, DataDict]) -> None:
         """Set the data to display."""
         self.clear()

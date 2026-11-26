@@ -758,7 +758,7 @@ class FileModel(QtGui.QStandardItemModel):
                     self._delete_all_children_from_main_dictionary(child_item)
                 del self.main_dictionary[child_item.path]
 
-    @Slot(FileSystemEvent)  # type: ignore[arg-type]
+    @Slot(FileSystemEvent)
     def on_file_moved(self, event: FileSystemMovedEvent) -> None:
         """
         Gets triggered every time a file is moved or the name of a file (including type) changes.
@@ -1093,7 +1093,7 @@ class FileModel(QtGui.QStandardItemModel):
         return [
             self.tags_model.item(i, 0).text()
             for i in range(self.tags_model.rowCount())
-            if self.tags_model.item(i, 0).checkState()
+            if self.tags_model.item(i, 0).checkState() == QtCore.Qt.CheckState.Checked
         ]
 
     @Slot()
@@ -1358,7 +1358,7 @@ class FileTreeView(QtWidgets.QTreeView):
         # self.context_menu.addAction(self.delete_action)
         self.context_menu.exec(self.mapToGlobal(pos))
 
-    @Slot(object)  # type: ignore[arg-type]
+    @Slot(object)
     def on_adjust_column_width(self, item: Optional[Item] = None) -> None:
         """
         Gets called when the model changed the icon of an item. When changing an item icons that has the tag widget

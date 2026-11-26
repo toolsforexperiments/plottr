@@ -509,7 +509,7 @@ class DDH5Loader(Node):
             self.loadingThread.start()
         return None
 
-    @Slot(object)  # type: ignore[arg-type]
+    @Slot(object)
     def onThreadComplete(self, data: Optional[DataDict]) -> None:
         if data is None:
             return None

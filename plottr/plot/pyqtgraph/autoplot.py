@@ -391,15 +391,17 @@ class AutoPlot(ClipboardMessageMixin, PlotWidget):
                 )
 
         if self.fmWidget is None:
+            layout = self.layout()
+            assert layout is not None
             self.fmWidget = fm.widget
-            self.layout().addWidget(self.fmWidget)
+            layout.addWidget(self.fmWidget)
             self.figConfig = FigureConfigToolBar(self.figOptions,
                                                  parent=self)
-            self.layout().addWidget(self.figConfig)
+            layout.addWidget(self.figConfig)
             self.figConfig.optionsChanged.connect(self._refreshPlot)
             self.figConfig.figCopied.connect(self.onfigCopied)
             self.figConfig.figSaved.connect(self.onfigSaved)
-            self.layout().addWidget(self.statusLabel)
+            layout.addWidget(self.statusLabel)
 
         if kwargs.get('clearWidget', True):
             for subplot in self.fmWidget.subPlots:

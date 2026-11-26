@@ -151,7 +151,7 @@ class App(QtCore.QObject):
         self.serverThread.started.connect(self.server.run)
         self.serverThread.start()
 
-    @Slot(object)  # type: ignore[arg-type]
+    @Slot(object)
     def onMessageReceived(self, message: Tuple[str, str, Any]) -> None:
         """
         Handles message reception and reply to the app. Emits the signal replyReady with the reply. The signal is
@@ -241,7 +241,7 @@ class ProcessMonitor(QtCore.QObject):
         self.processes: Dict[IdType, QtCore.QProcess] = {}
         self.checking = True
 
-    @Slot(object, object)  # type: ignore[arg-type]
+    @Slot(object, object)
     def onNewProcess(self, Id: IdType, process: QtCore.QProcess) -> None:
         """
         Slot used to add a new process to the ProcessMonitor.
@@ -372,7 +372,7 @@ class AppManager(QtWidgets.QWidget):
         logger.warning(f'Id {Id} already exists')
         return False
 
-    @Slot(object)  # type: ignore[arg-type]
+    @Slot(object)
     def onProcessEnded(self, Id: IdType) -> None:
         """
         Gets triggered when the ProcessMonitor detects a process has been closed. Deletes the process from the internal

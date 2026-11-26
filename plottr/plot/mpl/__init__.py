@@ -5,7 +5,7 @@ Contains the following main objects:
 Base UI elements
 ----------------
 
-* :class:`.widgets.MPLPlot` (``matplotlib.backends.backend_qt5agg.FigureCanvasQTAgg``) --
+* :class:`.widgets.MPLPlot` (``matplotlib.backends.backend_qtagg.FigureCanvasQTAgg``) --
   Figure and Canvas widget.
   The most elementary Qt widget that contains the the matplotlib figure instance.
 

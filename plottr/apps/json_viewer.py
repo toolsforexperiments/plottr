@@ -225,11 +225,7 @@ class JsonModel(QAbstractItemModel):
         else:
             parentItem = parent.internalPointer()
 
-        childItem = parentItem.child(row)
-        if childItem:
-            return self.createIndex(row, column, childItem)
-        else:
-            return QModelIndex()
+        return self.createIndex(row, column, parentItem.child(row))
 
     def parent(self, index: QModelIndex) -> QModelIndex:  #type: ignore[override]
         """Override from QAbstractItemModel

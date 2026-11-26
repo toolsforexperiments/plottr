@@ -316,7 +316,7 @@ class FittingGui(NodeWidget):
         reloadInputOptButton = QtWidgets.QPushButton("Reload Input Option")
         grid.addWidget(reloadInputOptButton, 0, 3)
 
-        @Slot(bool)  # type: ignore[arg-type]
+        @Slot(bool)
         def setLiveUpdate(live: bool) -> None:
             ''' connect/disconnects the changing signal of each fitting
             option to signalAllOptions slot
